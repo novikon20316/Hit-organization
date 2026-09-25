@@ -29,6 +29,7 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
         case 'division_head':            return 'division_head_pending';
         case 'dean':                     return 'dean_pending';
         case 'grad_school_head':         return 'grad_school_head_approvals';
+        case 'school_head':              return 'school_head_approvals';
         case 'internal_examiner':        return 'examiner_defenses';
         case 'system_admin':             return 'admin_panel_milestones';
         default: return null;
@@ -42,6 +43,7 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
         case 'faculty_admin':            return 'faculty_admin_signoffs';
         case 'program_head':             return 'program_head_approvals';
         case 'grad_school_head':         return 'grad_school_head_approvals';
+        case 'school_head':              return 'school_head_approvals';
         case 'system_admin':             return 'admin_panel_signoffs';
         default: return null;
       }
@@ -51,6 +53,7 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
         case 'administrative_secretary': return 'coordinator_deadlines';
         case 'faculty_admin':            return 'faculty_admin_deadlines';
         case 'grad_school_head':         return 'grad_school_head_examiners';
+        case 'school_head':              return 'school_head_approvals';
         case 'program_head':             return 'program_head_approvals';
         case 'internal_examiner':        return 'examiner_defenses';
         case 'system_admin':             return 'coordinator_deadlines';
@@ -61,6 +64,7 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
         case 'coordinator':
         case 'administrative_secretary':
         case 'system_admin':             return 'coordinator_defense';
+        case 'school_head':              return 'school_head_approvals';
         case 'internal_examiner':        return 'examiner_schedule';
         case 'supervisor':
         case 'secondary_supervisor':     return 'supervisor_projects';

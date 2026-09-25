@@ -123,6 +123,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   login_security: '/login-security',
   student_grades: '/student/home?tab=grades',
   admin_system_health: '/admin/overview',
+  school_head_approvals: '/school_head/school_head_dashboard',
 };
 
 // Shared by handleTapNotif below and the [id] detail screen's own

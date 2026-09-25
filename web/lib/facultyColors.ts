@@ -30,6 +30,8 @@ export const ROLE_ACCENTS: Record<AppRole, string> = {
   dean: '#7A2E2E',
   administrative_secretary: '#7A6A53',
   grad_school_head: '#6E5A99',
+  // Shares grad_school_head's accent — same seniority, narrower scope.
+  school_head: '#6E5A99',
   internal_examiner: '#8C4F6B',
   system_admin: '#B8862E',
 };

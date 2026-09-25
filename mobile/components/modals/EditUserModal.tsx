@@ -153,7 +153,12 @@ export default function EditUserModal({
     coordinatorScopes !== undefined && !!setCoordinatorScopes &&
     (role === 'coordinator' || roles.includes('coordinator') ||
       role === 'administrative_secretary' || roles.includes('administrative_secretary') ||
-      role === 'grad_school_head' || roles.includes('grad_school_head'));
+      role === 'grad_school_head' || roles.includes('grad_school_head') ||
+      // Unlike grad_school_head above, school_head's coordinatorScopes major
+      // entries aren't optional narrowing — they're this role's ENTIRE
+      // scope (see server/src/services/scopeAuthorization.ts's
+      // isStudentWithinStaffScope: empty means no access at all here).
+      role === 'school_head' || roles.includes('school_head'));
   const showAssignedMajors =
     assignedMajors !== undefined && !!setAssignedMajors &&
     (role === 'supervisor' || role === 'secondary_supervisor' ||
@@ -183,9 +188,7 @@ export default function EditUserModal({
       try {
         const res = await apiClient.get('/api/student-statuses');
         setStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] });
-      } catch (e) {
-        console.error('EditUserModal: failed to load student status options', e);
-      } finally {
+      } catch {} finally {
         setStatusOptionsLoaded(true);
       }
     })();

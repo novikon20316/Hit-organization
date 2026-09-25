@@ -922,6 +922,7 @@ export type AppRole =
   | 'dean'
   | 'administrative_secretary'
   | 'grad_school_head'
+  | 'school_head'
   | 'internal_examiner'
   | 'system_admin';
 
@@ -936,6 +937,10 @@ export const ROLE_LABELS: Record<AppRole, { he: string; en: string }> = {
   dean:                  { he: 'דיקן הפקולטה',                      en: 'Dean of the Faculty' },
   administrative_secretary:   { he: 'רכזת אדמיניסטרטיבית',                     en: 'Administrative Coordinator' },
   grad_school_head:      { he: 'ראש בית הספר ללימודי מוסמכים',      en: 'Graduate School Head' },
+  // Same seniority as grad_school_head, narrowed to one or more specific
+  // majors (coordinatorScopes) instead of a whole faculty — see
+  // server/src/services/scopeAuthorization.ts's isStudentWithinStaffScope.
+  school_head:           { he: 'ראש בית ספר',                       en: 'School Head' },
   internal_examiner:     { he: 'בוחן פנימי',                        en: 'Internal Examiner' },
   system_admin:          { he: 'מנהל מערכת',                        en: 'System Admin' },
 };

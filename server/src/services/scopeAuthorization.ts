@@ -202,6 +202,18 @@ export function isStudentWithinStaffScope(
   if (hasRole(user, 'administrative_secretary')) {
     return withinCoordinatorScope(user, { facultyId: student.facultyId, ...(student.major ? { major: student.major } : {}) });
   }
+  if (hasRole(user, 'school_head')) {
+    // Unlike grad_school_head/administrative_secretary above, an EMPTY
+    // coordinatorScopes here means no access at all, not "whole faculty" —
+    // being scoped to a specific major is this role's entire reason to
+    // exist (see the "head of school" feature request: a CS school_head
+    // must never see Applied Math data just because both share a faculty).
+    // Deliberately no degree-level restriction (unlike grad_school_head's
+    // masters-only check above) — covers both bachelor's and master's
+    // students in the assigned major(s).
+    if (user.coordinatorScopes.length === 0) return false;
+    return user.coordinatorScopes.some((s) => scopeMatches(s, { facultyId: student.facultyId, ...(student.major ? { major: student.major } : {}) }));
+  }
   return false;
 }
 

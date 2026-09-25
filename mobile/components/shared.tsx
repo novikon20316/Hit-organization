@@ -109,6 +109,8 @@ export const ROLE_ACCENT = {
   coordinator:           { bg: '#ECFDF5', text: '#10B981', label: { he: 'רכז פרויקטים',            en: 'Coordinator'             } },
   faculty_admin:         { bg: '#ECFEFF', text: '#06B6D4', label: { he: 'מנהל פקולטה',              en: 'Faculty Admin'           } },
   grad_school_head:      { bg: '#F0FDFA', text: '#0D9488', label: { he: 'ראש בית ספר',              en: 'Grad School Head'        } },
+  // Shares grad_school_head's accent — same seniority, narrower (major-scoped) reach.
+  school_head:           { bg: '#F0FDFA', text: '#0D9488', label: { he: 'ראש בית ספר',              en: 'School Head'             } },
   program_head:          { bg: '#FFF7ED', text: '#F97316', label: { he: 'ראש תוכנית',              en: 'Program Head'            } },
   division_head:         { bg: '#ECFDF5', text: '#2E5C4E', label: { he: 'ראש תחום',                en: 'Head of Division'        } },
   dean:                  { bg: '#FEF2F2', text: '#7A2E2E', label: { he: 'דיקן הפקולטה',            en: 'Dean of the Faculty'     } },
@@ -411,9 +413,7 @@ export function TopBar({
   const clearPushTokenOnLogout = async () => {
     try {
       await apiClient.post('/api/users/logout');
-    } catch (e) {
-      console.warn('Logout API call failed, continuing anyway');
-    }
+    } catch {}
   };
 
   const handleSignOut = async () => {

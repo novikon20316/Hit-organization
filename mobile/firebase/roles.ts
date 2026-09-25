@@ -26,6 +26,7 @@ export const ROLES = {
   DEAN:                  'dean',
   PROJECT_COORDINATOR:   'administrative_secretary',
   GRAD_SCHOOL_HEAD:      'grad_school_head',
+  SCHOOL_HEAD:           'school_head',
   INTERNAL_EXAMINER:     'internal_examiner',
   SYSTEM_ADMIN:          'system_admin',
 } as const satisfies Record<string, AppRole>;
@@ -41,6 +42,7 @@ export const STAFF_ROLES: AppRole[] = [
   'dean',
   'administrative_secretary',
   'grad_school_head',
+  'school_head',
   'internal_examiner',
   'system_admin',
 ];
@@ -62,6 +64,7 @@ export const DELEGATE_MANAGEABLE_ROLES: AppRole[] = [
 // Roles that can approve at grad-school level
 export const GRAD_SCHOOL_APPROVERS: AppRole[] = [
   'grad_school_head',
+  'school_head',
   'system_admin',
 ];
 
@@ -294,6 +297,10 @@ const ROLE_RANK: Record<AppRole, number> = {
   dean: 2,
   faculty_admin: 3,
   program_head: 4,
+  // Narrower than program_head (one or more specific majors, not the whole
+  // faculty) — see server/src/services/scopeAuthorization.ts's
+  // isStudentWithinStaffScope.
+  school_head: 4.5,
   division_head: 5,
   coordinator: 6,
   administrative_secretary: 7,
@@ -331,6 +338,7 @@ export function getHomeRoute(role: AppRole | undefined): string {
     case 'dean':                 return '/dean/dean_dashboard';
     case 'administrative_secretary':  return '/administrative_coordinator/dashboard';
     case 'grad_school_head':     return '/grad_school_head/dashboard';
+    case 'school_head':          return '/school_head/school_head_dashboard';
     case 'internal_examiner':    return '/examinor/home';
     case 'system_admin':         return '/admin/overview';
     default:                     return '/(auth)/login';
@@ -509,6 +517,7 @@ export const VALID_ROLES: AppRole[] = [
   'dean',
   'administrative_secretary',
   'grad_school_head',
+  'school_head',
   'internal_examiner',
   'system_admin',
 ];
@@ -663,7 +672,6 @@ const EXAMINER_DOC = {
 export async function createAdminUserDoc() {
   const user = auth.currentUser;
   if (!user) {
-    console.warn('⚠️ Log in first, then run this.');
     return;
   }
 
@@ -692,7 +700,6 @@ export async function createAdminUserDoc() {
     lastLoginAt:     serverTimestamp(),
   });
 
-  console.log('✅ Admin doc created for UID:', user.uid);
 }
 
 export async function createCoordinator() {
@@ -736,10 +743,7 @@ export async function createCoordinator() {
       createdAt: serverTimestamp(),
     });
 
-    console.log('✅ Coordinator created');
-  } catch (e) {
-    console.error('❌ Error creating coordinator:', e);
-  }
+  } catch {}
 };
 
 export async function createExaminer() {
@@ -781,10 +785,7 @@ export async function createExaminer() {
       createdAt: serverTimestamp(),
     });
 
-    console.log('✅ Coordinator created');
-  } catch (e) {
-    console.error('❌ Error creating coordinator:', e);
-  }
+  } catch {}
 };
 */
 // ─── Valid role values (copy exactly — case sensitive) ────────────────────────

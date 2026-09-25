@@ -39,6 +39,7 @@ import { buildCoordinatorNavSections, COORDINATOR_QUICK_ACTIONS } from '@/app/co
 import { ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS } from '@/app/administrative_coordinator/navSections';
 import { FACULTY_ADMIN_NAV_SECTIONS, FACULTY_ADMIN_QUICK_ACTIONS } from '@/app/faculty_admin/navSections';
 import { GRAD_SCHOOL_HEAD_NAV_SECTIONS, GRAD_SCHOOL_HEAD_QUICK_ACTIONS } from '@/app/grad_school_head/navSections';
+import { SCHOOL_HEAD_NAV_SECTIONS } from '@/app/school_head/navSections';
 import { buildProgramHeadNavSections } from '@/app/program_head/navSections';
 import { DIVISION_HEAD_NAV_SECTIONS } from '@/app/division_head/navSections';
 import { DEAN_NAV_SECTIONS } from '@/app/dean/navSections';
@@ -71,6 +72,7 @@ const ROLE_SWITCH_META: Record<AppRole, { icon: string; label: { he: string; en:
   dean:                     { icon: '🏅', label: { he: 'דיקן הפקולטה', en: 'Dean of the Faculty' } },
   administrative_secretary: { icon: '📊', label: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' } },
   grad_school_head:         { icon: '🏛️', label: { he: 'ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head' } },
+  school_head:              { icon: '🏫', label: { he: 'ראש בית ספר', en: 'School Head' } },
   internal_examiner:        { icon: '✏️', label: { he: 'בוחן פנימי', en: 'Internal Examiner' } },
   system_admin:             { icon: '🛡️', label: { he: 'מנהל מערכת', en: 'System Admin' } },
 };
@@ -146,6 +148,12 @@ function getBaseChromeForRole(role: AppRole | undefined, roles: AppRole[]): Role
         brand: { name: 'HIT', subtitle: { he: 'פורטל ראש בית ספר ללימודי מוסמכים', en: 'Grad School Head Portal' } },
         sections: GRAD_SCHOOL_HEAD_NAV_SECTIONS,
         quickActions: GRAD_SCHOOL_HEAD_QUICK_ACTIONS,
+        theme: { mode: 'accent' },
+      };
+    case 'school_head':
+      return {
+        brand: { name: 'HIT', subtitle: { he: 'פורטל ראש בית ספר', en: 'School Head Portal' } },
+        sections: SCHOOL_HEAD_NAV_SECTIONS,
         theme: { mode: 'accent' },
       };
     case 'faculty_admin':

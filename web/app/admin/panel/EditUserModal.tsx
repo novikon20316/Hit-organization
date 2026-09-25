@@ -111,7 +111,12 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const showCoordinatorScopes =
     role === 'coordinator' || additionalRoles.includes('coordinator') ||
     role === 'administrative_secretary' || additionalRoles.includes('administrative_secretary') ||
-    role === 'grad_school_head' || additionalRoles.includes('grad_school_head');
+    role === 'grad_school_head' || additionalRoles.includes('grad_school_head') ||
+    // school_head's coordinatorScopes major entries aren't optional
+    // narrowing like grad_school_head's above — they're this role's ENTIRE
+    // scope (see scopeAuthorization.ts's isStudentWithinStaffScope: empty
+    // means no access at all here, not "whole faculty").
+    role === 'school_head' || additionalRoles.includes('school_head');
   const isSupervisor = role === 'supervisor' || additionalRoles.includes('supervisor');
   const isSecondarySupervisor = role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
   const isSupervisorLike = isSupervisor || isSecondarySupervisor;

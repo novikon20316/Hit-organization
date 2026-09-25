@@ -21,6 +21,7 @@ const ROLE_META: Record<AppRole, { icon: string; labelHe: string; labelEn: strin
   dean:                     { icon: '🏅', labelHe: 'דיקן הפקולטה', labelEn: 'Dean of the Faculty' },
   administrative_secretary: { icon: '📊', labelHe: 'רכזת אדמיניסטרטיבית', labelEn: 'Administrative Coordinator' },
   grad_school_head:         { icon: '🏛️', labelHe: 'ראש בית ספר ללימודי מוסמכים', labelEn: 'Grad School Head' },
+  school_head:              { icon: '🏫', labelHe: 'ראש בית ספר', labelEn: 'School Head' },
   internal_examiner:        { icon: '✏️', labelHe: 'בוחן פנימי', labelEn: 'Internal Examiner' },
   system_admin:             { icon: '🛡️', labelHe: 'מנהל מערכת', labelEn: 'System Admin' },
 };

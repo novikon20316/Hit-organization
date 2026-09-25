@@ -131,7 +131,7 @@ export interface FinalGradeRubric {
 // can actually advance/reject the stage — see the dedicated
 // committee-vote/committee-decision endpoints in committeeReviewController.ts,
 // not the generic approve/reject chain endpoints.
-export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'program_head' | 'division_head' | 'dean' | 'committee';
+export type ChainRole = 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary' | 'grad_school_head' | 'school_head' | 'program_head' | 'division_head' | 'dean' | 'committee';
 // 'student', or another stage's `id` within the same chain (self-reference allowed).
 export type RejectionTarget = 'student' | string;
 

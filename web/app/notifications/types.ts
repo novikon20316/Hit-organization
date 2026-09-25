@@ -127,6 +127,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   login_security: '/login-security',
   student_grades: '/student/home?tab=grades',
   admin_system_health: '/admin/panel?tab=overview',
+  school_head_approvals: '/school_head/dashboard',
 };
 
 // Shared by app/notifications/page.tsx's tap handler and the [id] detail

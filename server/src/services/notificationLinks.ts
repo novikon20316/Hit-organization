@@ -42,6 +42,7 @@ const WEB_TARGET_SCREEN_ROUTE: Record<string, string> = {
   committees: '/committees',
   login_security: '/login-security',
   admin_system_health: '/admin/panel?tab=overview',
+  school_head_approvals: '/school_head/dashboard',
 };
 
 // Mirrors mobile/app/(tabs)/notifications.tsx's TARGET_SCREEN_ROUTE exactly
@@ -69,6 +70,7 @@ const MOBILE_TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_feedback: '/admin/panel?tab=feedback',
   login_security: '/login-security',
   admin_system_health: '/admin/overview',
+  school_head_approvals: '/school_head/school_head_dashboard',
 };
 
 // Mirrors web/lib/roles.ts's getHomeRoute.
@@ -83,6 +85,7 @@ function webHomeRoute(role: string | null | undefined): string {
     case 'administrative_secretary':  return '/administrative_coordinator/dashboard';
     case 'grad_school_head':          return '/grad_school_head/dashboard';
     case 'internal_examiner':         return '/examinor/home';
+    case 'school_head':               return '/school_head/dashboard';
     case 'system_admin':              return '/admin/panel';
     default:                          return '/login';
   }
@@ -100,6 +103,7 @@ function mobileHomeRoute(role: string | null | undefined): string {
     case 'program_head':             return '/program_head/program_head_dashboard';
     case 'administrative_secretary': return '/administrative_coordinator/administrative_coordinator_dashboard';
     case 'grad_school_head':         return '/grad_school_head/grad_school_head_dashboard';
+    case 'school_head':              return '/school_head/school_head_dashboard';
     case 'system_admin':             return '/admin/overview';
     default:                         return '';
   }

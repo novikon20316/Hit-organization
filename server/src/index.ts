@@ -24,6 +24,7 @@ import workflowTemplateRoutes from './routes/workflowTemplates.js';
 import reportsRoutes from './routes/reports.js';
 import examinerAccessRoutes from './routes/examinerAccess.js';
 import gradSchoolHeadRoutes from './routes/gradSchoolHead.js';
+import schoolHeadRoutes from './routes/schoolHead.js';
 import programHeadRoutes from './routes/programHead.js';
 import loginSecurityRoutes from './routes/loginSecurity.js';
 import legalRoutes from './routes/legal.js';
@@ -189,6 +190,7 @@ app.use('/api/faculty-templates', facultyTemplateRoutes);
 app.use('/api/workflow-templates', workflowTemplateRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/grad-school-head', gradSchoolHeadRoutes);
+app.use('/api/school-head', schoolHeadRoutes);
 app.use('/api/program-head', programHeadRoutes);
 // PUBLIC — no verifyToken. External examiners have no Firebase Auth account;
 // identity comes from the token/grant code itself. See routes/examinerAccess.ts.
