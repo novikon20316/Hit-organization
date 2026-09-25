@@ -13,7 +13,7 @@ import {
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
-import { authorizeStageActor, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
+import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
@@ -832,6 +832,11 @@ async function approveChainMilestone(
   // e.g. a supervisor's research_proposal sign-off never told the
   // coordinator it was now their turn.
   let advancedToStage: ChainStage | undefined;
+  // Every administrative_secretary 'notify' stage the chain auto-advanced
+  // through on this call (see isAutoAdvanceStage) — each gets its own FYI
+  // notification after commit, distinct from advancedToStage's "awaiting
+  // your review" one, since she never has anything to act on.
+  let autoNotifiedStages: ChainStage[] = [];
   // Set when this stage requires both the primary and secondary supervisor
   // to sign independently (see ChainStage.requireAllAssignedSupervisors) and
   // this actor was the FIRST of the two — the stage deliberately does not
@@ -887,7 +892,6 @@ async function approveChainMilestone(
         return;
       }
 
-      const nextStage = freshRouting[freshIndex + 1];
       update.stageEnteredAt = admin.firestore.FieldValue.serverTimestamp();
       // Deterministic signature stamp (see examinerSignature.ts's
       // examinerSignatureStyle) — only the name + timestamp are persisted;
@@ -900,11 +904,28 @@ async function approveChainMilestone(
       // those two roles, unchanged from before this generalization.
       update[`${stage.role}SignedAt`] = admin.firestore.FieldValue.serverTimestamp();
       update[`${stage.role}SignedByName`] = req.user?.displayName ?? '';
-      if (nextStage) {
-        update.currentStageIndex = freshIndex + 1;
-        update.status = statusForStage(nextStage);
-        enteredCommitteeStage = nextStage.role === 'committee';
-        advancedToStage = nextStage;
+
+      // Walk past any administrative_secretary 'notify' stage(s) immediately
+      // following this one — they auto-approve themselves the instant the
+      // chain reaches them (see isAutoAdvanceStage), so the milestone never
+      // actually parks on one awaiting an action that will never come.
+      let landedIndex = freshIndex + 1;
+      let landedStage = freshRouting[landedIndex];
+      const autoStages: ChainStage[] = [];
+      while (landedStage && isAutoAdvanceStage(landedStage)) {
+        update[`${landedStage.role}SignedAt`] = admin.firestore.FieldValue.serverTimestamp();
+        update[`${landedStage.role}SignedByName`] = 'System (auto-approved)';
+        autoStages.push(landedStage);
+        landedIndex += 1;
+        landedStage = freshRouting[landedIndex];
+      }
+      autoNotifiedStages = autoStages;
+
+      if (landedStage) {
+        update.currentStageIndex = landedIndex;
+        update.status = statusForStage(landedStage);
+        enteredCommitteeStage = landedStage.role === 'committee';
+        advancedToStage = landedStage;
       } else {
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -1015,6 +1036,34 @@ async function approveChainMilestone(
           emailData: { milestoneTitle },
         }).catch((notifyError) => {
           console.error(`approveChainMilestone: next-stage notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+        })
+      ));
+    }
+
+    // Auto-advanced administrative_secretary 'notify' stage(s) — she was
+    // never awaiting anything, so this is a plain FYI, not an "awaiting your
+    // review" prompt (no taskKind — there's no task).
+    if (autoNotifiedStages.length > 0) {
+      const secretaryIds = await resolveStaffForScope(
+        'administrative_secretary', resource, projectSupervisorIds, milestone.examinerIds ?? [], false
+      );
+      const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
+      const secretaryTargetScreen = targetScreenFor('administrative_secretary', 'milestone_action');
+      await Promise.all(secretaryIds.map((uid) =>
+        notifyUser({
+          recipientId: uid,
+          type: 'milestone_submitted',
+          inAppType: 'milestone_administrative_secretary_fyi',
+          titleHe: 'לידיעתך',
+          titleEn: 'For your information',
+          bodyHe: `אבן הדרך "${milestoneTitle.he}" אושרה על ידי המנחה.`,
+          bodyEn: `Milestone "${milestoneTitle.en}" was approved by the supervisor.`,
+          relatedProjectId: milestone.projectId ?? null,
+          relatedMilestoneId: milestoneId,
+          ...(secretaryTargetScreen ? { targetScreen: secretaryTargetScreen } : {}),
+          emailData: { milestoneTitle },
+        }).catch((notifyError) => {
+          console.error(`approveChainMilestone: administrative_secretary FYI notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
         })
       ));
     }

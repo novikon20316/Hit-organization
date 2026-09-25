@@ -139,8 +139,14 @@ export interface ChainStage {
   /** Stable id (client-generated), used for rejectTo references + reordering. */
   id: string;
   role: ChainRole;
-  /** 'grade' submits a numeric score against the milestone's rubric; 'approve' is a pure sign-off. */
-  action: 'grade' | 'approve';
+  /** 'grade' submits a numeric score against the milestone's rubric; 'approve'
+   *  is a pure sign-off. 'notify' is only meaningful for role ===
+   *  'administrative_secretary' — the stage auto-approves itself the instant
+   *  the chain reaches it (see milestoneRouting.ts's isAutoAdvanceStage and
+   *  approveChainMilestone in coordinatorController.ts) and simply informs
+   *  her the supervisor's approval went through; she never has anything to
+   *  act on, so there's no real rejection possible at that stage. */
+  action: 'grade' | 'approve' | 'notify';
   rejectTo: RejectionTarget;
   /** Only meaningful when role === 'committee'. The specific committee this
    *  stage always routes to, chosen explicitly by whoever authored the

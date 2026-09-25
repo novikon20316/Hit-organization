@@ -54,6 +54,17 @@ export function statusForStage(stage: ChainStage): 'submitted' | 'supervisor_gra
   return stage.action === 'grade' ? 'submitted' : 'supervisor_graded';
 }
 
+/** A stage that resolves itself the instant the chain reaches it — nobody
+ *  ever has to act on it. Today the only case is an administrative_secretary
+ *  'notify' stage (see ChainStage.action's doc comment): it exists purely to
+ *  inform her that the previous stage's approval went through, not to gate
+ *  anything, so approveChainMilestone skips straight past it (stamping it as
+ *  auto-signed) instead of leaving the milestone parked awaiting an action
+ *  that will never come. */
+export function isAutoAdvanceStage(stage: ChainStage): boolean {
+  return stage.role === 'administrative_secretary' && stage.action === 'notify';
+}
+
 /** Whether `user` is one of the concrete uids authorized to act at `stage`
  *  for this resource — wraps resolveStaffForScope (which already folds in
  *  system_admin) rather than reimplementing the role/scope resolution. */

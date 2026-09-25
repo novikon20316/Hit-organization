@@ -105,7 +105,7 @@ export interface StudentMilestoneRow {
    *  string, which collapses every 'approve' stage after the first into one
    *  indistinguishable value. */
   routing?: Array<{
-    id: string; role: string; action: 'grade' | 'approve';
+    id: string; role: string; action: 'grade' | 'approve' | 'notify';
     formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
     requireAllAssignedSupervisors?: boolean;
   }> | null;

@@ -157,7 +157,10 @@ function validateRoutingChain(input: any): MilestoneRoutingSpec | null {
   for (const stage of input) {
     if (!stage || typeof stage.id !== 'string' || !stage.id.trim()) return null;
     if (!CHAIN_ROLES.includes(stage.role)) return null;
-    if (stage.action !== 'grade' && stage.action !== 'approve') return null;
+    if (stage.action !== 'grade' && stage.action !== 'approve' && stage.action !== 'notify') return null;
+    // 'notify' (auto-approve-and-inform) only makes sense for
+    // administrative_secretary — see ChainStage.action's doc comment.
+    if (stage.action === 'notify' && stage.role !== 'administrative_secretary') return null;
     if (typeof stage.rejectTo !== 'string' || !stage.rejectTo.trim()) return null;
     const id = stage.id.trim();
     if (ids.has(id)) return null; // duplicate stage id within the same chain
@@ -523,7 +526,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
 
   const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
   if (!defaultRouting.ok) {
-    return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"), and a rejectTo ("student" or another stage\'s id).' });
+    return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).' });
   }
   // Who signs off on examiner invitations before they go out — any
   // ChainRole, or 'none' to skip the second tier entirely. Valid for every
@@ -623,7 +626,7 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
 
     const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
     if (!defaultRouting.ok) {
-      return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"), and a rejectTo ("student" or another stage\'s id).' });
+      return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).' });
     }
     let examinerSignoffRole: ChainRole | 'none' | undefined;
     if (req.body.examinerSignoffRole !== undefined) {

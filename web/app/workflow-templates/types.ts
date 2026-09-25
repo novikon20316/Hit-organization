@@ -45,7 +45,13 @@ export type RejectionTarget = 'student' | string;
 export interface ChainStage {
   id: string;
   role: ChainRole;
-  action: 'grade' | 'approve';
+  /** 'grade' submits a numeric score; 'approve' is a pure sign-off. 'notify'
+   *  is only meaningful for role === 'administrative_secretary' — the stage
+   *  auto-approves itself the instant the chain reaches it and simply
+   *  informs her the supervisor's approval went through; there's no real
+   *  rejection possible at that stage (see server's
+   *  milestoneRouting.ts's isAutoAdvanceStage). */
+  action: 'grade' | 'approve' | 'notify';
   rejectTo: RejectionTarget;
   /** Only meaningful when role === 'committee'. The specific committee this
    *  stage always routes to, chosen explicitly at template-authoring time —

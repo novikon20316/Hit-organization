@@ -1574,7 +1574,7 @@ export const apiClient = {
           /** The milestone's own snapshotted approval chain — see
            *  ChainStage in server/src/services/workflowTemplates.ts. */
           routing?: Array<{
-            id: string; role: string; action: 'grade' | 'approve';
+            id: string; role: string; action: 'grade' | 'approve' | 'notify';
             formFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean }>;
             requireAllAssignedSupervisors?: boolean;
           }> | null;
@@ -1873,14 +1873,14 @@ export const apiClient = {
         milestones: Array<{
           type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
           gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
-          routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+          routing?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
         }>;
         createdBy: string;
         createdByMajor?: string | null;
         createdAt: string;
         proposedNote: string | null;
         applyMode: 'now' | 'from_now_on';
-        defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+        defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
         examinerSignoffRole?: string;
         finalGradeSignoffRole?: string;
         approvedBy?: string;
@@ -1900,7 +1900,7 @@ export const apiClient = {
       type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
       dateMode?: 'offset' | 'fixed'; fixedDate?: string;
       gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
-      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
       /** research_proposal/progress_report only — see workflowTemplates.ts's staffRecordMode. */
       staffRecordMode?: 'none' | 'upload_or_form';
       staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean; commentRequiredOn?: 'yes' | 'no'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
@@ -1919,7 +1919,7 @@ export const apiClient = {
     /** A major slug, or `null`/omitted for "all majors in this faculty." */
     major?: string | null;
     applyMode: 'now' | 'from_now_on';
-    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
     /** Who must sign off on examiner invitations before they go out — a
      *  ChainRole, or 'none' to skip the second tier. Valid for any process
      *  type. Omitted uses the server's legacy default. */
@@ -1951,7 +1951,7 @@ export const apiClient = {
       type: string; nameHe: string; nameEn: string; order: number; dueDaysFromStart: number; requiresExaminers: boolean;
       dateMode?: 'offset' | 'fixed'; fixedDate?: string;
       gradingComponents?: Array<{ key: string; labelHe: string; labelEn: string; maxScore: number; weight: number; hasComment: boolean; visibleToStudent: boolean }>;
-      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+      routing?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
       staffRecordMode?: 'none' | 'upload_or_form';
       staffFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table' | 'yesno'; required: boolean; commentRequiredOn?: 'yes' | 'no'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'number' | 'date' }> }>;
       finalGradeComponents?: {
@@ -1962,7 +1962,7 @@ export const apiClient = {
     }>;
     note?: string;
     applyMode: 'now' | 'from_now_on';
-    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve'; rejectTo: string }>;
+    defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string }>;
     examinerSignoffRole?: string;
     finalGradeSignoffRole?: string;
     firstStepMode?: 'browse_projects' | 'choose_supervisor';

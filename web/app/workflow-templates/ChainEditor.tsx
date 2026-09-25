@@ -27,6 +27,10 @@ const REJECT_TO_INFO = {
   he: 'לאן חוזר התהליך אם השלב הזה נדחה: בחזרה לסטודנט/ית (יגישו מחדש), או לשלב אחר בשרשרת (כולל אפשרות לחזור לשלב זה עצמו).',
   en: "Where the process goes if this stage rejects it: back to the student (to resubmit), or to another stage in the chain (including looping back to this same stage).",
 };
+const NOTIFY_INFO = {
+  he: 'השלב הזה מאושר אוטומטית ברגע שמגיעים אליו — הרכזת האדמיניסטרטיבית רק מקבלת עדכון שהמנחה אישר/ה. אין לה כלום לאשר או לדחות בשלב הזה.',
+  en: "This stage auto-approves the instant the chain reaches it — the administrative coordinator just gets notified that the supervisor's approval went through. There's nothing for her to approve or reject here.",
+};
 
 function makeStageId(): string {
   return `stage_${Math.random().toString(36).slice(2, 8)}`;
@@ -62,6 +66,27 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
     onChange(stages.map((s) => (s.role === 'committee' && !s.committeeId ? { ...s, committeeId: onlyId } : s)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is a fresh closure each render; guarding on needsFill above (not in the dep list) is what actually prevents the loop
   }, [stages, committees]);
+
+  // 'notify' only makes sense for administrative_secretary (see
+  // ChainStage.action's doc comment), and 'grade' never does for her —
+  // snap either mismatch back to 'approve' whenever role/action combine
+  // wrong (e.g. the role dropdown just changed under an existing action).
+  // Her stage also never rejects anything, so rejectTo is pinned to
+  // 'student' rather than left pointing at a hidden, stale picker.
+  useEffect(() => {
+    const needsFix = stages.some((s) =>
+      (s.role === 'administrative_secretary' && (s.action === 'grade' || s.rejectTo !== 'student')) ||
+      (s.role !== 'administrative_secretary' && s.action === 'notify')
+    );
+    if (!needsFix) return;
+    onChange(stages.map((s) => {
+      if (s.role === 'administrative_secretary') {
+        return { ...s, action: s.action === 'grade' ? 'approve' : s.action, rejectTo: 'student' };
+      }
+      return s.action === 'notify' ? { ...s, action: 'approve' } : s;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is a fresh closure each render; guarding on needsFix above (not in the dep list) is what actually prevents the loop
+  }, [stages]);
 
   const updateStage = (idx: number, patch: Partial<ChainStage>) => {
     onChange(stages.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
@@ -110,8 +135,17 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                 disabled={isReadOnly}
                 className="shrink-0 rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <option value="grade">{lang === 'he' ? 'מדרג' : 'Grades'}</option>
-                <option value="approve">{lang === 'he' ? 'מאשר' : 'Approves'}</option>
+                {stage.role === 'administrative_secretary' ? (
+                  <>
+                    <option value="approve">{lang === 'he' ? 'מאשרת' : 'Approves'}</option>
+                    <option value="notify">{lang === 'he' ? 'ידעו אותה' : 'Let her know'}</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="grade">{lang === 'he' ? 'מדרג' : 'Grades'}</option>
+                    <option value="approve">{lang === 'he' ? 'מאשר' : 'Approves'}</option>
+                  </>
+                )}
               </select>
               <div className="flex shrink-0 gap-0.5">
                 <button type="button" onClick={() => moveStage(idx, -1)} disabled={isReadOnly || idx === 0} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="up">▲</button>
@@ -119,29 +153,40 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                 <button type="button" onClick={() => removeStage(idx)} disabled={isReadOnly} className="rounded px-1 text-xs hover:bg-paper disabled:opacity-30" aria-label="remove">🗑️</button>
               </div>
             </div>
-            <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
-              {lang === 'he' ? 'אם נדחה, יעבור אל' : 'If rejected, goes to'}
-              <InfoTooltip text={REJECT_TO_INFO} />
-              <select
-                value={stage.rejectTo}
-                onChange={(e) => updateStage(idx, { rejectTo: e.target.value })}
-                disabled={isReadOnly}
-                className="rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="student">{lang === 'he' ? 'הסטודנט' : 'Student'}</option>
-                {stages.map((s, i) => (
-                  <option key={s.id} value={s.id}>
-                    {i === idx
-                      ? `${chainRoleLabel(s.role, lang)} (${lang === 'he' ? 'לשלב זה עצמו' : 'this same stage'})`
-                      : chainRoleLabel(s.role, lang)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {rejectsForward && (
-              <p className="mt-1 text-[11px] text-accent">
-                ⚠️ {lang === 'he' ? 'הדחייה קופצת קדימה בשרשרת — ודא שזה מכוון' : 'This rejection jumps forward in the chain — double-check this is intentional'}
+            {stage.role === 'administrative_secretary' ? (
+              <p className="mt-1.5 text-[11px] text-muted">
+                ℹ️ <InfoTooltip text={NOTIFY_INFO} label={lang === 'he' ? 'מידע על שלב זה' : 'About this stage'} />{' '}
+                {lang === 'he'
+                  ? 'לשלב הזה אין דחייה — הרכזת האדמיניסטרטיבית לא חוסמת את התהליך.'
+                  : "This stage has no rejection — the administrative coordinator never blocks the process."}
               </p>
+            ) : (
+              <>
+                <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+                  {lang === 'he' ? 'אם נדחה, יעבור אל' : 'If rejected, goes to'}
+                  <InfoTooltip text={REJECT_TO_INFO} />
+                  <select
+                    value={stage.rejectTo}
+                    onChange={(e) => updateStage(idx, { rejectTo: e.target.value })}
+                    disabled={isReadOnly}
+                    className="rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="student">{lang === 'he' ? 'הסטודנט' : 'Student'}</option>
+                    {stages.map((s, i) => (
+                      <option key={s.id} value={s.id}>
+                        {i === idx
+                          ? `${chainRoleLabel(s.role, lang)} (${lang === 'he' ? 'לשלב זה עצמו' : 'this same stage'})`
+                          : chainRoleLabel(s.role, lang)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {rejectsForward && (
+                  <p className="mt-1 text-[11px] text-accent">
+                    ⚠️ {lang === 'he' ? 'הדחייה קופצת קדימה בשרשרת — ודא שזה מכוון' : 'This rejection jumps forward in the chain — double-check this is intentional'}
+                  </p>
+                )}
+              </>
             )}
             {stage.role === 'committee' && (
               committees.length === 0 ? (
