@@ -50,6 +50,7 @@ import { getStudentStatusOptions } from './controllers/studentStatusController.j
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders } from './services/notificationScheduler.js';
+import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -242,6 +243,12 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 setInterval(() => {
   flagGraduatedStudents().catch((err) => console.error('flagGraduatedStudents sweep failed:', err));
+}, ONE_DAY_MS);
+// Rolls a workflow template's fixed-calendar-date milestones forward a year
+// once the date's passed and this cycle actually saw a submission — see
+// services/fixedDateRollover.ts. Daily is plenty for a calendar-year check.
+setInterval(() => {
+  advancePastFixedMilestoneDates().catch((err) => console.error('advancePastFixedMilestoneDates sweep failed:', err));
 }, ONE_DAY_MS);
 // Deadline/escalation notifications — see services/notificationScheduler.ts.
 // Hourly (not daily) so a reminder fires promptly once its threshold is
