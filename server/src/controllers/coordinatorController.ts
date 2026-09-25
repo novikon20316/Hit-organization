@@ -837,12 +837,15 @@ async function approveChainMilestone(
   // notification after commit, distinct from advancedToStage's "awaiting
   // your review" one, since she never has anything to act on.
   let autoNotifiedStages: ChainStage[] = [];
-  // Set when this stage requires both the primary and secondary supervisor
-  // to sign independently (see ChainStage.requireAllAssignedSupervisors) and
-  // this actor was the FIRST of the two — the stage deliberately does not
-  // advance, so none of the normal finalize/next-stage handling below runs.
+  // Set when this stage requires more than one signer independently — either
+  // supervisor dual-sign (opt-in, see ChainStage.requireAllAssignedSupervisors)
+  // or an 'examiner' stage (always, every assigned examiner — a panel, not a
+  // single-actor role, same reasoning as the multi-examiner grading path in
+  // projectController.ts) — and this actor wasn't the last one needed. The
+  // stage deliberately does not advance, so none of the normal finalize/
+  // next-stage handling below runs.
   let partialSignoff = false;
-  let awaitingCoSupervisorUid: string | undefined;
+  let awaitingSignerUids: string[] = [];
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -862,21 +865,35 @@ async function approveChainMilestone(
       // is exactly today's single-actor "first one wins" stage, unchanged.
       const secondarySupervisorId: string | undefined = fresh.secondarySupervisorId || undefined;
       const dualSignRequired = stage.role === 'supervisor' && !!stage.requireAllAssignedSupervisors && !!secondarySupervisorId;
-      let stillMissingUid: string | undefined;
-      if (dualSignRequired) {
-        const alreadySigned = new Set(Object.keys(fresh.supervisorApprovals ?? {}));
+      // An 'examiner' stage is always a panel, never a single-actor role —
+      // unlike supervisor dual-sign (opt-in, primary+secondary only), every
+      // uid in the milestone's own assigned examinerIds must independently
+      // approve before the stage advances, with no authoring toggle needed.
+      const examinerAllSignRequired = stage.role === 'examiner';
+      const multiSignRequired = dualSignRequired || examinerAllSignRequired;
+      // Which field on the milestone doc holds each signer's own stamp —
+      // reuses the existing supervisorApprovals map for that case, and a
+      // parallel examinerApprovals map for an examiner-panel stage.
+      const approvalsField = examinerAllSignRequired ? 'examinerApprovals' : 'supervisorApprovals';
+      const requiredUids: string[] = dualSignRequired
+        ? ([fresh.supervisorId, secondarySupervisorId].filter(Boolean) as string[])
+        : examinerAllSignRequired
+        ? ((fresh.examinerIds ?? []) as string[])
+        : [];
+      let stillMissingUids: string[] = [];
+      if (multiSignRequired) {
+        const alreadySigned = new Set(Object.keys(fresh[approvalsField] ?? {}));
         alreadySigned.add(actorId);
-        const requiredUids = [fresh.supervisorId, secondarySupervisorId].filter(Boolean) as string[];
-        stillMissingUid = requiredUids.find((uid) => !alreadySigned.has(uid));
+        stillMissingUids = requiredUids.filter((uid) => !alreadySigned.has(uid));
       }
 
       const update: Record<string, any> = {};
-      if (dualSignRequired) {
+      if (multiSignRequired) {
         // Each signer's own stamp, keyed by uid — distinct from the flat
         // {role}SignedAt/ByName fields below, which are only ever set once
-        // BOTH required uids are present here (i.e. the stage is actually
+        // EVERY required uid is present here (i.e. the stage is actually
         // complete), same as every other stage's single-actor stamp.
-        update[`supervisorApprovals.${actorId}`] = {
+        update[`${approvalsField}.${actorId}`] = {
           signedAt: admin.firestore.FieldValue.serverTimestamp(),
           signedByName: req.user?.displayName ?? '',
         };
@@ -885,9 +902,9 @@ async function approveChainMilestone(
         update[`stageFormData.${stage.id}`] = stageFormData;
       }
 
-      if (stillMissingUid) {
+      if (stillMissingUids.length > 0) {
         transaction.update(milestoneRef, update);
-        awaitingCoSupervisorUid = stillMissingUid;
+        awaitingSignerUids = stillMissingUids;
         partialSignoff = true;
         return;
       }
@@ -939,23 +956,30 @@ async function approveChainMilestone(
     });
 
     if (partialSignoff) {
-      if (awaitingCoSupervisorUid) {
+      if (awaitingSignerUids.length > 0) {
         const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
-        const coSupervisorTargetScreen = targetScreenFor('supervisor', 'milestone_action');
-        await notifyUser({
-          recipientId: awaitingCoSupervisorUid,
-          type: 'milestone_submitted',
-          titleHe: 'ממתין לחתימתך',
-          titleEn: 'Awaiting your signature',
-          bodyHe: `המנחה השני חתם על "${milestoneTitle.he}" — ממתין כעת לחתימתך.`,
-          bodyEn: `The other supervisor signed "${milestoneTitle.en}" — now awaiting your signature.`,
-          relatedProjectId: milestone.projectId ?? null,
-          relatedMilestoneId: milestoneId,
-          ...(coSupervisorTargetScreen ? { targetScreen: coSupervisorTargetScreen } : {}),
-          emailData: { milestoneTitle },
-        }).catch((notifyError) => {
-          console.error(`approveChainMilestone: co-supervisor notify failed for ${awaitingCoSupervisorUid} on milestone ${milestoneId}:`, notifyError);
-        });
+        const signerTargetScreen = targetScreenFor(stage.role, 'milestone_action');
+        const isExaminerStage = stage.role === 'examiner';
+        await Promise.all(awaitingSignerUids.map((uid) =>
+          notifyUser({
+            recipientId: uid,
+            type: 'milestone_submitted',
+            titleHe: 'ממתין לחתימתך',
+            titleEn: 'Awaiting your signature',
+            bodyHe: isExaminerStage
+              ? `בוחן/ת אחר/ת חתם/ה על "${milestoneTitle.he}" — ממתין כעת לחתימתך.`
+              : `המנחה השני חתם על "${milestoneTitle.he}" — ממתין כעת לחתימתך.`,
+            bodyEn: isExaminerStage
+              ? `A fellow examiner signed off on "${milestoneTitle.en}" — now awaiting your signature.`
+              : `The other supervisor signed "${milestoneTitle.en}" — now awaiting your signature.`,
+            relatedProjectId: milestone.projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            ...(signerTargetScreen ? { targetScreen: signerTargetScreen } : {}),
+            emailData: { milestoneTitle },
+          }).catch((notifyError) => {
+            console.error(`approveChainMilestone: co-signer notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
+          })
+        ));
       }
       await logAuditEvent({
         userId: actorId,
@@ -1038,6 +1062,7 @@ async function approveChainMilestone(
           console.error(`approveChainMilestone: next-stage notify failed for ${uid} on milestone ${milestoneId}:`, notifyError);
         })
       ));
+
     }
 
     // Auto-advanced administrative_secretary 'notify' stage(s) — she was

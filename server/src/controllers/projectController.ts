@@ -19,6 +19,7 @@ import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeEx
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
+import { targetScreenFor } from '../services/notificationTargets.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
@@ -216,6 +217,12 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       }
       const gradesRef = db.collection('grades').doc();
       let responseStatus = '';
+      // Set only for an 'examiner' grade stage where this submitter wasn't
+      // the last assigned examiner still owed a score — see the isExaminerStage
+      // branch below.
+      let partialExaminerSignoff = false;
+      let awaitingExaminerUids: string[] = [];
+      let finalStageScore = scoreValue;
 
       await db.runTransaction(async (transaction) => {
         const freshSnap = await transaction.get(milestoneRef);
@@ -228,16 +235,69 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           throw new Error('This milestone has moved on from this grading stage — refresh and try again.');
         }
 
-        const stageScores = {
-          ...(fresh.stageScores ?? {}),
-          [currentStage.id]: {
+        const priorStageScores: Record<string, any> = fresh.stageScores ?? {};
+        const priorEntry = priorStageScores[currentStage.id] ?? {};
+
+        // An 'examiner' grade stage is a panel, not a single-actor role —
+        // every uid in the milestone's own assigned examinerIds grades
+        // independently, and the stage only finalizes (combining their
+        // scores into one) once all of them have submitted. Mirrors the
+        // legacy identity-keyed examiner-only grading's own "every assigned
+        // examiner must submit" rule (isIdentityKeyedExaminerOnly below),
+        // now generalized to any chain-driven 'examiner' grade stage.
+        const isExaminerStage = currentStage.role === 'examiner';
+        let stageScoreEntry: Record<string, any>;
+
+        if (isExaminerStage) {
+          const freshExaminerIds: string[] = fresh.examinerIds ?? [];
+          const priorExaminerScores: Record<string, any> = priorEntry.examinerScores ?? {};
+          if (priorExaminerScores[uid]) {
+            throw new Error('You have already submitted your grade for this stage.');
+          }
+          const nextExaminerScores: Record<string, any> = {
+            ...priorExaminerScores,
+            [uid]: {
+              score: scoreValue,
+              comments: comments?.trim() ?? '',
+              gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+              ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
+            },
+          };
+          const stillMissing = freshExaminerIds.filter((id) => !nextExaminerScores[id]);
+          if (stillMissing.length > 0) {
+            transaction.update(milestoneRef, {
+              [`stageScores.${currentStage.id}.examinerScores`]: nextExaminerScores,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            transaction.set(gradesRef, {
+              milestoneId, projectId, graderId: uid, graderRole: currentStage.role,
+              comments: comments?.trim() ?? '',
+              isFinalized: false,
+              submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+              grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
+            });
+            partialExaminerSignoff = true;
+            awaitingExaminerUids = stillMissing;
+            responseStatus = 'awaiting_co_examiner';
+            return;
+          }
+          // Every examiner has now submitted — combine their scores (simple
+          // mean, the same combining rule computeChainFinalGrade already
+          // applies across stages) into this stage's own contribution.
+          const scores = Object.values(nextExaminerScores).map((s: any) => s.score as number);
+          finalStageScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+          stageScoreEntry = { score: finalStageScore, examinerScores: nextExaminerScores, gradedAt: admin.firestore.FieldValue.serverTimestamp() };
+        } else {
+          stageScoreEntry = {
             score: scoreValue,
             comments: comments?.trim() ?? '',
             gradedBy: uid,
             gradedAt: admin.firestore.FieldValue.serverTimestamp(),
             ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
-          },
-        };
+          };
+        }
+
+        const stageScores = { ...priorStageScores, [currentStage.id]: stageScoreEntry };
         const nextStage = freshRouting[freshIndex + 1];
         const update: Record<string, any> = {
           stageScores,
@@ -262,13 +322,47 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
 
         transaction.update(milestoneRef, update);
         transaction.set(gradesRef, {
-          milestoneId, projectId, graderId: uid, graderRole: stage.role,
+          milestoneId, projectId, graderId: uid, graderRole: currentStage.role,
           comments: comments?.trim() ?? '',
           isFinalized: responseStatus === 'graded',
           submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-          grading: { total: Math.round(scoreValue), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
+          grading: { total: Math.round(finalStageScore), ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}) },
         });
       });
+
+      if (partialExaminerSignoff) {
+        const milestoneTitle = { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' };
+        const examinerTargetScreen = targetScreenFor('examiner', 'milestone_action');
+        await Promise.all(awaitingExaminerUids.map((examinerUid) =>
+          notifyUser({
+            recipientId: examinerUid,
+            type: 'milestone_submitted',
+            titleHe: 'ממתין לציונך',
+            titleEn: 'Awaiting your grade',
+            bodyHe: `בוחן/ת אחר/ת דירג/ה את "${milestoneTitle.he}" — ממתין כעת לציונך.`,
+            bodyEn: `A fellow examiner graded "${milestoneTitle.en}" — now awaiting your grade.`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            ...(examinerTargetScreen ? { targetScreen: examinerTargetScreen } : {}),
+            emailData: { milestoneTitle },
+          }).catch((notifyError) => {
+            console.error(`submitMilestoneGrade: co-examiner notify failed for ${examinerUid} on milestone ${milestoneId}:`, notifyError);
+          })
+        ));
+        await logAuditEvent({
+          userId: uid,
+          userRole: req.user?.role ?? stage.role,
+          action: 'grade_entered',
+          entityType: 'milestone',
+          entityId: milestoneId,
+          newValue: { stageId: stage.id, score: scoreValue, partialExaminerSignoff: true },
+        });
+        return res.status(200).json({
+          success: true,
+          status: 'awaiting_co_examiner',
+          message: 'Your grade was recorded — waiting for the other examiner(s) to also grade before this stage finalizes.',
+        });
+      }
 
       await logAuditEvent({
         userId: uid,
@@ -276,14 +370,14 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         action: 'grade_entered',
         entityType: 'milestone',
         entityId: milestoneId,
-        newValue: { stageId: stage.id, score: scoreValue },
+        newValue: { stageId: stage.id, score: finalStageScore },
       });
       await logProjectRecordEntry({
         projectId,
         type: 'grade_submitted',
         actorId: uid,
         actorRole: req.user?.role ?? stage.role,
-        data: { milestoneId, stageId: stage.id, score: scoreValue },
+        data: { milestoneId, stageId: stage.id, score: finalStageScore },
       });
 
       return res.status(200).json({ success: true, status: responseStatus });
