@@ -103,17 +103,32 @@ export default function CommitteesPage() {
               <div className="grid gap-2 sm:grid-cols-2">
                 {allCommittees.length === 0 && <p className="text-sm text-muted">{lang === 'he' ? 'אין ועדות עדיין' : 'No committees yet'}</p>}
                 {allCommittees.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{committeeLabel(c)}</p>
-                      <p className="text-xs text-muted">
-                        {lang === 'he' ? `${c.memberIds.length} חברים` : `${c.memberIds.length} members`}
-                        {c.chairmanId ? '' : ` · ${lang === 'he' ? 'אין יו"ר' : 'no chairman set'}`}
-                      </p>
+                  <div key={c.id} className="rounded-lg border border-line bg-surface p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium text-ink">{committeeLabel(c)}</p>
+                      <button type="button" onClick={() => setEditingCommittee(c)} className="shrink-0 text-xs font-medium text-primary hover:underline">
+                        ✏️ {lang === 'he' ? 'עריכה' : 'Edit'}
+                      </button>
                     </div>
-                    <button type="button" onClick={() => setEditingCommittee(c)} className="shrink-0 text-xs font-medium text-primary hover:underline">
-                      ✏️ {lang === 'he' ? 'עריכה' : 'Edit'}
-                    </button>
+                    <div className="mt-1.5 text-xs text-muted">
+                      {(c.members ?? []).length === 0 ? (
+                        <p>{lang === 'he' ? 'אין חברים' : 'No members'}</p>
+                      ) : (
+                        <ul>
+                          {(c.members ?? []).map((m) => (
+                            <li key={m.id} className="truncate">
+                              {m.displayName || m.email || m.id}
+                              {m.id === c.chairmanId && (
+                                <span className="ms-1 font-semibold text-primary">
+                                  {lang === 'he' ? '(יו"ר)' : '(Chairman)'}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {!c.chairmanId && <p className="mt-0.5">{lang === 'he' ? 'אין יו"ר' : 'No chairman set'}</p>}
+                    </div>
                   </div>
                 ))}
               </div>

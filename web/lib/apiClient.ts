@@ -2820,6 +2820,8 @@ export interface CommitteeRecord {
   type: 'thesis' | 'final_project';
   chairmanId: string | null;
   memberIds: string[];
+  /** Only populated by listCommittees (system_admin's "All Committees" view) — resolved live from memberIds, never stored. */
+  members?: { id: string; displayName: string; email: string }[];
 }
 
 export interface CommitteePendingReview {

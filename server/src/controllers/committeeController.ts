@@ -94,7 +94,7 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
     let query: FirebaseFirestore.Query = db.collection('committees');
     if (typeof facultyId === 'string' && facultyId) query = query.where('facultyId', '==', facultyId);
     const snap = await query.get();
-    const committees = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const committees = await attachMemberDetails(snap.docs.map((d) => ({ id: d.id, ...d.data() } as CommitteeDoc)));
     return res.status(200).json({ committees });
   } catch (error: any) {
     console.error('listCommittees error:', error);
@@ -153,6 +153,32 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
     return res.status(500).json({ message: 'Failed to load candidate members.' });
   }
 };
+
+/** Joins each committee's memberIds to {id, displayName, email} at read
+ *  time (never stored on the committee doc itself — resolving live avoids
+ *  the two-screens-disagree drift a denormalized copy would eventually hit
+ *  if a member's name changed). One batched db.getAll across every distinct
+ *  member id in the whole list, not one query per committee. */
+async function attachMemberDetails<T extends { memberIds: string[] }>(
+  committees: T[]
+): Promise<(T & { members: { id: string; displayName: string; email: string }[] })[]> {
+  const allIds = new Set<string>();
+  committees.forEach((c) => (c.memberIds ?? []).forEach((id) => allIds.add(id)));
+  const byId = new Map<string, { id: string; displayName: string; email: string }>();
+  if (allIds.size > 0) {
+    const refs = [...allIds].map((id) => db.collection('users').doc(id));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap) => {
+      if (!snap.exists) return;
+      const data = snap.data()!;
+      byId.set(snap.id, { id: snap.id, displayName: data.displayName ?? '', email: data.email ?? '' });
+    });
+  }
+  return committees.map((c) => ({
+    ...c,
+    members: (c.memberIds ?? []).map((id) => byId.get(id) ?? { id, displayName: id, email: '' }),
+  }));
+}
 
 async function isAnyCommitteeChairman(uid: string | undefined): Promise<boolean> {
   if (!uid) return false;
