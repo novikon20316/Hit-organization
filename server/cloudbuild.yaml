@@ -23,7 +23,19 @@ steps:
       # never blocks. Explicit here (not a one-off `gcloud run services
       # update`) so it's git-tracked and survives every future deploy from
       # this pipeline, not just until someone forgets it's set out-of-band.
-      - '--set-env-vars=APP_CHECK_ENFORCEMENT_MODE=monitor'
+      #
+      # CRITICAL: --update-env-vars merges; --set-env-vars REPLACES the
+      # entire env var list. This service has several plain (non-secret) env
+      # vars set out-of-band (WEBSITE_URL, CLOUDINARY_CLOUD_NAME,
+      # EMAIL_FROM_NAME/ADDRESS, EXAMINER_ACCESS_BASE_URL, TWILIO_FROM_NUMBER,
+      # GOOGLE_CALENDAR_CLIENT_ID/SECRET/REDIRECT_URI) that are NOT tracked
+      # here -- using --set-env-vars here once already wiped all of them in
+      # one deploy (2026-09-30), breaking CORS, file uploads, outbound email,
+      # examiner links, SMS, and Calendar OAuth simultaneously. Never change
+      # this back to --set-env-vars without first migrating every one of
+      # those into this file (or Secret Manager) so nothing depends on
+      # untracked state again.
+      - '--update-env-vars=APP_CHECK_ENFORCEMENT_MODE=monitor'
 images:
   - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
 options:
