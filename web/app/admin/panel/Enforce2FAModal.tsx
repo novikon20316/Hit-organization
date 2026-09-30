@@ -2,8 +2,9 @@
 
 // app/admin/panel/Enforce2FAModal.tsx
 // system_admin action: announce a grace-period deadline after which every
-// user must have two-factor authentication set up. Activating bulk-notifies
-// every existing user (in-app + email, bilingual Hebrew/English instructions)
+// staff (non-student) account must have two-factor authentication set up.
+// Students are never subject to this. Activating bulk-notifies every
+// existing staff user (in-app + email, bilingual Hebrew/English instructions)
 // — see server/src/controllers/twoFactorEnforcementController.ts. Modeled on
 // MaintenanceModal.tsx (same "current status + activate/cancel" shape).
 
@@ -66,13 +67,13 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
     if (isHe) {
       return (
         `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד ${graceDays} ${graceDays === 1 ? 'יום' : 'ימים'}\n\n` +
-        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) לכל המשתמשים. מומלץ להגדיר זאת כבר עכשיו.\n` +
+        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) לכל חשבונות הסגל (לא כולל סטודנטים). מומלץ להגדיר זאת כבר עכשיו.\n` +
         `איך להפעיל: היכנסו ל"אימות דו-שלבי" בהגדרות ← סרקו את קוד ה-QR באמצעות Google Authenticator ← הזינו את הקוד בן 6 הספרות.`
       );
     }
     return (
       `🔐 Two-Factor Authentication (2FA) Becomes Mandatory in ${graceDays} ${graceDays === 1 ? 'day' : 'days'}\n\n` +
-      `Starting on the deadline date, the system will require 2FA for every user. We recommend setting it up now.\n` +
+      `Starting on the deadline date, the system will require 2FA for all staff accounts (students are not affected). We recommend setting it up now.\n` +
       `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code using Google Authenticator → enter the 6-digit code.`
     );
   }, [graceDays, isHe]);
@@ -122,8 +123,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
         </div>
         <p className="mt-1 text-xs text-admin-on-surface-variant">
           {isHe
-            ? 'כל המשתמשים יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש.'
-            : 'Every user gets a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, anyone who hasn\'t set it up will be required to scan a QR code before continuing.'}
+            ? 'כל חשבונות הסגל (לא כולל סטודנטים) יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש.'
+            : 'Every staff account (students are not affected) gets a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, any staff account that hasn\'t set it up will be required to scan a QR code before continuing.'}
         </p>
 
         <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
@@ -203,8 +204,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                   ? `🔄 עדכן ל-${graceDays} ימים ושלח שוב`
                   : `🔄 Update to ${graceDays} days & re-notify`
                 : isHe
-                  ? `🚀 הפעל ושלח לכולם`
-                  : `🚀 Activate & notify everyone`}
+                  ? `🚀 הפעל ושלח לכל הסגל`
+                  : `🚀 Activate & notify staff`}
           </button>
         </div>
       </div>

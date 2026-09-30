@@ -1,8 +1,9 @@
 // src/services/twoFactorEnforcement.ts
 //
 // A system_admin can announce that two-factor authentication is about to
-// become mandatory, giving every user a grace period (default 7 days) to set
-// it up before being hard-blocked. Same lazy-expiry shape as
+// become mandatory for staff (non-student) accounts, giving each a grace
+// period (default 7 days) to set it up before being hard-blocked. Students
+// are never subject to this. Same lazy-expiry shape as
 // maintenanceStatus.ts (one global doc, compared against Date.now() at read
 // time — no scheduler needed): a single system/twoFactorEnforcement doc holds
 // `active` + `deadline`, and both the server-side gate
@@ -15,6 +16,23 @@ import { db } from '../config/firebase.js';
 import { Timestamp } from 'firebase-admin/firestore';
 
 const ENFORCEMENT_DOC = db.collection('system').doc('twoFactorEnforcement');
+
+// Mirrors web/lib/roles.ts's STAFF_ROLES exactly (this repo duplicates role
+// lists per package rather than sharing one — see permissionScopes.ts's
+// ADMIN_TIER_ROLES for the same pattern). Everyone except 'student'.
+export const STAFF_ROLES = [
+  'supervisor', 'secondary_supervisor', 'coordinator', 'faculty_admin',
+  'program_head', 'division_head', 'dean', 'administrative_secretary',
+  'grad_school_head', 'school_head', 'internal_examiner', 'system_admin',
+];
+
+// Checks the full roles[] array, not just the singular `role` field — a
+// student who's also been granted an additional staff role still counts as
+// staff (see feedback_multirole_role_singular_vs_array.md).
+export function isStaffMember(role: string | undefined, roles: string[] = []): boolean {
+  if (role && STAFF_ROLES.includes(role)) return true;
+  return roles.some((r) => STAFF_ROLES.includes(r));
+}
 
 export interface TwoFactorEnforcementStatus {
   active: boolean;
@@ -64,18 +82,23 @@ export async function deactivateTwoFactorEnforcement(): Promise<void> {
  * finish 2FA setup" — used both by the real server-side gate
  * (middleware/auth.ts) and by GET /api/users/me's computed
  * `twoFactorSetupRequired` field, which each client's own routing gate reads
- * to decide whether to force the setup screen. Deliberately applies to every
- * role, including system_admin, UNLESS a system_admin has explicitly
- * exempted this specific account (users/{uid}.twoFactorExempt — see
- * setTwoFactorExempt) — enforcement itself never spares anyone on its own;
- * only a deliberate admin action does.
+ * to decide whether to force the setup screen. Scoped to staff roles only —
+ * a student (no staff role in role/roles[]) is never blocked, regardless of
+ * enforcement status. Among staff, applies to every role including
+ * system_admin, UNLESS a system_admin has explicitly exempted this specific
+ * account (users/{uid}.twoFactorExempt — see setTwoFactorExempt) —
+ * enforcement itself never spares anyone on its own; only a deliberate admin
+ * action, or not being staff at all, does.
  */
 export async function isTwoFactorSetupRequired(
   totpEnabled: boolean,
   exempt: boolean,
+  role?: string,
+  roles: string[] = [],
 ): Promise<boolean> {
   if (totpEnabled) return false;
   if (exempt) return false;
+  if (!isStaffMember(role, roles)) return false;
   const status = await readTwoFactorEnforcementStatus();
   if (!status.active || !status.deadline) return false;
   if (Date.now() < status.deadline.toMillis()) return false;

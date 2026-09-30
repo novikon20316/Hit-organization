@@ -1,11 +1,13 @@
 // src/controllers/twoFactorEnforcementController.ts
 //
-// system_admin-only endpoints backing the "enforce 2FA for everyone" admin
+// system_admin-only endpoints backing the "enforce 2FA for staff" admin
 // panel action: activating it announces a grace-period deadline and
-// bulk-notifies every user (in-app + email) with bilingual instructions;
-// after the deadline, middleware/auth.ts's verifyToken hard-blocks any user
-// who still hasn't set it up (see services/twoFactorEnforcement.ts for the
-// shared deadline-check logic both that gate and GET /api/users/me use).
+// bulk-notifies every staff (non-student) user (in-app + email) with
+// bilingual instructions; after the deadline, middleware/auth.ts's
+// verifyToken hard-blocks any staff user who still hasn't set it up.
+// Students are never subject to this enforcement (see isStaffMember in
+// services/twoFactorEnforcement.ts, the shared source of truth both that
+// gate and GET /api/users/me use).
 
 import { Response } from 'express';
 import dayjs from 'dayjs';
@@ -17,6 +19,7 @@ import {
   activateTwoFactorEnforcement,
   deactivateTwoFactorEnforcement,
   setTwoFactorExempt,
+  isStaffMember,
 } from '../services/twoFactorEnforcement.js';
 
 const DEFAULT_GRACE_DAYS = 7;
@@ -49,11 +52,11 @@ export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedReque
 function buildNoticeContent(deadlineLabel: string): { title: string; body: string } {
   const title = `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד 7 ימים / Two-Factor Authentication (2FA) Becomes Mandatory in 7 Days`;
   const bodyHe =
-    `החל מתאריך ${deadlineLabel}, המערכת תחייב אימות דו-שלבי (2FA) לכל המשתמשים. ` +
+    `החל מתאריך ${deadlineLabel}, המערכת תחייב אימות דו-שלבי (2FA) לכל חשבונות הסגל (לא כולל סטודנטים). ` +
     `מומלץ להגדיר זאת כבר עכשיו, לפני שהדבר יהפוך לחובה, כדי להימנע מהפרעה בגישה לחשבונך.\n` +
     `איך להפעיל: היכנסו ל"אימות דו-שלבי" בהגדרות ← סרקו את קוד ה-QR המוצג באמצעות אפליקציית Google Authenticator (או כל אפליקציית אימות תואמת) ← הזינו את הקוד בן 6 הספרות שמוצג באפליקציה כדי לאשר. זהו — בכניסות הבאות תתבקשו להזין קוד מהאפליקציה.`;
   const bodyEn =
-    `Starting ${deadlineLabel}, the system will require two-factor authentication (2FA) for every user. ` +
+    `Starting ${deadlineLabel}, the system will require two-factor authentication (2FA) for all staff accounts (students are not affected). ` +
     `We recommend setting it up now, before it becomes mandatory, to avoid any interruption accessing your account.\n` +
     `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code shown using the Google Authenticator app (or any compatible authenticator app) → enter the 6-digit code shown in the app to confirm. That's it — on future logins you'll be asked for a code from the app.`;
   return { title, body: `${bodyHe}\n\n— — —\n\n${bodyEn}` };
@@ -61,10 +64,11 @@ function buildNoticeContent(deadlineLabel: string): { title: string; body: strin
 
 // ─── POST /api/admin/system/enforce-2fa ──────────────────────────────────────
 // Body: { graceDays?: number } — defaults to 7. Activates the deadline, then
-// bulk-notifies every existing user (paginated the same way
-// accountDeletion.ts's flagGraduatedStudents walks the whole users
-// collection) — in-app + email only; SMS/WhatsApp are skipped for a
-// broadcast this size, same reasoning as any other system-wide notice.
+// bulk-notifies every existing staff (non-student) user (paginated the same
+// way accountDeletion.ts's flagGraduatedStudents walks the whole users
+// collection, skipping student-only accounts) — in-app + email only;
+// SMS/WhatsApp are skipped for a broadcast this size, same reasoning as any
+// other system-wide notice.
 export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
     return res.status(403).json({ message: 'Access denied: system_admin only.' });
@@ -88,6 +92,8 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
       if (snap.empty) break;
 
       for (const doc of snap.docs) {
+        const userData = doc.data();
+        if (!isStaffMember(userData?.role, userData?.roles ?? [])) continue; // students are never subject to this enforcement, so skip notifying them
         try {
           await notifyUser({
             recipientId: doc.id,

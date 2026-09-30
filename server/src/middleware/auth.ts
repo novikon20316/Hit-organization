@@ -171,6 +171,8 @@ export const verifyToken = async (
       const twoFactorRequired = await isTwoFactorSetupRequired(
         userData?.totp_enabled ?? false,
         userData?.twoFactorExempt === true,
+        userData?.role,
+        userData?.roles ?? [],
       );
       if (twoFactorRequired) {
         return res.status(403).json({ error: 'TWO_FACTOR_REQUIRED' });
