@@ -18,6 +18,12 @@ steps:
       - 'api'
       - '--image=us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
       - '--region=us-central1'
+      # App Check middleware (src/middleware/appCheck.ts) reads this at
+      # request time -- 'monitor' logs pass/fail/missing on every request but
+      # never blocks. Explicit here (not a one-off `gcloud run services
+      # update`) so it's git-tracked and survives every future deploy from
+      # this pipeline, not just until someone forgets it's set out-of-band.
+      - '--set-env-vars=APP_CHECK_ENFORCEMENT_MODE=monitor'
 images:
   - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
 options:
