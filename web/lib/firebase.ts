@@ -42,9 +42,16 @@ export const auth = getAuth(app);
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
-export const appCheck = typeof window !== 'undefined'
+// Guarded on the site key being actually set — ReCaptchaV3Provider throws
+// synchronously on an empty/undefined siteKey (confirmed live 2026-09-30:
+// this broke the entire app, every page stuck loading, until this guard was
+// added), and no site key exists yet until the web app is registered in
+// Firebase Console -> App Check. Safe/inert by default; real protection
+// only turns on once NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY is actually set.
+const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY;
+export const appCheck = typeof window !== 'undefined' && recaptchaSiteKey
   ? initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!),
+      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
       isTokenAutoRefreshEnabled: true,
     })
   : undefined;
