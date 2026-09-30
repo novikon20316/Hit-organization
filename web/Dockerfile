@@ -9,6 +9,11 @@ COPY . .
 # Firebase Hosting's rewrite makes this same-origin in production anyway;
 # this direct Cloud Run URL is what makes the service usable on its own too.
 ENV NEXT_PUBLIC_API_URL=https://api-432175584982.us-central1.run.app
+# Fraud Defense (App Check) site key -- not a secret, same reasoning as the
+# Firebase config values in lib/firebase.ts (domain-locked, meant to ship in
+# the client bundle). Registered against hit-organization.web.app,
+# hit-organization.firebaseapp.com, and localhost -- see lib/firebase.ts.
+ENV NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY=6LcpJ9ctAAAAAAnLc7Qrxd26P41Xx2JIFiVtClW_
 RUN npm run build
 
 # ---- Runtime stage: Next's standalone output only needs these three ----

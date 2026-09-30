@@ -14,7 +14,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, browserLocalPersistence, setPersistence, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM',
@@ -34,24 +34,27 @@ export const auth = getAuth(app);
 // App Check — protects Firestore/Auth (once enforcement is enabled in
 // Firebase Console) and the custom Express API (via the X-Firebase-AppCheck
 // header apiClient.ts attaches) from traffic that isn't the real web app.
-// Browser-only (reCAPTCHA v3 needs a DOM/window), same guard as the
-// setPersistence call below — must not run during next build's prerender
-// pass. Debug token lets local dev keep working once Console enforcement is
-// eventually turned on for real (see Firebase App Check docs on debug
-// providers) — never set in production.
+// Uses Fraud Defense (formerly reCAPTCHA Enterprise) — classic reCAPTCHA v3
+// can no longer even be newly registered in Firebase Console as of 2026, so
+// this is the only viable provider now, despite the "v3" naming still used
+// in some docs. Free for the first 10,000 assessments/month, comfortably
+// covering this app's real scale (measured ~28 MAU). Browser-only (needs a
+// DOM/window), same guard as the setPersistence call below — must not run
+// during next build's prerender pass. Debug token lets local dev keep
+// working once Console enforcement is eventually turned on for real (see
+// Firebase App Check docs on debug providers) — never set in production.
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
-// Guarded on the site key being actually set — ReCaptchaV3Provider throws
+// Guarded on the site key being actually set — the provider throws
 // synchronously on an empty/undefined siteKey (confirmed live 2026-09-30:
 // this broke the entire app, every page stuck loading, until this guard was
-// added), and no site key exists yet until the web app is registered in
-// Firebase Console -> App Check. Safe/inert by default; real protection
-// only turns on once NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY is actually set.
-const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY;
+// added). Safe/inert by default; real protection only turns on once
+// NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY is actually set.
+const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
 export const appCheck = typeof window !== 'undefined' && recaptchaSiteKey
   ? initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+      provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
       isTokenAutoRefreshEnabled: true,
     })
   : undefined;
