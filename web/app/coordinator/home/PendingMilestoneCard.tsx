@@ -276,11 +276,11 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
       )}
 
       {isProposal ? (
-        <ProposalRecommendationModal open={showApprove} busy={approving} milestone={m} onCancel={() => setShowApprove(false)} onConfirm={handleProposalDecision} />
+        <ProposalRecommendationModal open={showApprove} busy={approving} error={rowError} milestone={m} onCancel={() => setShowApprove(false)} onConfirm={handleProposalDecision} />
       ) : (
-        <ApproveMilestoneModal open={showApprove} busy={approving} onCancel={() => setShowApprove(false)} onConfirm={handleApprove} />
+        <ApproveMilestoneModal open={showApprove} busy={approving} error={rowError} onCancel={() => setShowApprove(false)} onConfirm={handleApprove} />
       )}
-      <RejectMilestoneModal open={showReject} busy={rejecting} onCancel={() => setShowReject(false)} onConfirm={handleReject} />
+      <RejectMilestoneModal open={showReject} busy={rejecting} error={rowError} onCancel={() => setShowReject(false)} onConfirm={handleReject} />
       {previewFor && (
         <MilestoneFilePanel
           title={previewFor.title}

@@ -42,12 +42,13 @@ interface TeammateProfile {
 interface ProposalRecommendationModalProps {
   open: boolean;
   busy: boolean;
+  error?: string;
   milestone: CoordinatorPendingMilestone;
   onCancel: () => void;
   onConfirm: (decision: ProposalDecision, comment: string, stageFormData: { committeeMember1: string; committeeMember2: string }) => void;
 }
 
-export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel, onConfirm }: ProposalRecommendationModalProps) {
+export function ProposalRecommendationModal({ open, busy, error, milestone: m, onCancel, onConfirm }: ProposalRecommendationModalProps) {
   const { lang } = useLanguage();
   const { userData } = useAuth();
   const [decision, setDecision] = useState<ProposalDecision>('approved');
@@ -253,6 +254,10 @@ export function ProposalRecommendationModal({ open, busy, milestone: m, onCancel
             </div>
           )}
         </div>
+
+        {/* See ApproveMilestoneModal.tsx's matching comment — the card's own
+            rowError sits behind this modal's full-screen overlay while open. */}
+        {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
 
         <div className="mt-4 flex justify-end gap-2">
           <button

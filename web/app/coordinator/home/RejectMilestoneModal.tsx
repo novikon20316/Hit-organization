@@ -11,11 +11,12 @@ import { REJECT_MILESTONE_FIELD_GUIDE, REJECT_MILESTONE_GUIDE_KEY } from './fiel
 interface RejectMilestoneModalProps {
   open: boolean;
   busy: boolean;
+  error?: string;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
 }
 
-export function RejectMilestoneModal({ open, busy, onCancel, onConfirm }: RejectMilestoneModalProps) {
+export function RejectMilestoneModal({ open, busy, error, onCancel, onConfirm }: RejectMilestoneModalProps) {
   const { lang } = useLanguage();
   const [reason, setReason] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -48,6 +49,9 @@ export function RejectMilestoneModal({ open, busy, onCancel, onConfirm }: Reject
           className="mt-3 w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
           placeholder={lang === 'he' ? 'סיבת הדחייה...' : 'Reason for rejection...'}
         />
+        {/* See ApproveMilestoneModal.tsx's matching comment — the card's own
+            rowError sits behind this modal's full-screen overlay while open. */}
+        {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"

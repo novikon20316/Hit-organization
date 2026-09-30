@@ -14,11 +14,12 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 interface ApproveMilestoneModalProps {
   open: boolean;
   busy: boolean;
+  error?: string;
   onCancel: () => void;
   onConfirm: (comment: string) => void;
 }
 
-export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: ApproveMilestoneModalProps) {
+export function ApproveMilestoneModal({ open, busy, error, onCancel, onConfirm }: ApproveMilestoneModalProps) {
   const { lang } = useLanguage();
   const [comment, setComment] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,12 @@ export function ApproveMilestoneModal({ open, busy, onCancel, onConfirm }: Appro
           className="mt-3 w-full rounded-lg border border-coordinator-outline-variant bg-coordinator-surface-container-low px-3 py-2 text-sm text-coordinator-on-surface focus:border-coordinator-primary focus:bg-coordinator-surface-container-lowest focus:outline-none"
           placeholder={lang === 'he' ? 'הערה (אופציונלי)...' : 'Comment (optional)...'}
         />
+        {/* Rendered here, not just the card's rowError underneath — this
+            modal's own fixed full-screen overlay hides that card while open,
+            so a failed approve (e.g. the chain moved on, or a required
+            stage field is missing) used to fail with zero visible feedback:
+            the modal just sat there looking unchanged. */}
+        {error && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
