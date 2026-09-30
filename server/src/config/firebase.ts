@@ -27,9 +27,13 @@ const credentialSource = serviceAccountJson
     : null;
 
 // 💡 FIXED: Invoke getApps() to check the length array safely
-if (getApps().length === 0) {
-  initializeApp(credentialSource ? { credential: cert(credentialSource) } : undefined);
-}
+// `app` is captured/exported (previously discarded) so middleware/appCheck.ts
+// can call getAppCheck(app) — the Admin App Check API needs the App instance,
+// not just the default-initialized SDK sub-modules below.
+const app = getApps().length === 0
+  ? initializeApp(credentialSource ? { credential: cert(credentialSource) } : undefined)
+  : getApps()[0];
+export { app };
 
 // Clean initialization using direct SDK sub-modules
 export const db: Firestore = getFirestore();

@@ -3,7 +3,8 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { auth } from '../firebase/firebase';
+import { auth, appCheck } from '../firebase/firebase';
+import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { reportClientError } from './errorReporting';
 
 function getBaseUrl(): string {
@@ -52,6 +53,10 @@ class ApiClient {
             config.headers.Authorization = `Bearer ${idToken}`;
           } else {
           }
+        } catch {}
+        try {
+          const { token } = await getAppCheckToken(appCheck);
+          config.headers['X-Firebase-AppCheck'] = token;
         } catch {}
         // Lets server/src/middleware/auth.ts enforce mobile's own
         // maintenance flag on every request — separate from web's (see

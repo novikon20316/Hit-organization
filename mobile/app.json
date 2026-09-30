@@ -12,6 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.organization.projects",
       "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -35,6 +36,8 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/app-check",
       [
         "expo-notifications",
         {

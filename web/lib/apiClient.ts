@@ -5,7 +5,8 @@
 // dependency. Add methods here as we port each mobile screen; this file is
 // meant to grow the same way the mobile one did.
 
-import { auth } from './firebase';
+import { auth, appCheck } from './firebase';
+import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { reportClientError } from './errorReporting';
 
 // No timeout existed anywhere in this client before — a hung request (dead
@@ -43,7 +44,13 @@ export async function downloadAuthenticatedFile(path: string, filename: string, 
     });
   }
 
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}`, 'X-Client-Platform': 'web' } });
+  const downloadHeaders: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-Client-Platform': 'web' };
+  if (appCheck) {
+    try {
+      downloadHeaders['X-Firebase-AppCheck'] = (await getAppCheckToken(appCheck)).token;
+    } catch {}
+  }
+  const res = await fetch(url.toString(), { headers: downloadHeaders });
   if (!res.ok) throw new Error(`Download failed — HTTP ${res.status}`);
 
   const blob = await res.blob();
@@ -138,6 +145,12 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     try {
       const idToken = await currentUser.getIdToken();
       finalHeaders.set('Authorization', `Bearer ${idToken}`);
+    } catch {}
+  }
+  if (appCheck) {
+    try {
+      const { token: appCheckToken } = await getAppCheckToken(appCheck);
+      finalHeaders.set('X-Firebase-AppCheck', appCheckToken);
     } catch {}
   }
 
@@ -676,6 +689,15 @@ export const apiClient = {
    *  change on next login — see adminController.ts's resetUserPasswordAdmin. */
   async resetUserPasswordAdmin(userId: string) {
     return request<{ success: boolean; tempPassword: string; message: string }>(`/api/admin/users/${userId}/reset-password`, { method: 'POST' });
+  },
+
+  /** POST /api/admin/users/:id/reset-onboarding — clears the target user's
+   *  `hasSeenOnboardingTour` + `seenFieldGuides`, so the app-wide onboarding
+   *  tour and every per-screen field-guide walkthrough show again on their
+   *  next visit. system_admin only — see adminController.ts's
+   *  resetUserOnboardingAdmin. */
+  async resetUserOnboardingAdmin(userId: string) {
+    return request<{ success: boolean }>(`/api/admin/users/${userId}/reset-onboarding`, { method: 'POST' });
   },
 
   /** GET /api/admin/standard-supervisors — see

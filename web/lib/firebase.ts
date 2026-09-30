@@ -14,6 +14,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, browserLocalPersistence, setPersistence, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM',
@@ -29,6 +30,24 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// App Check — protects Firestore/Auth (once enforcement is enabled in
+// Firebase Console) and the custom Express API (via the X-Firebase-AppCheck
+// header apiClient.ts attaches) from traffic that isn't the real web app.
+// Browser-only (reCAPTCHA v3 needs a DOM/window), same guard as the
+// setPersistence call below — must not run during next build's prerender
+// pass. Debug token lets local dev keep working once Console enforcement is
+// eventually turned on for real (see Firebase App Check docs on debug
+// providers) — never set in production.
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+export const appCheck = typeof window !== 'undefined'
+  ? initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY!),
+      isTokenAutoRefreshEnabled: true,
+    })
+  : undefined;
 
 // "Sign in with Google" — requires Google enabled as a sign-in provider in
 // Firebase Console (Authentication > Sign-in method) before this does
@@ -47,6 +66,5 @@ appleProvider.addScope('name');
 // that changes on us later. Browser-only; skipped during SSR/build.
 if (typeof window !== 'undefined') {
   setPersistence(auth, browserLocalPersistence).catch((err) => {
-    console.error('Failed to set Firebase auth persistence:', err);
   });
 }

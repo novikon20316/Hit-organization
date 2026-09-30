@@ -19,12 +19,12 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://apis.google.com${isDev ? " 'unsafe-eval'" : ""};
+  script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/${isDev ? " 'unsafe-eval'" : ""};
   style-src 'self' 'unsafe-inline';
   img-src 'self' blob: data:;
   font-src 'self';
   connect-src 'self' https://*.googleapis.com https://api.cloudinary.com https://api-432175584982.us-central1.run.app https://hit-organization.onrender.com${isDev ? " http://localhost:* ws://localhost:*" : ""};
-  frame-src https://*.firebaseapp.com https://accounts.google.com;
+  frame-src https://*.firebaseapp.com https://accounts.google.com https://www.google.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
