@@ -19,7 +19,7 @@
       "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000,
+      "port": 3099,
       "cwd": "web",
       "autoPort": true
     }

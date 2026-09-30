@@ -74,6 +74,9 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
   const [copiedResetPassword, setCopiedResetPassword] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
   const [reenforcing2fa, setReenforcing2fa] = useState(false);
+  const [confirmResetOnboarding, setConfirmResetOnboarding] = useState(false);
+  const [resettingOnboarding, setResettingOnboarding] = useState(false);
+  const [resetOnboardingDone, setResetOnboardingDone] = useState(false);
 
   const handleToggleActive = async () => {
     setTogglingActive(true);
@@ -143,6 +146,22 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
       setConfirmResetPassword(false);
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleResetOnboarding = async () => {
+    setResettingOnboarding(true);
+    setRowError('');
+    try {
+      await apiClient.resetUserOnboardingAdmin(user.id);
+      setConfirmResetOnboarding(false);
+      setResetOnboardingDone(true);
+      setTimeout(() => setResetOnboardingDone(false), 3000);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'Failed to reset walkthroughs');
+      setConfirmResetOnboarding(false);
+    } finally {
+      setResettingOnboarding(false);
     }
   };
 
@@ -283,6 +302,15 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
           </button>
           <button
             type="button"
+            onClick={() => setConfirmResetOnboarding(true)}
+            title={lang === 'he' ? 'יציג מחדש למשתמש את כל סיורי ההדרכה וההסברים המונפשים בשדות שהוא כבר סגר' : 'Shows this user every onboarding tour and animated field-guide walkthrough again, including ones they already dismissed'}
+            aria-label={lang === 'he' ? 'אפס הדרכות' : 'Reset walkthroughs'}
+            className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
+          >
+            🧭 {lang === 'he' ? 'אפס הדרכות' : 'Reset walkthroughs'}
+          </button>
+          <button
+            type="button"
             onClick={() => onEdit(user)}
             className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-admin-primary hover:text-admin-primary"
           >
@@ -356,6 +384,12 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         </div>
       )}
 
+      {resetOnboardingDone && (
+        <p className="mt-3 rounded-md bg-[var(--success-bg)] px-2.5 py-1.5 text-xs text-[var(--success)]">
+          {lang === 'he' ? 'ההדרכות אופסו — יופיעו שוב בכניסה הבאה של המשתמש.' : "Walkthroughs reset — they'll show again next time this user visits."}
+        </p>
+      )}
+
       {rowError && <p className="mt-2 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{rowError}</p>}
 
       <ConfirmDialog
@@ -386,6 +420,21 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         busy={resettingPassword}
         onConfirm={handleResetPassword}
         onCancel={() => setConfirmResetPassword(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmResetOnboarding}
+        title={lang === 'he' ? 'איפוס הדרכות' : 'Reset Walkthroughs'}
+        message={
+          lang === 'he'
+            ? `כל סיורי ההדרכה וההסברים המונפשים בשדות עבור ${user.displayName} יופיעו שוב מההתחלה, כולל אלו שכבר נסגרו. להמשיך?`
+            : `Every onboarding tour and animated field-guide walkthrough for ${user.displayName} will show again from scratch, including ones already dismissed. Continue?`
+        }
+        confirmLabel={lang === 'he' ? 'כן, אפס' : 'Yes, reset'}
+        cancelLabel={lang === 'he' ? 'ביטול' : 'Cancel'}
+        busy={resettingOnboarding}
+        onConfirm={handleResetOnboarding}
+        onCancel={() => setConfirmResetOnboarding(false)}
       />
 
       <ConfirmDialog

@@ -24,6 +24,7 @@ import {
   extendDefenseAccessGrant,
   eraseUserBySystemAdmin,
   resetUserPasswordAdmin,
+  resetUserOnboardingAdmin,
   updateStudentAcademicYear,
   updateStudentCompletedCoursesAsAdmin,
   searchStudents,
@@ -121,6 +122,8 @@ router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 // system_admin (any user) or administrative coordinator (students in their
 // own faculty/major scope only) — gated inside the controller.
 router.post('/users/:id/reset-password', verifyToken, resetUserPasswordAdmin);
+// system_admin only — gated inside the controller.
+router.post('/users/:id/reset-onboarding', verifyToken, resetUserOnboardingAdmin);
 // Same caller gate as reset-password above — system_admin (any supervisor)
 // or administrative coordinator (supervisors in her own faculty/major scope
 // only) — gated inside the controller.

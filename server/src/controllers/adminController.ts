@@ -1230,6 +1230,40 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
 };
 
 /**
+ * POST /api/admin/users/:id/reset-onboarding
+ * Clears a user's dismissed-walkthrough state so the app-wide onboarding
+ * tour and every per-screen field-guide walkthrough (student-apply-project,
+ * new-project-form, etc. — see FieldGuideOverlay/markFieldGuideSeen) show
+ * again on their next visit. system_admin only, since this touches another
+ * user's doc directly rather than the self-serve endpoints in
+ * userController.ts (completeOnboardingTour/markFieldGuideSeen), which only
+ * ever write the caller's own uid.
+ */
+export const resetUserOnboardingAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
+    await logPermissionDenied(req, 'user', req.params.id ?? 'unknown');
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+
+  const { id: userId } = req.params;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ message: 'Missing user id.' });
+  }
+
+  try {
+    await db.collection('users').doc(userId).update({
+      hasSeenOnboardingTour: false,
+      seenFieldGuides: [],
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('resetUserOnboardingAdmin Error:', error);
+    return res.status(500).json({ message: 'Failed to reset onboarding walkthroughs.' });
+  }
+};
+
+/**
  * POST /api/admin/users/:id/reset-password
  * Generates a new temporary password for a user and forces a change on
  * their next login — the supported alternative to erasing and recreating an

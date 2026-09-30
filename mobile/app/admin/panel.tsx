@@ -1697,6 +1697,35 @@ export default function PanelScreen() {
                       </Pressable>
                     )}
 
+                    <Pressable
+                      style={styles.editBtn}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        Alert.alert(
+                          lang === 'he' ? 'איפוס הדרכות' : 'Reset Walkthroughs',
+                          lang === 'he'
+                            ? `כל סיורי ההדרכה וההסברים המונפשים בשדות עבור ${u.displayName} יופיעו שוב מההתחלה, כולל אלו שכבר נסגרו. להמשיך?`
+                            : `Every onboarding tour and animated field-guide walkthrough for ${u.displayName} will show again from scratch, including ones already dismissed. Continue?`,
+                          [
+                            { text: lang === 'he' ? 'ביטול' : 'Cancel', style: 'cancel' },
+                            {
+                              text: lang === 'he' ? 'כן, אפס' : 'Yes, reset',
+                              onPress: async () => {
+                                try {
+                                  await apiClient.post(`/api/admin/users/${u.id}/reset-onboarding`);
+                                  Alert.alert('✅', lang === 'he' ? 'ההדרכות אופסו' : 'Walkthroughs reset');
+                                } catch {
+                                  Alert.alert('Error', lang === 'he' ? 'איפוס ההדרכות נכשל' : 'Failed to reset walkthroughs');
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.editBtnText}>🧭 {lang === 'he' ? 'אפס הדרכות' : 'Reset walkthroughs'}</Text>
+                    </Pressable>
+
                     <Pressable style={styles.editBtn} onPress={() => openEditUser(u)} accessibilityRole="button">
                       <Text style={styles.editBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                     </Pressable>
