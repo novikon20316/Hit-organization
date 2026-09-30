@@ -13,7 +13,7 @@ import {
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
-import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, routingHasExaminerStage, statusForStage } from '../services/milestoneRouting.js';
+import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, routingHasExaminerStage, scopeMismatchMessage, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { resolveCommitteeForProject } from './committeeController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
@@ -808,7 +808,7 @@ async function approveChainMilestone(
   // enables for a stage that opts into it.
   const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
-  if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
+  if (!authorized) return res.status(403).json({ message: scopeMismatchMessage(stage, resource) });
 
   // Same required/non-locked rule milestoneController.ts's submitMilestone
   // already applies to studentFormFields — a locked (autoFill) field is
@@ -1397,7 +1397,7 @@ async function rejectChainMilestone(
   // sufficient.
   const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
-  if (!authorized) return res.status(403).json({ message: 'This milestone is outside your assigned scope for its current stage.' });
+  if (!authorized) return res.status(403).json({ message: scopeMismatchMessage(stage, resource) });
 
   const rejectsToStudent = stage.rejectTo === 'student';
   const targetIndex = rejectsToStudent ? -1 : routing.findIndex((s) => s.id === stage.rejectTo);

@@ -107,6 +107,17 @@ export async function authorizeStageActor(
   return uids.includes(user.uid);
 }
 
+/** The 403 message for a failed authorizeStageActor check — names who/where
+ *  actually IS authorized, since "outside your assigned scope" alone gives
+ *  the viewer (and whoever's debugging their report) nothing to go on. This
+ *  scope class of bug (a taxonomy mismatch, a denormalized facultyId that
+ *  drifted from its live source) has hit this codebase repeatedly, always
+ *  presenting as "nothing happens" until someone reads the network tab. */
+export function scopeMismatchMessage(stage: ChainStage, resource: ResourceScope): string {
+  const where = [resource.facultyId, resource.major].filter(Boolean).join(' / ');
+  return `This milestone is outside your assigned scope for its current stage (requires role: ${stage.role}${where ? `, faculty/major: ${where}` : ''}).`;
+}
+
 /**
  * One grader's weighted total from their milestone's configured grading
  * rubric — normalizes each component's raw score against its own maxScore
