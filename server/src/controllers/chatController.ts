@@ -827,20 +827,25 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
         const participants: string[] = data.participants ?? [];
         const otherIds         = participants.filter((id) => id !== uid);
 
-        // Fetch other participants' profiles in parallel
-        const profileSnaps = await Promise.all(
-          otherIds.map((id) => db.collection('users').doc(id).get())
-        );
+        // Profile lookups and the unread count don't depend on each other —
+        // run them concurrently instead of one-after-the-other, and use a
+        // count() aggregation for the unread total instead of pulling down
+        // full notification documents just to read .size. Together these
+        // used to double the Firestore round-trips this endpoint made per
+        // chat, which multiplied out across every chat thread the user has
+        // and could blow past the client's request timeout.
+        const [profileSnaps, unreadCountSnap] = await Promise.all([
+          Promise.all(otherIds.map((id) => db.collection('users').doc(id).get())),
+          db.collection('notifications')
+            .where('recipientId', '==', uid)
+            .where('chatId', '==', doc.id)
+            .where('isRead', '==', false)
+            .count()
+            .get(),
+        ]);
         const otherParticipants = profileSnaps
           .filter((s) => s.exists)
           .map((s) => parseUserRow(s));
-
-        // Unread count for this specific chat
-        const unreadSnap = await db.collection('notifications')
-          .where('recipientId', '==', uid)
-          .where('chatId', '==', doc.id)
-          .where('isRead', '==', false)
-          .get();
 
         // This is a direct (1:1) chat model — both the web and mobile
         // notifications screens render a single avatar/name/role per row
@@ -856,7 +861,7 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
           type:              data.type        ?? 'direct',
           lastMessage:       data.lastMessage ?? '',
           updatedAt:         data.updatedAt   ?? null,
-          unreadCount:       unreadSnap.size,
+          unreadCount:       unreadCountSnap.data().count,
           otherUid:          primaryOther?.id   ?? '',
           otherName:         primaryOther?.name ?? '',
           otherRole:         primaryOther?.role ?? '',
