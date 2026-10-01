@@ -17,8 +17,7 @@ import {
   ActivityIndicator, Modal, TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { tx, type Lang } from '../../components/i18n';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';

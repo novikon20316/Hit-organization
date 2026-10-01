@@ -79,9 +79,7 @@ const registerPushToken = async () => {
     const token = await registerForPushNotificationsAsync();
     if (!token) return;
     await apiClient.post('/api/users/update-push-token', { token });
-  } catch (e) {
-    console.warn('Push token registration failed:', e);
-  }
+  } catch {}
 };
 
 // ─── Routes that do NOT require authentication ────────────────────────────────
@@ -288,7 +286,6 @@ function RootLayoutInner() {
         const totpEnabled = userData?.totp_enabled ?? false;
 
         const latestPathname   = pathnameRef.current;
-        console.log('latestPathname:', latestPathname);
         const alreadyVerifying = latestPathname === '/verify2fa' || latestPathname === '/(auth)/verify2fa';
         const alreadyOnSetup   = latestPathname === '/setup2fa'  || latestPathname === '/(auth)/setup2fa';
 
@@ -375,7 +372,6 @@ function RootLayoutInner() {
         setLoading(false);
 
       } catch (err: any) {
-        console.error('Auth state error:', err);
 
         // Only a genuine auth rejection (401/403 — the token was actually
         // refused) means the session itself is invalid, so only THAT case
@@ -394,7 +390,6 @@ function RootLayoutInner() {
           await auth.signOut();
           scheduleRedirectRef.current?.('/(auth)/login');
         } else {
-          console.warn('Ignoring non-auth error on /api/users/me — leaving current session/route as-is:', status ?? err?.message);
         }
         setLoading(false);
       }
@@ -537,7 +532,7 @@ function RootLayoutInner() {
   if (loading) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="auto" translucent={false} />
+        <StatusBar style="auto" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F4FF' }}>
           <Image
             source={require('../assets/hit-logo.png')}
@@ -557,7 +552,7 @@ function RootLayoutInner() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <NotificationsProvider>
-          <StatusBar style="auto" translucent={false} />
+          <StatusBar style="auto" />
           <Stack screenOptions={{ headerShown: false }} />
           <OnboardingTourOverlay />
         </NotificationsProvider>
