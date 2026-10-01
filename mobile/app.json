@@ -81,7 +81,8 @@
         }
       ],
       "expo-image",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,
