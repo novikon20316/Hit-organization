@@ -387,7 +387,15 @@ export default function CoordinatorHome() {
         setProjects((prev: any[]) => prev.map((p: any) => ({ ...p, milestones: (p.milestones ?? []).map(overlay) })));
 
         setPendingMilestones((prev) => {
-          const overlaid = prev.map(overlay);
+          // overlay() patches each existing entry's live fields in place but
+          // has no way to REMOVE one — so an item that just left the pending
+          // set (e.g. this coordinator's own approve/reject finally landing,
+          // or someone else's) used to sit here forever: still rendered,
+          // still clickable, re-approving/re-rejecting an already-finalized
+          // milestone as a silent no-op every time. Re-apply the same
+          // eligibility check the 'additions' branch below already uses for
+          // newly-qualifying items, symmetrically, to the existing ones too.
+          const overlaid = prev.map(overlay).filter((m) => PENDING_STATUSES.has(m.status) && belongsInPending(m));
           const knownIds = new Set(overlaid.map((m) => m.id));
           const additions: PendingMilestone[] = [];
           liveById.forEach((data, id) => {

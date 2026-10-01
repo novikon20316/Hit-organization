@@ -155,6 +155,14 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
   for (const doc of researchProposalsSnap.docs) {
     const data = doc.data();
     if (!isChainDriven(data)) continue;
+    // A finished chain's currentStageIndex is left pointing at its own last
+    // ('approve') stage forever — nothing advances it further once there's
+    // no landedStage to move to (see approveChainMilestone in
+    // coordinatorController.ts). Without this check, an already-finalized
+    // proposal looked identical to a genuinely-pending one to everything
+    // below, so it never left this list: the widget kept re-offering it,
+    // Approve kept silently re-finalizing it as a no-op, forever.
+    if (data.status === 'coordinator_approved') continue;
     const routing: ChainStage[] = data.routing ?? [];
     const stage = routing[data.currentStageIndex ?? 0];
     if (!stage || stage.action !== 'approve' || stage.role === 'committee') continue;
