@@ -293,13 +293,21 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
               🔐 {reenforcing2fa ? '…' : lang === 'he' ? 'אכוף 2FA מחדש' : 'Re-enforce 2FA'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setConfirmResetPassword(true)}
-            className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
-          >
-            🔑 {lang === 'he' ? 'איפוס סיסמה' : 'Reset password'}
-          </button>
+          {/* Server also refuses this on your own uid (see
+              resetUserPasswordAdmin's doc comment) — it always forces a
+              random temp password + mustChangePassword, which is exactly
+              wrong for changing your own password while you're mid-session
+              and already know what you want to set it to. Hidden here
+              rather than just disabled, same as canImpersonate above. */}
+          {!isSelf && (
+            <button
+              type="button"
+              onClick={() => setConfirmResetPassword(true)}
+              className="rounded-full border border-admin-outline-variant px-3 py-1.5 text-xs font-medium text-admin-on-surface hover:border-accent hover:text-accent"
+            >
+              🔑 {lang === 'he' ? 'איפוס סיסמה' : 'Reset password'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setConfirmResetOnboarding(true)}

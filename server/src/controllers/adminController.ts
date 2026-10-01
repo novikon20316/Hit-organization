@@ -1289,6 +1289,19 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
   const { id: userId } = req.params;
   if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
 
+  // This always issues a random temp password + forces a change on next
+  // login (see this function's own doc comment) — exactly what you don't
+  // want on your own account, where you already know what you're trying to
+  // set. Self-targeting here used to silently lock the admin out of their
+  // own session (disabled: false is a no-op when you're not disabled, but
+  // the password still changes out from under you mid-session) for no
+  // reason: the real tool for changing your own password is the normal
+  // account-settings Change Password screen, which lets you pick the exact
+  // value directly instead of being forced through this recovery flow.
+  if (userId === req.user?.uid) {
+    return res.status(400).json({ message: "Cannot reset your own password here — use Change Password in your account settings instead." });
+  }
+
   try {
     const targetSnap = await db.collection('users').doc(userId).get();
     if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
