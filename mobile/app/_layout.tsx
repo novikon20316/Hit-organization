@@ -193,12 +193,23 @@ function RootLayoutInner() {
       // user would otherwise skip the login screen entirely and land
       // straight on /verify2fa (or their dashboard). Sign out once per app
       // lifetime so 2FA/home routing only ever happens as the result of an
-      // explicit login submitted from the login screen.
+      // explicit login submitted from the login screen — UNLESS this device
+      // has biometric login enabled for this exact account, which exists
+      // specifically to let a returning user skip re-entering credentials.
+      // Signing out here unconditionally silently discarded that persisted
+      // session before the biometric gate further down ever got a chance to
+      // run, so biometric could never actually fire on a cold start — only
+      // right after setup, confirmed live. Biometric still enforces the same
+      // "prove it's you" bar, just via Face ID/fingerprint instead of a
+      // retyped password, so skipping the sign-out here isn't a weaker gate.
       if (!initialAuthCheckedRef.current) {
         initialAuthCheckedRef.current = true;
         if (user) {
-          await auth.signOut();
-          return; // onAuthStateChanged fires again below with user === null
+          const biometricOnForThisUser = await isBiometricEnabled(user.uid).catch(() => false);
+          if (!biometricOnForThisUser) {
+            await auth.signOut();
+            return; // onAuthStateChanged fires again below with user === null
+          }
         }
       }
 
