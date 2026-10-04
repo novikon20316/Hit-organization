@@ -397,16 +397,8 @@ export default function LoginScreen() {
       // for that initial restore to finish before trusting currentUser.
       await auth.authStateReady();
       const uid = auth.currentUser?.uid;
-      const enabled = uid ? await isBiometricEnabled(uid).catch(() => false) : false;
-      // TEMP diagnostic — remove once the "no dialog appears" report is
-      // resolved. Reports the exact state this check saw, so the next test
-      // doesn't need another guess-and-rebuild cycle to find out why.
-      reportClientError({
-        kind: 'client_crash',
-        message: `Biometric mount check: uid=${uid ?? 'none'} unlocked=${isSessionUnlocked()} enabled=${enabled}`,
-        route: '/(auth)/login#biometric-mount',
-      });
       if (!uid || isSessionUnlocked()) return;
+      const enabled = await isBiometricEnabled(uid).catch(() => false);
       if (!enabled) return;
       await attemptBiometric();
     };
@@ -432,6 +424,19 @@ export default function LoginScreen() {
       setBiometricBusy(false);
       try {
         await completeLoginFlow();
+      } catch (err: any) {
+        // CRITICAL FIX: confirmed live — this had no catch at all, so any
+        // error completeLoginFlow() threw (a Firestore read failing, a
+        // network hiccup, etc.) became a silent unhandled rejection: the
+        // native fingerprint dialog closed, the spinner flashed and reset
+        // via the finally below, and the user was just left looking at the
+        // blank form with zero explanation anything had gone wrong.
+        reportClientError({
+          kind: 'client_crash',
+          message: `Biometric completeLoginFlow failed: ${err?.code ?? 'no-code'} - ${err?.message ?? String(err)}`,
+          route: '/(auth)/login#biometric-complete',
+        });
+        setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       } finally {
         setLoading(false);
       }
