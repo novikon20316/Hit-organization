@@ -7,6 +7,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Same as isSignedIn(), plus requiring the account's email to actually be
+    // verified. "Signed in" alone became trivially automatable (one
+    // unauthenticated Identity Toolkit accounts:signUp call creates a session
+    // instantly, no human verification step) once mobile started shipping an
+    // API key with no application-identity restriction — see
+    // mobile/src/firebase/firebase.ts's JS_SDK_API_KEY. Used only on the
+    // handful of rules below broad enough for mass data collection (full
+    // collection reads/lists), not applied to isSignedIn() globally, since
+    // that's relied on throughout this file and wasn't individually audited
+    // here for whether every single call site tolerates the extra
+    // restriction. Safe for every real account type: staff are admin-
+    // provisioned with emailVerified already true at creation
+    // (userImportExport.ts), Google/Apple sign-in is auto-verified by
+    // Firebase itself, and a self-registered student has no Firestore
+    // profile at all until they verify (signup.tsx) — login.tsx's own gate
+    // already treats an unverified student as unable to use the app for
+    // real, this just backs that up at the rules layer instead of trusting
+    // the client alone.
+    function isVerifiedSignedIn() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     // ─── Single cached user fetch ────────────────────────────────────────────
     // ALL role/faculty checks go through this one function.
     // Firestore does NOT cache get() calls between function invocations,
@@ -75,7 +97,10 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read:  if isSignedIn();   // any signed-in user can read profiles
+      // Covers both get() and list() — a verified-only gate specifically
+      // because list() here means a full dump of every user's profile in
+      // one query, the single biggest mass-enumeration surface in this file.
+      allow read:  if isVerifiedSignedIn();
 
       // CRITICAL FIX: this used to be a single unrestricted `allow write`
       // covering create+update+delete, granted to (a) the doc's own owner
