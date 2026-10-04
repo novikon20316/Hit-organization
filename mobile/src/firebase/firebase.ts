@@ -8,12 +8,13 @@ import {
   getReactNativePersistence,
 } from "firebase/auth";
 
-import { initializeAppCheck, CustomProvider } from "firebase/app-check";
+import { initializeAppCheck, CustomProvider, type AppCheck } from "firebase/app-check";
 import { getApp as getNativeApp } from "@react-native-firebase/app";
 import {
   initializeAppCheck as initializeNativeAppCheck,
   ReactNativeFirebaseAppCheckProvider,
 } from "@react-native-firebase/app-check";
+import Constants from "expo-constants";
 
 import { secureStorage } from "./secureStorage";
 
@@ -43,26 +44,46 @@ export const db = getFirestore(app);
 // (separate) app instance, auto-configured at launch from
 // GoogleService-Info.plist/google-services.json — no explicit
 // initializeApp() call needed for it.
-const rnfbAppCheckProvider = new ReactNativeFirebaseAppCheckProvider();
-rnfbAppCheckProvider.configure({
-  android: { provider: __DEV__ ? "debug" : "playIntegrity" },
-  apple: { provider: __DEV__ ? "debug" : "appAttestWithDeviceCheckFallback" },
-});
-initializeNativeAppCheck(getNativeApp(), {
-  provider: rnfbAppCheckProvider,
-  isTokenAutoRefreshEnabled: true,
-});
+//
+// GUARDED on extra.appCheckReady, same reasoning as web/lib/firebase.ts's own
+// guard on NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY (confirmed live 2026-09-30: an
+// unguarded App Check init broke the entire web app in production the moment
+// its provider couldn't get a real token). The Android Play Integrity / iOS
+// App Attest external setup (SHA-256 fingerprint + Play Console linkage;
+// Apple Developer account) was flagged as incomplete when this code was
+// written, and once initialized, App Check auto-attaches to every Firestore/
+// Auth call on this shared `app` instance — so a failing native getToken()
+// here doesn't just skip App Check, it can break login and every other
+// Firestore/Auth call outright. Server-side enforcement is also still
+// UNENFORCED for both Firestore and Identity Toolkit, so there is zero
+// functional benefit to forcing this on before it's verified working.
+// Flip appCheckReady to true (and rebuild) once that external setup is
+// actually done and confirmed on a real device.
+const appCheckReady = (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.appCheckReady === true;
 
-export const appCheck = initializeAppCheck(app, {
-  isTokenAutoRefreshEnabled: true,
-  provider: new CustomProvider({
-    // Delegates to the native provider's own getToken() (not the module-level
-    // getToken(appCheckInstance) helper, which returns a narrower
-    // { token }-only shape) — this one returns the full { token,
-    // expireTimeMillis } the plain JS SDK's CustomProvider expects.
-    getToken: () => rnfbAppCheckProvider.getToken(),
-  }),
-});
+export let appCheck: AppCheck | undefined;
+if (appCheckReady) {
+  const rnfbAppCheckProvider = new ReactNativeFirebaseAppCheckProvider();
+  rnfbAppCheckProvider.configure({
+    android: { provider: __DEV__ ? "debug" : "playIntegrity" },
+    apple: { provider: __DEV__ ? "debug" : "appAttestWithDeviceCheckFallback" },
+  });
+  initializeNativeAppCheck(getNativeApp(), {
+    provider: rnfbAppCheckProvider,
+    isTokenAutoRefreshEnabled: true,
+  });
+
+  appCheck = initializeAppCheck(app, {
+    isTokenAutoRefreshEnabled: true,
+    provider: new CustomProvider({
+      // Delegates to the native provider's own getToken() (not the module-level
+      // getToken(appCheckInstance) helper, which returns a narrower
+      // { token }-only shape) — this one returns the full { token,
+      // expireTimeMillis } the plain JS SDK's CustomProvider expects.
+      getToken: () => rnfbAppCheckProvider.getToken(),
+    }),
+  });
+}
 
 // 🔥 IMPORTANT: prevent double init (this fixes auth/already-initialized)
 let auth: Auth;

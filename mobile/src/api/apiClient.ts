@@ -54,10 +54,12 @@ class ApiClient {
           } else {
           }
         } catch {}
-        try {
-          const { token } = await getAppCheckToken(appCheck);
-          config.headers['X-Firebase-AppCheck'] = token;
-        } catch {}
+        if (appCheck) {
+          try {
+            const { token } = await getAppCheckToken(appCheck);
+            config.headers['X-Firebase-AppCheck'] = token;
+          } catch {}
+        }
         // Lets server/src/middleware/auth.ts enforce mobile's own
         // maintenance flag on every request — separate from web's (see
         // server/src/services/maintenanceStatus.ts).
