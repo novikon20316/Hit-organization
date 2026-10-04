@@ -36,6 +36,7 @@ import { auth, db } from "@/src/firebase/firebase";
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
+import { reportClientError } from '@/src/api/errorReporting';
 import type { Lang } from '@/components/i18n';
 
 // Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
@@ -176,7 +177,6 @@ export default function LoginScreen() {
       } else if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) {
         // User cancelled — not an error worth surfacing.
       } else {
-        console.error('Google sign-in failed:', err.code, err.message);
         setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
@@ -223,7 +223,6 @@ export default function LoginScreen() {
       } else if (err.code === 'ERR_REQUEST_CANCELED') {
         // User cancelled — not an error worth surfacing.
       } else {
-        console.error('Apple sign-in failed:', err.code, err.message);
         setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
@@ -389,6 +388,15 @@ export default function LoginScreen() {
       } else if (err.code === 'auth/user-not-found') {
         setError(lang === 'he' ? 'לא נמצא חשבון עם דוא"ל זה.' : 'No account found with this email.');
       } else {
+        // Unrecognized error code — reported separately (plain fetch, not
+        // routed through Firebase/apiClient, so it can't be broken by
+        // whatever's actually failing here) so the real err.code/message is
+        // visible server-side without needing device logs.
+        reportClientError({
+          kind: 'client_crash',
+          message: `Login failed with unhandled error: ${err?.code ?? 'no-code'} - ${err?.message ?? String(err)}`,
+          route: '/(auth)/login',
+        });
         setError(lang === 'he' ? 'ההתחברות נכשלה. נסה שוב.' : 'Login failed. Please try again.');
       }
     } finally {
