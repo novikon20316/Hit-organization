@@ -299,9 +299,8 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
     if (req.user && hasAnyRole(req.user, ['student'])) {
       const studentSnap = await db.collection('users').doc(req.user.uid).get();
       const student = studentSnap.data() ?? {};
-      // Legacy single-project field kept as a fallback — activeProjectIds is
-      // the current canonical multi-project list (see TEMP multi-active-
-      // projects work in projectEnrollment.ts).
+      // Legacy single-project field kept as a fallback for any student doc
+      // that predates the activeProjectIds array field.
       const activeProjectIds: string[] = student.activeProjectIds ?? (student.activeProjectId ? [student.activeProjectId] : []);
 
       // Computed once per request, not per file — resolveEffectiveTrack only
