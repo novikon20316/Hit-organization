@@ -18,6 +18,8 @@ import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
 import { FieldGuideProvider } from '@/contexts/FieldGuideContext';
 import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOverlay';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { isBiometricEnabled } from '@/src/auth/biometricStorage';
+import { isSessionUnlocked } from '@/src/auth/biometricAuth';
 
 // ─── Lock native layout direction to LTR ──────────────────────────────────────
 // This app implements its own RTL presentation everywhere (isRtl && styles.
@@ -94,11 +96,13 @@ const authRoutes = new Set<string>([
   '/resetPass',
   '/verify2fa',
   '/setup2fa',
+  '/biometricUnlock',
   '/(auth)/login',
   '/(auth)/signup',
   '/(auth)/resetPass',
   '/(auth)/verify2fa',
   '/(auth)/setup2fa',
+  '/(auth)/biometricUnlock',
   '/changePassword',
   '/(auth)/changePassword',
   '/student/chooseTrack',   // ← same reasoning as changePassword above: lets the
@@ -288,6 +292,8 @@ function RootLayoutInner() {
         const latestPathname   = pathnameRef.current;
         const alreadyVerifying = latestPathname === '/verify2fa' || latestPathname === '/(auth)/verify2fa';
         const alreadyOnSetup   = latestPathname === '/setup2fa'  || latestPathname === '/(auth)/setup2fa';
+        const alreadyOnBiometricUnlock =
+          latestPathname === '/biometricUnlock' || latestPathname === '/(auth)/biometricUnlock';
 
         // SECURITY: this handler must NEVER navigate the user away from
         // verify2fa/setup2fa. That is exclusively verify2fa.tsx's (and the
@@ -303,7 +309,7 @@ function RootLayoutInner() {
         // safely distinguishes "verified just now, in this exact flow" from
         // "verified at some earlier point today" — so this handler simply
         // never acts on these two routes at all, full stop.
-        if (alreadyVerifying || alreadyOnSetup) {
+        if (alreadyVerifying || alreadyOnSetup || alreadyOnBiometricUnlock) {
           setLoading(false);
           return;
         }
@@ -348,6 +354,26 @@ function RootLayoutInner() {
           redirect('/student/chooseTrack' as any);
           setLoading(false);
           return;
+        }
+
+        // ── Biometric unlock gate ────────────────────────────────────────────
+        // Lowest-priority of all the gates above — only reached once a forced
+        // password change, 2FA, and the track decision have all already
+        // cleared. Device-local (SecureStore), not server data, so checked
+        // directly here rather than threaded through userData like the gates
+        // above. isSessionUnlocked() is what stops this from re-firing right
+        // after a fresh interactive login/OAuth sign-in (login.tsx marks the
+        // session unlocked the moment it succeeds) or after the unlock screen
+        // itself succeeds — it should only actually trigger once, on a cold
+        // start restoring an already-persisted session, same "about to leave
+        // an auth route" scoping as the redirect-home branch right below.
+        if (authRoutes.has(latestPathname) && !isSessionUnlocked()) {
+          const biometricOn = await isBiometricEnabled(user.uid).catch(() => false);
+          if (biometricOn) {
+            redirect('/(auth)/biometricUnlock' as any);
+            setLoading(false);
+            return;
+          }
         }
 
         // ── Only redirect if the user is currently on an auth/public route ──

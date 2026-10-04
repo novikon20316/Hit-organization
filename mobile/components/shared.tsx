@@ -18,6 +18,8 @@ import {
   TopBarStyles, HeaderMenuStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
   StatusBadgeStyles, SecurityModalStyles,
 } from '../constants/styles';
+import { isBiometricHardwareReady, promptBiometricAuth } from '../src/auth/biometricAuth';
+import { isBiometricEnabled, setBiometricEnabled } from '../src/auth/biometricStorage';
 
 // #RRGGBB -> rgba(...) — used for tinted badge backgrounds. Mirrors
 // web/lib/facultyColors.ts's helper of the same name, since both platforms
@@ -157,8 +159,10 @@ function SecurityModal({ visible, onClose, lang }: {
   onClose: () => void;
   lang: Lang;
 }) {
-  // 'loading' | 'status' | 'setup' | 'confirm_setup'
-  const [screen, setScreen]         = useState<'loading' | 'status' | 'setup' | 'confirm_setup'>('loading');
+  // 'loading' | 'status' | 'setup' | 'confirm_setup' | biometric sub-steps
+  const [screen, setScreen] = useState<
+    'loading' | 'status' | 'setup' | 'confirm_setup' | 'biometric_email' | 'biometric_code'
+  >('loading');
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [qrCode, setQrCode]         = useState<string | null>(null);
   const [otpauthUrl, setOtpauthUrl] = useState<string | null>(null);
@@ -166,24 +170,103 @@ function SecurityModal({ visible, onClose, lang }: {
   const [error, setError]           = useState('');
   const [busy, setBusy]             = useState(false);
 
+  // Biometric login state — biometricSupported is the device's own hardware
+  // + enrollment check (hasHardwareAsync + isEnrolledAsync), independent of
+  // whether THIS account has turned it on; no point offering "Enable" on a
+  // device with no Face ID/fingerprint set up at the OS level at all.
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [biometricCode, setBiometricCode]           = useState('');
+
   const isRtl = lang === 'he';
 
-  // Load 2FA status whenever modal opens
+  // Load 2FA + biometric status whenever modal opens
   useEffect(() => {
     if (!visible) return;
     setScreen('loading');
     setToken('');
+    setBiometricCode('');
     setError('');
     setQrCode(null);
 
     const uid = auth.currentUser?.uid;
     if (!uid) { onClose(); return; }
 
-    getDoc(doc(db, 'users', uid)).then(snap => {
-      setTotpEnabled(snap.data()?.totp_enabled ?? false);
+    Promise.all([
+      getDoc(doc(db, 'users', uid)).then(snap => snap.data()?.totp_enabled ?? false).catch(() => false),
+      isBiometricHardwareReady().catch(() => false),
+      isBiometricEnabled(uid).catch(() => false),
+    ]).then(([totp, hwReady, bioEnabled]) => {
+      setTotpEnabled(totp);
+      setBiometricSupported(hwReady);
+      setBiometricEnabledState(bioEnabled);
       setScreen('status');
-    }).catch(() => setScreen('status'));
+    });
   }, [visible]);
+
+  // Step 1: confirm the account's own email before a code is sent
+  const handleStartBiometricSetup = () => {
+    setError('');
+    setScreen('biometric_email');
+  };
+
+  const handleSendBiometricCode = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.post('/api/auth/biometric/request-code');
+      setScreen('biometric_code');
+    } catch {
+      setError(lang === 'he' ? 'שליחת הקוד נכשלה.' : 'Failed to send the code.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Step 2: confirm the emailed code, then trigger the OS's own Face ID/
+  // fingerprint prompt — enabling only actually happens on a real native
+  // success, so this also doubles as a "does this device's biometric even
+  // work" check before relying on it to gate future logins.
+  const handleConfirmBiometricCode = async () => {
+    if (biometricCode.length !== 6) {
+      setError(lang === 'he' ? 'יש להזין 6 ספרות' : 'Enter the full 6-digit code.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.post('/api/auth/biometric/verify-code', { code: biometricCode });
+
+      const uid = auth.currentUser?.uid;
+      if (!uid) { setScreen('status'); return; }
+
+      const result = await promptBiometricAuth(lang);
+      if (!result.success) {
+        setError(lang === 'he' ? 'האימות הביומטרי נכשל. נסה שוב.' : 'Biometric verification failed. Please try again.');
+        setBusy(false);
+        return;
+      }
+
+      await setBiometricEnabled(uid, true);
+      setBiometricEnabledState(true);
+      setScreen('status');
+      Alert.alert(
+        lang === 'he' ? '✅ הופעל בהצלחה' : '✅ Enabled',
+        lang === 'he' ? 'כניסה ביומטרית הופעלה במכשיר זה.' : 'Biometric login is now active on this device.',
+      );
+    } catch {
+      setError(lang === 'he' ? 'קוד שגוי. נסה שנית.' : 'Invalid code. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisableBiometric = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    await setBiometricEnabled(uid, false);
+    setBiometricEnabledState(false);
+  };
 
   // Step 1: fetch QR from backend
   const handleStartSetup = async () => {
@@ -238,6 +321,19 @@ function SecurityModal({ visible, onClose, lang }: {
     close:        lang === 'he' ? 'סגור' : 'Close',
     back:         lang === 'he' ? '← חזור' : '← Back',
     contactAdmin: lang === 'he' ? 'לביטול 2FA, פנה למנהל המערכת.' : 'To disable 2FA, contact your system administrator.',
+    bioTitle:        lang === 'he' ? 'כניסה ביומטרית' : 'Biometric Login',
+    bioEnabled:      lang === 'he' ? 'כניסה ביומטרית פעילה במכשיר זה ✅' : 'Biometric login is active on this device ✅',
+    bioDisabled:     lang === 'he' ? 'כניסה ביומטרית כבויה' : 'Biometric login is not enabled',
+    bioDisabledSub:  lang === 'he' ? 'התחבר עם זיהוי פנים או טביעת אצבע במקום הקלדת סיסמה.' : 'Sign in with Face ID or fingerprint instead of typing your password.',
+    bioUnsupported:  lang === 'he' ? 'מכשיר זה אינו תומך בזיהוי ביומטרי, או שלא הוגדר במכשיר.' : "This device doesn't support biometrics, or none are set up on it.",
+    bioEnableBtn:    lang === 'he' ? 'הפעל כניסה ביומטרית' : 'Enable Biometric Login',
+    bioDisableBtn:   lang === 'he' ? 'בטל כניסה ביומטרית' : 'Disable Biometric Login',
+    bioEmailTitle:   lang === 'he' ? 'אימות זהות' : 'Verify Your Identity',
+    bioEmailSub:     lang === 'he' ? 'נשלח קוד אימות לכתובת הדוא"ל הרשומה בחשבונך, לפני הפעלת כניסה ביומטרית במכשיר זה.' : "We'll send a verification code to your account's email before enabling biometric login on this device.",
+    bioSendCodeBtn:  lang === 'he' ? 'שלח קוד' : 'Send Code',
+    bioCodeTitle:    lang === 'he' ? 'הזן את הקוד' : 'Enter the Code',
+    bioCodeSub:      lang === 'he' ? 'הזן את הקוד בן 6 הספרות שנשלח למייל שלך. לאחר האימות תתבקש לאשר באמצעות זיהוי פנים/טביעת אצבע.' : "Enter the 6-digit code we emailed you. After verifying, you'll be asked to confirm with Face ID/fingerprint.",
+    bioConfirmBtn:   lang === 'he' ? 'אמת והפעל' : 'Verify & Enable',
   };
 
   return (
@@ -246,7 +342,7 @@ function SecurityModal({ visible, onClose, lang }: {
 
         {/* Header */}
         <View style={sm.header}>
-          {screen === 'setup' && (
+          {(screen === 'setup' || screen === 'biometric_email' || screen === 'biometric_code') && (
             <Pressable onPress={() => setScreen('status')} style={sm.backBtn} accessibilityRole="button">
               <Text style={sm.backText}>{txt.back}</Text>
             </Pressable>
@@ -297,6 +393,92 @@ function SecurityModal({ visible, onClose, lang }: {
                 }
               </Pressable>
             )}
+
+            <Text style={[sm.setupTitle, isRtl && sm.textRight, { marginTop: 28 }]}>{txt.bioTitle}</Text>
+            <View style={[sm.statusCard, biometricEnabled ? sm.statusCardOn : sm.statusCardOff]}>
+              <Text style={sm.statusIcon}>{biometricEnabled ? '🛡️' : '🔓'}</Text>
+              <Text style={[sm.statusTitle, { color: biometricEnabled ? '#10B981' : '#F59E0B' }]}>
+                {biometricEnabled ? txt.bioEnabled : txt.bioDisabled}
+              </Text>
+              <Text style={[sm.statusSub, isRtl && sm.textRight]}>
+                {biometricSupported ? txt.bioDisabledSub : txt.bioUnsupported}
+              </Text>
+            </View>
+
+            {biometricEnabled ? (
+              <Pressable
+                style={sm.primaryBtn}
+                onPress={handleDisableBiometric}
+                accessibilityRole="button"
+              >
+                <Text style={sm.primaryBtnText}>{txt.bioDisableBtn}</Text>
+              </Pressable>
+            ) : biometricSupported ? (
+              <Pressable
+                style={sm.primaryBtn}
+                onPress={handleStartBiometricSetup}
+                accessibilityRole="button"
+              >
+                <Text style={sm.primaryBtnText}>{txt.bioEnableBtn}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
+
+        {/* ── Biometric setup: confirm email, send code ── */}
+        {screen === 'biometric_email' && (
+          <View style={sm.body}>
+            <Text style={[sm.setupTitle, isRtl && sm.textRight]}>{txt.bioEmailTitle}</Text>
+            <Text style={[sm.setupSub, isRtl && sm.textRight]}>{txt.bioEmailSub}</Text>
+
+            {error ? <Text style={sm.error}>{error}</Text> : null}
+
+            <Pressable
+              style={[sm.primaryBtn, busy && sm.btnDisabled]}
+              onPress={handleSendBiometricCode}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              {busy
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={sm.primaryBtnText}>{txt.bioSendCodeBtn}</Text>
+              }
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── Biometric setup: confirm emailed code, then native prompt ── */}
+        {screen === 'biometric_code' && (
+          <View style={sm.body}>
+            <Text style={[sm.setupTitle, isRtl && sm.textRight]}>{txt.bioCodeTitle}</Text>
+            <Text style={[sm.setupSub, isRtl && sm.textRight]}>{txt.bioCodeSub}</Text>
+
+            <Text style={[sm.codeLabel, isRtl && sm.textRight]}>{txt.codeLabel}</Text>
+            <TextInput
+              style={sm.codeInput}
+              value={biometricCode}
+              onChangeText={t => { setBiometricCode(t); setError(''); }}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="000000"
+              placeholderTextColor="#9BA8C0"
+              textAlign="center"
+              autoFocus
+            />
+
+            {error ? <Text style={sm.error}>{error}</Text> : null}
+
+            <Pressable
+              style={[sm.primaryBtn, (busy || biometricCode.length !== 6) && sm.btnDisabled]}
+              onPress={handleConfirmBiometricCode}
+              disabled={busy || biometricCode.length !== 6}
+              accessibilityRole="button"
+            >
+              {busy
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={sm.primaryBtnText}>{txt.bioConfirmBtn}</Text>
+              }
+            </Pressable>
           </View>
         )}
 

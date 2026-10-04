@@ -37,6 +37,7 @@ import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
 import { reportClientError } from '@/src/api/errorReporting';
+import { markSessionUnlocked } from '@/src/auth/biometricAuth';
 import type { Lang } from '@/components/i18n';
 
 // Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
@@ -116,6 +117,9 @@ export default function LoginScreen() {
   // Shared by both the direct Google sign-in path and the post-linking path
   // below, so they can never disagree on where a signed-in user should land.
   const proceedAfterOAuthSignIn = async (uid: string) => {
+    // Just proved identity via Google/Apple — the biometric gate in
+    // _layout.tsx shouldn't immediately re-prompt right after this.
+    markSessionUnlocked();
     const userDoc = await getDoc(doc(db, 'users', uid));
     const userData = userDoc.data();
 
@@ -258,6 +262,10 @@ export default function LoginScreen() {
 
     try {
       const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
+
+      // Just proved identity by typing a correct password — the biometric
+      // gate in _layout.tsx shouldn't immediately re-prompt right after this.
+      markSessionUnlocked();
 
       // Fire-and-forget — feeds the system_admin "Live Transportation" audit
       // table. Only here (an actual credential submission), never in
