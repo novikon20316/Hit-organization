@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.organization.projects",
@@ -25,6 +26,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false
     },
@@ -79,9 +81,7 @@
           "photosPermission": "Allow the app to access your photos to attach images to chat messages and milestone submissions.",
           "cameraPermission": "Allow the app to access your camera to attach photos to chat messages and milestone submissions."
         }
-      ],
-      "expo-image",
-      "expo-sharing"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

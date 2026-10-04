@@ -9,6 +9,7 @@ const isExpoGo = Constants.appOwnership === 'expo';
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   // Silently skip in Expo Go — push tokens don't work there on SDK 53
   if (isExpoGo) {
+    console.log('ℹ️ Skipping push token registration in Expo Go');
     return null;
   }
 
@@ -17,18 +18,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   const Notifications = await import('expo-notifications');
 
   if (!Device.isDevice) {
+    console.log('Must use physical device for Push Notifications');
     return null;
   }
 
-  const existing = await Notifications.getPermissionsAsync();
-  let granted = existing.granted;
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
 
-  if (!granted) {
-    const requested = await Notifications.requestPermissionsAsync();
-    granted = requested.granted;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
   }
 
-  if (!granted) {
+  if (finalStatus !== 'granted') {
+    console.log('❌ Push notification permission not granted');
     return null;
   }
 
@@ -49,6 +52,7 @@ export async function sendPushNotification(
 ): Promise<void> {
   // Skip in Expo Go or if no token
   if (isExpoGo || !expoPushToken) {
+    console.log('ℹ️ Skipping push notification (Expo Go or no token)');
     return;
   }
 
@@ -71,5 +75,8 @@ export async function sendPushNotification(
     });
 
     const result = await response.json();
-  } catch {}
+    console.log('📲 Push sent:', result);
+  } catch (error) {
+    console.log('❌ Push error:', error);
+  }
 }
