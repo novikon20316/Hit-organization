@@ -1,11 +1,8 @@
 import { buildEmailHtml, NotificationType } from './emailTemplates.js';
 
-// Render's free tier blocks outbound traffic on SMTP ports (25/465/587), which
-// made nodemailer time out in production even though it worked locally. Brevo's
-// API runs over plain HTTPS, so it isn't affected by that restriction. Using
-// single-sender verification (no owned domain / DNS records needed) — see
-// EMAIL_FROM_ADDRESS in .env.
-// https://render.com/changelog/free-web-services-will-no-longer-allow-outbound-traffic-to-smtp-ports
+// Brevo's API runs over plain HTTPS rather than SMTP (25/465/587), which some
+// hosts block or restrict outbound. Using single-sender verification (no
+// owned domain / DNS records needed) — see EMAIL_FROM_ADDRESS in .env.
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 export async function sendNotificationEmail(params: {
