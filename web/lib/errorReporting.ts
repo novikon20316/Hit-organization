@@ -16,7 +16,7 @@ export type ErrorReportKind = 'client_crash' | 'api_timeout' | 'network_failure'
 // Same default as apiClient.ts's getBaseUrl — duplicated rather than
 // imported, to keep this module import-cycle-free from apiClient.ts.
 function getBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || 'https://hit-organization.onrender.com';
+  return process.env.NEXT_PUBLIC_API_URL || 'https://hit-organization.web.app';
 }
 
 // Skip reporting failures ABOUT this endpoint itself — otherwise a total

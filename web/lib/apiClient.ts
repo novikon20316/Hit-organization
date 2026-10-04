@@ -15,7 +15,7 @@ import { reportClientError } from './errorReporting';
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 function getBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || 'https://hit-organization.onrender.com';
+  return process.env.NEXT_PUBLIC_API_URL || 'https://hit-organization.web.app';
 }
 
 export function getApiBaseUrl(): string {

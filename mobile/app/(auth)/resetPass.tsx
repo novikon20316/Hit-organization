@@ -36,10 +36,8 @@ const colors = {
 // confirm page (web/app/(auth)/reset-password/confirm/page.tsx). The link is
 // always opened in a browser regardless of which platform requested it, so
 // this must point at the deployed WEB app's own URL — not this repo's
-// backend API URL. TODO: set this to the real deployed web app origin (e.g.
-// "https://<your-web-app>.onrender.com") once known; left blank rather than
-// guessed, since a wrong guess would silently send users to a broken link.
-const WEB_APP_BASE_URL = '';
+// backend API URL.
+const WEB_APP_BASE_URL = 'https://hit-organization.web.app';
 
 export default function ResetPassword() {
   const router = useRouter();

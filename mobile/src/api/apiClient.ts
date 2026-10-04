@@ -12,8 +12,9 @@ function getBaseUrl(): string {
   // dev client and production builds alike. Previously this derived
   // http://<LAN-IP>:5000 from Metro's hostUri whenever a dev client was
   // connected, silently ignoring apiUrl and requiring a local `npm run dev`
-  // server to be running; that's gone now that Render is the actual backend
-  // used for day-to-day testing.
+  // server to be running; that's gone now that the deployed backend (Firebase
+  // Hosting, which rewrites /api/** to the Cloud Run "api" service) is used
+  // for day-to-day testing.
   const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
   if (configuredApiUrl) return configuredApiUrl;
 
