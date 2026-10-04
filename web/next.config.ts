@@ -23,7 +23,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline';
   img-src 'self' blob: data:;
   font-src 'self';
-  connect-src 'self' https://*.googleapis.com https://api.cloudinary.com https://hit-organization.web.app${isDev ? " http://localhost:* ws://localhost:*" : ""};
+  connect-src 'self' https://*.googleapis.com https://api.cloudinary.com https://hit-organization.web.app https://api-432175584982.us-central1.run.app${isDev ? " http://localhost:* ws://localhost:*" : ""};
   frame-src https://*.firebaseapp.com https://accounts.google.com https://www.google.com;
   object-src 'none';
   base-uri 'self';
