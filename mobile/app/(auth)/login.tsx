@@ -397,8 +397,16 @@ export default function LoginScreen() {
       // for that initial restore to finish before trusting currentUser.
       await auth.authStateReady();
       const uid = auth.currentUser?.uid;
+      const enabled = uid ? await isBiometricEnabled(uid).catch(() => false) : false;
+      // TEMP diagnostic — remove once the "no dialog appears" report is
+      // resolved. Reports the exact state this check saw, so the next test
+      // doesn't need another guess-and-rebuild cycle to find out why.
+      reportClientError({
+        kind: 'client_crash',
+        message: `Biometric mount check: uid=${uid ?? 'none'} unlocked=${isSessionUnlocked()} enabled=${enabled}`,
+        route: '/(auth)/login#biometric-mount',
+      });
       if (!uid || isSessionUnlocked()) return;
-      const enabled = await isBiometricEnabled(uid).catch(() => false);
       if (!enabled) return;
       await attemptBiometric();
     };

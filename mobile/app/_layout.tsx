@@ -20,6 +20,7 @@ import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOve
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { isBiometricEnabled } from '@/src/auth/biometricStorage';
 import { isSessionUnlocked } from '@/src/auth/biometricAuth';
+import { reportClientError } from '@/src/api/errorReporting';
 
 // ─── Lock native layout direction to LTR ──────────────────────────────────────
 // This app implements its own RTL presentation everywhere (isRtl && styles.
@@ -218,6 +219,13 @@ function RootLayoutInner() {
         initialAuthCheckedRef.current = true;
         if (user) {
           const biometricOnForThisUser = await isBiometricEnabled(user.uid).catch(() => false);
+          // TEMP diagnostic — remove once the "no dialog appears" report is
+          // resolved.
+          reportClientError({
+            kind: 'client_crash',
+            message: `_layout cold-start check: uid=${user.uid} biometricEnabled=${biometricOnForThisUser}`,
+            route: '/_layout#cold-start',
+          });
           if (!biometricOnForThisUser) {
             await auth.signOut();
             return; // onAuthStateChanged fires again below with user === null
@@ -405,6 +413,13 @@ function RootLayoutInner() {
         if (authRoutes.has(latestPathname) && !isSessionUnlocked()) {
           const biometricOn = await isBiometricEnabled(user.uid).catch(() => false);
           if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
+          // TEMP diagnostic — remove once the "no dialog appears" report is
+          // resolved.
+          reportClientError({
+            kind: 'client_crash',
+            message: `_layout biometric gate: pathname=${latestPathname} biometricOn=${biometricOn}`,
+            route: '/_layout#biometric-gate',
+          });
           if (biometricOn) {
             redirect('/(auth)/login' as any);
             setLoading(false);
