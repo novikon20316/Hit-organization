@@ -37,7 +37,10 @@ import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck'; // ← NEW
 import { getHomeRoute } from '@/firebase/roles'; // ← single source of truth (covers all roles)
 import { apiClient } from '@/src/api/apiClient';
 import { reportClientError } from '@/src/api/errorReporting';
-import { markSessionUnlocked } from '@/src/auth/biometricAuth';
+import { markSessionUnlocked, isSessionUnlocked, promptBiometricAuth } from '@/src/auth/biometricAuth';
+import {
+  isBiometricEnabled, recordBiometricFailure, resetBiometricFailures, setBiometricEnabled,
+} from '@/src/auth/biometricStorage';
 import type { Lang } from '@/components/i18n';
 
 // Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
@@ -62,6 +65,13 @@ export default function LoginScreen() {
   const [password,     setPassword]     = useState('');
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
+  // Shown instead of the normal "Sign In" button when a persisted session
+  // has biometric enabled and failed at least once this screen visit — lets
+  // the user retry biometric without needing to type anything, right
+  // alongside the email/password fields that are already sitting there as
+  // the fallback. See the mount effect below for the auto-triggered attempt.
+  const [biometricRetryAvailable, setBiometricRetryAvailable] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused,    setEmailFocused]    = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -255,115 +265,217 @@ export default function LoginScreen() {
     }
   };
 
+  // Shared by both a fresh password sign-in and a successful biometric
+  // unlock (see the mount effect below) — both have already proved identity
+  // by this point (typed the right password, or passed a native Face ID/
+  // fingerprint check), so everything from here on is the same: sync the
+  // session-unlocked flag, log the login, resolve the account's actual
+  // gates (verification/profile-sync/forced-password-change/2FA/
+  // maintenance), and land on the right home route.
+  const completeLoginFlow = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return;
+
+    // Just proved identity (password or biometric) — the biometric gate in
+    // _layout.tsx shouldn't immediately re-prompt right after this.
+    markSessionUnlocked();
+
+    // Fire-and-forget — feeds the system_admin "Live Transportation" audit
+    // table. Only here (an actual credential/biometric submission), never in
+    // _layout.tsx's own auth-state redirect logic, so reopening the app
+    // with a still-live session doesn't log a fresh "login" every time.
+    apiClient.post('/api/users/log-login').catch(() => {});
+
+    // Force a fresh fetch of the account record instead of trusting
+    // whatever emailVerified value is already cached locally. That value can
+    // be a stale snapshot when verification status changed externally (e.g.
+    // an admin flipping it via the Admin SDK) rather than through the user
+    // completing the actual verification-link flow in this same session —
+    // reload() is Firebase's documented fix for exactly that.
+    await firebaseUser.reload();
+
+    const userDoc  = await getDoc(doc(db, 'users', firebaseUser.uid));
+    const userData = userDoc.data();
+
+    // Only self-registered students go through email verification —
+    // every other role is provisioned via admin import with emailVerified
+    // already set true at account creation (see createImportedUserAccount
+    // in server/src/services/userImportExport.ts), so this gate must not
+    // apply to them. A student who hasn't verified yet has no Firestore
+    // profile at all (signup.tsx doesn't write one until verification
+    // completes), so `!userData` also means "still mid-verification" here.
+    const isStudent = !userData || userData?.role === 'student';
+
+    if (isStudent && !firebaseUser.emailVerified) {
+      await auth.signOut();
+      setError(
+        lang === 'he'
+          ? 'יש לאמת את כתובת הדוא"ל לפני ההתחברות. בדוק את תיבת הדואר (וגם את הספאם) בעבור קישור האימות שנשלח בהרשמה.'
+          : 'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
+      );
+      return;
+    }
+
+    if (!userData) {
+      // Email verified, but the profile sync never completed (e.g. the app
+      // closed at exactly the wrong moment). Signing up again with the same
+      // email/password will detect the verified pending account and finish
+      // the sync instead of creating a duplicate.
+      await auth.signOut();
+      setError(
+        lang === 'he'
+          ? 'הדוא"ל אומת, אך הגדרת הפרופיל לא הושלמה. הירשם שוב כדי להשלים אותה.'
+          : 'Your email is verified, but your profile setup didn\'t finish. Please sign up again to complete it.'
+      );
+      return;
+    }
+
+    const role = userData?.role ?? '';
+
+    // ── Forced password change (accounts created via Excel import) ────────
+    // Takes priority over the 2FA check below — a temp password must be
+    // replaced before anything else, including verifying 2FA.
+    if (userData?.mustChangePassword) {
+      router.push('/(auth)/changePassword');
+      return;
+    }
+
+    // ── 2FA check (unchanged) ──────────────────────────────────────────────
+    if (userData?.totp_enabled) {
+      router.push('/(auth)/verify2fa');
+      return;
+    }
+
+    // ── ✅ NEW: maintenance gate ───────────────────────────────────────────
+    const maintenance = await checkMaintenance(role);
+    if (maintenance.blocked) {
+      router.replace({
+        pathname: '/maintenance',
+        params: {
+          title:  maintenance.title,
+          endsAt: maintenance.endsAt ?? '',
+        },
+      } as any);
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    router.replace(getHomeRoute(role as any) as any);
+
+    // ── 2FA not enabled — nudge the user, don't block them ────────────────
+    // Uses the ACCOUNT's stored language preference, not this screen's
+    // pre-login UI toggle above — by this point userData is authoritative.
+    const accountLang = userData?.language === 'en' ? 'en' : 'he';
+    Alert.alert(
+      accountLang === 'he' ? '🔐 מומלץ להפעיל אימות דו-שלבי' : '🔐 Enable Two-Factor Authentication',
+      accountLang === 'he'
+        ? 'לאבטחת החשבון שלך, קריטי להפעיל אימות דו-שלבי (2FA) בהקדם האפשרי.'
+        : "For your account's security, it's crucial to enable two-factor authentication (2FA) as soon as possible.",
+      [
+        { text: accountLang === 'he' ? 'מאוחר יותר' : 'Later', style: 'cancel' },
+        { text: accountLang === 'he' ? 'הפעל עכשיו' : 'Enable Now', onPress: () => router.push('/(auth)/setup2fa') },
+      ]
+    );
+  };
+
+  // ── Biometric unlock: auto-triggered once on mount ─────────────────────────
+  // Only fires for a persisted session (auth.currentUser already set — see
+  // _layout.tsx, which now skips its own forced-sign-out-on-launch specifically
+  // when this device has biometric enabled) that hasn't been unlocked yet this
+  // app session. The login form is always what's rendered underneath/behind
+  // this — there's no separate screen/navigation for it, so a failed or
+  // cancelled attempt just leaves the user looking at the exact same form,
+  // password field included, as the fallback.
+  useEffect(() => {
+    const tryBiometricOnMount = async () => {
+      const uid = auth.currentUser?.uid;
+      if (!uid || isSessionUnlocked()) return;
+      const enabled = await isBiometricEnabled(uid).catch(() => false);
+      if (!enabled) return;
+      await attemptBiometric();
+    };
+    tryBiometricOnMount();
+    // Mount-only — re-attempts are user-triggered from here on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const attemptBiometric = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    setBiometricBusy(true);
+    setBiometricRetryAvailable(false);
+    setError('');
+
+    const result = await promptBiometricAuth(lang);
+
+    if (result.success) {
+      await resetBiometricFailures(uid);
+      // Same "signing in" spinner as a normal password submit — reuses
+      // `loading`, not a separate state, so this really is "the same widget".
+      setLoading(true);
+      setBiometricBusy(false);
+      try {
+        await completeLoginFlow();
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    setBiometricBusy(false);
+
+    if (!result.countsAsFailure) {
+      // User backed out on purpose, or biometrics aren't available right
+      // now — not a failed attempt, just quietly fall back to the form
+      // already on screen without alarming error text.
+      return;
+    }
+
+    const { exhausted } = await recordBiometricFailure(uid);
+    if (!exhausted) {
+      setError(lang === 'he' ? 'האימות הביומטרי נכשל.' : 'Biometric verification failed.');
+      setBiometricRetryAvailable(true);
+      return;
+    }
+
+    // 3 local failures — disable biometric on this device and report ONE
+    // strike against the account's shared 3-strike pool, same as a wrong
+    // password guess.
+    await setBiometricEnabled(uid, false);
+    try {
+      const res = await apiClient.post('/api/auth/biometric/report-exhausted');
+      const { locked, remaining } = res.data as { locked: boolean; remaining: number };
+      setError(
+        locked
+          ? (lang === 'he'
+              ? 'זיהוי ביומטרי בוטל. החשבון ננעל זמנית לבדיקת אבטחה — בדוק את הדוא"ל להמשך.'
+              : 'Biometric login disabled. Your account is temporarily locked pending a security check — check your email for next steps.')
+          : (lang === 'he'
+              ? `זיהוי ביומטרי בוטל במכשיר זה. נותרו לך ${remaining} ניסיונות עם דוא"ל וסיסמה לפני נעילת החשבון.`
+              : `Biometric login disabled on this device. You have ${remaining} attempts left with email and password before your account is locked.`)
+      );
+    } catch {
+      setError(
+        lang === 'he'
+          ? 'זיהוי ביומטרי בוטל במכשיר זה. השתמש בדוא"ל וסיסמה.'
+          : 'Biometric login disabled on this device. Please use email and password.'
+      );
+    }
+    // Account still has a live Firebase session at this point (biometric
+    // failure never signed it out) — but it's no longer gate-able by
+    // biometric, so drop it and let the visible form be the real path
+    // forward, exactly like any other signed-out visit to this screen.
+    await auth.signOut().catch(() => {});
+  };
+
   const handleLogin = async () => {
     if (!email || !password) return;
     setLoading(true);
     setError('');
 
     try {
-      const firebaseUser = await signInWithEmailAndPassword(auth, email, password);
-
-      // Just proved identity by typing a correct password — the biometric
-      // gate in _layout.tsx shouldn't immediately re-prompt right after this.
-      markSessionUnlocked();
-
-      // Fire-and-forget — feeds the system_admin "Live Transportation" audit
-      // table. Only here (an actual credential submission), never in
-      // _layout.tsx's own auth-state redirect logic, so reopening the app
-      // with a still-live session doesn't log a fresh "login" every time.
-      apiClient.post('/api/users/log-login').catch(() => {});
-
-      // Force a fresh fetch of the account record instead of trusting
-      // whatever emailVerified value came back with this sign-in. That value
-      // can be a stale snapshot when verification status changed externally
-      // (e.g. an admin flipping it via the Admin SDK) rather than through the
-      // user completing the actual verification-link flow in this same
-      // session — reload() is Firebase's documented fix for exactly that.
-      await firebaseUser.user.reload();
-
-      const userDoc  = await getDoc(doc(db, 'users', firebaseUser.user.uid));
-      const userData = userDoc.data();
-
-      // Only self-registered students go through email verification —
-      // every other role is provisioned via admin import with emailVerified
-      // already set true at account creation (see createImportedUserAccount
-      // in server/src/services/userImportExport.ts), so this gate must not
-      // apply to them. A student who hasn't verified yet has no Firestore
-      // profile at all (signup.tsx doesn't write one until verification
-      // completes), so `!userData` also means "still mid-verification" here.
-      const isStudent = !userData || userData?.role === 'student';
-
-      if (isStudent && !firebaseUser.user.emailVerified) {
-        await auth.signOut();
-        setError(
-          lang === 'he'
-            ? 'יש לאמת את כתובת הדוא"ל לפני ההתחברות. בדוק את תיבת הדואר (וגם את הספאם) בעבור קישור האימות שנשלח בהרשמה.'
-            : 'Please verify your email before logging in. Check your inbox (and spam folder) for the verification link we sent during signup.'
-        );
-        return;
-      }
-
-      if (!userData) {
-        // Email verified, but the profile sync never completed (e.g. the app
-        // closed at exactly the wrong moment). Signing up again with the same
-        // email/password will detect the verified pending account and finish
-        // the sync instead of creating a duplicate.
-        await auth.signOut();
-        setError(
-          lang === 'he'
-            ? 'הדוא"ל אומת, אך הגדרת הפרופיל לא הושלמה. הירשם שוב כדי להשלים אותה.'
-            : 'Your email is verified, but your profile setup didn\'t finish. Please sign up again to complete it.'
-        );
-        return;
-      }
-
-      const role = userData?.role ?? '';
-
-      // ── Forced password change (accounts created via Excel import) ────────
-      // Takes priority over the 2FA check below — a temp password must be
-      // replaced before anything else, including verifying 2FA.
-      if (userData?.mustChangePassword) {
-        router.push('/(auth)/changePassword');
-        return;
-      }
-
-      // ── 2FA check (unchanged) ──────────────────────────────────────────────
-      if (userData?.totp_enabled) {
-        router.push('/(auth)/verify2fa');
-        return;
-      }
-
-      // ── ✅ NEW: maintenance gate ───────────────────────────────────────────
-      const maintenance = await checkMaintenance(role);
-      if (maintenance.blocked) {
-        router.replace({
-          pathname: '/maintenance',
-          params: {
-            title:  maintenance.title,
-            endsAt: maintenance.endsAt ?? '',
-          },
-        } as any);
-        return;
-      }
-      // ──────────────────────────────────────────────────────────────────────
-
-      router.replace(getHomeRoute(role as any) as any);
-
-      // ── 2FA not enabled — nudge the user, don't block them ────────────────
-      // Uses the ACCOUNT's stored language preference, not this screen's
-      // pre-login UI toggle above — by this point userData is authoritative.
-      const accountLang = userData?.language === 'en' ? 'en' : 'he';
-      Alert.alert(
-        accountLang === 'he' ? '🔐 מומלץ להפעיל אימות דו-שלבי' : '🔐 Enable Two-Factor Authentication',
-        accountLang === 'he'
-          ? 'לאבטחת החשבון שלך, קריטי להפעיל אימות דו-שלבי (2FA) בהקדם האפשרי.'
-          : "For your account's security, it's crucial to enable two-factor authentication (2FA) as soon as possible.",
-        [
-          { text: accountLang === 'he' ? 'מאוחר יותר' : 'Later', style: 'cancel' },
-          { text: accountLang === 'he' ? 'הפעל עכשיו' : 'Enable Now', onPress: () => router.push('/(auth)/setup2fa') },
-        ]
-      );
-
+      await signInWithEmailAndPassword(auth, email, password);
+      await completeLoginFlow();
     } catch (err: any) {
       if (
         err.code === 'auth/invalid-credential' ||
@@ -486,6 +598,20 @@ export default function LoginScreen() {
               {error}
             </Text>
           ) : null}
+
+          {biometricRetryAvailable && (
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton, biometricBusy && styles.buttonDisabled]}
+              onPress={attemptBiometric}
+              disabled={biometricBusy}
+              accessibilityRole="button"
+            >
+              {biometricBusy
+                ? <ActivityIndicator color={colors.primary} />
+                : <Text style={styles.secondaryButtonText}>{lang === 'he' ? '🔐 נסה שוב עם זיהוי ביומטרי' : '🔐 Try biometric again'}</Text>
+              }
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.button, styles.primaryButton, loading && styles.buttonDisabled]}

@@ -96,13 +96,11 @@ const authRoutes = new Set<string>([
   '/resetPass',
   '/verify2fa',
   '/setup2fa',
-  '/biometricUnlock',
   '/(auth)/login',
   '/(auth)/signup',
   '/(auth)/resetPass',
   '/(auth)/verify2fa',
   '/(auth)/setup2fa',
-  '/(auth)/biometricUnlock',
   '/changePassword',
   '/(auth)/changePassword',
   '/student/chooseTrack',   // ← same reasoning as changePassword above: lets the
@@ -152,6 +150,19 @@ function RootLayoutInner() {
   // uid the token is registered for, so a different uid re-registers.
   const pushTokenRegisteredForUid = useRef<string | null>(null);
   const initialAuthCheckedRef   = useRef(false);
+  // Firebase's onAuthStateChanged can fire more than once in quick
+  // succession (observed live: signing out of the biometric unlock screen's
+  // "use password instead" fallback, immediately followed by a fresh
+  // sign-in, produced a visible flicker between the login and biometric-
+  // unlock screens). Each firing does real async work (fetching
+  // /api/users/me, checking biometric, maintenance, etc.) off a snapshot of
+  // the route taken at its own start — nothing stopped an OLDER, slower
+  // firing from resolving after a newer one and overwriting its (correct)
+  // redirect decision with a stale one. Incremented at the start of every
+  // firing; a firing whose captured value no longer matches by the time it's
+  // ready to redirect was superseded by a newer one and abandons silently
+  // instead of acting on stale data.
+  const authCheckSeqRef = useRef(0);
   // Last /api/users/me response seen by the auth-state effect below — read
   // by the navigation re-check effect further down so it doesn't need its
   // own network round-trip on every route change.
@@ -187,6 +198,7 @@ function RootLayoutInner() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       const currentPathname = pathnameRef.current;
       const redirect        = scheduleRedirectRef.current!;
+      const mySeq            = ++authCheckSeqRef.current;
 
       // ── Force the login screen on every app launch ─────────────────────────
       // Firebase persists the auth session across restarts, so a returning
@@ -239,6 +251,13 @@ function RootLayoutInner() {
             }
           }
         }
+
+        // A newer firing of this same listener has already started (and may
+        // have already redirected somewhere) by the time this slow fetch
+        // came back — every redirect decision below is based on a snapshot
+        // of the route/user that's now potentially stale, so abandon rather
+        // than risk overwriting a newer, correct decision with an old one.
+        if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
 
         if (!userData) {
           // Expected while a freshly-created account is still sitting on
@@ -303,8 +322,6 @@ function RootLayoutInner() {
         const latestPathname   = pathnameRef.current;
         const alreadyVerifying = latestPathname === '/verify2fa' || latestPathname === '/(auth)/verify2fa';
         const alreadyOnSetup   = latestPathname === '/setup2fa'  || latestPathname === '/(auth)/setup2fa';
-        const alreadyOnBiometricUnlock =
-          latestPathname === '/biometricUnlock' || latestPathname === '/(auth)/biometricUnlock';
 
         // SECURITY: this handler must NEVER navigate the user away from
         // verify2fa/setup2fa. That is exclusively verify2fa.tsx's (and the
@@ -320,7 +337,7 @@ function RootLayoutInner() {
         // safely distinguishes "verified just now, in this exact flow" from
         // "verified at some earlier point today" — so this handler simply
         // never acts on these two routes at all, full stop.
-        if (alreadyVerifying || alreadyOnSetup || alreadyOnBiometricUnlock) {
+        if (alreadyVerifying || alreadyOnSetup) {
           setLoading(false);
           return;
         }
@@ -374,14 +391,22 @@ function RootLayoutInner() {
         // directly here rather than threaded through userData like the gates
         // above. isSessionUnlocked() is what stops this from re-firing right
         // after a fresh interactive login/OAuth sign-in (login.tsx marks the
-        // session unlocked the moment it succeeds) or after the unlock screen
-        // itself succeeds — it should only actually trigger once, on a cold
+        // session unlocked the moment it succeeds) or after a successful
+        // biometric unlock — it should only actually trigger once, on a cold
         // start restoring an already-persisted session, same "about to leave
         // an auth route" scoping as the redirect-home branch right below.
+        //
+        // Redirects to the actual login screen, not a dedicated unlock
+        // route — login.tsx's own mount effect is what actually triggers the
+        // native Face ID/fingerprint prompt, with the real login form
+        // visible underneath/behind it the whole time, same screen either
+        // way. A no-op when already there (the common case, since login is
+        // this app's default initial route).
         if (authRoutes.has(latestPathname) && !isSessionUnlocked()) {
           const biometricOn = await isBiometricEnabled(user.uid).catch(() => false);
+          if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
           if (biometricOn) {
-            redirect('/(auth)/biometricUnlock' as any);
+            redirect('/(auth)/login' as any);
             setLoading(false);
             return;
           }
@@ -392,6 +417,7 @@ function RootLayoutInner() {
         // to a student's process file directly).
         if (authRoutes.has(latestPathname)) {
           const maintenance = await checkMaintenance(role);
+          if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
 
           if (maintenance.blocked) {
             redirect({
