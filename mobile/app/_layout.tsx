@@ -191,10 +191,27 @@ function RootLayoutInner() {
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
 
   // ── Redirect state machine ─────────────────────────────────────────────────
+  // CRITICAL FIX: confirmed live — used to only clear pendingRedirect once
+  // `pathname` caught up to match it, never right after actually acting on
+  // it. Several screens (login.tsx's completeLoginFlow after a successful
+  // biometric/password login, verify2fa.tsx, setup2fa.tsx) navigate directly
+  // via their own router.replace()/push(), bypassing this state machine
+  // entirely — if a redirect was scheduled here (e.g. the biometric gate
+  // sending the user to /login) and one of those direct navigations fired
+  // before this effect's next run caught up, pendingRedirect was left
+  // pointing at the now-stale target forever. Every subsequent pathname
+  // change (including the user successfully reaching home, or clicking ANY
+  // other link) kept re-triggering this effect, which kept seeing that
+  // leftover target and force-navigating back to it — every single
+  // navigation in the app dragged back to /login in a permanent loop until
+  // the app restarted. Clearing immediately after acting, instead of
+  // waiting for confirmation, means a redirect here is fire-and-forget: it
+  // never outlives being superseded by a navigation from anywhere else.
   useEffect(() => {
     if (!pendingRedirect) return;
     if (pathname === pendingRedirect) { setPendingRedirect(null); return; }
     router.replace(pendingRedirect);
+    setPendingRedirect(null);
   }, [pathname, pendingRedirect, router]);
 
   const scheduleRedirect = useCallback((target: RouterTarget) => {
