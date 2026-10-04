@@ -116,6 +116,18 @@ const authRoutes = new Set<string>([
   '/privacy-policy',        // ← linked from signup, must be reachable pre-login
 ]);
 
+// Reachable without auth (so it stays in authRoutes above, for the
+// unauthenticated-redirect-to-login check), but NOT an auth-flow step — a
+// logged-in user can legitimately navigate here deliberately (e.g. from a
+// menu link) and must not be yanked away from it. Every post-auth gate below
+// that uses authRoutes.has(...) to decide "this route is fair game to
+// redirect away from" needs to also exclude this set, or a logged-in user
+// visiting it gets bounced to verify2fa/login/home mid-read. Confirmed live:
+// the biometric gate below redirected a logged-in user straight back to the
+// login screen just for opening this page, since nothing distinguished it
+// from an actual auth-flow route.
+const publicInfoRoutes = new Set<string>(['/privacy-policy']);
+
 // ─── Root layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
   return (
@@ -350,7 +362,7 @@ function RootLayoutInner() {
           return;
         }
 
-        if (totpEnabled && authRoutes.has(latestPathname)) {
+        if (totpEnabled && authRoutes.has(latestPathname) && !publicInfoRoutes.has(latestPathname)) {
           redirect('/(auth)/verify2fa' as any);
           setLoading(false);
           return;
@@ -410,7 +422,7 @@ function RootLayoutInner() {
         // visible underneath/behind it the whole time, same screen either
         // way. A no-op when already there (the common case, since login is
         // this app's default initial route).
-        if (authRoutes.has(latestPathname) && !isSessionUnlocked()) {
+        if (authRoutes.has(latestPathname) && !publicInfoRoutes.has(latestPathname) && !isSessionUnlocked()) {
           const biometricOn = await isBiometricEnabled(user.uid).catch(() => false);
           if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
           // TEMP diagnostic — remove once the "no dialog appears" report is
@@ -430,7 +442,7 @@ function RootLayoutInner() {
         // ── Only redirect if the user is currently on an auth/public route ──
         // This prevents overwriting deep-links (e.g. a coordinator navigating
         // to a student's process file directly).
-        if (authRoutes.has(latestPathname)) {
+        if (authRoutes.has(latestPathname) && !publicInfoRoutes.has(latestPathname)) {
           const maintenance = await checkMaintenance(role);
           if (authCheckSeqRef.current !== mySeq) { setLoading(false); return; }
 
