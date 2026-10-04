@@ -15,18 +15,46 @@ import {
   ReactNativeFirebaseAppCheckProvider,
 } from "@react-native-firebase/app-check";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 import { secureStorage } from "./secureStorage";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyD7v2PB_ics4bDV346BxeIZjFvkbSHvjiM",
-  authDomain: "hit-organization.firebaseapp.com",
-  projectId: "hit-organization",
-  storageBucket: "hit-organization.appspot.com",
-  messagingSenderId: "432175584982",
-  appId: "1:432175584982:web:b2c0a54e4309e4d3175b77",
-  measurementId: "G-TMNFYG6N67"
-};
+// ROOT CAUSE of the universal login failure (every signInWithEmailAndPassword/
+// getDoc call failing with auth/requests-from-referer-<empty>-are-blocked,
+// confirmed live via errorReports): this config was the WEB app's
+// (appId ".../web/...", apiKey from the Browser key), copy-pasted in rather
+// than the Android/iOS app's own. That API key carries browserKeyRestrictions
+// (allowedReferrers — a list of web origins), which the Firebase/GCP console
+// hardening pass actually turned on 2026-09-30. A native app never sends an
+// HTTP Referer header at all, so every Identity Toolkit/Firestore call this
+// JS modular SDK made (both auth and db below) started being rejected outright
+// the moment that restriction went live — regardless of password, regardless
+// of Expo SDK version, regardless of App Check.
+//
+// Each platform's own apiKey/appId/storageBucket come straight from the native
+// config files already shipped in every build (google-services.json /
+// GoogleService-Info.plist) — same values @react-native-firebase/app's own
+// native instance already uses, now also used by this JS modular SDK instance
+// so auth/db actually carry a key that's allowed to call Identity Toolkit and
+// Firestore from a real device.
+const firebaseConfig = Platform.select({
+  ios: {
+    apiKey: "AIzaSyA-oD_XfLOL8EmKP3pe2YZytPnoAdpYZdQ",
+    authDomain: "hit-organization.firebaseapp.com",
+    projectId: "hit-organization",
+    storageBucket: "hit-organization.firebasestorage.app",
+    messagingSenderId: "432175584982",
+    appId: "1:432175584982:ios:d1689253631a4aa4175b77",
+  },
+  default: {
+    apiKey: "AIzaSyCXmHwBndwPLwiR_DomYcBw_FoQ4Me49GY",
+    authDomain: "hit-organization.firebaseapp.com",
+    projectId: "hit-organization",
+    storageBucket: "hit-organization.firebasestorage.app",
+    messagingSenderId: "432175584982",
+    appId: "1:432175584982:android:20296b0172cee903175b77",
+  },
+})!;
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
