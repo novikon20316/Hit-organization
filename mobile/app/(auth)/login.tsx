@@ -388,6 +388,14 @@ export default function LoginScreen() {
   // password field included, as the fallback.
   useEffect(() => {
     const tryBiometricOnMount = async () => {
+      // CRITICAL FIX: confirmed live — this screen can mount and run before
+      // Firebase has actually finished restoring a persisted session from
+      // storage (that restore is itself async), so auth.currentUser read
+      // synchronously here was often still null even on a device with
+      // biometric enabled — the prompt silently never fired, no dialog, no
+      // error, nothing. authStateReady() is Firebase's own documented wait
+      // for that initial restore to finish before trusting currentUser.
+      await auth.authStateReady();
       const uid = auth.currentUser?.uid;
       if (!uid || isSessionUnlocked()) return;
       const enabled = await isBiometricEnabled(uid).catch(() => false);
