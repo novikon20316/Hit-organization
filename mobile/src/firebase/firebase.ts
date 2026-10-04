@@ -19,27 +19,37 @@ import { Platform } from "react-native";
 
 import { secureStorage } from "./secureStorage";
 
-// ROOT CAUSE of the universal login failure (every signInWithEmailAndPassword/
-// getDoc call failing with auth/requests-from-referer-<empty>-are-blocked,
-// confirmed live via errorReports): this config was the WEB app's
-// (appId ".../web/...", apiKey from the Browser key), copy-pasted in rather
-// than the Android/iOS app's own. That API key carries browserKeyRestrictions
-// (allowedReferrers — a list of web origins), which the Firebase/GCP console
-// hardening pass actually turned on 2026-09-30. A native app never sends an
-// HTTP Referer header at all, so every Identity Toolkit/Firestore call this
-// JS modular SDK made (both auth and db below) started being rejected outright
-// the moment that restriction went live — regardless of password, regardless
-// of Expo SDK version, regardless of App Check.
+// ROOT CAUSE of the universal login failure (confirmed live via errorReports,
+// two rounds): the plain `firebase` JS SDK (used throughout this file/app for
+// auth and db) is fundamentally a web client under the hood — it never
+// attaches the HTTP Referer header a Browser-restricted key checks for, NOR
+// the X-Android-Package/X-Android-Cert headers an Android-restricted key
+// checks for, regardless of platform it's actually running on. Only
+// @react-native-firebase's native modules (not used for auth/db here — only
+// bridged in for App Check below) can satisfy those application-identity
+// restrictions. Proved empirically on a real device:
+//   1. Pointed at the Web app's (Browser-key) config → every Identity
+//      Toolkit/Firestore call rejected with
+//      auth/requests-from-referer-<empty>-are-blocked
+//   2. Switched to the Android app's own (Android-key) config → still
+//      rejected, now with
+//      auth/requests-from-this-android-client-application-<empty>-are-blocked
+// Both keys' application-identity restrictions only started actually being
+// enforced after the Firebase/GCP console hardening pass on 2026-09-30 —
+// this bug existed latently before that, invisible until then.
 //
-// Each platform's own apiKey/appId/storageBucket come straight from the native
-// config files already shipped in every build (google-services.json /
-// GoogleService-Info.plist) — same values @react-native-firebase/app's own
-// native instance already uses, now also used by this JS modular SDK instance
-// so auth/db actually carry a key that's allowed to call Identity Toolkit and
-// Firestore from a real device.
+// Real fix: a key scoped ONLY by API target (Identity Toolkit, Firestore,
+// Secure Token) with NO application-identity restriction — compatible with
+// how the JS SDK actually works, without touching/weakening the separate
+// Android/iOS/Browser keys those platforms' other restricted traffic still
+// uses. authDomain/storageBucket/appId stay platform-accurate (sourced from
+// google-services.json / GoogleService-Info.plist, already shipped in every
+// build) since those aren't security-restricted, just identifiers.
+const JS_SDK_API_KEY = "AIzaSyDb2-OEy_f8g2grqRDZofWn6zDgejZjP30";
+
 const firebaseConfig = Platform.select({
   ios: {
-    apiKey: "AIzaSyA-oD_XfLOL8EmKP3pe2YZytPnoAdpYZdQ",
+    apiKey: JS_SDK_API_KEY,
     authDomain: "hit-organization.firebaseapp.com",
     projectId: "hit-organization",
     storageBucket: "hit-organization.firebasestorage.app",
@@ -47,7 +57,7 @@ const firebaseConfig = Platform.select({
     appId: "1:432175584982:ios:d1689253631a4aa4175b77",
   },
   default: {
-    apiKey: "AIzaSyCXmHwBndwPLwiR_DomYcBw_FoQ4Me49GY",
+    apiKey: JS_SDK_API_KEY,
     authDomain: "hit-organization.firebaseapp.com",
     projectId: "hit-organization",
     storageBucket: "hit-organization.firebasestorage.app",
