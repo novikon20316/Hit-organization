@@ -181,6 +181,76 @@ function securityDocRef(uid: string) {
  * error. Independently re-verifies the attempt, and only counts/acts on it if
  * Google itself confirms the password was actually wrong for a real account.
  */
+// Shared tail of both reportFailedLogin and reportBiometricExhausted below —
+// creates the incident doc, disables the account at the Auth level, and
+// emails the owner the "was this you?" link. Factored out so the two
+// strike-sources (a confirmed wrong password vs. a device's biometric unlock
+// exhausted) can never drift into two different lockout behaviors.
+async function createLockoutIncidentAndNotify(uid: string, email: string, ip: string): Promise<void> {
+  const code = await generateUniqueCode('loginSecurityIncidents');
+  const location = await resolveIpLocation(ip);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + INCIDENT_TTL_MS);
+
+  await db.collection('loginSecurityIncidents').doc(code).set({
+    code,
+    uid,
+    email,
+    ip,
+    location,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    status: 'pending',
+    resolvedAt: null,
+  });
+
+  await securityDocRef(uid).set({ pendingIncidentCode: code }, { merge: true });
+
+  // Stops any further guessing immediately — including by the real owner,
+  // but they were already failing to log in, so this costs them nothing
+  // beyond needing to check email first.
+  await auth.updateUser(uid, { disabled: true });
+
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data();
+  const lang: 'he' | 'en' = userData?.language === 'en' ? 'en' : 'he';
+  const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // same public deep-link base as examinerAccess.ts
+  if (!baseUrl) {
+    console.error(
+      `login_security_alert for ${email}: EXAMINER_ACCESS_BASE_URL is unset — the "click here to respond" ` +
+      `link in this email will be missing its domain and won't work.`
+    );
+  }
+  const link = `${baseUrl}/login-security?code=${encodeURIComponent(code)}`;
+
+  // Previously: a bare `.catch(console.error)` — a delivery failure vanished
+  // into a server log nobody was watching, with no way to tell afterward
+  // that the account got disabled but the owner was never actually notified.
+  // Persisting the outcome on the incident doc makes that diagnosable.
+  try {
+    await sendNotificationEmail({
+      toEmail: email,
+      type: 'login_security_alert',
+      lang,
+      data: {
+        name: userData?.displayName || '',
+        email,
+        dateTime: formatDateTime(now.toISOString(), lang),
+        ip,
+        location: formatLocation(location),
+        link,
+      },
+    });
+    await db.collection('loginSecurityIncidents').doc(code).update({ emailDelivery: 'sent' });
+  } catch (err: any) {
+    console.error(`Failed to send login_security_alert email for incident ${code}:`, err);
+    await db.collection('loginSecurityIncidents').doc(code).update({
+      emailDelivery: 'failed',
+      emailDeliveryError: String(err?.message ?? err),
+    }).catch(() => {}); // best-effort — never let a logging write mask the original failure
+  }
+}
+
 export async function reportFailedLogin(
   email: string,
   password: string,
@@ -251,70 +321,76 @@ export async function reportFailedLogin(
 
   if (!shouldCreateIncident) return { locked: false };
 
-  const code = await generateUniqueCode('loginSecurityIncidents');
-  const location = await resolveIpLocation(ip);
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + INCIDENT_TTL_MS);
+  await createLockoutIncidentAndNotify(uid, email, ip);
+  return { locked: true };
+}
 
-  await db.collection('loginSecurityIncidents').doc(code).set({
-    code,
-    uid,
-    email,
-    ip,
-    location,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    status: 'pending',
-    resolvedAt: null,
+/**
+ * Called when a device's local biometric unlock has failed 3 times in a row.
+ * Biometric match/no-match never leaves the device, so unlike
+ * reportFailedLogin there's no password for this server to independently
+ * re-verify — trustworthy anyway because this is only reachable via an
+ * authenticated request (verifyToken already proved this is really this
+ * account's own session), unlike the unauthenticated password-failure
+ * endpoint above, which has to guard against someone reporting fake
+ * failures against a victim's email with no credential of their own.
+ *
+ * Counts as exactly ONE strike in the same shared 3-strike pool
+ * reportFailedLogin uses — not one strike per failed biometric attempt — so
+ * a device exhausting its 3 local biometric attempts costs the account
+ * the same as a single confirmed wrong password guess, same
+ * FAILURE_THRESHOLD, same lockout/incident/email flow. The caller
+ * (biometricUnlock.tsx) is expected to have already disabled biometric on
+ * that device locally before calling this.
+ */
+export async function reportBiometricExhausted(uid: string, ip: string): Promise<{ locked: boolean; remaining: number }> {
+  const userRecord = await auth.getUser(uid).catch(() => null);
+  if (!userRecord?.email) return { locked: false, remaining: FAILURE_THRESHOLD };
+
+  await logAuditEvent({
+    userId: uid,
+    userRole: 'unknown',
+    action: 'login_failed',
+    entityType: 'session',
+    entityId: uid,
+    explanation: `Biometric unlock exhausted (3 local failures) from ${ip}`,
+    userDisplayName: userRecord.displayName,
   });
 
-  await securityRef.set({ pendingIncidentCode: code }, { merge: true });
+  const securityRef = securityDocRef(uid);
 
-  // Stops any further guessing immediately — including by the real owner,
-  // but they were already failing to log in, so this costs them nothing
-  // beyond needing to check email first.
-  await auth.updateUser(uid, { disabled: true });
+  const { shouldCreateIncident, newCount } = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(securityRef);
+    const data = snap.data() ?? {};
 
-  const userDoc = await db.collection('users').doc(uid).get();
-  const userData = userDoc.data();
-  const lang: 'he' | 'en' = userData?.language === 'en' ? 'en' : 'he';
-  const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // same public deep-link base as examinerAccess.ts
-  if (!baseUrl) {
-    console.error(
-      `login_security_alert for ${email}: EXAMINER_ACCESS_BASE_URL is unset — the "click here to respond" ` +
-      `link in this email will be missing its domain and won't work.`
-    );
-  }
-  const link = `${baseUrl}/login-security?code=${encodeURIComponent(code)}`;
+    // Same outstanding-incident guard as reportFailedLogin — don't pile on
+    // more counting while one's already awaiting the owner's response.
+    if (data.pendingIncidentCode) {
+      return { shouldCreateIncident: false, newCount: data.failedLoginCount ?? 0 };
+    }
 
-  // Previously: a bare `.catch(console.error)` — a delivery failure vanished
-  // into a server log nobody was watching, with no way to tell afterward
-  // that the account got disabled but the owner was never actually notified.
-  // Persisting the outcome on the incident doc makes that diagnosable.
-  try {
-    await sendNotificationEmail({
-      toEmail: email,
-      type: 'login_security_alert',
-      lang,
-      data: {
-        name: userData?.displayName || '',
-        email,
-        dateTime: formatDateTime(now.toISOString(), lang),
-        ip,
-        location: formatLocation(location),
-        link,
-      },
-    });
-    await db.collection('loginSecurityIncidents').doc(code).update({ emailDelivery: 'sent' });
-  } catch (err: any) {
-    console.error(`Failed to send login_security_alert email for incident ${code}:`, err);
-    await db.collection('loginSecurityIncidents').doc(code).update({
-      emailDelivery: 'failed',
-      emailDeliveryError: String(err?.message ?? err),
-    }).catch(() => {}); // best-effort — never let a logging write mask the original failure
+    const count = (data.failedLoginCount ?? 0) + 1;
+    if (count >= FAILURE_THRESHOLD) {
+      transaction.set(securityRef, {
+        failedLoginCount: 0,
+        lastFailedLoginAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { shouldCreateIncident: true, newCount: count };
+    }
+
+    transaction.set(securityRef, {
+      failedLoginCount: count,
+      lastFailedLoginAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { shouldCreateIncident: false, newCount: count };
+  });
+
+  if (!shouldCreateIncident) {
+    return { locked: false, remaining: Math.max(0, FAILURE_THRESHOLD - newCount) };
   }
 
-  return { locked: true };
+  await createLockoutIncidentAndNotify(uid, userRecord.email, ip);
+  return { locked: true, remaining: 0 };
 }
 
 export interface IncidentSummary {

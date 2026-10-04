@@ -59,6 +59,7 @@ export type NotificationType =
   | 'defense_date_matched'
   | 'defense_day_access_link'
   | 'totp_recovery_code'
+  | 'biometric_setup_code'
   | 'login_security_alert'
   | 'temp_password_issued'
   | 'suspicious_login_admin_alert'
@@ -453,6 +454,23 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>We received a request to reset two-factor authentication on your account. Your recovery code is:</p>
       <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
       <p>This code expires in 10 minutes. If you didn't request this, ignore this email — your 2FA setup will not change.</p>
+    `,
+  },
+
+  biometric_setup_code: {
+    subjectHe: '🔑 קוד אימות להפעלת כניסה ביומטרית',
+    subjectEn: '🔑 Biometric login verification code',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>קיבלנו בקשה להפעיל כניסה ביומטרית (זיהוי פנים / טביעת אצבע) במכשיר שלך. קוד האימות שלך הוא:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>הקוד תקף ל-10 דקות. אם לא ביקשת זאת, התעלם מהודעה זו — שום דבר בחשבונך לא ישתנה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>We received a request to enable biometric login (Face ID / fingerprint) on your device. Your verification code is:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;text-align:center;margin:20px 0">${d.code || ''}</p>
+      <p>This code expires in 10 minutes. If you didn't request this, ignore this email — nothing on your account will change.</p>
     `,
   },
 

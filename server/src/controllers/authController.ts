@@ -6,6 +6,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { sendNotificationEmail } from '../services/emailService.js';
+import { reportBiometricExhausted } from '../services/loginSecurity.js';
 
 const RECOVERY_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -218,6 +219,118 @@ export const verifyTotpRecoveryCode = async (req: AuthenticatedRequest, res: Res
   } catch (error: any) {
     console.error('verifyTotpRecoveryCode error:', error);
     res.status(500).json({ error: 'Failed to verify recovery code.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Biometric login setup — confirms the account owner actually controls this
+// email before a device is allowed to register for Face ID/fingerprint
+// unlock, same reasoning as the TOTP recovery flow above (already
+// password-authenticated via req.user, just proving this specific request —
+// "enable biometric on this device" — is really them and not e.g. someone
+// who grabbed an unlocked phone). Two steps, same shape as requestTotp-
+// RecoveryCode/verifyTotpRecoveryCode: email a 6-digit code, verify it. On
+// success the mobile client itself triggers the native Face ID/fingerprint
+// enrollment prompt and marks the device locally — there's nothing further
+// for the server to issue (unlike TOTP, which hands back a new QR/secret).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BIOMETRIC_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// Biometric setup code lives in its own private subdoc, same reasoning as
+// totpRef above — users/{uid} is readable by any signed-in user.
+function biometricSetupRef(uid: string) {
+  return db.collection('users').doc(uid).collection('private').doc('biometricSetup');
+}
+
+export const requestBiometricSetupCode = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user.email) return res.status(400).json({ error: 'No email on file for this account.' });
+
+  try {
+    const userDoc  = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+
+    await biometricSetupRef(user.uid).set({
+      codeHash: hashRecoveryCode(code),
+      expiresAt: Timestamp.fromMillis(Date.now() + BIOMETRIC_CODE_TTL_MS),
+    }, { merge: true });
+
+    await sendNotificationEmail({
+      toEmail: user.email,
+      type:    'biometric_setup_code',
+      lang:    userData?.language === 'en' ? 'en' : 'he',
+      data:    { name: userData?.displayName || '', code },
+    });
+
+    res.json({ success: true, message: 'Verification code sent to your email.' });
+  } catch (error: any) {
+    console.error('requestBiometricSetupCode error:', error);
+    res.status(500).json({ error: 'Failed to send verification code.' });
+  }
+};
+
+export const verifyBiometricSetupCode = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+
+  const { code } = req.body;
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'Verification code is required.' });
+  }
+
+  try {
+    const setupDoc  = await biometricSetupRef(user.uid).get();
+    const setupData = setupDoc.data();
+    const storedHash   = setupData?.codeHash;
+    const storedExpiry = setupData?.expiresAt as Timestamp | undefined;
+
+    if (!storedHash || !storedExpiry) {
+      return res.status(400).json({ error: 'No verification code was requested. Please request a new one.' });
+    }
+    if (Date.now() > storedExpiry.toMillis()) {
+      return res.status(400).json({ error: 'This code has expired. Please request a new one.' });
+    }
+    if (hashRecoveryCode(code) !== storedHash) {
+      return res.status(400).json({ error: 'Invalid code.' });
+    }
+
+    // Single use — clear it regardless of what the client does next with
+    // the native enrollment prompt.
+    await biometricSetupRef(user.uid).set({
+      codeHash: FieldValue.delete(),
+      expiresAt: FieldValue.delete(),
+    }, { merge: true });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('verifyBiometricSetupCode error:', error);
+    res.status(500).json({ error: 'Failed to verify code.' });
+  }
+};
+
+/**
+ * POST /api/auth/biometric/report-exhausted
+ * Called once a device's local biometric unlock has failed 3 times in a
+ * row — the mobile client has already disabled biometric on that device by
+ * the time this fires. Counts as one strike in the same shared 3-strike
+ * pool as a wrong password (see services/loginSecurity.ts's
+ * reportBiometricExhausted) — this doesn't log the user out or touch their
+ * current session, it only affects the account-wide failed-attempt count.
+ */
+export const reportBiometricExhaustedAttempt = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+
+  try {
+    const result = await reportBiometricExhausted(user.uid, req.ip ?? '');
+    res.json(result);
+  } catch (error: any) {
+    console.error('reportBiometricExhaustedAttempt error:', error);
+    res.status(500).json({ error: 'Failed to report biometric failure.' });
   }
 };
 
