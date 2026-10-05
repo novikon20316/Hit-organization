@@ -407,6 +407,8 @@ export default function SupervisorHome() {
         status:             data.status             ?? '',
         degreeType:         data.degreeType         ?? '',
         projectType:        data.projectType        ?? '',
+        degreeTypes:        data.degreeTypes        ?? undefined,
+        projectTypes:       data.projectTypes       ?? undefined,
         academicYear:       data.academicYear       ?? '',
         projectStartDate:   data.projectStartDate?.toDate?.()?.toISOString() ?? null,
         applicationIds:     data.applicationIds     ?? [],
@@ -1116,13 +1118,17 @@ export default function SupervisorHome() {
                     </Text>
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginTop: 6 }]}>
                       <Text style={[styles.cardMeta, isRtl && styles.textRight]}>
-                        {lang === 'he'
-                          ? p.degreeType === 'bachelors' ? 'תואר ראשון' : 'תואר שני'
-                          : p.degreeType === 'bachelors' ? "Bachelor's" : "Master's"}
+                        {(p.degreeTypes?.length ? p.degreeTypes : [p.degreeType])
+                          .map((d) => (lang === 'he'
+                            ? d === 'bachelors' ? 'תואר ראשון' : 'תואר שני'
+                            : d === 'bachelors' ? "Bachelor's" : "Master's"))
+                          .join('/')}
                         {' · '}
-                        {lang === 'he'
-                          ? p.projectType === 'project' ? 'פרויקט' : 'תזה'
-                          : p.projectType === 'project' ? 'Project' : 'Thesis'}
+                        {(p.projectTypes?.length ? p.projectTypes : [p.projectType])
+                          .map((tp) => (lang === 'he'
+                            ? tp === 'project' ? 'פרויקט' : 'תזה'
+                            : tp === 'project' ? 'Project' : 'Thesis'))
+                          .join('/')}
                         {' · '}
                         {lang === 'he' ? 'סטודנטים' : 'Students'}: {(p.enrolledStudentIds?.length ?? 0)}/{(p.NumberOfStudents ?? 1)}
                       </Text>

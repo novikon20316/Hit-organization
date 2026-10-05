@@ -207,6 +207,8 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         status:             data.status             ?? '',
         degreeType:         data.degreeType         ?? '',
         projectType:        data.projectType        ?? '',
+        degreeTypes:        data.degreeTypes        ?? (data.degreeType ? [data.degreeType] : []),
+        projectTypes:       data.projectTypes       ?? (data.projectType ? [data.projectType] : []),
         academicYear:       data.academicYear       ?? '',
         // Set once at enrollment (see projectEnrollment.ts) — the date the
         // supervisor accepted the student's application and the project

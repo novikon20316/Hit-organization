@@ -102,7 +102,7 @@ export default function ProgramHeadDashboard() {
   // landing screen (see firebase/roles.ts's highestRankedRole). This tab
   // exists only for that overlap; a plain program_head never sees it.
   const canCreateOwnProject = roles.includes('supervisor') || roles.includes('secondary_supervisor');
-  const [myProjects, setMyProjects] = useState<Array<{ id: string; titleHe: string; titleEn: string; degreeType: string; projectType: string; enrolledStudentIds?: string[]; NumberOfStudents?: number }>>([]);
+  const [myProjects, setMyProjects] = useState<Array<{ id: string; titleHe: string; titleEn: string; degreeType: string; projectType: string; degreeTypes?: string[]; projectTypes?: string[]; enrolledStudentIds?: string[]; NumberOfStudents?: number }>>([]);
   // Own-faculty staff this role can now manage directly (see
   // server/src/config/permissionScopes.ts's DELEGATE_ADMIN_ROLES) — a
   // separate endpoint from the read-only dashboard data above, since
@@ -572,9 +572,13 @@ export default function ProgramHeadDashboard() {
                     {lang === 'he' ? p.titleHe : p.titleEn}
                   </Text>
                   <Text style={s.cardSub}>
-                    🎓 {p.degreeType === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")}
+                    🎓 {(p.degreeTypes?.length ? p.degreeTypes : [p.degreeType])
+                      .map((d) => (d === 'bachelors' ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's") : (lang === 'he' ? 'תואר שני' : "Master's")))
+                      .join('/')}
                     {' · '}
-                    {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')}
+                    {(p.projectTypes?.length ? p.projectTypes : [p.projectType])
+                      .map((tp) => (tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : (lang === 'he' ? 'תזה' : 'Thesis')))
+                      .join('/')}
                   </Text>
                   <Text style={s.cardSub}>
                     👥 {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}

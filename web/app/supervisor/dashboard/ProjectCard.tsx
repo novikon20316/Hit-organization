@@ -111,8 +111,14 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         </div>
         <p className="mt-2 text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? p.titleHe : p.titleEn}</p>
         <p className="mt-1 text-xs text-supervisor-on-surface-variant">
-          {p.degreeType === 'bachelors' ? t('bachelors') : t('masters')} ·{' '}
-          {p.projectType === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'} ·{' '}
+          {(p.degreeTypes?.length ? p.degreeTypes : [p.degreeType])
+            .map((d) => (d === 'bachelors' ? t('bachelors') : t('masters')))
+            .join('/')}{' '}
+          ·{' '}
+          {(p.projectTypes?.length ? p.projectTypes : [p.projectType])
+            .map((tp) => (tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'))
+            .join('/')}{' '}
+          ·{' '}
           {lang === 'he' ? 'סטודנטים' : 'Students'}: {p.enrolledStudentIds?.length ?? 0}/{p.NumberOfStudents ?? 1}
         </p>
       </button>
