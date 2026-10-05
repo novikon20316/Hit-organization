@@ -393,6 +393,14 @@ export function useStudentData() {
 
   const activeProjectsWithDerived = activeProjects.map((ap) => ({ ...ap, ...withDerived(ap.milestones) }));
 
+  // Same computation the proposals listener above already does internally —
+  // exposed here so a browse screen's apply modal can restrict/auto-fill its
+  // track selection to the one track this student can actually apply under,
+  // instead of offering a choice the server is guaranteed to reject (see
+  // applicationController.ts's applyApplication: selectedProjectType must
+  // equal this).
+  const studentEffectiveTrack = resolveEffectiveTrack({ degreeType: studentDegree, major: studentMajor, track: studentTrack });
+
   // Self-service track choice — used by a coordinator_gated student (e.g.
   // M.Sc Computer Science) once their coordinator has marked them thesis-
   // eligible. Refreshes the dashboard on success so the browse listener's
@@ -426,6 +434,7 @@ export function useStudentData() {
     pendingApplications,
     supervisorSelectionRequiresApproval,
     studentTrack,
+    studentEffectiveTrack,
     studentTrackPolicy,
     studentTrackLocked,
     studentThesisEligible,

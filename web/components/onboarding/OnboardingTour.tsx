@@ -9,6 +9,7 @@
 // navSections.ts (SidebarNavItem.label/description) — nothing duplicated.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import type { SidebarSection } from '@/components/dashboard/SidebarShell';
@@ -30,6 +31,7 @@ const VIEWPORT_MARGIN = 16;
 
 export function OnboardingTour({ sections, quickActions }: OnboardingTourProps) {
   const { lang } = useLanguage();
+  const { markOnboardingTourSeen } = useAuth();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const steps: TourStep[] = [...sections, ...(quickActions ? [quickActions] : [])]
@@ -53,11 +55,19 @@ export function OnboardingTour({ sections, quickActions }: OnboardingTourProps) 
 
   const finish = useCallback(() => {
     setDismissed(true);
+    // Optimistic, same as mobile's ActiveRoleContext — AuthContext's own
+    // Firestore listener will eventually reflect the server write below too,
+    // but that round-trip can lag behind a SidebarShell remount (e.g. the
+    // user navigates to another page right after finishing), which would
+    // otherwise show this tour again since userData.hasSeenOnboardingTour
+    // hadn't caught up yet. Updating the context directly here closes it for
+    // good immediately, with no navigation of any kind.
+    markOnboardingTourSeen();
     // Best-effort — even if this fails, we don't want to trap the user in
     // an unresponsive tour; it'll simply reappear next login, which is the
     // same tolerable fallback as a lost network request anywhere else here.
     apiClient.completeOnboardingTour().catch(() => {});
-  }, []);
+  }, [markOnboardingTourSeen]);
 
   const measure = useCallback(() => {
     if (!stepKey) return;

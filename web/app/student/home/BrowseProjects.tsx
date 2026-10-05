@@ -14,6 +14,7 @@ import type { ProjectProposal, DegreeType, PendingApplication } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from './fieldGuide';
+import { translateApplyError } from '@/lib/applyErrorMessages';
 
 function applyGuideEntry(key: string) {
   return APPLY_PROJECT_FIELD_GUIDE.find((s) => s.key === key)!;
@@ -22,6 +23,10 @@ function applyGuideEntry(key: string) {
 interface BrowseProjectsProps {
   proposals: ProjectProposal[];
   studentDegree: DegreeType;
+  // The one track this student may actually apply under (their trackPolicy
+  // is fixed — see lib/studentTrack.ts) — used to restrict the track picker
+  // below to a choice the server will actually accept.
+  studentEffectiveTrack: 'project' | 'thesis';
   pendingApplications: PendingApplication[];
   completedCourses?: CompletedCourse[];
   onApplicationsChanged: () => void;
@@ -30,7 +35,7 @@ interface BrowseProjectsProps {
 type TypeFilter = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
-export function BrowseProjects({ proposals, studentDegree, pendingApplications, completedCourses = [], onApplicationsChanged }: BrowseProjectsProps) {
+export function BrowseProjects({ proposals, studentDegree, studentEffectiveTrack, pendingApplications, completedCourses = [], onApplicationsChanged }: BrowseProjectsProps) {
   const { lang, t } = useLanguage();
   const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -93,7 +98,12 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
   const openApply = (p: ProjectProposal) => {
     setSelected(p);
     const types = projectTypesOf(p);
-    setSelectedProjectType(types.length === 1 ? types[0]! : '');
+    // The track picker below only ever offers this student's own
+    // studentEffectiveTrack — auto-select it whenever the project offers it
+    // (proposals are already filtered to projects that do — see
+    // useStudentData.ts's effectiveTrack filter), falling back to the
+    // single-type case for a project with just one.
+    setSelectedProjectType(types.includes(studentEffectiveTrack) ? studentEffectiveTrack : types.length === 1 ? types[0]! : '');
     setShowApply(true);
     setApplyMessage(null);
     setTranscriptFile(null);
@@ -156,7 +166,7 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
       if (e instanceof ApiError && e.status === 409) {
         setApplyMessage({ text: lang === 'he' ? '⚠️ כבר הגשת מועמדות לפרויקט זה' : '⚠️ You already applied to this project', ok: false });
       } else {
-        setApplyMessage({ text: lang === 'he' ? 'שגיאה בהגשת המועמדות' : 'Failed to submit application', ok: false });
+        setApplyMessage({ text: translateApplyError(e instanceof ApiError ? e.message : undefined, lang), ok: false });
       }
     } finally {
       setSubmitting(false);
@@ -409,19 +419,31 @@ export function BrowseProjects({ proposals, studentDegree, pendingApplications, 
                   <InfoTooltip text={applyGuideEntry('track').description} />
                 </span>
                 <div className="flex gap-3">
-                  {projectTypesOf(selected).map((tp) => (
-                    <label key={tp} className="flex items-center gap-1.5 text-sm text-student-on-surface">
-                      <input
-                        type="radio"
-                        name="applyProjectType"
-                        checked={selectedProjectType === tp}
-                        onChange={() => setSelectedProjectType(tp)}
-                        className="h-4 w-4 accent-student-primary"
-                      />
-                      {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
-                    </label>
-                  ))}
+                  {projectTypesOf(selected).map((tp) => {
+                    // Only studentEffectiveTrack is actually selectable — a
+                    // student's track is fixed by their trackPolicy
+                    // (lib/studentTrack.ts), so the other option is shown
+                    // (for context on what the project offers) but disabled
+                    // rather than a real choice the server would reject.
+                    const disabled = tp !== studentEffectiveTrack;
+                    return (
+                      <label key={tp} className={`flex items-center gap-1.5 text-sm text-student-on-surface ${disabled ? 'opacity-40' : ''}`}>
+                        <input
+                          type="radio"
+                          name="applyProjectType"
+                          checked={selectedProjectType === tp}
+                          disabled={disabled}
+                          onChange={() => setSelectedProjectType(tp)}
+                          className="h-4 w-4 accent-student-primary"
+                        />
+                        {tp === 'project' ? (lang === 'he' ? 'פרויקט' : 'Project') : lang === 'he' ? 'תזה' : 'Thesis'}
+                      </label>
+                    );
+                  })}
                 </div>
+                <p className="mt-1 text-[11px] text-student-on-surface-variant">
+                  {lang === 'he' ? 'המסלול נקבע לפי הגדרות התואר שלך' : "The track is fixed by your degree's settings"}
+                </p>
               </div>
             )}
 

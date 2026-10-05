@@ -34,7 +34,7 @@ export default function StudentHome() {
   const {
     studentState, studentName, studentYearOfStudy,
     proposals, activeProjects,
-    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentFaculty, studentCompletedCourses, cancelAllListeners, refresh,
+    pendingApplications, supervisorSelectionRequiresApproval, studentDegree, studentFaculty, studentEffectiveTrack, studentCompletedCourses, cancelAllListeners, refresh,
     error,
   } = useStudentData();
 
@@ -119,6 +119,7 @@ export default function StudentHome() {
         lang={lang}
         isRtl={isRtl}
         studentDegree={studentDegree}
+        studentEffectiveTrack={studentEffectiveTrack}
         pendingApplications={pendingApplications}
         completedCourses={studentCompletedCourses}
         onApplicationsChanged={refresh}
@@ -131,6 +132,7 @@ export default function StudentHome() {
           isRtl={isRtl}
           studentFaculty={studentFaculty}
           studentDegree={studentDegree}
+          studentEffectiveTrack={studentEffectiveTrack}
           pendingApplications={pendingApplications}
           supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
           onApplicationsChanged={refresh}

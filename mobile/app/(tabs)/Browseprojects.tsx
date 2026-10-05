@@ -17,6 +17,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import { APPLY_PROJECT_FIELD_GUIDE, APPLY_PROJECT_GUIDE_KEY } from '@/constants/studentFieldGuide';
+import { translateApplyError } from '@/constants/applyErrorMessages';
 
 function applyGuideEntry(key: string) {
   return APPLY_PROJECT_FIELD_GUIDE.find((s) => s.key === key)!;
@@ -27,6 +28,10 @@ interface Props {
   lang:      Lang;
   isRtl:    boolean;
   studentDegree: 'bachelors' | 'masters';
+  // The one track this student may actually apply under (their trackPolicy
+  // is fixed — see constants/studentTrack.ts) — used to restrict the track
+  // picker below to a choice the server will actually accept.
+  studentEffectiveTrack: 'project' | 'thesis';
   pendingApplications: PendingApplication[];
   completedCourses?: CompletedCourse[];
   onApplicationsChanged: () => void;
@@ -35,7 +40,7 @@ interface Props {
 type TypeFilter   = 'all' | 'project' | 'thesis';
 type EligibilityFilter = 'all' | 'eligible';
 
-export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, pendingApplications, completedCourses = [], onApplicationsChanged }: Props) {
+export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, studentEffectiveTrack, pendingApplications, completedCourses = [], onApplicationsChanged }: Props) {
   const appliedProjectIds = useMemo(() => pendingApplications.map((a) => a.projectId), [pendingApplications]);
   // Inside BrowseProjects component, add at the top:
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
@@ -118,7 +123,12 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
   const openApply = (p: ProjectProposal) => {
     setSelected(p);
     const types = projectTypesOf(p);
-    setSelectedProjectType(types.length === 1 ? types[0] : '');
+    // The track picker below only ever offers this student's own
+    // studentEffectiveTrack — auto-select it whenever the project offers it
+    // (proposals are already filtered to projects that do — see
+    // useStudentData.ts's effectiveTrack filter), falling back to the
+    // single-type case for a project with just one.
+    setSelectedProjectType(types.includes(studentEffectiveTrack) ? studentEffectiveTrack : types.length === 1 ? types[0] : '');
     setShowApply(true);
     setTranscriptUri(null);
     setTranscriptName(null);
@@ -248,7 +258,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
         ? '⚠️ כבר הגשת מועמדות לפרויקט זה'
         : '⚠️ You already applied to this project');
     } else {
-      setApplyMessage(tx('applyError', lang));
+      setApplyMessage(translateApplyError(e?.response?.data?.message, lang));
     }
     console.error('Apply error:', e);
   } finally {
@@ -605,13 +615,21 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
               <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 12, marginTop: 6 }}>
                 {projectTypesOf(selected).map((tp) => {
                   const isActive = selectedProjectType === tp;
+                  // Only studentEffectiveTrack is actually selectable — a
+                  // student's track is fixed by their trackPolicy (constants/
+                  // studentTrack.ts), so the other option is shown (for
+                  // context on what the project offers) but disabled rather
+                  // than a real choice that would just get rejected by the
+                  // server as ineligible.
+                  const disabled = tp !== studentEffectiveTrack;
                   return (
                     <Pressable
                       key={tp}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                      onPress={() => setSelectedProjectType(tp)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, opacity: disabled ? 0.4 : 1 }}
+                      onPress={() => !disabled && setSelectedProjectType(tp)}
+                      disabled={disabled}
                       accessibilityRole="radio"
-                      accessibilityState={{ checked: isActive }}
+                      accessibilityState={{ checked: isActive, disabled }}
                     >
                       <View style={{
                         width: 20, height: 20, borderRadius: 10, borderWidth: 2,
@@ -627,6 +645,9 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
                   );
                 })}
               </View>
+              <Text style={{ marginTop: 4, fontSize: 11, color: '#8899BB' }}>
+                {lang === 'he' ? 'המסלול נקבע לפי הגדרות התואר שלך' : "The track is fixed by your degree's settings"}
+              </Text>
             </View>
             </FieldGuideTarget>
           )}

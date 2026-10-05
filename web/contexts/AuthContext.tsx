@@ -68,6 +68,15 @@ interface AuthContextValue {
    *  shown. Must be one of `roles`; persists across reloads until changed
    *  again or the role is revoked. */
   setActiveRole: (role: AppRole) => void;
+  /** Optimistically flips hasSeenOnboardingTour locally the moment the tour
+   *  is finished/dismissed (OnboardingTour.tsx), so it can't reappear on a
+   *  SidebarShell remount (e.g. navigating to another page right after
+   *  finishing it) before the live Firestore listener below catches up with
+   *  the server write. Mirrors mobile's ActiveRoleContext. */
+  markOnboardingTourSeen: () => void;
+  /** Same reasoning as markOnboardingTourSeen above, but per-guideKey — see
+   *  components/guidance/FieldGuideOverlay.tsx. */
+  markFieldGuideSeen: (guideKey: string) => void;
 }
 
 const ACTIVE_ROLE_STORAGE_PREFIX = 'activeRole:';
@@ -188,6 +197,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [firebaseUser]);
 
+  const markOnboardingTourSeen = () => {
+    setUserData((prev) => (prev ? { ...prev, hasSeenOnboardingTour: true } : prev));
+  };
+  const markFieldGuideSeen = (guideKey: string) => {
+    setUserData((prev) => {
+      if (!prev) return prev;
+      const seen = prev.seenFieldGuides ?? [];
+      return seen.includes(guideKey) ? prev : { ...prev, seenFieldGuides: [...seen, guideKey] };
+    });
+  };
+
   const beforeSignOutRef = useRef<(() => void | Promise<void>) | null>(null);
   const registerBeforeSignOut = (fn: (() => void | Promise<void>) | null) => {
     beforeSignOutRef.current = fn;
@@ -242,6 +262,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activeRole,
         mainRole,
         setActiveRole,
+        markOnboardingTourSeen,
+        markFieldGuideSeen,
       }}
     >
       {children}

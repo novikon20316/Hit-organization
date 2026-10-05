@@ -48,6 +48,7 @@ function StudentHomeContent() {
     studentDegree,
     studentFaculty,
     studentTrack,
+    studentEffectiveTrack,
     studentCompletedCourses,
     refresh,
     cancelAllListeners,
@@ -97,6 +98,7 @@ function StudentHomeContent() {
             <BrowseProjects
               proposals={proposals}
               studentDegree={studentDegree}
+              studentEffectiveTrack={studentEffectiveTrack}
               pendingApplications={pendingApplications}
               completedCourses={studentCompletedCourses}
               onApplicationsChanged={refresh}
@@ -111,6 +113,7 @@ function StudentHomeContent() {
             <BrowseSupervisors
               studentFaculty={studentFaculty}
               studentDegree={studentDegree}
+              studentEffectiveTrack={studentEffectiveTrack}
               pendingApplications={pendingApplications}
               supervisorSelectionRequiresApproval={supervisorSelectionRequiresApproval}
               onApplicationsChanged={refresh}

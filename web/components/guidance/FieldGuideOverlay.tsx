@@ -29,7 +29,7 @@ const VIEWPORT_MARGIN = 16;
 
 export function FieldGuideOverlay({ guideKey, steps }: FieldGuideOverlayProps) {
   const { lang } = useLanguage();
-  const { userData } = useAuth();
+  const { userData, markFieldGuideSeen } = useAuth();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -42,10 +42,16 @@ export function FieldGuideOverlay({ guideKey, steps }: FieldGuideOverlayProps) {
 
   const finish = useCallback(() => {
     setDismissed(true);
+    // Optimistic, same as mobile's ActiveRoleContext and OnboardingTour.tsx's
+    // own markOnboardingTourSeen call — closes this guide for good
+    // immediately rather than leaving it to AuthContext's Firestore listener
+    // to catch up with the server write below, which can lag behind a
+    // remount (e.g. this form's parent modal reopening) and show it again.
+    markFieldGuideSeen(guideKey);
     // Best-effort, same tolerant fallback as completeOnboardingTour — a lost
     // network call just means this walkthrough reappears next visit.
     apiClient.markFieldGuideSeen(guideKey).catch(() => {});
-  }, [guideKey]);
+  }, [guideKey, markFieldGuideSeen]);
 
   const measure = useCallback(() => {
     if (!stepKey) return;
