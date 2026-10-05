@@ -193,6 +193,11 @@ export default function PanelScreen() {
   // Majors restriction (supervisor / secondary_supervisor only) — unlike the
   // two above, this one IS persisted server-side (see updateUserRoleAdmin).
   const [editAssignedMajors, setEditAssignedMajors] = useState<string[]>([]);
+  // Student-only department (major) + degree level — IS persisted server-side
+  // too, only shown/edited for an account whose ONLY role is student (see
+  // EditUserModal's isOnlyStudent).
+  const [editMajor, setEditMajor] = useState('');
+  const [editDegreeType, setEditDegreeType] = useState<'bachelors' | 'masters'>('bachelors');
   // Extra faculties this user holds a given role in, beyond their own
   // facultyId — independently per role, keyed by field name (see
   // constants/roleFacultyPicker.ts). Persisted server-side (see
@@ -1043,6 +1048,8 @@ export default function PanelScreen() {
     // Unlike the two above, assignedMajors IS persisted server-side, so it
     // loads from the actual user doc (see UserRecord.assignedMajors).
     setEditAssignedMajors(user.assignedMajors ?? []);
+    setEditMajor(user.major ?? '');
+    setEditDegreeType((user.degreeType as 'bachelors' | 'masters') ?? 'bachelors');
     setEditFacultyIdsByField({
       supervisorFacultyIds: user.supervisorFacultyIds ?? [],
       secondarySupervisorFacultyIds: user.secondarySupervisorFacultyIds ?? [],
@@ -1061,6 +1068,14 @@ export default function PanelScreen() {
 
   const handleSaveUser = async () => {
     if (!editUser) return;
+    // Mirrors EditUserModal's own isOnlyStudent — the Degree/Department
+    // fields are only shown/editable for an account whose ONLY role is
+    // student, so only send them in that case.
+    const isOnlyStudentEdit = editRole === 'student' && editRoles.every((r) => r === editRole);
+    if (isOnlyStudentEdit && !editMajor) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לבחור מגמה' : 'Please select a department');
+      return;
+    }
     try {
       setSaving(true);
       await apiClient.post(`/api/admin/users/${editUser.id}/role-update`, {
@@ -1071,6 +1086,8 @@ export default function PanelScreen() {
         // secondary_supervisor (see updateUserRoleAdmin) — sent unconditionally
         // here since the server already gates on role.
         assignedMajors: editAssignedMajors,
+        major: isOnlyStudentEdit ? editMajor : undefined,
+        degreeType: isOnlyStudentEdit ? editDegreeType : undefined,
         supervisorFacultyIds: editFacultyIdsByField.supervisorFacultyIds,
         secondarySupervisorFacultyIds: editFacultyIdsByField.secondarySupervisorFacultyIds,
         facultyAdminFacultyIds: editFacultyIdsByField.facultyAdminFacultyIds,
@@ -1531,6 +1548,11 @@ export default function PanelScreen() {
                 )}
               </View>
             )}
+            {filteredUsers.length === 0 && (
+              <Text style={styles.projectMeta}>
+                {lang === 'he' ? 'לא נמצאו משתמשים' : 'No users found'}
+              </Text>
+            )}
             {filteredUsers.map((u) => {
               const fc = getFacultyColor(u.facultyId);
               const rc = getRoleAccent(u.role);
@@ -1749,6 +1771,11 @@ export default function PanelScreen() {
         {activeTab === 'projects' && (
           <>
             <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchAllDashboardData} />
+            {filteredProjects.length === 0 && (
+              <Text style={styles.projectMeta}>
+                {lang === 'he' ? 'לא נמצאו פרויקטים' : 'No projects found'}
+              </Text>
+            )}
             {filteredProjects.map((p) => (
               <View key={p.id} style={[styles.projectCard, { borderLeftColor: getFacultyColor(p.facultyId).primary }]}>
                 <View style={styles.projectHeader}>
@@ -2018,11 +2045,11 @@ export default function PanelScreen() {
                 />
               </View>
               <Pressable
-                style={[styles.submitBtn, { flex: 1 }]}
+                style={[styles.submitBtn, { flex: 1, backgroundColor: ap.surfaceContainerLowest, borderWidth: 1.5, borderColor: ap.primary }]}
                 onPress={() => setShowAddRosterModal(true)}
                 accessibilityRole="button"
               >
-                <Text style={styles.submitBtnText}>➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}</Text>
+                <Text style={[styles.submitBtnText, { color: ap.primary }]}>➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}</Text>
               </Pressable>
             </View>
 
@@ -2116,7 +2143,7 @@ export default function PanelScreen() {
               <Text style={styles.projectMeta}>{lang === 'he' ? 'לא נמצאו רשומות' : 'No entries found'}</Text>
             ) : (
               rosterEntries.map((entry) => (
-                <View key={entry.id} style={styles.projectMilestoneCard}>
+                <View key={entry.id} style={[styles.projectMilestoneCard, { borderRadius: 14, borderWidth: 1, borderColor: ap.outlineVariant, shadowOpacity: 0, elevation: 0 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.projectTitle}>{entry.studentId}</Text>
@@ -2166,14 +2193,14 @@ export default function PanelScreen() {
                         placeholder={lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
                       />
                       <Pressable
-                        style={[styles.submitBtn, savingRosterId === entry.id && { opacity: 0.6 }]}
+                        style={[styles.submitBtn, { backgroundColor: ap.surfaceContainerLowest, borderWidth: 1.5, borderColor: ap.primary }, savingRosterId === entry.id && { opacity: 0.6 }]}
                         onPress={() => handleSaveRosterEdit(entry)}
                         disabled={savingRosterId === entry.id}
                         accessibilityRole="button"
                       >
                         {savingRosterId === entry.id
-                          ? <ActivityIndicator color="#fff" />
-                          : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
+                          ? <ActivityIndicator color={ap.primary} />
+                          : <Text style={[styles.submitBtnText, { color: ap.primary }]}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
                         }
                       </Pressable>
                       <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setEditingRosterId(null)} accessibilityRole="button">
@@ -2186,14 +2213,14 @@ export default function PanelScreen() {
                         {lang === 'he' ? 'למחוק את הרשומה הזו לצמיתות?' : 'Permanently delete this entry?'}
                       </Text>
                       <Pressable
-                        style={[styles.submitBtn, { backgroundColor: '#EF4444' }, savingRosterId === entry.id && { opacity: 0.6 }]}
+                        style={[styles.submitBtn, { backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#EF4444' }, savingRosterId === entry.id && { opacity: 0.6 }]}
                         onPress={() => handleDeleteRoster(entry)}
                         disabled={savingRosterId === entry.id}
                         accessibilityRole="button"
                       >
                         {savingRosterId === entry.id
-                          ? <ActivityIndicator color="#fff" />
-                          : <Text style={styles.submitBtnText}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
+                          ? <ActivityIndicator color="#EF4444" />
+                          : <Text style={[styles.submitBtnText, { color: '#EF4444' }]}>{lang === 'he' ? 'מחק' : 'Delete'}</Text>
                         }
                       </Pressable>
                       <Pressable style={{ paddingVertical: 10, alignItems: 'center', marginTop: 6 }} onPress={() => setConfirmDeleteRosterId(null)} accessibilityRole="button">
@@ -2202,20 +2229,24 @@ export default function PanelScreen() {
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <Pressable style={[styles.submitBtn, { flex: 1, marginTop: 0 }]} onPress={() => startRosterEdit(entry)} accessibilityRole="button">
-                        <Text style={styles.submitBtnText}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
+                      <Pressable
+                        style={[styles.submitBtn, { flex: 1, marginTop: 0, backgroundColor: ap.surfaceContainerLowest, borderWidth: 1.5, borderColor: ap.outlineVariant }]}
+                        onPress={() => startRosterEdit(entry)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={[styles.submitBtnText, { color: ap.primary }]}>✏️ {lang === 'he' ? 'ערוך' : 'Edit'}</Text>
                       </Pressable>
                       {entry.used && (
                         <Pressable
-                          style={[styles.submitBtn, { flex: 1, marginTop: 0, backgroundColor: '#8B5CF6' }]}
+                          style={[styles.submitBtn, { flex: 1, marginTop: 0, backgroundColor: '#F5F3FF', borderWidth: 1.5, borderColor: '#8B5CF6' }]}
                           onPress={() => handleReopenRoster(entry)}
                           accessibilityRole="button"
                         >
-                          <Text style={styles.submitBtnText}>🔓 {lang === 'he' ? 'פתח מחדש' : 'Reopen'}</Text>
+                          <Text style={[styles.submitBtnText, { color: '#8B5CF6' }]}>🔓 {lang === 'he' ? 'פתח מחדש' : 'Reopen'}</Text>
                         </Pressable>
                       )}
                       <Pressable
-                        style={[styles.submitBtn, { marginTop: 0, backgroundColor: '#EF4444', flex: entry.used ? 0 : 1, paddingHorizontal: 14 }]}
+                        style={[styles.submitBtn, { marginTop: 0, backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#EF4444', flex: entry.used ? 0 : 1, paddingHorizontal: 14 }]}
                         onPress={() => setConfirmDeleteRosterId(entry.id)}
                         accessibilityRole="button"
                         accessibilityLabel={lang === 'he' ? 'מחק רשומה' : 'Delete entry'}
@@ -2517,6 +2548,11 @@ export default function PanelScreen() {
 
         assignedMajors={editAssignedMajors}
         setAssignedMajors={setEditAssignedMajors}
+
+        major={editMajor}
+        setMajor={setEditMajor}
+        degreeType={editDegreeType}
+        setDegreeType={setEditDegreeType}
 
         facultyIdsByField={editFacultyIdsByField}
         setFacultyIdsByField={setEditFacultyIdsByField}

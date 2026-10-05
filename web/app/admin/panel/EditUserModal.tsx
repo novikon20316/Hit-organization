@@ -12,7 +12,10 @@ import { VALID_ROLES, VALID_FACULTY_IDS, type AppRole } from '@/lib/roles';
 import { roleLabel, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { PermissionsEditorModal } from './PermissionsEditorModal';
 import { CoordinatorScopesModal } from './CoordinatorScopesModal';
-import { majorsForFaculty, type ScopeRule, type CoordinatorScope, type ActionType } from '@/lib/permissions';
+import {
+  majorsForFaculty, degreeLevelsForFaculty, degreeLevelsForMajor, DEGREE_LEVELS,
+  type ScopeRule, type CoordinatorScope, type ActionType, type DegreeLevel,
+} from '@/lib/permissions';
 import { ROLE_FACULTY_PICKER_FIELD, type RoleFacultyField } from '@/lib/roleFacultyPicker';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
@@ -47,6 +50,11 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   );
   const [facultyId, setFacultyId] = useState<string>(user.facultyId);
   const [assignedMajors, setAssignedMajors] = useState<string[]>(user.assignedMajors ?? []);
+  // Student-only "Department" (major) + degree level — see isOnlyStudent
+  // below for when these are actually shown/edited. Defaults mirror
+  // NewUserModal's own default for a brand-new student.
+  const [degreeType, setDegreeType] = useState<DegreeLevel>((user.degreeType as DegreeLevel) ?? 'bachelors');
+  const [major, setMajor] = useState<string>(user.major ?? '');
   // One "additional faculties" array per role that supports it (see
   // ROLE_FACULTY_PICKER_FIELD) — keyed by field name, not role, since that's
   // what the field actually maps to on the user doc / role-update payload.
@@ -121,6 +129,12 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   const isSecondarySupervisor = role === 'secondary_supervisor' || additionalRoles.includes('secondary_supervisor');
   const isSupervisorLike = isSupervisor || isSecondarySupervisor;
   const isStudent = role === 'student' || additionalRoles.includes('student');
+  // Narrows the three student-specific layout rules below (hide Granular
+  // Permissions, show the Department field, move Additional Roles to the
+  // bottom) to an account whose ONLY role is student — a student holding an
+  // additional staff-type role still gets the normal staff layout, since
+  // permissions/role-ordering are meaningful for them.
+  const isOnlyStudent = role === 'student' && additionalRoles.length === 0;
 
   // Every role currently assigned (primary + additional) that has a
   // matching entry in ROLE_FACULTY_PICKER_FIELD — one "additional faculties"
@@ -133,6 +147,36 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
 
   // Deduped across degree levels — same helper the coordinator-scope UI uses.
   const assignedMajorOptions = useMemo(() => majorsForFaculty(facultyId), [facultyId]);
+
+  // Degree levels this faculty actually offers (e.g. data_science is
+  // master's-only) — same idea as NewUserModal's availableDegreeLevels.
+  const availableDegreeLevels = useMemo(() => degreeLevelsForFaculty(facultyId), [facultyId]);
+  // Department (major) options narrowed to the selected degree level — this
+  // is the whole point of asking for degree first: a faculty's majors don't
+  // all offer both levels (e.g. Sciences' Applied Math is bachelor's-only).
+  const departmentOptions = useMemo(
+    () => majorsForFaculty(facultyId).filter((m) => degreeLevelsForMajor(facultyId, m.slug).includes(degreeType)),
+    [facultyId, degreeType]
+  );
+
+  // Keep degreeType/major valid as facultyId changes — same auto-correct
+  // idea as NewUserModal, just reactive instead of inline in a change
+  // handler since facultyId can also change in handleFacultyChange above.
+  useEffect(() => {
+    if (!isOnlyStudent) return;
+    if (!availableDegreeLevels.includes(degreeType)) {
+      setDegreeType(availableDegreeLevels[0] ?? 'bachelors');
+    }
+  }, [isOnlyStudent, availableDegreeLevels, degreeType]);
+
+  useEffect(() => {
+    if (!isOnlyStudent) return;
+    if (major && !departmentOptions.some((m) => m.slug === major)) {
+      setMajor(departmentOptions.length === 1 ? departmentOptions[0]!.slug : '');
+    } else if (!major && departmentOptions.length === 1) {
+      setMajor(departmentOptions[0]!.slug);
+    }
+  }, [isOnlyStudent, departmentOptions, major]);
 
   const toggleAdditionalRole = (r: AppRole) => {
     setAdditionalRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
@@ -156,6 +200,10 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
   };
 
   const handleSave = async () => {
+    if (isOnlyStudent && !major) {
+      setError(lang === 'he' ? 'יש לבחור מגמה' : 'Please select a department');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -172,6 +220,8 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         internalExaminerFacultyIds: pickerRoles.includes('internal_examiner') ? facultyIdsByField.internalExaminerFacultyIds : undefined,
         permissionRules,
         coordinatorScopes: showCoordinatorScopes ? coordinatorScopes : undefined,
+        major: isOnlyStudent ? major : undefined,
+        degreeType: isOnlyStudent ? degreeType : undefined,
       });
 
       if (isStudent) {
@@ -197,6 +247,35 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
       setSaving(false);
     }
   };
+
+  // Rendered in one of two positions depending on isOnlyStudent — in its
+  // usual spot among the other role/faculty fields for staff accounts, or
+  // pushed to the very bottom (after Coordinator Scope) for a student-only
+  // account, where it's the least relevant field on the form.
+  const additionalRolesSection = (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
+        {lang === 'he' ? 'תפקידים נוספים (אופציונלי)' : 'Additional Roles (optional)'}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {roleOptions.filter((r) => r !== role).map((r) => {
+          const checked = additionalRoles.includes(r);
+          return (
+            <button
+              key={r}
+              type="button"
+              onClick={() => toggleAdditionalRole(r)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
+              }`}
+            >
+              {roleLabel(r, lang)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -233,6 +312,51 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                 ))}
               </select>
             </label>
+          )}
+
+          {/* ── Degree + Department (student-only accounts) — degree comes
+                first since it narrows which departments are even valid (e.g.
+                Sciences' Applied Math only exists at the bachelor's level). ── */}
+          {isOnlyStudent && (
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תואר' : 'Degree'}</span>
+                <select
+                  value={degreeType}
+                  onChange={(e) => setDegreeType(e.target.value as DegreeLevel)}
+                  className={inputCls}
+                  disabled={availableDegreeLevels.length <= 1}
+                >
+                  {availableDegreeLevels.map((d) => (
+                    <option key={d} value={d}>
+                      {DEGREE_LEVELS.find((o) => o.key === d)?.label[lang] ?? d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'מגמה' : 'Department'}</span>
+                <select
+                  value={major}
+                  onChange={(e) => setMajor(e.target.value)}
+                  className={inputCls}
+                  disabled={departmentOptions.length <= 1}
+                >
+                  <option value="">{lang === 'he' ? 'בחר מגמה' : 'Select department'}</option>
+                  {departmentOptions.map((m) => (
+                    <option key={m.slug} value={m.slug}>
+                      {m.label[lang]}
+                    </option>
+                  ))}
+                </select>
+                {departmentOptions.length === 0 && (
+                  <p className="mt-1 text-xs text-admin-on-surface-variant">
+                    {lang === 'he' ? 'אין מגמות לפקולטה ולתואר שנבחרו' : 'No departments for this faculty/degree combination'}
+                  </p>
+                )}
+              </label>
+            </>
           )}
 
           {isStudent && (
@@ -342,28 +466,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             );
           })}
 
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
-              {lang === 'he' ? 'תפקידים נוספים (אופציונלי)' : 'Additional Roles (optional)'}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {roleOptions.filter((r) => r !== role).map((r) => {
-                const checked = additionalRoles.includes(r);
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => toggleAdditionalRole(r)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      checked ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface hover:border-admin-primary'
-                    }`}
-                  >
-                    {roleLabel(r, lang)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {!isOnlyStudent && additionalRolesSection}
 
           {!scope && (
             <label className="flex items-center justify-between gap-3 rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5">
@@ -379,19 +482,23 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             </label>
           )}
 
-          {/* ── Granular Permissions ── */}
-          <button
-            type="button"
-            onClick={() => setPermissionsModalOpen(true)}
-            className="flex items-center justify-between rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5 text-sm font-medium text-admin-on-surface hover:border-admin-primary"
-          >
-            <span>🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</span>
-            <span className="text-admin-on-surface-variant">
-              {permissionRules.length > 0
-                ? (lang === 'he' ? `${permissionRules.length} כללים ›` : `${permissionRules.length} rules ›`)
-                : '›'}
-            </span>
-          </button>
+          {/* ── Granular Permissions — not meaningful for a student-only
+                account (no scope/action grants apply to them), so hidden
+                entirely rather than shown disabled. ── */}
+          {!isOnlyStudent && (
+            <button
+              type="button"
+              onClick={() => setPermissionsModalOpen(true)}
+              className="flex items-center justify-between rounded-lg border border-admin-outline-variant bg-admin-surface-container-low px-3.5 py-2.5 text-sm font-medium text-admin-on-surface hover:border-admin-primary"
+            >
+              <span>🔐 {lang === 'he' ? 'הרשאות מפורטות' : 'Granular Permissions'}</span>
+              <span className="text-admin-on-surface-variant">
+                {permissionRules.length > 0
+                  ? (lang === 'he' ? `${permissionRules.length} כללים ›` : `${permissionRules.length} rules ›`)
+                  : '›'}
+              </span>
+            </button>
+          )}
 
           {/* ── Coordinator Scope / Subject Responsibility (coordinator or
                 administrative coordinator) — same underlying field either way,
@@ -415,6 +522,8 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
               </span>
             </button>
           )}
+
+          {isOnlyStudent && additionalRolesSection}
         </div>
 
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}

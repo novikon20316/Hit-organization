@@ -921,7 +921,7 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   const {
     role, roles, facultyId, assignedMajors, supervisorFacultyIds, secondarySupervisorFacultyIds,
     facultyAdminFacultyIds, programHeadFacultyIds, gradSchoolHeadFacultyIds, internalExaminerFacultyIds,
-    permissionRules, coordinatorScopes,
+    permissionRules, coordinatorScopes, degreeType, major,
   } = req.body;
 
   if (!role) return res.status(400).json({ message: 'Missing role parameter.' });
@@ -1016,6 +1016,40 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
   const isSupervisorLikeRole =
     ['supervisor', 'secondary_supervisor'].includes(role) ||
     (Array.isArray(roles) && roles.some((r: string) => ['supervisor', 'secondary_supervisor'].includes(r)));
+
+  // Effective-role check for the student-only `major`/`degreeType` fields
+  // below, same pattern as isSupervisorLikeRole above.
+  const isStudentRole =
+    role === 'student' || (Array.isArray(roles) && roles.includes('student'));
+
+  // A student's department (major) and degree level, editable here for the
+  // first time (previously only settable at account-creation time via
+  // createAdminUser) — EditUserModal only sends these for a student-only
+  // account (see its isOnlyStudent gating), and both are optional per-field:
+  // a caller that omits them (editing a non-student, or an older screen that
+  // hasn't been updated) leaves whatever is already on the doc untouched —
+  // never wiped, since scope-matching (coordinatorScopes/permissionRules)
+  // and trackPolicy (see lib/studentTrack.ts) both depend on these being
+  // reliable. Same canonical-slug + faculty validation as createAdminUser.
+  let resolvedMajor: string | undefined;
+  if (isStudentRole && major !== undefined) {
+    if (typeof major !== 'string' || !VALID_MAJORS.has(major)) {
+      return res.status(400).json({ message: `Invalid major: "${major}"` });
+    }
+    const validForFaculty = majorsForFaculty(facultyId);
+    if (!validForFaculty.includes(major)) {
+      return res.status(400).json({ message: `Invalid major "${major}" for faculty "${facultyId}".` });
+    }
+    resolvedMajor = major;
+  }
+
+  let resolvedDegreeType: 'bachelors' | 'masters' | undefined;
+  if (isStudentRole && degreeType !== undefined) {
+    if (degreeType !== 'bachelors' && degreeType !== 'masters') {
+      return res.status(400).json({ message: `Invalid degreeType: "${degreeType}"` });
+    }
+    resolvedDegreeType = degreeType;
+  }
 
   // Supervisors/secondary_supervisors can optionally be restricted to a
   // subset of their (possibly just-changed) faculty's majors — same
@@ -1138,6 +1172,8 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       // persisted here until now — needed so a supervisor's assignedMajors
       // (below) always corresponds to their real, saved faculty.
       ...(typeof facultyId === 'string' && facultyId ? { facultyId } : {}),
+      ...(resolvedMajor !== undefined ? { major: resolvedMajor } : {}),
+      ...(resolvedDegreeType !== undefined ? { degreeType: resolvedDegreeType } : {}),
       assignedMajors: resolvedAssignedMajors ?? admin.firestore.FieldValue.delete(),
       supervisorFacultyIds: resolvedSupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),
       secondarySupervisorFacultyIds: resolvedSecondarySupervisorFacultyIds ?? admin.firestore.FieldValue.delete(),

@@ -625,6 +625,11 @@ export const apiClient = {
        *  for what a delegate still can't grant. */
       permissionRules?: import('./permissions').ScopeRule[];
       coordinatorScopes?: import('./permissions').CoordinatorScope[];
+      /** Student-only — department (major) and degree level. Only sent when
+       *  editing a student-only account (see EditUserModal's isOnlyStudent);
+       *  omitted for everyone else and left untouched server-side. */
+      major?: string;
+      degreeType?: 'bachelors' | 'masters';
     }
   ) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/role-update`, {

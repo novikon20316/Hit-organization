@@ -13,8 +13,9 @@ import { FACULTY_COLORS, getRoleAccent } from '../../components/shared';
 import { EditUserModalExtraStyles } from '../../constants/styles';
 import PermissionsEditorModal from './PermissionsEditorModal';
 import CoordinatorScopesModal from './CoordinatorScopesModal';
-import { majorsForFaculty } from '../../constants/permissions';
-import type { ScopeRule, CoordinatorScope, ActionType } from '../../constants/permissions';
+import { majorsForFaculty, degreeLevelsForFaculty } from '../../constants/permissions';
+import type { ScopeRule, CoordinatorScope, ActionType, DegreeLevel } from '../../constants/permissions';
+import { getFilteredPrograms } from '../../constants/faculties';
 import { apiClient } from '../../src/api/apiClient';
 import type { StatusOption } from '@/types';
 import { ROLE_FACULTY_PICKER_FIELD, type RoleFacultyField } from '../../constants/roleFacultyPicker';
@@ -79,6 +80,15 @@ type Props = {
   assignedMajors?:    string[];
   setAssignedMajors?: (majors: string[]) => void;
 
+  // Student-only department (major) + degree level — optional, same pattern
+  // as assignedMajors above. IS persisted server-side (see
+  // adminController.ts's updateUserRoleAdmin) but only ever shown/edited when
+  // the user being edited holds ONLY the student role (see isOnlyStudent).
+  major?:          string;
+  setMajor?:       (major: string) => void;
+  degreeType?:     DegreeLevel;
+  setDegreeType?:  (degree: DegreeLevel) => void;
+
   // Extra faculties this user holds a given role in, beyond their own
   // faculty — independently per role (a restriction for a cross-faculty
   // 'all' account, an addition for a normal single-faculty one), keyed by
@@ -130,6 +140,8 @@ export default function EditUserModal({
   permissionRules, setPermissionRules,
   coordinatorScopes, setCoordinatorScopes,
   assignedMajors, setAssignedMajors,
+  major, setMajor,
+  degreeType, setDegreeType,
   facultyIdsByField, setFacultyIdsByField,
   primaryStatus, setPrimaryStatus,
   secondaryStatus, setSecondaryStatus,
@@ -140,8 +152,16 @@ export default function EditUserModal({
 }: Props) {
   const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
   const [scopesModalVisible, setScopesModalVisible] = useState(false);
-  const showPermissions = permissionRules !== undefined && !!setPermissionRules;
+  // An account whose ONLY role is student — holding any additional role
+  // still gets the normal staff layout (permissions/role-ordering remain
+  // meaningful for them). Drives three layout differences below: Granular
+  // Permissions is hidden, a Degree/Department picker appears under Faculty,
+  // and Additional Roles moves to the very bottom of the form.
+  const isOnlyStudent = role === 'student' && roles.every((r) => r === role);
+  const showPermissions = permissionRules !== undefined && !!setPermissionRules && !isOnlyStudent;
   const showTwoFactorExempt = twoFactorExempt !== undefined && !!setTwoFactorExempt;
+  const showDepartment =
+    major !== undefined && !!setMajor && degreeType !== undefined && !!setDegreeType && isOnlyStudent;
   // Same generic scope field also used to assign an administrative coordinator
   // to one or more specific subjects (facultyId+major) — "keep a separation
   // between degrees" for the workflow-templates screen. See
@@ -175,6 +195,33 @@ export default function EditUserModal({
   const showSecondaryStatus = secondaryStatus !== undefined && !!setSecondaryStatus && isStudent;
   const showStudentStatus = showPrimaryStatus || showSecondaryStatus;
 
+  // Degree levels this faculty actually offers (e.g. data_science is
+  // master's-only) — same idea as NewUserModal's availableDegreeLevels.
+  const availableDegreeLevels: DegreeLevel[] = degreeLevelsForFaculty(faculty);
+  // Department options narrowed to the selected degree level — a faculty's
+  // majors don't all offer both levels (e.g. Sciences' Applied Math is
+  // bachelor's-only), which is the whole reason degree is picked first.
+  const departmentOptions = showDepartment ? getFilteredPrograms(faculty, degreeType ?? 'bachelors') : [];
+
+  // Keep degreeType/major valid as faculty changes.
+  useEffect(() => {
+    if (!showDepartment) return;
+    if (!availableDegreeLevels.includes(degreeType!)) {
+      setDegreeType!(availableDegreeLevels[0] ?? 'bachelors');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDepartment, faculty]);
+
+  useEffect(() => {
+    if (!showDepartment) return;
+    if (major && !departmentOptions.some((p) => p.slug === major)) {
+      setMajor!(departmentOptions.length === 1 ? departmentOptions[0]!.slug : '');
+    } else if (!major && departmentOptions.length === 1) {
+      setMajor!(departmentOptions[0]!.slug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDepartment, faculty, degreeType]);
+
   // ── Student status option lists (Primary/Secondary) — fetched once when
   // the modal opens, not per-field. Any authenticated user can read them
   // (see GET /api/student-statuses); only relevant to display/edit when the
@@ -205,6 +252,74 @@ export default function EditUserModal({
 
   // Additional roles = everything except the primary role
   const additionalRoles = roles.filter((r) => r !== role);
+
+  // Rendered in one of two spots depending on isOnlyStudent — right after
+  // Primary Role for a staff account (its usual spot), or pushed to the very
+  // bottom of the form (after Coordinator Scope) for a student-only account,
+  // where it's the least relevant field.
+  const additionalRolesSection = (
+    <>
+      <View style={editStyles.sectionHeader}>
+        <Text style={styles.fieldLabel}>
+          {lang === "he" ? "תפקידים נוספים" : "Additional Roles"}
+        </Text>
+        {additionalRoles.length > 0 && (
+          <Pressable onPress={() => setRoles([role])} accessibilityRole="button">
+            <Text style={editStyles.clearAllText}>
+              {lang === "he" ? "נקה הכל" : "Clear all"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      <Text style={editStyles.hint}>
+        {lang === "he"
+          ? "ניתן להוסיף מספר תפקידים נוספים לאותו משתמש"
+          : "A user can hold multiple roles simultaneously"}
+      </Text>
+
+      {ADDITIONAL_ROLE_OPTIONS
+        .filter((r) => r !== role) // hide if it's already the primary role
+        .map((r) => {
+          const isActive = roles.includes(r);
+          const label    = roleLabels[r]?.[lang] ?? r;
+          return (
+            <Pressable
+              key={r}
+              style={[editStyles.additionalRoleBtn, isActive && editStyles.additionalRoleBtnActive]}
+              onPress={() => toggleAdditionalRole(r)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isActive }}
+            >
+              <View style={[editStyles.checkbox, isActive && editStyles.checkboxActive]}>
+                {isActive && <Text style={editStyles.checkmark}>✓</Text>}
+              </View>
+              <Text style={[editStyles.additionalRoleText, isActive && editStyles.additionalRoleTextActive]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+
+      {/* Active additional roles summary */}
+      {additionalRoles.length > 0 && (
+        <View style={editStyles.summaryBox}>
+          <Text style={editStyles.summaryLabel}>
+            {lang === "he" ? "תפקידים פעילים:" : "Active roles:"}
+          </Text>
+          <View style={editStyles.summaryChips}>
+            {[role, ...additionalRoles].map((r) => (
+              <View key={r} style={editStyles.chip}>
+                <Text style={editStyles.chipText}>
+                  {roleLabels[r]?.[lang] ?? r}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </>
+  );
 
   return (
     <Modal visible={visible} animationType="slide">
@@ -257,66 +372,9 @@ export default function EditUserModal({
             );
           })}
 
-          {/* ── Additional Roles ── */}
-          <View style={editStyles.sectionHeader}>
-            <Text style={styles.fieldLabel}>
-              {lang === "he" ? "תפקידים נוספים" : "Additional Roles"}
-            </Text>
-            {additionalRoles.length > 0 && (
-              <Pressable onPress={() => setRoles([role])} accessibilityRole="button">
-                <Text style={editStyles.clearAllText}>
-                  {lang === "he" ? "נקה הכל" : "Clear all"}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-
-          <Text style={editStyles.hint}>
-            {lang === "he"
-              ? "ניתן להוסיף מספר תפקידים נוספים לאותו משתמש"
-              : "A user can hold multiple roles simultaneously"}
-          </Text>
-
-          {ADDITIONAL_ROLE_OPTIONS
-            .filter((r) => r !== role) // hide if it's already the primary role
-            .map((r) => {
-              const isActive = roles.includes(r);
-              const label    = roleLabels[r]?.[lang] ?? r;
-              return (
-                <Pressable
-                  key={r}
-                  style={[editStyles.additionalRoleBtn, isActive && editStyles.additionalRoleBtnActive]}
-                  onPress={() => toggleAdditionalRole(r)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isActive }}
-                >
-                  <View style={[editStyles.checkbox, isActive && editStyles.checkboxActive]}>
-                    {isActive && <Text style={editStyles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={[editStyles.additionalRoleText, isActive && editStyles.additionalRoleTextActive]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-          {/* Active additional roles summary */}
-          {additionalRoles.length > 0 && (
-            <View style={editStyles.summaryBox}>
-              <Text style={editStyles.summaryLabel}>
-                {lang === "he" ? "תפקידים פעילים:" : "Active roles:"}
-              </Text>
-              <View style={editStyles.summaryChips}>
-                {[role, ...additionalRoles].map((r) => (
-                  <View key={r} style={editStyles.chip}>
-                    <Text style={editStyles.chipText}>
-                      {roleLabels[r]?.[lang] ?? r}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
+          {/* ── Additional Roles (moved to the bottom for a student-only
+                account — see additionalRolesSection) ── */}
+          {!isOnlyStudent && additionalRolesSection}
 
           {/* ── Faculty (hidden entirely when locked to a delegate's own faculty) ── */}
           {!lockedFacultyId && (
@@ -339,6 +397,67 @@ export default function EditUserModal({
                     <Text>{fc.label[lang]}</Text>
                   </Pressable>
                 ))}
+            </>
+          )}
+
+          {/* ── Degree + Department (student-only accounts) — degree comes
+                first since it narrows which departments are even valid (e.g.
+                Sciences' Applied Math only exists at the bachelor's level). ── */}
+          {showDepartment && (
+            <>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "תואר" : "Degree"}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {availableDegreeLevels.map((d) => (
+                  <Pressable
+                    key={d}
+                    style={[editStyles.additionalRoleBtn, { flex: 1 }, degreeType === d && editStyles.additionalRoleBtnActive]}
+                    onPress={() => { if (availableDegreeLevels.length > 1) setDegreeType!(d); }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: degreeType === d }}
+                  >
+                    <View style={[editStyles.checkbox, degreeType === d && editStyles.checkboxActive]}>
+                      {degreeType === d && <Text style={editStyles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={[editStyles.additionalRoleText, degreeType === d && editStyles.additionalRoleTextActive]}>
+                      {d === 'bachelors'
+                        ? (lang === 'he' ? 'תואר ראשון' : "Bachelor's")
+                        : (lang === 'he' ? 'תואר שני' : "Master's")}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {availableDegreeLevels.length === 1 && (
+                <Text style={editStyles.hint}>
+                  {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
+                </Text>
+              )}
+
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                {lang === "he" ? "מגמה" : "Department"}
+              </Text>
+              {departmentOptions.map((program) => (
+                <Pressable
+                  key={program.slug}
+                  style={[editStyles.additionalRoleBtn, major === program.slug && editStyles.additionalRoleBtnActive]}
+                  onPress={() => { if (departmentOptions.length > 1) setMajor!(program.slug); }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: major === program.slug }}
+                >
+                  <View style={[editStyles.checkbox, major === program.slug && editStyles.checkboxActive]}>
+                    {major === program.slug && <Text style={editStyles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={[editStyles.additionalRoleText, major === program.slug && editStyles.additionalRoleTextActive]}>
+                    {program.label[lang]}
+                  </Text>
+                </Pressable>
+              ))}
+              {departmentOptions.length === 0 && (
+                <Text style={editStyles.hint}>
+                  {lang === 'he' ? 'אין מגמות לפקולטה ולתואר שנבחרו' : 'No departments for this faculty/degree combination'}
+                </Text>
+              )}
             </>
           )}
 
@@ -543,6 +662,14 @@ export default function EditUserModal({
                   : '›'}
               </Text>
             </Pressable>
+          )}
+
+          {/* ── Additional Roles, pushed down here for a student-only
+                account (see additionalRolesSection) ── */}
+          {isOnlyStudent && (
+            <View style={{ marginTop: 16 }}>
+              {additionalRolesSection}
+            </View>
           )}
 
           {/* ── Save ── */}

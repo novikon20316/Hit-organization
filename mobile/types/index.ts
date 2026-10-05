@@ -495,6 +495,10 @@ export interface UserRecord {
   // optional keys into that config — undefined/null means "not set yet".
   primaryStatus?: string | null;
   secondaryStatus?: string | null;
+  // Student-only department (major slug) + degree level — see
+  // constants/faculties.ts's getFilteredPrograms for the slug source of truth.
+  degreeType?: string | null;
+  major?: string | null;
   // Granular per-user permission grants (system_admin-managed) — see
   // constants/permissions.ts.
   permissionRules?: import('../constants/permissions').ScopeRule[];
