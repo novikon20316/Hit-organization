@@ -68,8 +68,8 @@ export const OVERVIEW_TAB_FIELD_GUIDE: FieldGuideStep[] = [
     key: 'nextMilestone',
     label: { he: 'אבן הדרך הבאה', en: 'Next milestone' },
     description: {
-      he: 'מה עליכם לעשות עכשיו — כולל מועד היעד וכפתור ההגשה, אם זה תורכם לפעול. אם אבן הדרך כבר הוגשה, כאן תוכלו לראות שהיא ממתינה לאישור צוות.',
-      en: "What you need to do right now — including the due date and a submit button, if it's your turn to act. If already submitted, this shows it's awaiting staff approval.",
+      he: 'כאן מוצג מה עליכם לעשות כעת: תאריך היעד להגשה, וכפתור הגשה יהיה ניתן ללחיצה כשטרם הגשתם את האבן דרך. אם כבר הגשתם, תראו כאן שאבן הדרך ממתינה לאישור הצוות.',
+      en: "Shows what you need to do right now: the due date, and a submit button that becomes clickable while you haven't submitted the milestone yet. If you already submitted, you'll see here that it's awaiting staff approval.",
     },
   },
 ];
