@@ -113,7 +113,6 @@ export default function StudentDetailPage() {
       const res = await apiClient.getStudentDetail(studentId);
       setData(res);
     } catch (err) {
-      console.error('Failed to load student detail:', err);
       setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
     } finally {
       setLoadingData(false);
@@ -264,30 +263,40 @@ export default function StudentDetailPage() {
                     ? `${student.track === 'thesis' ? (lang === 'he' ? 'תזה' : 'Thesis') : (lang === 'he' ? 'פרויקט' : 'Project')}${student.trackLocked ? ' 🔒' : ''}`
                     : (lang === 'he' ? 'טרם נבחר' : 'Not chosen yet')}
                 </p>
-                <input
-                  value={eligibilityReason}
-                  onChange={(e) => setEligibilityReason(e.target.value)}
-                  placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
-                  className="mt-2 w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
-                />
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={savingEligibility}
-                    onClick={() => handleSetEligibility(true)}
-                    className="rounded-lg bg-success px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-                  >
-                    {lang === 'he' ? 'סמן כזכאי/ת לתזה' : 'Mark thesis-eligible'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={savingEligibility}
-                    onClick={() => handleSetEligibility(false)}
-                    className="rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-                  >
-                    {lang === 'he' ? 'סמן כלא זכאי/ת' : 'Mark not eligible'}
-                  </button>
-                </div>
+                {/* Manual eligible/not-eligible buttons are for roles without
+                    grade-average entry (plain 'coordinator' — see
+                    THESIS_AVERAGE_ROLES above). For canSetAverage roles,
+                    saving the average already derives eligibility via
+                    setThesisEligibilityFromAverage, so a manual override
+                    here would be redundant and confusing. */}
+                {!canSetAverage && (
+                  <>
+                    <input
+                      value={eligibilityReason}
+                      onChange={(e) => setEligibilityReason(e.target.value)}
+                      placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
+                      className="mt-2 w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        disabled={savingEligibility}
+                        onClick={() => handleSetEligibility(true)}
+                        className="rounded-lg bg-success px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                      >
+                        {lang === 'he' ? 'סמן כזכאי/ת לתזה' : 'Mark thesis-eligible'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingEligibility}
+                        onClick={() => handleSetEligibility(false)}
+                        className="rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                      >
+                        {lang === 'he' ? 'סמן כלא זכאי/ת' : 'Mark not eligible'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
