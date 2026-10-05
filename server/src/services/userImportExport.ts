@@ -263,6 +263,7 @@ export function buildUsersExportBuffer(users: any[]): Buffer {
 // about are listed — anything else fails the row rather than guessing.
 const STAFF_UNIT_TO_FACULTY: Record<string, string> = {
   'הנדסת חשמל ואלקטרוניקה': 'electrical',
+  'המחלקה למדעי הנתונים': 'data_science',
 };
 
 /** 9-digit placeholder ID for rows the HR export left blank — real Israeli ID numbers are 9 digits. */
