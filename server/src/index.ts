@@ -117,6 +117,21 @@ app.use(cors({
     callback(new Error(`CORS: origin ${origin} not allowed`));
   },
 }));
+// A rejected origin above calls back with a plain Error, which with no
+// handler here falls through to Express's default error handler as an
+// opaque 500 — indistinguishable from a real server fault to the client's
+// apiClient, which reports any 5xx as a 'network_failure' (see
+// services/errorReports.ts) and alerts every system_admin by email. Caught
+// a session parked on a non-allowlisted origin (e.g. the raw Cloud Run
+// service URL instead of WEBSITE_URL) re-tripping that alert every ~25s via
+// the presence heartbeat for as long as the tab stayed open. This is the
+// 403 it actually is.
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.message.startsWith('CORS:')) {
+    return res.status(403).json({ error: 'Origin not allowed.' });
+  }
+  next(err);
+});
 app.use(express.json({ limit: '10mb' }));
 app.use('/api', apiLimiter);
 app.use('/api', verifyAppCheck);
