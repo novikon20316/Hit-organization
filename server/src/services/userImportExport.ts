@@ -275,6 +275,15 @@ function generatePlaceholderIdNumber(taken: Set<string>): string {
   return candidate;
 }
 
+/**
+ * Pads a purely-numeric ID to 9 digits (Israeli ת"ז length), restoring a
+ * leading zero Excel silently drops when the HR export stores the cell as a
+ * number rather than text. Non-numeric values pass through unchanged.
+ */
+function padIsraeliId(raw: string): string {
+  return /^\d+$/.test(raw) ? raw.padStart(9, '0') : raw;
+}
+
 function resolveStaffFaculty(rawUnit: string): { facultyId: string | null; inactive: boolean; cleanUnit: string } {
   const trimmed  = (rawUnit || '').trim();
   const inactive = trimmed.startsWith('לא פעיל');
@@ -312,7 +321,7 @@ export async function importStaffFromBuffer(
       // the row, mint a placeholder 9-digit ID so import can proceed; it's
       // only ever used as a dedup key and stored on the profile, never
       // validated as a real ID elsewhere.
-      const idNumber = rawId || generatePlaceholderIdNumber(seenIds);
+      const idNumber = (rawId ? padIsraeliId(rawId) : '') || generatePlaceholderIdNumber(seenIds);
 
       if (seenIds.has(idNumber)) {
         details.push({ row: rowNumber, email, status: 'skipped', reason: 'Duplicate row for this staff member in file' });
