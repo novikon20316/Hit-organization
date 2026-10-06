@@ -10,8 +10,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, type CommitteeReviewDetail } from '@/lib/apiClient';
+import { apiClient, type CommitteeReviewDetail, type DecisionRecipientCandidate } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+
+const RECIPIENT_ROLE_LABEL: Record<DecisionRecipientCandidate['role'], { he: string; en: string }> = {
+  supervisor: { he: 'מנחה', en: 'Supervisor' },
+  secondary_supervisor: { he: 'מנחה משני', en: 'Secondary Supervisor' },
+  coordinator: { he: 'רכז', en: 'Coordinator' },
+  administrative_secretary: { he: 'רכזת אדמיניסטרטיבית', en: 'Administrative Coordinator' },
+  program_head: { he: 'ראש תוכנית', en: 'Program Head' },
+};
 
 interface CommitteeReviewModalProps {
   milestoneId: string;
@@ -33,6 +41,11 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
   const [decision, setDecision] = useState<'approve' | 'reject' | ''>('');
   const [decisionComment, setDecisionComment] = useState('');
   const [decisionSaving, setDecisionSaving] = useState(false);
+  // CS-enabled-only (see server's decisionRelay.ts) — recipients.enabled is
+  // false for every other department, in which case this picker is never
+  // rendered and selectedRecipientId stays unused.
+  const [recipients, setRecipients] = useState<{ enabled: boolean; candidates: DecisionRecipientCandidate[] } | null>(null);
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string>('student');
   const modalRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalRef, true, onClose);
 
@@ -45,6 +58,9 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
         const mine = res.votes.find((v) => v.memberId === currentUserId);
         if (mine) { setMyVote(mine.vote); setMyComment(mine.comment); }
         setError('');
+        if (res.isChairman) {
+          apiClient.getCommitteeDecisionRecipients(milestoneId).then(setRecipients).catch(() => setRecipients({ enabled: false, candidates: [] }));
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : lang === 'he' ? 'הטעינה נכשלה' : 'Failed to load'))
       .finally(() => setLoading(false));
@@ -80,7 +96,7 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
     setDecisionSaving(true);
     setError('');
     try {
-      await apiClient.submitCommitteeDecision(milestoneId, decision, decisionComment.trim());
+      await apiClient.submitCommitteeDecision(milestoneId, decision, decisionComment.trim(), recipients?.enabled ? selectedRecipientId : undefined);
       onActed();
       onClose();
     } catch (err) {
@@ -219,6 +235,32 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
                   placeholder={lang === 'he' ? 'נימוק ההחלטה (חובה בדחייה)' : 'Reasoning (required if rejecting)'}
                   className={`${inputCls} mt-2`}
                 />
+                {recipients?.enabled && (
+                  <div className="mt-2">
+                    <label className="mb-1 block text-xs font-semibold text-[#5B3E99]">
+                      {lang === 'he' ? 'העברת ההחלטה אל' : 'Send the decision back to'}
+                    </label>
+                    <select
+                      value={selectedRecipientId}
+                      onChange={(e) => setSelectedRecipientId(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="student">{lang === 'he' ? 'הסטודנט/ית' : 'The student'}</option>
+                      {recipients.candidates.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {RECIPIENT_ROLE_LABEL[c.role][lang]} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedRecipientId !== 'student' && (
+                      <p className="mt-1 text-xs text-muted">
+                        {lang === 'he'
+                          ? 'מי שתבחר/י יהיה/תהיה אחראי/ת להעביר את התוצאה לסטודנט/ית בעצמו/ה.'
+                          : "Whoever you pick will be responsible for relaying this result to the student themselves."}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {missingVoterIds.length > 0 && (
                   <p className="mt-2 text-xs text-muted">
                     {lang === 'he'

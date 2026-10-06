@@ -1194,6 +1194,13 @@ export default function CoordinatorHome() {
         lang={lang}
         isRtl={isRtl}
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'relay-tasks', icon: '📨',
+            label: lang === 'he' ? 'החלטות להעברה' : 'Decisions to Relay',
+            onPress: () => router.push('/relay-tasks' as any),
+          },
+        ]}
       />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>

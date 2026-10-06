@@ -115,6 +115,17 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
           isActive: (pathname: string) => pathname === '/committees',
         },
         {
+          key: 'relay_tasks',
+          icon: '📨',
+          href: '/relay-tasks',
+          label: { he: 'החלטות להעברה', en: 'Decisions to Relay' },
+          description: {
+            he: 'החלטות ועדה שעלייך להעביר לסטודנט/ית.',
+            en: "Committee decisions you're responsible for passing on to the student.",
+          },
+          isActive: (pathname: string) => pathname === '/relay-tasks',
+        },
+        {
           key: 'records',
           icon: '📜',
           href: '/program_head/records',

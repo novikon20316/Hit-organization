@@ -191,6 +191,7 @@ export const ADMIN_QUICK_ACTIONS: SidebarSection = {
     { key: 'maintenance', icon: '🛠️', modal: 'maintenance', label: { he: 'תחזוקה', en: 'Maintenance' } },
     { key: 'studentStatuses', icon: '🏷️', modal: 'studentStatuses', label: { he: 'סטטוסי סטודנטים', en: 'Student Statuses' } },
     { key: 'bulkImport', icon: '📥', modal: 'bulkImport', label: { he: 'ייבוא/ייצוא', en: 'Import/Export' } },
+    { key: 'decisionRelay', icon: '📨', modal: 'decisionRelay', label: { he: 'העברת החלטות ועדה', en: 'Committee Decision Relay' } },
   ].map(({ key, icon, modal, label }) => ({
     key,
     icon,

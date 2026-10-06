@@ -23,6 +23,8 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { statusForStage } from '../services/milestoneRouting.js';
 import type { ChainStage } from '../services/workflowTemplates.js';
 import { resolveCommitteeForProject, applyCommitteeSubstitutions, type CommitteeDoc } from './committeeController.js';
+import { isDecisionRelayEnabled, resolveDecisionRecipientCandidates, createRelayTask, type DecisionRecipientCandidate } from '../services/decisionRelay.js';
+import type { ResourceScope } from '../services/scopeAuthorization.js';
 
 interface CommitteeVote {
   memberId: string;
@@ -166,6 +168,44 @@ async function loadMilestoneAndCommittee(milestoneId: string): Promise<
   return { milestone, stage, committee };
 }
 
+/** Loads the project a milestone belongs to, for decision-relay purposes
+ *  (major-gating + resolving candidate recipients). Returns null when the
+ *  milestone has no project (shouldn't happen for a committee-routed
+ *  milestone, but never worth throwing over). */
+async function loadProjectForMilestone(milestone: FirebaseFirestore.DocumentData): Promise<FirebaseFirestore.DocumentData | null> {
+  if (!milestone.projectId) return null;
+  const snap = await db.collection('projects').doc(milestone.projectId).get();
+  return snap.exists ? snap.data()! : null;
+}
+
+/** GET /api/milestones/:id/committee-decision-recipients — chairman-only,
+ *  mirrors loadMilestoneAndCommittee's own auth. Powers the web "send the
+ *  decision back to" picker — enabled is false (and candidates empty) for
+ *  any project outside isDecisionRelayEnabled's major allowlist, in which
+ *  case the client renders nothing and today's student-only behavior is
+ *  unchanged. */
+export const getCommitteeDecisionRecipients = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { id: milestoneId } = req.params as { id: string };
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+
+  const resolved = await loadMilestoneAndCommittee(milestoneId);
+  if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
+  const { milestone, committee } = resolved;
+  if (committee.chairmanId !== uid) {
+    return res.status(403).json({ message: 'Only this committee\'s chairman may view decision recipients.' });
+  }
+
+  const project = await loadProjectForMilestone(milestone);
+  if (!project || !(await isDecisionRelayEnabled(project.major))) {
+    return res.status(200).json({ enabled: false, candidates: [] });
+  }
+
+  const resource: ResourceScope = { facultyId: project.facultyId ?? '', major: project.major || undefined, degreeLevel: project.degreeType || undefined, processType: project.projectType || undefined };
+  const candidates = await resolveDecisionRecipientCandidates(project, resource);
+  return res.status(200).json({ enabled: true, candidates });
+};
+
 /** GET /api/milestones/:id/committee-review — the submission (files/note)
  *  plus every vote cast so far, for a committee member or chairman to
  *  review. Any other committee member or the chairman may view this — a
@@ -273,7 +313,7 @@ export const submitCommitteeVote = async (req: AuthenticatedRequest, res: Respon
 export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
-  const { decision, comment } = req.body ?? {};
+  const { decision, comment, recipientId } = req.body ?? {};
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
   if (decision !== 'approve' && decision !== 'reject') {
     return res.status(400).json({ message: 'decision must be "approve" or "reject".' });
@@ -287,6 +327,25 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   const { milestone, stage, committee } = resolved;
   if (committee.chairmanId !== uid) {
     return res.status(403).json({ message: 'Only this committee\'s chairman may finalize a decision.' });
+  }
+
+  // CS-enabled-only: the chairman may hand this decision to someone other
+  // than the student — see decisionRelay.ts. A missing/'student' recipientId
+  // keeps today's behavior unchanged for every other department. The chosen
+  // recipient only actually takes effect below if this decision turns out to
+  // be terminal (final approval, or a reject that targets 'student') — an
+  // internal reroute to another chain stage ignores it entirely, same as it
+  // ignores the comment for anything but a notify-worthy outcome.
+  const project = await loadProjectForMilestone(milestone);
+  let effectiveRecipient: DecisionRecipientCandidate | null = null;
+  if (project && typeof recipientId === 'string' && recipientId && recipientId !== 'student' && (await isDecisionRelayEnabled(project.major))) {
+    const resource: ResourceScope = { facultyId: project.facultyId ?? '', major: project.major || undefined, degreeLevel: project.degreeType || undefined, processType: project.projectType || undefined };
+    const candidates = await resolveDecisionRecipientCandidates(project, resource);
+    const match = candidates.find((c) => c.id === recipientId);
+    if (!match) {
+      return res.status(400).json({ message: 'That recipient is not a valid candidate for this project.' });
+    }
+    effectiveRecipient = match;
   }
 
   // A binding decision requires every OTHER member to have weighed in first —
@@ -311,6 +370,10 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
     chairmanDecision: decision,
     chairmanComment: typeof comment === 'string' ? comment.trim() : '',
     decidedAt: new Date().toISOString(),
+    // Only meaningful if this decision turns out terminal (see below) —
+    // harmless/unused metadata otherwise. 'student' is the default.
+    routedToUserId: effectiveRecipient?.id ?? 'student',
+    routedToRole: effectiveRecipient?.role ?? 'student',
   };
 
   let finalized = false;
@@ -381,33 +444,55 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
       explanation: typeof comment === 'string' ? comment : undefined,
     });
 
-    // Student is told the outcome only when this was a genuine student-
+    // The outcome is told to someone only when this was a genuine student-
     // facing rejection or the milestone's final approval — an internal
     // staff reroute (rejectTo pointing at another stage) stays silent,
-    // matching rejectChainMilestone's own convention.
+    // matching rejectChainMilestone's own convention. Normally that someone
+    // is the student directly; when the chairman routed it to a non-student
+    // recipient instead (CS-enabled only — see decisionRelay.ts), that
+    // recipient gets a tracked relay task instead of the student being
+    // notified directly, and becomes responsible for passing the result on.
     const studentIds: string[] = milestone.studentIds ?? [];
     if (finalized || (decision === 'reject' && stage.rejectTo === 'student')) {
-      await Promise.all(studentIds.map(async (studentId) => {
-        try {
-          await notifyUser({
-            recipientId: studentId,
-            type: 'general',
-            inAppType: finalized ? 'milestone_coordinator_approved' : 'milestone_coordinator_rejected',
-            titleHe: finalized ? 'אבן דרך אושרה על ידי הוועדה' : 'אבן דרך נדחתה על ידי הוועדה',
-            titleEn: finalized ? 'Milestone approved by the committee' : 'Milestone rejected by the committee',
-            bodyHe: finalized
-              ? `הוועדה אישרה את "${milestone.nameHe ?? milestone.type}".`
-              : `הוועדה דחתה את "${milestone.nameHe ?? milestone.type}". סיבה: ${comment}`,
-            bodyEn: finalized
-              ? `The committee approved "${milestone.nameEn ?? milestone.type}".`
-              : `The committee rejected "${milestone.nameEn ?? milestone.type}". Reason: ${comment}`,
-            relatedProjectId: milestone.projectId ?? null,
-            relatedMilestoneId: milestoneId,
-          });
-        } catch (err) {
-          console.error(`submitCommitteeDecision: student notify failed for ${studentId}:`, err);
-        }
-      }));
+      if (effectiveRecipient) {
+        const chairmanSnap = await db.collection('users').doc(uid).get();
+        await createRelayTask({
+          recipientId: effectiveRecipient.id,
+          recipientRole: effectiveRecipient.role,
+          projectId: milestone.projectId ?? '',
+          milestoneId,
+          studentIds,
+          decision,
+          comment: typeof comment === 'string' ? comment.trim() : '',
+          milestoneNameHe: milestone.nameHe ?? milestone.type,
+          milestoneNameEn: milestone.nameEn ?? milestone.type,
+          projectTitleHe: project?.titleHe ?? '',
+          projectTitleEn: project?.titleEn ?? '',
+          decidedByName: chairmanSnap.data()?.displayName ?? uid,
+        });
+      } else {
+        await Promise.all(studentIds.map(async (studentId) => {
+          try {
+            await notifyUser({
+              recipientId: studentId,
+              type: 'general',
+              inAppType: finalized ? 'milestone_coordinator_approved' : 'milestone_coordinator_rejected',
+              titleHe: finalized ? 'אבן דרך אושרה על ידי הוועדה' : 'אבן דרך נדחתה על ידי הוועדה',
+              titleEn: finalized ? 'Milestone approved by the committee' : 'Milestone rejected by the committee',
+              bodyHe: finalized
+                ? `הוועדה אישרה את "${milestone.nameHe ?? milestone.type}".`
+                : `הוועדה דחתה את "${milestone.nameHe ?? milestone.type}". סיבה: ${comment}`,
+              bodyEn: finalized
+                ? `The committee approved "${milestone.nameEn ?? milestone.type}".`
+                : `The committee rejected "${milestone.nameEn ?? milestone.type}". Reason: ${comment}`,
+              relatedProjectId: milestone.projectId ?? null,
+              relatedMilestoneId: milestoneId,
+            });
+          } catch (err) {
+            console.error(`submitCommitteeDecision: student notify failed for ${studentId}:`, err);
+          }
+        }));
+      }
     }
 
     if (nextStageForNotify) {

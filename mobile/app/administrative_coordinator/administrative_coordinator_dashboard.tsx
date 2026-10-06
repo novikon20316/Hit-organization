@@ -1042,6 +1042,11 @@ export default function ProjectCoordinatorDashboard() {
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
         extraMenuItems={[
           {
+            key: 'relay-tasks', icon: '📨',
+            label: lang === 'he' ? 'החלטות להעברה' : 'Decisions to Relay',
+            onPress: () => router.push('/relay-tasks' as any),
+          },
+          {
             key: 'new-project', icon: '📁',
             label: lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project',
             onPress: () => setShowNewProject(true),

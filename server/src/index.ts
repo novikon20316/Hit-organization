@@ -7,6 +7,8 @@ import dotenv from 'dotenv'
 import userRoutes         from './routes/users.js';
 import applicationRoutes  from './routes/applications.js';
 import milestoneRoutes    from './routes/milestones.js';
+import relayTaskRoutes    from './routes/relayTasks.js';
+import decisionRelayConfigRoutes from './routes/decisionRelayConfig.js';
 import notificationRoutes from './routes/notifications.js';
 import projectRoutes      from './routes/projectRoutes.js';
 import chatRoutes         from './routes/chatRoute.js';
@@ -184,6 +186,8 @@ app.use((req, res, next) => {
 app.use(legalRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/milestones',    milestoneRoutes);
+app.use('/api/relay-tasks',   relayTaskRoutes);
+app.use('/api/admin/decision-relay-config', decisionRelayConfigRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/feedback',      feedbackRoutes);
 app.use('/api/projects',      projectRoutes);

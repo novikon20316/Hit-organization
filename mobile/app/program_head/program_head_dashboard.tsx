@@ -286,6 +286,11 @@ export default function ProgramHeadDashboard() {
             label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
             onPress: () => router.push({ pathname: '/program_head/records', params: { lang } } as any),
           },
+          {
+            key: 'relay-tasks', icon: '📨',
+            label: lang === 'he' ? 'החלטות להעברה' : 'Decisions to Relay',
+            onPress: () => router.push('/relay-tasks' as any),
+          },
         ]}
       />
 

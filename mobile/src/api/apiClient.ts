@@ -391,6 +391,26 @@ class ApiClient {
     const response = await this.api.post(`/api/projects/${projectId}/restore`);
     return response.data as { success: boolean; message: string };
   }
+
+  // ─── RELAY TASKS — see server/src/services/decisionRelay.ts. A committee
+  // chairman (CS-enabled only, for now) can route a terminal decision to
+  // someone other than the student; that person is responsible for passing
+  // the outcome on, tracked here until they mark it done ──────────────────
+  async getMyRelayTasks() {
+    const response = await this.api.get('/api/relay-tasks/mine');
+    return response.data as { tasks: Array<{
+      id: string; projectId: string; milestoneId: string; studentIds: string[];
+      decision: 'approve' | 'reject'; comment: string;
+      milestoneNameHe: string; milestoneNameEn: string;
+      projectTitleHe: string; projectTitleEn: string;
+      decidedByName: string; createdAt: string | { seconds: number } | null;
+    }> };
+  }
+
+  async resolveRelayTask(id: string) {
+    const response = await this.api.post(`/api/relay-tasks/${id}/resolve`, {});
+    return response.data as { success: boolean };
+  }
 }
 
 export const apiClient = new ApiClient();

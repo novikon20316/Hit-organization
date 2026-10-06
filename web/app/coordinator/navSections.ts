@@ -188,6 +188,17 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           isActive: (pathname) => pathname === '/committees',
         },
         {
+          key: 'relay_tasks',
+          icon: '📨',
+          href: '/relay-tasks',
+          label: { he: 'החלטות להעברה', en: 'Decisions to Relay' },
+          description: {
+            he: 'החלטות ועדה שעלייך להעביר לסטודנט/ית.',
+            en: "Committee decisions you're responsible for passing on to the student.",
+          },
+          isActive: (pathname) => pathname === '/relay-tasks',
+        },
+        {
           key: 'records',
           icon: '📜',
           href: '/coordinator/records',

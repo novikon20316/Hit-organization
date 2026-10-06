@@ -10,7 +10,7 @@ import {
   bulkUpdateMilestoneDueDates,
 } from '../controllers/milestoneController.js'
 import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
-import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision } from '../controllers/committeeReviewController.js';
+import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision, getCommitteeDecisionRecipients } from '../controllers/committeeReviewController.js';
 import { submitCommitteeChairDecision, submitExaminerOneSignoff, getParallelSignoffStatus } from '../controllers/parallelSignoffController.js';
 const router = Router();
 
@@ -36,6 +36,8 @@ router.get('/:id/committee-review', verifyToken, getCommitteeReview)
 router.post('/:id/committee-vote', verifyToken, submitCommitteeVote)
 // POST /api/milestones/:id/committee-decision — the chairman's one final, binding decision
 router.post('/:id/committee-decision', verifyToken, submitCommitteeDecision)
+// GET /api/milestones/:id/committee-decision-recipients — chairman-only, powers the "send the decision back to" picker
+router.get('/:id/committee-decision-recipients', verifyToken, getCommitteeDecisionRecipients)
 
 // See workflowTemplates.ts's preGradeSignoffs — independent, parallel
 // signoffs unlocked at student-submission time, decoupled from the routing

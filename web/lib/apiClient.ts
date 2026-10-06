@@ -2818,8 +2818,33 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/milestones/${milestoneId}/committee-vote`, { method: 'POST', body: { vote, comment } });
   },
 
-  async submitCommitteeDecision(milestoneId: string, decision: 'approve' | 'reject', comment: string) {
-    return request<{ success: boolean; message: string }>(`/api/milestones/${milestoneId}/committee-decision`, { method: 'POST', body: { decision, comment } });
+  async submitCommitteeDecision(milestoneId: string, decision: 'approve' | 'reject', comment: string, recipientId?: string) {
+    return request<{ success: boolean; message: string }>(`/api/milestones/${milestoneId}/committee-decision`, { method: 'POST', body: { decision, comment, ...(recipientId ? { recipientId } : {}) } });
+  },
+
+  // CS-enabled-only (see server's decisionRelay.ts) — lets the chairman hand
+  // a terminal decision to someone other than the student. enabled:false for
+  // every other department, in which case the picker simply isn't rendered.
+  async getCommitteeDecisionRecipients(milestoneId: string) {
+    return request<{ enabled: boolean; candidates: DecisionRecipientCandidate[] }>(`/api/milestones/${milestoneId}/committee-decision-recipients`, { method: 'GET' });
+  },
+
+  async getMyRelayTasks() {
+    return request<{ tasks: RelayTask[] }>('/api/relay-tasks/mine', { method: 'GET' });
+  },
+
+  async resolveRelayTask(id: string) {
+    return request<{ success: boolean }>(`/api/relay-tasks/${id}/resolve`, { method: 'POST', body: {} });
+  },
+
+  // system_admin-only — which majors the chairman recipient-choice feature
+  // is turned on for. See server's decisionRelayConfig.ts.
+  async getDecisionRelayConfig() {
+    return request<{ enabledMajors: string[] }>('/api/admin/decision-relay-config', { method: 'GET' });
+  },
+
+  async updateDecisionRelayConfig(enabledMajors: string[]) {
+    return request<{ success: boolean; enabledMajors: string[] }>('/api/admin/decision-relay-config', { method: 'POST', body: { enabledMajors } });
   },
 
   // See workflowTemplates.ts's preGradeSignoffs — independent, parallel
@@ -2923,6 +2948,28 @@ export interface CommitteeReviewDetail {
   committee: { id: string; chairmanId: string | null; memberIds: string[]; memberNames: Record<string, string> };
   isChairman: boolean;
   votes: CommitteeVoteRecord[];
+}
+
+// See server/src/services/decisionRelay.ts.
+export interface DecisionRecipientCandidate {
+  id: string;
+  name: string;
+  role: 'supervisor' | 'secondary_supervisor' | 'coordinator' | 'administrative_secretary' | 'program_head';
+}
+
+export interface RelayTask {
+  id: string;
+  projectId: string;
+  milestoneId: string;
+  studentIds: string[];
+  decision: 'approve' | 'reject';
+  comment: string;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  decidedByName: string;
+  createdAt: string | { seconds: number } | null;
 }
 
 // See server/src/services/revisionDecisions.ts (P1 #13).
