@@ -11,7 +11,7 @@
 // is approved by the faculty itself (faculty_admin/coordinator) — see
 // server/src/controllers/workflowTemplateController.ts's canApprove().
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert,
@@ -507,14 +507,26 @@ export default function WorkflowTemplateManager() {
     }
   }, [isFreeChoiceCrossFaculty, selectedFacultyId]);
 
+  // facultyId/activeMajor can each change across two separate renders in
+  // quick succession (e.g. picking a faculty here also auto-selects its one
+  // major in a separate effect a render later — see the "Mirrors the
+  // identical fix in web/app/workflow-templates/page.tsx" comments above) —
+  // both fire their own fetch with no cancellation, and without this guard a
+  // slower, now-stale request (e.g. the pre-auto-pick one with the old
+  // major) can resolve after the correct one and silently overwrite it.
+  const loadTemplatesSeqRef = useRef(0);
   const loadTemplates = useCallback(async () => {
+    const seq = ++loadTemplatesSeqRef.current;
     if (!facultyId) { setLoading(false); return; }
     try {
       setLoading(true);
       const res = await apiClient.get('/api/workflow-templates', { params: { facultyId, major: activeMajor === null ? 'all' : activeMajor } });
+      if (seq !== loadTemplatesSeqRef.current) return;
       setTemplates(res.data.templates || []);
-    } catch {} finally {
-      setLoading(false);
+    } catch {
+      if (seq !== loadTemplatesSeqRef.current) return;
+    } finally {
+      if (seq === loadTemplatesSeqRef.current) setLoading(false);
     }
   }, [facultyId, activeMajor]);
 
