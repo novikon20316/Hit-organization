@@ -6,7 +6,7 @@
 
 import {
   doc, getDoc, updateDoc, arrayUnion,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { ExaminerTokenDoc, ExaminerTokenStatus } from '../../firebase/roles';
@@ -96,10 +96,26 @@ export async function recordThesisDownload(token: string): Promise<void> {
  * Sets status → 'accepted' and records acceptedAt + access log entry.
  */
 export async function acceptExaminerToken(token: string): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status:     'accepted' satisfies ExaminerTokenStatus,
-    acceptedAt: serverTimestamp(),
-    accessLog:  arrayUnion({ action: 'accepted', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction, not a plain updateDoc(): the examiner-access screen only
+  // re-checks status once, at page load — Accept/Decline render off that
+  // stale snapshot, not a fresh read right before the tap. The same link
+  // opened in two tabs (or a fast double-tap before actionBusy disables the
+  // buttons) could otherwise both pass the 'pending' UI gate and reach here;
+  // firestore.rules still allows the write either way (status in
+  // ['pending','accepted']), so a Decline racing in after an Accept would
+  // silently clobber the acceptance. Re-checking here ensures only the
+  // first decision actually commits.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'pending') {
+      throw new Error('This invitation has already been decided.');
+    }
+    transaction.update(ref, {
+      status:     'accepted' satisfies ExaminerTokenStatus,
+      acceptedAt: serverTimestamp(),
+      accessLog:  arrayUnion({ action: 'accepted', timestamp: Timestamp.now() }),
+    });
   });
 }
 
@@ -111,11 +127,21 @@ export async function declineExaminerToken(
   token: string,
   reason: string,
 ): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status:        'declined' satisfies ExaminerTokenStatus,
-    declinedAt:    serverTimestamp(),
-    declineReason: reason,
-    accessLog:     arrayUnion({ action: 'declined', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction — same race as acceptExaminerToken above, mirrored: without
+  // this, an Accept racing in after a Decline (or vice versa) could
+  // silently clobber the other's already-committed decision.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'pending') {
+      throw new Error('This invitation has already been decided.');
+    }
+    transaction.update(ref, {
+      status:        'declined' satisfies ExaminerTokenStatus,
+      declinedAt:    serverTimestamp(),
+      declineReason: reason,
+      accessLog:     arrayUnion({ action: 'declined', timestamp: Timestamp.now() }),
+    });
   });
 }
 
@@ -130,11 +156,21 @@ export async function submitExaminerOpinion(
   token: string,
   opinion: Record<string, unknown>,
 ): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status:      'submitted' satisfies ExaminerTokenStatus,
-    submittedAt: serverTimestamp(),
-    opinion,
-    accessLog:   arrayUnion({ action: 'submitted_opinion', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction — a duplicate/racing submit (double-tap, two tabs) could
+  // otherwise overwrite an opinion that already committed, instead of
+  // failing cleanly.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'accepted') {
+      throw new Error('This opinion has already been submitted, or the invitation is no longer active.');
+    }
+    transaction.update(ref, {
+      status:      'submitted' satisfies ExaminerTokenStatus,
+      submittedAt: serverTimestamp(),
+      opinion,
+      accessLog:   arrayUnion({ action: 'submitted_opinion', timestamp: Timestamp.now() }),
+    });
   });
 }
 
