@@ -15,6 +15,7 @@ import {
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
+import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import {
   isCalendarConfigured, getCalendarAuthUrl, handleCalendarOAuthCallback,
   isCalendarConnected, disconnectCalendar,
@@ -515,6 +516,60 @@ export const uploadProjectFile = async (req: AuthenticatedRequest, res: Response
   }
 };
 
+// ─── Notify eligible students the moment a new project/thesis goes up ────────
+// Fires once, right after creation. "Eligible" mirrors the same
+// (facultyId, degreeType, major, track) boundary applyApplication actually
+// enforces at apply time (see that controller) — not prerequisites/grade
+// thresholds, which nothing filters at listing/browse time either, so a
+// student sees the same set of projects they'd be notified about. "Not
+// already enrolled" is hasActiveProject === false, the one authoritative
+// field projectEnrollment.ts's transaction maintains. Fetches by facultyId
+// and filters the rest in-memory — same idiom facultyAdminController.ts's
+// dashboard-summary endpoint already uses for "available students" — to
+// avoid needing a new composite index for a query this narrow.
+async function notifyEligibleStudentsOfNewProject(project: {
+  projectId: string;
+  facultyId: string;
+  degreeTypes: string[];
+  projectTypes: string[];
+  major: string | null;
+  titleHe: string;
+  titleEn: string;
+}): Promise<void> {
+  const { projectId, facultyId, degreeTypes, projectTypes, major, titleHe, titleEn } = project;
+  if (!facultyId) return;
+
+  const usersSnap = await db.collection('users').where('facultyId', '==', facultyId).get();
+
+  const eligibleStudentIds: string[] = [];
+  usersSnap.forEach((doc) => {
+    const u = doc.data();
+    if (u.role !== 'student') return;
+    if (u.hasActiveProject) return;
+    if (!degreeTypes.includes(u.degreeType)) return;
+    if (major && u.major !== major) return;
+    if (!projectTypes.includes(resolveEffectiveTrack(u))) return;
+    eligibleStudentIds.push(doc.id);
+  });
+  if (eligibleStudentIds.length === 0) return;
+
+  const bodyHe = `פרויקט חדש "${titleHe}" פורסם ומחכה לבקשות. היכנס/י למערכת כדי לצפות בפרטים ולהגיש מועמדות.`;
+  const bodyEn = `A new project "${titleEn}" has been published and is awaiting applications. Open the app to view the details and apply.`;
+
+  await Promise.all(eligibleStudentIds.map((studentId) =>
+    notifyUser({
+      recipientId: studentId,
+      type: 'project_published',
+      titleHe: '📢 פרויקט חדש פורסם',
+      titleEn: '📢 New Project Published',
+      bodyHe,
+      bodyEn,
+      relatedProjectId: projectId,
+      emailData: { projectTitle: { he: titleHe, en: titleEn } },
+    }).catch((err) => console.error(`notifyEligibleStudentsOfNewProject: notify failed for student ${studentId} on ${projectId}:`, err))
+  ));
+}
+
 // ─── POST /api/supervisor/projects ───────────────────────────────────────────
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
@@ -626,6 +681,18 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       status:             'active',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Best-effort — a notify failure must never undo/fail the project
+    // creation that already succeeded above.
+    await notifyEligibleStudentsOfNewProject({
+      projectId: newProjectRef.id,
+      facultyId: resolvedFacultyId,
+      degreeTypes,
+      projectTypes,
+      major: major ?? null,
+      titleHe,
+      titleEn,
+    }).catch((err) => console.error(`createSupervisorProject: eligible-student notify fan-out failed for ${newProjectRef.id}:`, err));
 
     return res.status(201).json({ success: true, projectId: newProjectRef.id });
   } catch (error: any) {
