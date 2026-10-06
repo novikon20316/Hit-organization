@@ -186,7 +186,14 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
       return res.status(403).json({ message: 'This project is outside your assigned scope.' });
     }
 
-    await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId, track);
+    try {
+      await enrollStudentInProject(projectId, studentId, pData.supervisorId, pData.facultyId, track);
+    } catch (enrollError: any) {
+      if (enrollError?.message === 'This project has already reached its student capacity.') {
+        return res.status(409).json({ message: enrollError.message });
+      }
+      throw enrollError;
+    }
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

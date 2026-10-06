@@ -298,7 +298,14 @@ export const joinProjectDirect = async (req: AuthenticatedRequest, res: Response
       return res.status(400).json({ message: 'This project has already reached its student capacity.' });
     }
 
-    await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId);
+    try {
+      await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId);
+    } catch (enrollError: any) {
+      if (enrollError?.message === 'This project has already reached its student capacity.') {
+        return res.status(409).json({ message: enrollError.message });
+      }
+      throw enrollError;
+    }
 
     return res.status(200).json({ success: true, message: 'Enrolled successfully.' });
   } catch (error: any) {

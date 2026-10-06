@@ -175,6 +175,21 @@ export async function enrollStudentInProject(
       throw new Error('Student already has an active project.');
     }
 
+    // Re-checked against the SAME fresh in-transaction read as
+    // projectStartDate above, not the pre-transaction projectSnapForTemplate
+    // — otherwise two teammates' applications being confirmed within
+    // milliseconds of each other could both pass a stale capacity check (the
+    // one applicationController.ts's applyApplication does at apply time,
+    // long before this moment) and both enroll, leaving a team project with
+    // more students than maxStudents allows. Same fallback precedent as
+    // applicationController.ts's own capacity check.
+    const projectDataInTx = projectSnapInTx.data() ?? {};
+    const capacity = projectDataInTx.maxStudents ?? projectDataInTx.NumberOfStudents ?? 1;
+    const enrolledSoFar: string[] = projectDataInTx.enrolledStudentIds ?? [];
+    if (!enrolledSoFar.includes(studentId) && enrolledSoFar.length >= capacity) {
+      throw new Error('This project has already reached its student capacity.');
+    }
+
     // Read BEFORE any transaction.update() below — the Firestore SDK requires
     // every transaction.get() to happen before the first write, or it throws
     // "Firestore transactions require all reads to be executed before all

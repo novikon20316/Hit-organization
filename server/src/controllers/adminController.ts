@@ -901,7 +901,14 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
     }
 
     const projectData = projectSnap.data()!;
-    await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId, track);
+    try {
+      await enrollStudentInProject(projectId, studentId, projectData.supervisorId, projectData.facultyId, track);
+    } catch (enrollError: any) {
+      if (enrollError?.message === 'This project has already reached its student capacity.') {
+        return res.status(409).json({ message: enrollError.message });
+      }
+      throw enrollError;
+    }
 
     return res.status(200).json({ success: true, message: 'Student officially enrolled.' });
   } catch (error: any) {

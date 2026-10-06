@@ -525,6 +525,9 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
                 if (enrollError?.message === 'Student already has an active project.') {
                     return res.status(409).json({ success: false, message: 'You already have an active project.' });
                 }
+                if (enrollError?.message === 'This project has already reached its student capacity.') {
+                    return res.status(409).json({ success: false, message: enrollError.message });
+                }
                 throw enrollError;
             }
 
