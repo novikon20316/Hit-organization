@@ -263,36 +263,65 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
-    // Preserve the outgoing round (its file(s), note, and whatever decision
-    // was made on it) before it gets overwritten below — see
-    // services/milestoneRevisions.ts.
-    const archiveUpdate = buildRevisionArchiveUpdate(milestoneData);
+    // Re-checked atomically against a fresh read, right before the write
+    // that actually locks this milestone to 'submitted': the teammate-lock
+    // guard above was read long before any Cloudinary upload even started,
+    // so two teammates submitting within milliseconds of each other could
+    // both pass it and both reach here — the second commit would silently
+    // overwrite the first's just-submitted note/files/form data (and
+    // archive the WRONG outgoing round). A wasted upload for the loser is
+    // harmless (just an orphaned Cloudinary file); only this Firestore
+    // write needs to be atomic.
+    let archiveUpdate: Record<string, any> | null | undefined;
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        const freshData: any = freshSnap.data() ?? {};
+        if (studentIds.length > 1 && freshData.status !== 'pending' && freshData.status !== 'rejected') {
+          throw new Error('TEAMMATE_ALREADY_SUBMITTED');
+        }
 
-    await milestoneRef.update({
-      status:         'submitted',
-      submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
-      fileUrls,
-      submissionNote: note,
-      ...(studentFormData ? { studentFormData } : {}),
-      ...(archiveUpdate ?? {}),
-      // Chain-driven milestones restart the chain on every fresh submission
-      // — see the identical addition in projectController.ts's
-      // submitStudentMilestone (this is the second, mobile-facing route that
-      // does the exact same submit/resubmit write). supervisorApprovals is
-      // reset alongside stageScores for the same reason — a stale partial
-      // dual-signature from a rejected round must not count toward this
-      // fresh round's own requireAllAssignedSupervisors check (see
-      // coordinatorController.ts's approveChainMilestone).
-      ...(isChainDriven(milestoneData)
-        ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
-        : {}),
-      // A stale committee/examiner-#1 signoff from a rejected round must not
-      // count toward this fresh round's own preGradeSignoffs gate — same
-      // reasoning as the stageScores reset above.
-      ...(milestoneData.preGradeSignoffs
-        ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
-        : {}),
-    });
+        // Preserve the outgoing round (its file(s), note, and whatever
+        // decision was made on it) before it gets overwritten below — see
+        // services/milestoneRevisions.ts.
+        archiveUpdate = buildRevisionArchiveUpdate(freshData);
+
+        transaction.update(milestoneRef, {
+          status:         'submitted',
+          submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
+          fileUrls,
+          submissionNote: note,
+          ...(studentFormData ? { studentFormData } : {}),
+          ...(archiveUpdate ?? {}),
+          // Chain-driven milestones restart the chain on every fresh submission
+          // — see the identical addition in projectController.ts's
+          // submitStudentMilestone (this is the second, mobile-facing route that
+          // does the exact same submit/resubmit write). supervisorApprovals is
+          // reset alongside stageScores for the same reason — a stale partial
+          // dual-signature from a rejected round must not count toward this
+          // fresh round's own requireAllAssignedSupervisors check (see
+          // coordinatorController.ts's approveChainMilestone).
+          ...(isChainDriven(freshData)
+            ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+            : {}),
+          // A stale committee/examiner-#1 signoff from a rejected round must not
+          // count toward this fresh round's own preGradeSignoffs gate — same
+          // reasoning as the stageScores reset above.
+          ...(freshData.preGradeSignoffs
+            ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
+            : {}),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'TEAMMATE_ALREADY_SUBMITTED') {
+        return res.status(409).json({
+          message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+          messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
+          messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        });
+      }
+      throw err;
+    }
 
     // The research-proposal form is where a project's real title first
     // becomes known when the student (not the supervisor) is the one filling

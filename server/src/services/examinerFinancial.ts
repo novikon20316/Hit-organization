@@ -92,9 +92,16 @@ export async function createExaminerBankAccount(
 ): Promise<void> {
   const id = hashExaminerEmail(email);
   const ref = db.collection('examinerBankAccounts').doc(id);
-  const snap = await ref.get();
-  if (snap.exists) throw new Error('Bank account details have already been submitted.');
-  await ref.set({ ...data, createdAt: new Date().toISOString() });
+  // Transaction, not a plain get()-then-set(): a double-click or client
+  // retry sending two submissions in quick succession could otherwise both
+  // pass the exists check before either writes, and the second would
+  // silently overwrite the first's bank details with no error ever
+  // surfaced — exactly what the write-once contract above promises against.
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.exists) throw new Error('Bank account details have already been submitted.');
+    transaction.set(ref, { ...data, createdAt: new Date().toISOString() });
+  });
 }
 
 export async function getExaminerBankAccount(email: string): Promise<ExaminerBankAccount | null> {
@@ -161,10 +168,24 @@ export async function createExaminerTaxDocument(
 ): Promise<void> {
   const id = hashExaminerEmail(email);
   const ref = db.collection('examinerTaxDocuments').doc(id);
-  const snap = await ref.get();
-  if (snap.exists) throw new Error('A tax coordination document has already been submitted.');
-  const { publicId, format } = await uploadAuthenticatedDocument(TAX_DOCUMENT_FOLDER, id, file);
-  await ref.set({ publicId, ...(format ? { format } : {}), originalFileName: file.originalname, createdAt: new Date().toISOString() });
+  // Atomically claim this submission before uploading — a double-click or
+  // client retry sending two submissions in quick succession could
+  // otherwise both pass a plain exists check before either writes, and the
+  // second upload would silently overwrite the first's document with no
+  // error ever surfaced. The claim is removed again if the upload fails, so
+  // a genuinely failed attempt can still be retried.
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.exists) throw new Error('A tax coordination document has already been submitted.');
+    transaction.set(ref, { uploadInProgress: true });
+  });
+  try {
+    const { publicId, format } = await uploadAuthenticatedDocument(TAX_DOCUMENT_FOLDER, id, file);
+    await ref.set({ publicId, ...(format ? { format } : {}), originalFileName: file.originalname, createdAt: new Date().toISOString() });
+  } catch (err) {
+    await ref.delete().catch(() => {});
+    throw err;
+  }
 }
 
 export async function getExaminerTaxDocument(email: string): Promise<ExaminerTaxDocument | null> {

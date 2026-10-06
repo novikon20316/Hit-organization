@@ -1300,26 +1300,50 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ message: 'studentId is not part of this milestone' });
     }
 
-    const updatePayload: Record<string, any> = {
-      [`individualScores.${studentId}`]: numericScore,
-      [`individualComments.${studentId}`]: (comments ?? '').toString().trim(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+    // Transaction, not a plain update(): finalGradeByStudent is a derived
+    // map recomputed from EVERY teammate's individualScores, not a
+    // per-student dot-path write. Two examiners grading different teammates
+    // within moments of each other could otherwise both read the same stale
+    // individualScores, each compute a finalGradeByStudent containing only
+    // their own teammate, and the second update() would silently wipe out
+    // the first's just-computed blended grade. Re-reads fresh inside the
+    // transaction so the recomputed map always includes every score
+    // actually committed so far.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        const freshData: any = freshSnap.data() ?? {};
+        if (freshData.gradeApproved) throw new Error('ALREADY_APPROVED');
 
-    // If the shared group grade is already finalized, recompute every
-    // student's blended grade immediately — otherwise it's picked up the
-    // next time submitMilestoneGrade finishes the group scoring.
-    if (data.finalGrade != null) {
-      const nextIndividualScores = { ...(data.individualScores ?? {}), [studentId]: numericScore };
-      updatePayload.finalGradeByStudent = computeFinalGradeByStudent(
-        studentIds,
-        data.finalGrade,
-        nextIndividualScores,
-        data.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
-      );
+        const updatePayload: Record<string, any> = {
+          [`individualScores.${studentId}`]: numericScore,
+          [`individualComments.${studentId}`]: (comments ?? '').toString().trim(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // If the shared group grade is already finalized, recompute every
+        // student's blended grade immediately — otherwise it's picked up the
+        // next time submitMilestoneGrade finishes the group scoring.
+        if (freshData.finalGrade != null) {
+          const nextIndividualScores = { ...(freshData.individualScores ?? {}), [studentId]: numericScore };
+          updatePayload.finalGradeByStudent = computeFinalGradeByStudent(
+            freshData.studentIds ?? studentIds,
+            freshData.finalGrade,
+            nextIndividualScores,
+            freshData.individualWeight ?? DEFAULT_INDIVIDUAL_WEIGHT,
+          );
+        }
+
+        transaction.update(milestoneRef, updatePayload);
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_APPROVED') {
+        return res.status(409).json({
+          message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+        });
+      }
+      throw err;
     }
-
-    await milestoneRef.update(updatePayload);
 
     await logAuditEvent({
       userId: uid,
@@ -1426,32 +1450,59 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       }
     }
 
-    // Preserve the outgoing round before it's overwritten — see
-    // services/milestoneRevisions.ts.
-    const archiveUpdate = buildRevisionArchiveUpdate(milestoneData);
+    // Re-checked atomically against a fresh read, right before the write
+    // that actually locks this milestone to 'submitted' — same race as
+    // milestoneController.ts's submitMilestone: two teammates submitting
+    // within milliseconds of each other could otherwise both pass the
+    // teammate-lock guard above and both reach here, with the second commit
+    // silently overwriting the first's just-submitted note/files/form data
+    // (and archiving the WRONG outgoing round).
+    let archiveUpdate: Record<string, any> | null | undefined;
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        const freshData: any = freshSnap.data() ?? {};
+        if (studentIds.length > 1 && freshData.status !== 'pending' && freshData.status !== 'rejected') {
+          throw new Error('TEAMMATE_ALREADY_SUBMITTED');
+        }
 
-    await milestoneRef.update({
-      status:         'submitted',
-      submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
-      fileUrls:       fileUrls       ?? [],
-      submissionNote: submissionNote ?? '',
-      ...(studentFormData ? { studentFormData } : {}),
-      ...(archiveUpdate ?? {}),
-      // Chain-driven milestones restart the chain on every fresh submission
-      // (first-time or resubmission after a student-facing rejection) — the
-      // grader(s) evaluate the new content from stage 0, not wherever a
-      // previous round left off. supervisorApprovals resets alongside
-      // stageScores for the same reason — see milestoneController.ts's
-      // identical addition in submitMilestone.
-      ...(isChainDriven(milestoneData)
-        ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
-        : {}),
-      // Same preGradeSignoffs reset as the web submit route
-      // (milestoneController.ts's submitMilestone) — see its comment.
-      ...(milestoneData.preGradeSignoffs
-        ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
-        : {}),
-    });
+        // Preserve the outgoing round before it's overwritten — see
+        // services/milestoneRevisions.ts.
+        archiveUpdate = buildRevisionArchiveUpdate(freshData);
+
+        transaction.update(milestoneRef, {
+          status:         'submitted',
+          submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
+          fileUrls:       fileUrls       ?? [],
+          submissionNote: submissionNote ?? '',
+          ...(studentFormData ? { studentFormData } : {}),
+          ...(archiveUpdate ?? {}),
+          // Chain-driven milestones restart the chain on every fresh submission
+          // (first-time or resubmission after a student-facing rejection) — the
+          // grader(s) evaluate the new content from stage 0, not wherever a
+          // previous round left off. supervisorApprovals resets alongside
+          // stageScores for the same reason — see milestoneController.ts's
+          // identical addition in submitMilestone.
+          ...(isChainDriven(freshData)
+            ? { currentStageIndex: 0, stageScores: {}, supervisorApprovals: {}, stageEnteredAt: admin.firestore.FieldValue.serverTimestamp() }
+            : {}),
+          // Same preGradeSignoffs reset as the web submit route
+          // (milestoneController.ts's submitMilestone) — see its comment.
+          ...(freshData.preGradeSignoffs
+            ? { committeeChairDecision: null, examinerOneSignoff: null, parallelCommitteeId: null }
+            : {}),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'TEAMMATE_ALREADY_SUBMITTED') {
+        return res.status(409).json({
+          message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+          messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
+          messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        });
+      }
+      throw err;
+    }
 
     // Independent of the chain — see workflowTemplates.ts's preGradeSignoffs
     // doc comment and milestoneController.ts's submitMilestone (same hook).

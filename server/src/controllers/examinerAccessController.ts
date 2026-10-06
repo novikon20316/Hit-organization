@@ -257,17 +257,29 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
       submittedAt: new Date().toISOString(),
     };
 
-    const priorOpinion = (tokenDoc.opinion ?? {}) as Record<string, unknown>;
-    const nextOpinion = { ...priorOpinion, [kind]: evaluationResult };
-    // Only 'submitted' once BOTH rubrics are in — mirrors
-    // AssignmentCard.tsx's `graded = projectDone && defenseDone` for the
-    // internal-examiner equivalent of this same milestone type.
-    const bothDone = !!(nextOpinion as any).project && !!(nextOpinion as any).defense;
+    // Transaction, not a plain get()-then-update() of the WHOLE opinion map:
+    // the project and defense rubrics are normally submitted as two separate
+    // requests (two forms/tabs) within moments of each other. Merging onto
+    // `priorOpinion` read all the way up at the top of this handler (well
+    // before this write) meant whichever request wrote second could
+    // silently drop the other kind's just-submitted result, and `bothDone`
+    // would then never see both. Re-reads fresh inside the transaction so
+    // the merge always starts from whatever the other request actually
+    // committed.
+    await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(tokenRef);
+      const priorOpinion = (freshSnap.data()?.opinion ?? {}) as Record<string, unknown>;
+      const nextOpinion = { ...priorOpinion, [kind]: evaluationResult };
+      // Only 'submitted' once BOTH rubrics are in — mirrors
+      // AssignmentCard.tsx's `graded = projectDone && defenseDone` for the
+      // internal-examiner equivalent of this same milestone type.
+      const bothDone = !!(nextOpinion as any).project && !!(nextOpinion as any).defense;
 
-    await tokenRef.update({
-      opinion: nextOpinion,
-      ...(bothDone ? { status: 'submitted', submittedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
-      accessLog: admin.firestore.FieldValue.arrayUnion({ action: 'submitted_opinion', timestamp: new Date().toISOString() }),
+      transaction.update(tokenRef, {
+        opinion: nextOpinion,
+        ...(bothDone ? { status: 'submitted', submittedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
+        accessLog: admin.firestore.FieldValue.arrayUnion({ action: 'submitted_opinion', timestamp: new Date().toISOString() }),
+      });
     });
 
     // milestoneRef already fetched above for the defense-date gate — reused
