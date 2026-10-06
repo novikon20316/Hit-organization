@@ -132,18 +132,24 @@ class ApiClient {
         // DNS failure, etc.) — both are exactly what system_admin needs to
         // hear about. A real HTTP error (4xx/5xx) — reported only for 5xx,
         // since 4xx is normal business-logic rejection, not a system problem.
-        if (!error.response) {
-          reportClientError({
-            kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
-            message: error.message || 'Request failed with no response',
-            route: error.config?.url,
-          });
-        } else if (error.response.status >= 500) {
-          reportClientError({
-            kind: 'network_failure',
-            message: `HTTP ${error.response.status} from ${error.config?.url}`,
-            route: error.config?.url,
-          });
+        // `silent` config flag (e.g. the presence heartbeat, see app/_layout.tsx)
+        // — a best-effort call whose caller already treats failure as
+        // harmless skips this alert instead of flooding system_admin with
+        // noise every time a 25s-interval call catches a transient blip.
+        if (!(error.config as any)?.silent) {
+          if (!error.response) {
+            reportClientError({
+              kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
+              message: error.message || 'Request failed with no response',
+              route: error.config?.url,
+            });
+          } else if (error.response.status >= 500) {
+            reportClientError({
+              kind: 'network_failure',
+              message: `HTTP ${error.response.status} from ${error.config?.url}`,
+              route: error.config?.url,
+            });
+          }
         }
 
         // Real HTTP errors (4xx / 5xx / network timeout) — let them propagate

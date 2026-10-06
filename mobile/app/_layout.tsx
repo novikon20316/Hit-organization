@@ -553,7 +553,9 @@ function RootLayoutInner() {
 
     const sendHeartbeat = () => {
       if (!auth.currentUser) return;
-      apiClient.post('/api/presence/heartbeat', { platform: 'mobile' }).catch(() => {});
+      // silent — see apiClient.ts: a missed heartbeat is expected/harmless,
+      // not worth flooding system_admin alerts every 25s.
+      apiClient.post('/api/presence/heartbeat', { platform: 'mobile' }, { silent: true }).catch(() => {});
     };
 
     const startHeartbeat = () => {
