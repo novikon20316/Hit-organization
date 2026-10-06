@@ -9,6 +9,7 @@
 // the Admin SDK and bypass firestore.rules entirely.
 import { Request, Response, RequestHandler } from 'express';
 import multer from 'multer';
+import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { isOtpSessionFresh } from '../services/examinerAccess.js';
 import {
@@ -204,18 +205,50 @@ export const submitExaminerEvaluationDocument = async (req: Request, res: Respon
       return res.status(409).json({ message: 'An online evaluation has already been submitted for this defense.' });
     }
 
-    const { publicId, format, originalFileName } = await uploadExaminerEvaluationDocument(token, {
-      buffer: file.buffer,
-      mimetype: file.mimetype,
-      originalname: fixMulterFilenameEncoding(file.originalname),
-    });
-    await ref.update({
-      evaluationDocumentRef: publicId,
-      ...(format ? { evaluationDocumentFormat: format } : {}),
-      evaluationDocumentFileName: originalFileName,
-      evaluationDocumentSubmittedAt: new Date().toISOString(),
-    });
-    return res.status(200).json({ success: true });
+    // Atomically claim this token before uploading — a double-submit (two
+    // tabs, a client retry, or a slow network causing a resubmit) could
+    // otherwise both pass the `!doc.opinion`/not-yet-uploaded checks here
+    // before either writes, and the second upload would silently overwrite
+    // the first's document with no error ever surfaced. The claim is
+    // released on failure so a genuinely failed upload can still be retried.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(ref);
+        const freshDoc = freshSnap.data() ?? {};
+        if (freshDoc.opinion) throw new Error('OPINION_ALREADY_SUBMITTED');
+        if (freshDoc.evaluationDocumentRef || freshDoc.evaluationDocumentUploadInProgress) {
+          throw new Error('DOCUMENT_ALREADY_SUBMITTED');
+        }
+        transaction.update(ref, { evaluationDocumentUploadInProgress: true });
+      });
+    } catch (err: any) {
+      if (err?.message === 'OPINION_ALREADY_SUBMITTED') {
+        return res.status(409).json({ message: 'An online evaluation has already been submitted for this defense.' });
+      }
+      if (err?.message === 'DOCUMENT_ALREADY_SUBMITTED') {
+        return res.status(409).json({ message: 'An evaluation document has already been submitted for this defense.' });
+      }
+      throw err;
+    }
+
+    try {
+      const { publicId, format, originalFileName } = await uploadExaminerEvaluationDocument(token, {
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        originalname: fixMulterFilenameEncoding(file.originalname),
+      });
+      await ref.update({
+        evaluationDocumentRef: publicId,
+        ...(format ? { evaluationDocumentFormat: format } : {}),
+        evaluationDocumentFileName: originalFileName,
+        evaluationDocumentSubmittedAt: new Date().toISOString(),
+        evaluationDocumentUploadInProgress: admin.firestore.FieldValue.delete(),
+      });
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      await ref.update({ evaluationDocumentUploadInProgress: admin.firestore.FieldValue.delete() }).catch(() => {});
+      throw err;
+    }
   } catch (error: any) {
     console.error('submitExaminerEvaluationDocument error:', error);
     return res.status(502).json({ message: 'Failed to upload the document.' });

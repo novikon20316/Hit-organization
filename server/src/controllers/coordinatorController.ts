@@ -507,11 +507,31 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
       return res.status(403).json({ message: 'This recommendation is outside your assigned scope.' });
     }
 
-    await recRef.update({
-      status:    'rejected',
-      decidedAt: admin.firestore.FieldValue.serverTimestamp(),
-      decidedBy: coordinatorId,
-    });
+    // Transaction, not a plain update(): unlike its approveExaminerRecommendation
+    // sibling, this never checked rec.status at all — a reject racing in
+    // after a concurrent approve (which may have already invited external
+    // examiners / assigned internal ones and set status: 'approved') could
+    // still flip status back to 'rejected', leaving the recommendation
+    // looking rejected in the UI while real invitations already went out
+    // and can't be un-sent.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(recRef);
+        if (freshSnap.data()?.status !== 'pending') {
+          throw new Error('ALREADY_DECIDED');
+        }
+        transaction.update(recRef, {
+          status:    'rejected',
+          decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+          decidedBy: coordinatorId,
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_DECIDED') {
+        return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+      }
+      throw err;
+    }
 
     return res.status(200).json({ success: true, message: 'Recommendation rejected.' });
   } catch (error: any) {

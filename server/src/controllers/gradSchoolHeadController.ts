@@ -965,12 +965,27 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
       return res.status(403).json({ message: 'You do not have permission to reject this examiner list.' });
     }
 
-    await recRef.update({
-      status: 'rejected',
-      decidedAt: admin.firestore.FieldValue.serverTimestamp(),
-      decidedBy: uid,
-      rejectionReason: reason,
-    });
+    // Transaction, not a plain update(): a reject racing in against a
+    // concurrent approveExaminerRecommendationFinal call (which may already
+    // be mid-flight sending invitations) could otherwise still flip this to
+    // 'rejected' after examiners were actually assigned/notified.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(recRef);
+        if (freshSnap.data()?.status !== 'coordinator_approved') throw new Error('ALREADY_DECIDED');
+        transaction.update(recRef, {
+          status: 'rejected',
+          decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+          decidedBy: uid,
+          rejectionReason: reason,
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_DECIDED') {
+        return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${(await recRef.get()).data()?.status}).` });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,

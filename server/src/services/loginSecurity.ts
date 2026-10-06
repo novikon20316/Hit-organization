@@ -430,67 +430,92 @@ export async function resolveIncident(
   decision: IncidentDecision,
 ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'already_resolved' | 'expired' }> {
   const ref = db.collection('loginSecurityIncidents').doc(code);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, reason: 'not_found' };
 
-  const incident = snap.data()!;
-  if (incident.status !== 'pending') return { ok: false, reason: 'already_resolved' };
-
-  const uid = incident.uid as string;
-  const securityRef = securityDocRef(uid);
-  const resolvedAt = new Date().toISOString();
-
-  if (new Date(incident.expiresAt).getTime() < Date.now()) {
-    await ref.update({ status: 'expired' });
-    // CRITICAL FIX: this branch used to leave `pendingIncidentCode` set on
-    // the security doc after flipping the incident to 'expired' — confirmed
-    // live (two ~6-week-old incidents, including the system_admin's own
-    // account, sitting as 'pending' the whole time because nothing ever
-    // visited their email link to trigger the lazy-expiry in
-    // getIncidentSummary). With the field left in place, reportFailedLogin's
-    // `if (data.pendingIncidentCode) return false` guard silently drops every
-    // future failed-login report for that user forever — the exact same
-    // stuck-tracking bug the 'owner'/'attacker' branches below already guard
-    // against. Clear it here too so an expired incident actually stops
-    // blocking future tracking instead of just changing its own label.
-    await securityRef.set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
-    return { ok: false, reason: 'expired' };
+  // Atomically claim this incident before doing anything else below — a
+  // double-click on the emailed confirmation link, a network retry, or the
+  // account owner's click racing with an admin's liftLockout call (both
+  // land here, see liftLockout below) could otherwise both pass a plain
+  // `status !== 'pending'` check before either writes, and for the 'owner'
+  // branch both go on to generate a temp password / call auth.updateUser /
+  // send an email — two different temp passwords, only the second actually
+  // valid, with the user possibly acting on the stale first email. The
+  // claim (`resolvingClaim`) is released on any failure below so a
+  // genuinely failed attempt can still be retried.
+  let incident: FirebaseFirestore.DocumentData;
+  try {
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists) throw new Error('NOT_FOUND');
+      incident = snap.data()!;
+      if (incident.status !== 'pending' || incident.resolvingClaim) throw new Error('ALREADY_RESOLVED');
+      transaction.update(ref, { resolvingClaim: true });
+    });
+  } catch (err: any) {
+    if (err?.message === 'NOT_FOUND') return { ok: false, reason: 'not_found' };
+    if (err?.message === 'ALREADY_RESOLVED') return { ok: false, reason: 'already_resolved' };
+    throw err;
   }
 
-  if (decision === 'owner') {
-    const tempPassword = generateTempPassword();
-    await auth.updateUser(uid, { password: tempPassword, disabled: false });
-    await db.collection('users').doc(uid).update({
-      mustChangePassword: true,
-      updatedAt: new Date().toISOString(),
-    });
-    await setTempPasswordHash(uid, tempPassword);
-    await securityRef.set({ pendingIncidentCode: FieldValue.delete(), failedLoginCount: 0 }, { merge: true });
-    await ref.update({ status: 'confirmed_owner', resolvedAt });
+  try {
+    const uid = incident!.uid as string;
+    const securityRef = securityDocRef(uid);
+    const resolvedAt = new Date().toISOString();
 
-    const userDoc = await db.collection('users').doc(uid).get();
-    const userData = userDoc.data();
-    await sendNotificationEmail({
-      toEmail: incident.email,
-      type: 'temp_password_issued',
-      lang: userData?.language === 'en' ? 'en' : 'he',
-      data: { name: userData?.displayName || '', tempPassword },
-    }).catch((err) => console.error('Failed to send temp_password_issued email:', err));
+    if (new Date(incident!.expiresAt).getTime() < Date.now()) {
+      await ref.update({ status: 'expired', resolvingClaim: FieldValue.delete() });
+      // CRITICAL FIX: this branch used to leave `pendingIncidentCode` set on
+      // the security doc after flipping the incident to 'expired' — confirmed
+      // live (two ~6-week-old incidents, including the system_admin's own
+      // account, sitting as 'pending' the whole time because nothing ever
+      // visited their email link to trigger the lazy-expiry in
+      // getIncidentSummary). With the field left in place, reportFailedLogin's
+      // `if (data.pendingIncidentCode) return false` guard silently drops every
+      // future failed-login report for that user forever — the exact same
+      // stuck-tracking bug the 'owner'/'attacker' branches below already guard
+      // against. Clear it here too so an expired incident actually stops
+      // blocking future tracking instead of just changing its own label.
+      await securityRef.set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
+      return { ok: false, reason: 'expired' };
+    }
+
+    if (decision === 'owner') {
+      const tempPassword = generateTempPassword();
+      await auth.updateUser(uid, { password: tempPassword, disabled: false });
+      await db.collection('users').doc(uid).update({
+        mustChangePassword: true,
+        updatedAt: new Date().toISOString(),
+      });
+      await setTempPasswordHash(uid, tempPassword);
+      await securityRef.set({ pendingIncidentCode: FieldValue.delete(), failedLoginCount: 0 }, { merge: true });
+      await ref.update({ status: 'confirmed_owner', resolvedAt, resolvingClaim: FieldValue.delete() });
+
+      const userDoc = await db.collection('users').doc(uid).get();
+      const userData = userDoc.data();
+      await sendNotificationEmail({
+        toEmail: incident!.email,
+        type: 'temp_password_issued',
+        lang: userData?.language === 'en' ? 'en' : 'he',
+        data: { name: userData?.displayName || '', tempPassword },
+      }).catch((err) => console.error('Failed to send temp_password_issued email:', err));
+
+      return { ok: true };
+    }
+
+    // decision === 'attacker' — leave the account disabled, alert admins.
+    await securityRef.set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
+    await ref.update({ status: 'confirmed_attacker', resolvedAt, resolvingClaim: FieldValue.delete() });
+    await notifySystemAdmins({
+      email: incident!.email,
+      ip: incident!.ip,
+      location: incident!.location ?? null,
+      createdAt: incident!.createdAt,
+    });
 
     return { ok: true };
+  } catch (err) {
+    await ref.update({ resolvingClaim: FieldValue.delete() }).catch(() => {});
+    throw err;
   }
-
-  // decision === 'attacker' — leave the account disabled, alert admins.
-  await securityRef.set({ pendingIncidentCode: FieldValue.delete() }, { merge: true });
-  await ref.update({ status: 'confirmed_attacker', resolvedAt });
-  await notifySystemAdmins({
-    email: incident.email,
-    ip: incident.ip,
-    location: incident.location ?? null,
-    createdAt: incident.createdAt,
-  });
-
-  return { ok: true };
 }
 
 export interface PendingLockout {

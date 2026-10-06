@@ -1733,28 +1733,44 @@ export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: R
 
   try {
     const grantRef = db.collection('defenseAccessGrants').doc(grantCode);
-    const grantSnap = await grantRef.get();
-    if (!grantSnap.exists) return res.status(404).json({ message: 'Access grant not found.' });
-    const grant = grantSnap.data()!;
-
     const now = new Date();
-    const currentExpiresAt = grant.status === 'admin_extended' && grant.adminExtension?.newExpiresAt
-      ? new Date(grant.adminExtension.newExpiresAt)
-      : new Date(grant.expiresAt);
-    if (now <= currentExpiresAt) {
-      return res.status(400).json({ message: 'This grant has not expired yet — extension is only for missed windows.' });
-    }
 
-    await grantRef.update({
-      status: 'admin_extended',
-      adminExtension: {
-        extendedBy: adminUid,
-        extendedAt: now.toISOString(),
-        newExpiresAt: newExpiresAtISO,
-        reason: reason ?? '',
-      },
-      accessLog: [...(grant.accessLog ?? []), { action: 'admin_extended', timestamp: now.toISOString() }],
-    });
+    // Transaction, not a plain get()-then-update(): two near-simultaneous
+    // extensions on the same expired grant could otherwise both pass the
+    // "not yet extended" check below, and the second update()'s accessLog
+    // (built from the same stale pre-write read) would silently lose the
+    // first's just-added log entry and overwrite its adminExtension.
+    // arrayUnion for the log entry closes that specific field's race
+    // outright; the transaction's fresh re-read covers the expiry check.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const grantSnap = await transaction.get(grantRef);
+        if (!grantSnap.exists) throw new Error('NOT_FOUND');
+        const grant = grantSnap.data()!;
+
+        const currentExpiresAt = grant.status === 'admin_extended' && grant.adminExtension?.newExpiresAt
+          ? new Date(grant.adminExtension.newExpiresAt)
+          : new Date(grant.expiresAt);
+        if (now <= currentExpiresAt) throw new Error('NOT_EXPIRED');
+
+        transaction.update(grantRef, {
+          status: 'admin_extended',
+          adminExtension: {
+            extendedBy: adminUid,
+            extendedAt: now.toISOString(),
+            newExpiresAt: newExpiresAtISO,
+            reason: reason ?? '',
+          },
+          accessLog: admin.firestore.FieldValue.arrayUnion({ action: 'admin_extended', timestamp: now.toISOString() }),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'NOT_FOUND') return res.status(404).json({ message: 'Access grant not found.' });
+      if (err?.message === 'NOT_EXPIRED') {
+        return res.status(400).json({ message: 'This grant has not expired yet — extension is only for missed windows.' });
+      }
+      throw err;
+    }
 
     return res.status(200).json({ success: true, message: 'Access grant extended.' });
   } catch (error: any) {

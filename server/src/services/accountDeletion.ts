@@ -88,19 +88,43 @@ export async function checkDeletionEligibility(uid: string): Promise<Eligibility
   }
 
   if (roles.includes('system_admin')) {
-    const [byRole, byRolesArray] = await Promise.all([
-      db.collection('users').where('role', '==', 'system_admin').get(),
-      db.collection('users').where('roles', 'array-contains', 'system_admin').get(),
-    ]);
-    const others = new Map<string, FirebaseFirestore.DocumentData>();
-    [...byRole.docs, ...byRolesArray.docs].forEach((d) => {
-      if (d.id === uid) return;
-      const data = d.data();
-      if (data.isActive === false || data.pendingDeletion) return;
-      others.set(d.id, data);
-    });
-    if (others.size === 0) {
-      return { eligible: false, reason: 'You are the last active system_admin — promote another account to system_admin first.' };
+    // Transaction, not a plain query-then-return: every caller of this
+    // function immediately proceeds to actually delete the account when
+    // `eligible: true` comes back (requestDeletion or purgeAccount), but
+    // neither of those happens atomically with THIS check — two different
+    // system_admins (or an admin erasing two different system_admin
+    // targets) requesting deletion within the same race window could
+    // otherwise both count each other as "another active admin" before
+    // either's doc reflects the pending deletion, and both proceed, leaving
+    // zero system_admins with no path back in. Firestore transactions
+    // detect phantom-read conflicts on query result sets: as long as both
+    // concurrent calls read the same system_admin query inside their own
+    // transaction, the first to commit a write to a document in that result
+    // set (its own, here — see `accountDeletionClaimed` below) forces the
+    // other to retry against fresh data, where it now sees the claim and
+    // correctly reports itself ineligible.
+    const ref = db.collection('users').doc(uid);
+    try {
+      await db.runTransaction(async (transaction) => {
+        const [byRole, byRolesArray] = await Promise.all([
+          transaction.get(db.collection('users').where('role', '==', 'system_admin')),
+          transaction.get(db.collection('users').where('roles', 'array-contains', 'system_admin')),
+        ]);
+        const others = new Map<string, FirebaseFirestore.DocumentData>();
+        [...byRole.docs, ...byRolesArray.docs].forEach((d) => {
+          if (d.id === uid) return;
+          const data = d.data();
+          if (data.isActive === false || data.pendingDeletion || data.accountDeletionClaimed) return;
+          others.set(d.id, data);
+        });
+        if (others.size === 0) throw new Error('LAST_ADMIN');
+        transaction.update(ref, { accountDeletionClaimed: true });
+      });
+    } catch (err: any) {
+      if (err?.message === 'LAST_ADMIN') {
+        return { eligible: false, reason: 'You are the last active system_admin — promote another account to system_admin first.' };
+      }
+      throw err;
     }
   }
 
@@ -127,6 +151,12 @@ export async function cancelDeletion(uid: string): Promise<void> {
     pendingDeletion: FieldValue.delete(),
     deletionReason: FieldValue.delete(),
     deletionRequestedAt: FieldValue.delete(),
+    // Leftover from checkDeletionEligibility's last-admin claim (see its
+    // comment) — pendingDeletion above already excludes this account from
+    // future "other active admin" counts, so the claim is redundant once
+    // set, but clear it too so cancelling genuinely restores the account to
+    // its pre-check state.
+    accountDeletionClaimed: FieldValue.delete(),
     deletionScheduledFor: FieldValue.delete(),
   });
 }

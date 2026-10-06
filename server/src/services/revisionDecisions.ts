@@ -56,9 +56,6 @@ export async function recordRevisionDecision(
   decidedByRole: string,
 ): Promise<{ status: string }> {
   const milestoneRef = db.collection('milestones').doc(milestoneId);
-  const milestoneSnap = await milestoneRef.get();
-  if (!milestoneSnap.exists) throw new Error('Milestone not found.');
-  const milestone = milestoneSnap.data()!;
 
   const entry: RevisionDecisionEntry = {
     decision,
@@ -68,44 +65,74 @@ export async function recordRevisionDecision(
     decidedAt: admin.firestore.Timestamp.now(),
   };
 
-  const studentIds: string[] = milestone.studentIds ?? [];
-  const supervisorId: string | null = milestone.supervisorId ?? null;
-  const projectId: string | null = milestone.projectId ?? null;
-  const label = milestone.nameEn ?? milestone.type;
+  let milestone: FirebaseFirestore.DocumentData;
+  let statusBefore: string;
+  let nextStatus: string;
 
-  let nextStatus = milestone.status;
-  const updatePayload: Record<string, unknown> = {
-    revisionDecisions: admin.firestore.FieldValue.arrayUnion(entry),
-  };
+  // Transaction, not a plain get()-then-update(): two decisions recorded
+  // within the same race window (e.g. the advisor and a coordinator each
+  // picking a different outcome) could otherwise both read the same stale
+  // milestone snapshot — both decisions still land in the append-only
+  // `revisionDecisions` history via arrayUnion, but the scalar `status`
+  // field is a last-write-wins race between them, leaving the milestone's
+  // actual status inconsistent with which decision the history implies is
+  // current. Re-reads fresh inside the transaction so the second decision
+  // to commit always builds on whatever the first one actually wrote.
+  await db.runTransaction(async (transaction) => {
+    const milestoneSnap = await transaction.get(milestoneRef);
+    if (!milestoneSnap.exists) throw new Error('Milestone not found.');
+    milestone = milestoneSnap.data()!;
+    statusBefore = milestone.status;
+    nextStatus = milestone.status;
 
-  if (decision === 'proceed_to_defense') {
-    nextStatus = 'coordinator_approved';
-    updatePayload.status = nextStatus;
-    updatePayload.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
-    updatePayload.coordinatorId = decidedBy;
-  } else if (decision === 'require_corrections') {
-    // Same fields coordinatorRejectMilestone writes — buildRevisionArchiveUpdate
-    // (milestoneRevisions.ts) picks these up transparently on the next resubmit.
-    nextStatus = 'rejected';
-    updatePayload.status = nextStatus;
-    updatePayload.coordinatorRejectedAt = admin.firestore.FieldValue.serverTimestamp();
-    updatePayload.coordinatorId = decidedBy;
-    updatePayload.rejectionReason = entry.note ?? 'Corrections required following examiner opinions.';
-  } else if (decision === 're_judge') {
-    // Re-open every examiner's review on this milestone so they can submit a
-    // fresh opinion — external tokens' submitted opinion is left in place
-    // (submitExaminerOpinion overwrites it on resubmission); this only
-    // reopens the *status* gate.
-    const tokensSnap = await db.collection('examinerTokens')
-      .where('milestoneId', '==', milestoneId)
-      .where('status', '==', 'submitted')
-      .get();
-    await Promise.all(tokensSnap.docs.map((doc) => doc.ref.update({ status: 'accepted', reopenedAt: admin.firestore.FieldValue.serverTimestamp() })));
-  }
-  // 'add_examiner' makes no status change — the coordinator uses the
-  // existing assign-examiners flow; this decision is a documented signal only.
+    // Reads must happen before any write in a Firestore transaction, so
+    // 're_judge's token query is resolved here, before the updates below.
+    const tokenRefsToReopen: FirebaseFirestore.DocumentReference[] = [];
+    if (decision === 're_judge') {
+      const tokensSnap = await transaction.get(
+        db.collection('examinerTokens')
+          .where('milestoneId', '==', milestoneId)
+          .where('status', '==', 'submitted')
+      );
+      tokenRefsToReopen.push(...tokensSnap.docs.map((d) => d.ref));
+    }
 
-  await milestoneRef.update(updatePayload);
+    const updatePayload: Record<string, unknown> = {
+      revisionDecisions: admin.firestore.FieldValue.arrayUnion(entry),
+    };
+
+    if (decision === 'proceed_to_defense') {
+      nextStatus = 'coordinator_approved';
+      updatePayload.status = nextStatus;
+      updatePayload.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
+      updatePayload.coordinatorId = decidedBy;
+    } else if (decision === 'require_corrections') {
+      // Same fields coordinatorRejectMilestone writes — buildRevisionArchiveUpdate
+      // (milestoneRevisions.ts) picks these up transparently on the next resubmit.
+      nextStatus = 'rejected';
+      updatePayload.status = nextStatus;
+      updatePayload.coordinatorRejectedAt = admin.firestore.FieldValue.serverTimestamp();
+      updatePayload.coordinatorId = decidedBy;
+      updatePayload.rejectionReason = entry.note ?? 'Corrections required following examiner opinions.';
+    } else if (decision === 're_judge') {
+      // Re-open every examiner's review on this milestone so they can submit a
+      // fresh opinion — external tokens' submitted opinion is left in place
+      // (submitExaminerOpinion overwrites it on resubmission); this only
+      // reopens the *status* gate.
+      for (const ref of tokenRefsToReopen) {
+        transaction.update(ref, { status: 'accepted', reopenedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+    }
+    // 'add_examiner' makes no status change — the coordinator uses the
+    // existing assign-examiners flow; this decision is a documented signal only.
+
+    transaction.update(milestoneRef, updatePayload);
+  });
+
+  const studentIds: string[] = milestone!.studentIds ?? [];
+  const supervisorId: string | null = milestone!.supervisorId ?? null;
+  const projectId: string | null = milestone!.projectId ?? null;
+  const label = milestone!.nameEn ?? milestone!.type;
 
   await logAuditEvent({
     userId: decidedBy,
@@ -113,8 +140,8 @@ export async function recordRevisionDecision(
     action: 'revision_decision_recorded',
     entityType: 'milestone',
     entityId: milestoneId,
-    oldValue: { status: milestone.status },
-    newValue: { decision, status: nextStatus },
+    oldValue: { status: statusBefore! },
+    newValue: { decision, status: nextStatus! },
     explanation: entry.note ?? undefined,
   });
 
@@ -148,5 +175,5 @@ export async function recordRevisionDecision(
     ) : Promise.resolve(),
   ]);
 
-  return { status: nextStatus };
+  return { status: nextStatus! };
 }
