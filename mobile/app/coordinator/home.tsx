@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, FacultyBadge, getFacultyColor } from '../../components/shared';
 import {type GradeWeights } from '../../components/Milestoneservice';
-import { coordinatorHomeStyles } from '../../constants/styles';
+import { coordinatorHomeStyles, AdministrativeCoordinatorDashboardStyles } from '../../constants/styles';
 import {tx} from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
@@ -47,12 +47,72 @@ import {
   RECOMMENDATIONS_TAB_FIELD_GUIDE, RECOMMENDATIONS_TAB_GUIDE_KEY,
   SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
 } from '@/constants/coordinatorFieldGuide';
+// Students Report tab — reused as-is from the administrative coordinator's
+// dashboard (same shared constants file; the field guide copy talks about
+// "your scope" generically, so no coordinator-specific wording needed) now
+// that GET /api/project-coordinator/students-report also allows the plain
+// `coordinator` role (see STUDENTS_REPORT_ROLES in
+// projectCoordinatorController.ts). Row-tap target
+// (/administrative_coordinator/students/[id]) already allows `coordinator`
+// server-side (STUDENT_DETAIL_ROLES) too — mirrors the same reuse on web
+// (app/coordinator/home/page.tsx importing administrative_coordinator's
+// StudentsReportTab).
+import {
+  STUDENTS_REPORT_TAB_FIELD_GUIDE, STUDENTS_REPORT_TAB_GUIDE_KEY,
+} from '@/constants/administrativeCoordinatorFieldGuide';
 
 function assignGuideEntry(key: string) {
   return ASSIGN_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
 }
 function logisticsGuideEntry(key: string) {
   return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
+}
+
+// ─── Students Report tab ────────────────────────────────────────────────────
+// Mirrors administrative_coordinator_dashboard.tsx's own copy of this same
+// roster (not imported from there — that screen doesn't export it, and
+// MILESTONE_LABEL above is already duplicated the same way between these two
+// screens). Unlike that screen's version, no password-reset/delete actions
+// here — those are administrative_secretary-only (resetUserPasswordAdmin/
+// eraseUserBySystemAdmin), never granted to the plain `coordinator` role.
+type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
+
+interface StudentReportRow {
+  id: string;
+  name: string;
+  status: StudentStatus;
+  appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+  projectTitleHe: string | null;
+  projectTitleEn: string | null;
+  supervisorName: string | null;
+  milestoneNameHe: string | null;
+  milestoneNameEn: string | null;
+  days: number | null;
+}
+
+const STUDENT_REPORT_STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
+  not_in_project:   { he: 'לא נמצא בפרויקט/תזה',  en: 'Not in a project/thesis' },
+  applied:          { he: 'הגיש בקשה ל־',          en: 'Submitted application to' },
+  in_project:       { he: 'בפרויקט/תזה',           en: 'In project/thesis' },
+  awaiting_defense: { he: 'ממתין לבחינת הגנה',      en: 'Awaiting defense exam' },
+  finished:         { he: 'סיים',                  en: 'Finished' },
+};
+
+const STUDENT_REPORT_STATUS_COLOR: Record<StudentStatus, string> = {
+  not_in_project:   '#8899BB',
+  applied:          '#F59E0B',
+  in_project:       '#3E6C8C',
+  awaiting_defense: '#7C3AED',
+  finished:         '#10B981',
+};
+
+function studentReportStatusText(row: StudentReportRow, lang: Lang): string {
+  const base = STUDENT_REPORT_STATUS_LABEL[row.status][lang];
+  if (row.status === 'applied' && row.appliedProjects.length > 0) {
+    const names = row.appliedProjects.map((p) => (lang === 'he' ? p.titleHe : p.titleEn) || '—').join(', ');
+    return `${base} ${names}`;
+  }
+  return base;
 }
 
 const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
@@ -196,8 +256,8 @@ export default function CoordinatorHome() {
   // tab where the task actually is (e.g. ?tab=pending), instead of always
   // opening on Overview and making the coordinator search for it — same
   // ?tab= convention the web dashboard already supports.
-  type CoordinatorTab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'milestones' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived';
-  const COORDINATOR_TABS: CoordinatorTab[] = ['overview', 'pending', 'defense', 'inProgress', 'milestones', 'deadlines', 'recommendations', 'signoffs', 'archived'];
+  type CoordinatorTab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'milestones' | 'deadlines' | 'recommendations' | 'signoffs' | 'archived' | 'studentsReport';
+  const COORDINATOR_TABS: CoordinatorTab[] = ['overview', 'pending', 'defense', 'inProgress', 'milestones', 'deadlines', 'recommendations', 'signoffs', 'archived', 'studentsReport'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<CoordinatorTab>(
     COORDINATOR_TABS.includes(tabParam as CoordinatorTab) ? (tabParam as CoordinatorTab) : 'overview'
@@ -301,6 +361,41 @@ export default function CoordinatorHome() {
       if (u) setCoordinatorProfile({ displayName: u.displayName ?? '', facultyId: u.facultyId ?? '', major: u.major ?? null, coordinatorScopes: u.coordinatorScopes ?? [] });
     }).catch(() => {});
   }, [coordinatorId]);
+
+  // ── Students Report tab ───────────────────────────────────────────────────
+  const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
+  const [studentsReportLoading, setStudentsReportLoading] = useState(false);
+  const [studentsReportLoaded, setStudentsReportLoaded] = useState(false);
+  const [studentsReportNoScope, setStudentsReportNoScope] = useState(false);
+  const [studentsReportSearch, setStudentsReportSearch] = useState('');
+  const [studentsReportFilter, setStudentsReportFilter] = useState<'all' | StudentStatus>('all');
+
+  const fetchStudentsReport = React.useCallback(async () => {
+    setStudentsReportLoading(true);
+    try {
+      const res = await apiClient.get('/api/project-coordinator/students-report');
+      setStudentsReport(res.data.students ?? []);
+      setStudentsReportNoScope(!!res.data.noScopeAssigned);
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
+    } finally {
+      setStudentsReportLoading(false);
+      setStudentsReportLoaded(true);
+    }
+  }, [lang]);
+
+  // Fetched lazily, the first time the tab is opened — same convention as
+  // administrative_coordinator_dashboard.tsx's own fetchStudentsReport.
+  useEffect(() => {
+    if (activeTab === 'studentsReport' && !studentsReportLoaded) fetchStudentsReport();
+  }, [activeTab, studentsReportLoaded, fetchStudentsReport]);
+
+  const filteredStudentsReport = studentsReport.filter((row) => {
+    const q = studentsReportSearch.trim().toLowerCase();
+    const matchesSearch = !q || row.name.toLowerCase().includes(q);
+    const matchesStatus = studentsReportFilter === 'all' || row.status === studentsReportFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // Live milestone listener — the REST fetch (fetchCoordinatorDashboard)
   // stays the source of truth for "shell" fields that don't change in real
@@ -1263,6 +1358,15 @@ export default function CoordinatorHome() {
             </Pressable>
           </TourTarget>
         )}
+        <TourTarget tourKey="studentsReport">
+          <Pressable
+            style={[styles.tab, activeTab === 'studentsReport' && styles.tabActive]}
+            onPress={() => setActiveTab('studentsReport')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.tabText} numberOfLines={1}>{lang === 'he' ? 'דוח סטודנטים' : 'Students Report'}</Text>
+          </Pressable>
+        </TourTarget>
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -2262,6 +2366,85 @@ export default function CoordinatorHome() {
         {activeTab === 'archived' && (
           <ArchivedProjectsSection lang={lang} />
         )}
+
+        {activeTab === 'studentsReport' && (() => {
+          const rs = AdministrativeCoordinatorDashboardStyles;
+          const fc = getFacultyColor(coordinatorProfile?.facultyId ?? 'all');
+          return (
+            <View>
+              <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
+              <TextInput
+                style={rs.searchInput}
+                value={studentsReportSearch}
+                onChangeText={setStudentsReportSearch}
+                placeholder={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
+                placeholderTextColor={ap.onSurfaceVariant}
+                textAlign={lang === 'he' ? 'right' : 'left'}
+              />
+              <View style={rs.filterRow}>
+                {(['all', 'not_in_project', 'applied', 'in_project', 'awaiting_defense', 'finished'] as const).map((st) => (
+                  <Pressable
+                    key={st}
+                    style={[rs.filterChip, studentsReportFilter === st && { backgroundColor: fc.primary }]}
+                    onPress={() => setStudentsReportFilter(st)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[rs.filterChipText, studentsReportFilter === st && { color: '#fff' }]}>
+                      {st === 'all' ? (lang === 'he' ? 'הכל' : 'All') : STUDENT_REPORT_STATUS_LABEL[st][lang]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {studentsReportNoScope ? (
+                <View style={rs.empty}>
+                  <Text style={rs.emptyText}>
+                    {lang === 'he'
+                      ? 'לא הוקצה לך עדיין תחום אחריות (פקולטה/תואר).'
+                      : 'No degree has been assigned to your account yet.'}
+                  </Text>
+                </View>
+              ) : studentsReportLoading && !studentsReportLoaded ? (
+                <ActivityIndicator style={{ marginTop: 24 }} />
+              ) : filteredStudentsReport.length === 0 ? (
+                <View style={rs.empty}>
+                  <Text style={rs.emptyEmoji}>📭</Text>
+                  <Text style={rs.emptyText}>{lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}</Text>
+                </View>
+              ) : (
+                filteredStudentsReport.map((row) => {
+                  const projectTitle = row.projectTitleHe || row.projectTitleEn ? (lang === 'he' ? row.projectTitleHe : row.projectTitleEn) : null;
+                  const milestoneName = row.milestoneNameHe || row.milestoneNameEn ? (lang === 'he' ? row.milestoneNameHe : row.milestoneNameEn) : null;
+                  const daysLabel =
+                    row.days === null
+                      ? '—'
+                      : row.status === 'not_in_project' || row.status === 'applied'
+                        ? (lang === 'he' ? `${row.days} ימים בחיפוש` : `${row.days}d searching`)
+                        : `${row.days}`;
+                  return (
+                    <Pressable
+                      key={row.id}
+                      style={[rs.card, { borderLeftColor: fc.primary }]}
+                      onPress={() => router.push(`/administrative_coordinator/students/${row.id}` as any)}
+                      accessibilityRole="link"
+                    >
+                      <Text style={rs.cardTitle}>{row.name}</Text>
+                      <Text style={[rs.cardSub, { color: STUDENT_REPORT_STATUS_COLOR[row.status], fontWeight: '700' }]}>
+                        {studentReportStatusText(row, lang)}
+                      </Text>
+                      <Text style={rs.cardSub}>📁 {projectTitle ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                      <Text style={rs.cardSub}>👨‍🏫 {row.supervisorName ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                      <Text style={rs.cardSub}>📍 {milestoneName ?? (lang === 'he' ? 'אין' : 'None')}</Text>
+                      <Text style={[rs.cardSub, { fontWeight: '700', color: row.days !== null && row.days < 0 ? '#EF4444' : undefined }]}>
+                        ⏳ {daysLabel}
+                      </Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </View>
+          );
+        })()}
 
         <View style={{ height: 60 }} />
       </ScrollView>
