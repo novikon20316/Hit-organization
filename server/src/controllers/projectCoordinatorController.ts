@@ -46,6 +46,15 @@ const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator',
 // THESIS_ELIGIBILITY_ROLES (can call the write endpoints) but missing here.
 const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
+// Same "own scoped constant instead of widening PROJECT_COORDINATOR_DASHBOARD_ROLES"
+// precedent as COORDINATOR_STATISTICS_ROLES/STUDENT_DETAIL_ROLES above — the
+// plain `coordinator` role now gets the Students Report tab on their own
+// dashboard (app/coordinator/home), reusing this same endpoint and
+// StudentsReportTab component. Kept separate so `coordinator` doesn't also
+// gain access to this file's OTHER administrative_secretary-only endpoints
+// (the groups dashboard/grade-overrides), which were never part of this request.
+const STUDENTS_REPORT_ROLES = ['administrative_secretary', 'coordinator', 'system_admin'];
+
 interface DegreeScope { facultyId: string; major?: string }
 
 /** Resolves a non-system_admin caller's scope from coordinatorScopes, falling
@@ -330,7 +339,7 @@ export type StudentReportStatus = 'not_in_project' | 'applied' | 'in_project' | 
 export const getStudentsReport = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
+  if (!req.user || !hasAnyRole(req.user, STUDENTS_REPORT_ROLES)) {
     return res.status(403).json({ message: 'You do not have permission to view this report.' });
   }
 

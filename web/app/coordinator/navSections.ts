@@ -115,6 +115,17 @@ export function buildCoordinatorNavSections(activeRole: AppRole | undefined): Si
           badgeTargetScreens: ['coordinator_signoffs'],
         },
         {
+          key: 'studentsReport',
+          icon: '🧑‍🎓',
+          href: '/coordinator/home?tab=studentsReport',
+          label: { he: 'דוח סטודנטים', en: 'Students Report' },
+          description: {
+            he: 'דוח על כל סטודנט בפקולטה שלך — הסטטוס וההתקדמות הנוכחיים שלו, כולל סטודנטים שעדיין לא נרשמו לפרויקט.',
+            en: "A report of every student in your faculty — their current status and progress, including students who haven't enrolled in a project yet.",
+          },
+          isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'studentsReport',
+        },
+        {
           key: 'statistics',
           icon: '🧮',
           href: '/coordinator/home?tab=statistics',

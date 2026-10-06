@@ -34,6 +34,15 @@ import {
   RECOMMENDATIONS_TAB_FIELD_GUIDE, RECOMMENDATIONS_TAB_GUIDE_KEY,
   SIGNOFFS_TAB_FIELD_GUIDE, SIGNOFFS_TAB_GUIDE_KEY,
 } from './fieldGuide';
+// Reused as-is from the administrative_secretary dashboard — same endpoint
+// (getStudentsReport, now also allowed for the plain `coordinator` role —
+// see STUDENTS_REPORT_ROLES in projectCoordinatorController.ts) and the same
+// row-click target (/administrative_coordinator/dashboard/students/[id]),
+// which already allows `coordinator` server-side (STUDENT_DETAIL_ROLES) and
+// renders with this role's own sidebar chrome regardless of which dashboard
+// linked into it (see that route's layout.tsx).
+import { StudentsReportTab } from '@/app/administrative_coordinator/dashboard/StudentsReportTab';
+import { STUDENTS_REPORT_TAB_FIELD_GUIDE, STUDENTS_REPORT_TAB_GUIDE_KEY } from '@/app/administrative_coordinator/dashboard/fieldGuide';
 import { DeadlinesTab } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -46,9 +55,9 @@ import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommen
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 
-type Tab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived';
+type Tab = 'overview' | 'pending' | 'defense' | 'inProgress' | 'deadlines' | 'recommendations' | 'signoffs' | 'statistics' | 'archived' | 'studentsReport';
 
-const TABS: Tab[] = ['overview', 'pending', 'defense', 'inProgress', 'deadlines', 'recommendations', 'signoffs', 'statistics', 'archived'];
+const TABS: Tab[] = ['overview', 'pending', 'defense', 'inProgress', 'deadlines', 'recommendations', 'signoffs', 'statistics', 'archived', 'studentsReport'];
 const isTab = (v: string | null): v is Tab => !!v && (TABS as string[]).includes(v);
 
 function CoordinatorHomeContent() {
@@ -533,6 +542,11 @@ function CoordinatorHomeContent() {
         <CoordinatorStatisticsTab />
       ) : tab === 'archived' ? (
         <ArchivedProjectsTab />
+      ) : tab === 'studentsReport' ? (
+        <div data-field-guide-id="reportList">
+          <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
+          <StudentsReportTab />
+        </div>
       ) : (
         <div data-field-guide-id="signoffList">
           <FieldGuideOverlay guideKey={SIGNOFFS_TAB_GUIDE_KEY} steps={SIGNOFFS_TAB_FIELD_GUIDE} />
