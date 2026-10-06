@@ -11,7 +11,7 @@
 // detected (see app/examiner-access/page.tsx's loadToken), not a separate
 // status check.
 
-import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp, Timestamp, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ─── Types — no ExaminerTokenDoc equivalent exists in lib/roles.ts, so it's
@@ -169,10 +169,26 @@ export async function recordThesisDownload(token: string): Promise<void> {
  * Sets status → 'accepted' and records acceptedAt + access log entry.
  */
 export async function acceptExaminerToken(token: string): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status: 'accepted' satisfies ExaminerTokenStatus,
-    acceptedAt: serverTimestamp(),
-    accessLog: arrayUnion({ action: 'accepted', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction, not a plain updateDoc(): the examiner-access page only
+  // re-checks status once, at page load — Accept/Decline render off that
+  // stale snapshot, not a fresh read right before the click. The same link
+  // opened in two tabs (or a fast double-click) could otherwise both pass
+  // the 'pending' UI gate and reach here; firestore.rules still allows the
+  // write either way (status in ['pending','accepted']), so a Decline
+  // racing in after an Accept would silently clobber the acceptance.
+  // Mirrors the identical fix in mobile/src/firebase/examinerTokens.ts —
+  // keep the two in sync.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'pending') {
+      throw new Error('This invitation has already been decided.');
+    }
+    transaction.update(ref, {
+      status: 'accepted' satisfies ExaminerTokenStatus,
+      acceptedAt: serverTimestamp(),
+      accessLog: arrayUnion({ action: 'accepted', timestamp: Timestamp.now() }),
+    });
   });
 }
 
@@ -181,11 +197,19 @@ export async function acceptExaminerToken(token: string): Promise<void> {
  * Sets status → 'declined', records declinedAt, reason, and access log entry.
  */
 export async function declineExaminerToken(token: string, reason: string): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status: 'declined' satisfies ExaminerTokenStatus,
-    declinedAt: serverTimestamp(),
-    declineReason: reason,
-    accessLog: arrayUnion({ action: 'declined', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction — same race as acceptExaminerToken above, mirrored.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'pending') {
+      throw new Error('This invitation has already been decided.');
+    }
+    transaction.update(ref, {
+      status: 'declined' satisfies ExaminerTokenStatus,
+      declinedAt: serverTimestamp(),
+      declineReason: reason,
+      accessLog: arrayUnion({ action: 'declined', timestamp: Timestamp.now() }),
+    });
   });
 }
 
@@ -194,10 +218,19 @@ export async function declineExaminerToken(token: string, reason: string): Promi
  * Sets status → 'submitted', stores the opinion payload, and logs the action.
  */
 export async function submitExaminerOpinion(token: string, opinion: Record<string, unknown>): Promise<void> {
-  await updateDoc(doc(db, 'examinerTokens', token), {
-    status: 'submitted' satisfies ExaminerTokenStatus,
-    submittedAt: serverTimestamp(),
-    opinion,
-    accessLog: arrayUnion({ action: 'submitted_opinion', timestamp: Timestamp.now() }),
+  const ref = doc(db, 'examinerTokens', token);
+  // Transaction — a duplicate/racing submit (double-click, two tabs) could
+  // otherwise overwrite an opinion that already committed.
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (snap.data()?.status !== 'accepted') {
+      throw new Error('This opinion has already been submitted, or the invitation is no longer active.');
+    }
+    transaction.update(ref, {
+      status: 'submitted' satisfies ExaminerTokenStatus,
+      submittedAt: serverTimestamp(),
+      opinion,
+      accessLog: arrayUnion({ action: 'submitted_opinion', timestamp: Timestamp.now() }),
+    });
   });
 }
