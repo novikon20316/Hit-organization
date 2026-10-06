@@ -55,7 +55,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     if (!firebaseUser) return;
     try {
-      const chatsRes = await apiClient.getChatDashboard();
+      // silent: true — this poll's own failure is already swallowed below
+      // with no UI/retry consequence; without it, the 30s interval (running
+      // for every signed-in session) is one of the noisiest paths through
+      // apiClient's generic network_failure alerting. See apiClient.ts and
+      // usePresenceHeartbeat.ts, which had the same problem.
+      const chatsRes = await apiClient.getChatDashboard({ silent: true });
       setUnreadChats((chatsRes.chats ?? []).filter((c) => Number(c.unreadCount ?? 0) > 0).length);
     } catch (err) {
       console.warn('Failed refreshing chat counts', err);

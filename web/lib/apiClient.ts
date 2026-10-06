@@ -371,9 +371,10 @@ export const apiClient = {
   },
 
   // ─── 3b. CHAT ───────────────────────────────────────────────────────────────
-  async getChatDashboard() {
+  async getChatDashboard(options?: { silent?: boolean }) {
     return request<{ chats: Array<Record<string, unknown> & { chatId: string }>; unreadTotal: number }>('/api/chats/dashboard', {
       method: 'GET',
+      silent: options?.silent,
     });
   },
 
