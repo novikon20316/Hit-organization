@@ -386,16 +386,35 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
 
     const finalGrade = decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
 
-    await milestoneRef.update({
-      finalGrade,
-      gradeApproved: true,
-      gradeApprovedBy: uid,
-      gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
-      gradedAt: admin.firestore.FieldValue.serverTimestamp(),
-      'gradeOverride.status': decision === 'approve_override' ? 'approved' : 'rejected',
-      'gradeOverride.decidedBy': uid,
-      'gradeOverride.decidedAt': admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // Transaction, not the plain get()-then-update() this used to be — same
+    // reasoning as approveFinalGrade below: two near-simultaneous decisions
+    // on the same pending override could otherwise both pass the
+    // gradeApproved check above before either writes, and both go on to call
+    // transferGradeToMichlol — a duplicate external transfer. This re-checks
+    // and claims gradeApproved atomically; only the first caller proceeds.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (freshSnap.data()?.gradeApproved) {
+          throw new Error('ALREADY_APPROVED');
+        }
+        transaction.update(milestoneRef, {
+          finalGrade,
+          gradeApproved: true,
+          gradeApprovedBy: uid,
+          gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+          gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+          'gradeOverride.status': decision === 'approve_override' ? 'approved' : 'rejected',
+          'gradeOverride.decidedBy': uid,
+          'gradeOverride.decidedAt': admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_APPROVED') {
+        return res.status(400).json({ message: 'This grade has already been finalized.' });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,
@@ -485,11 +504,33 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
       }
     }
 
-    await milestoneRef.update({
-      gradeApproved: true,
-      gradeApprovedBy: uid,
-      gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // Transaction, not the plain get()-then-update() this used to be: two
+    // near-simultaneous approve calls (a double-click, or two staff who both
+    // hold approve_grades) could otherwise both pass the gradeApproved check
+    // above before either writes, and both go on to call
+    // transferGradeToMichlol below — a duplicate transfer to the external
+    // grading system plus duplicate student notifications, with the
+    // Firestore doc itself ending up looking perfectly fine. This re-checks
+    // and claims gradeApproved atomically; only the first caller proceeds to
+    // the external transfer.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (freshSnap.data()?.gradeApproved) {
+          throw new Error('ALREADY_APPROVED');
+        }
+        transaction.update(milestoneRef, {
+          gradeApproved: true,
+          gradeApprovedBy: uid,
+          gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_APPROVED') {
+        return res.status(400).json({ message: 'This grade has already been approved.' });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,
@@ -811,32 +852,58 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
     );
     const studentName = studentSnaps.map((s) => s.data()?.displayName).filter(Boolean).join(', ');
 
-    const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
-      ex.type === 'internal'
-        ? { type: 'internal' as const, uid: ex.internalUserId }
-        : { type: 'external' as const, name: ex.name, email: ex.email, institution: ex.institution }
-    );
+    // Atomically claim this recommendation before sending any invitations —
+    // two near-simultaneous approve calls on the same coordinator_approved
+    // recommendation could otherwise both pass the status check above and
+    // both email the same external examiners. The lock is cleared again if
+    // anything below throws, so a failed attempt can still be retried.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(recRef);
+        const freshData = freshSnap.data();
+        if (freshData?.status !== 'coordinator_approved' || freshData?.approvalInProgress) throw new Error('ALREADY_DECIDED');
+        transaction.update(recRef, { approvalInProgress: true });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_DECIDED') {
+        return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${(await recRef.get()).data()?.status}).` });
+      }
+      throw err;
+    }
 
-    const result = await assignExaminersAndNotify(examinerInputs, {
-      projectId,
-      thesisTitle: rec.projectTitleHe || rec.projectTitleEn || project.titleHe || '',
-      studentName,
-      lang: 'he',
-    });
+    let result: Awaited<ReturnType<typeof assignExaminersAndNotify>>;
+    try {
+      const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
+        ex.type === 'internal'
+          ? { type: 'internal' as const, uid: ex.internalUserId }
+          : { type: 'external' as const, name: ex.name, email: ex.email, institution: ex.institution }
+      );
 
-    await db.collection('projects').doc(projectId).update({
-      examinerIds: result.internalUids,
-      examinerNames: result.examinerNames,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      result = await assignExaminersAndNotify(examinerInputs, {
+        projectId,
+        thesisTitle: rec.projectTitleHe || rec.projectTitleEn || project.titleHe || '',
+        studentName,
+        lang: 'he',
+      });
 
-    await openDefenseSchedulingIfPanelReady(projectId, result);
+      await db.collection('projects').doc(projectId).update({
+        examinerIds: result.internalUids,
+        examinerNames: result.examinerNames,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
-    await recRef.update({
-      status: 'approved',
-      decidedAt: admin.firestore.FieldValue.serverTimestamp(),
-      decidedBy: uid,
-    });
+      await openDefenseSchedulingIfPanelReady(projectId, result);
+
+      await recRef.update({
+        status: 'approved',
+        decidedAt: admin.firestore.FieldValue.serverTimestamp(),
+        decidedBy: uid,
+        approvalInProgress: admin.firestore.FieldValue.delete(),
+      });
+    } catch (err) {
+      await recRef.update({ approvalInProgress: admin.firestore.FieldValue.delete() }).catch(() => {});
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,

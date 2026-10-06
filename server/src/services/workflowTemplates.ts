@@ -915,23 +915,29 @@ export async function updatePendingWorkflowTemplate(id: string, params: {
   supervisorSelectionRequiresApproval?: boolean;
 }): Promise<void> {
   const ref = db.collection(COLLECTION).doc(id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Template not found.');
-  if (snap.data()!.status !== 'pending_approval') {
-    throw new Error('Only a pending proposal can be edited in place — this one has already been decided.');
-  }
+  // Transaction, not a plain get-then-update: otherwise a concurrent
+  // approve/reject landing in the TOCTOU window between the status check and
+  // the write below could have this in-place edit silently apply to a
+  // proposal that's no longer pending (already decided out from under it).
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) throw new Error('Template not found.');
+    if (snap.data()!.status !== 'pending_approval') {
+      throw new Error('Only a pending proposal can be edited in place — this one has already been decided.');
+    }
 
-  await ref.update({
-    milestones: params.milestones,
-    proposedNote: params.note ?? null,
-    applyMode: params.applyMode,
-    defaultRouting: params.defaultRouting ?? null,
-    examinerSignoffRole: params.examinerSignoffRole ?? null,
-    finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
-    firstStepMode: params.firstStepMode ?? null,
-    supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
-      ? (params.supervisorSelectionRequiresApproval ?? true)
-      : null,
+    transaction.update(ref, {
+      milestones: params.milestones,
+      proposedNote: params.note ?? null,
+      applyMode: params.applyMode,
+      defaultRouting: params.defaultRouting ?? null,
+      examinerSignoffRole: params.examinerSignoffRole ?? null,
+      finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
+      firstStepMode: params.firstStepMode ?? null,
+      supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
+        ? (params.supervisorSelectionRequiresApproval ?? true)
+        : null,
+    });
   });
 }
 
@@ -946,49 +952,72 @@ export async function updatePendingWorkflowTemplate(id: string, params: {
  */
 export async function approveWorkflowTemplate(id: string, approvedBy: string): Promise<WorkflowTemplateDoc> {
   const ref = db.collection(COLLECTION).doc(id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Template not found.');
-  const data = snap.data()!;
-  if (data.status !== 'pending_approval') {
-    throw new Error(`Template is already "${data.status}".`);
-  }
-
-  const prevApprovedSnap = await db.collection(COLLECTION)
-    .where('facultyId', '==', data.facultyId)
-    .where('processType', '==', data.processType)
-    .where('major', '==', data.major ?? null)
-    .where('status', '==', 'approved')
-    .get();
-
-  const batch = db.batch();
-  prevApprovedSnap.docs.forEach((d) => batch.update(d.ref, { status: 'superseded' }));
   const approvedAt = new Date().toISOString();
-  batch.update(ref, { status: 'approved', approvedBy, approvedAt });
-  await batch.commit();
+  let data!: FirebaseFirestore.DocumentData;
+
+  // Wrapped in a transaction: two admins approving two different pending
+  // proposals for the same facultyId+processType+major within milliseconds
+  // of each other could otherwise both read the same "currently approved"
+  // doc before either commits, and both finish approved — silently
+  // violating the "only one active template per subject" invariant this
+  // function promises (see the doc comment above). The re-check + all
+  // writes below happen atomically, so only the first to commit wins; the
+  // loser gets a thrown error instead of a second, orphaned "approved" row.
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) throw new Error('Template not found.');
+    data = snap.data()!;
+    if (data.status !== 'pending_approval') {
+      throw new Error(`Template is already "${data.status}".`);
+    }
+
+    const prevApprovedSnap = await transaction.get(
+      db.collection(COLLECTION)
+        .where('facultyId', '==', data.facultyId)
+        .where('processType', '==', data.processType)
+        .where('major', '==', data.major ?? null)
+        .where('status', '==', 'approved')
+    );
+
+    prevApprovedSnap.docs.forEach((d) => transaction.update(d.ref, { status: 'superseded' }));
+    transaction.update(ref, { status: 'approved', approvedBy, approvedAt });
+  });
 
   return { id, ...data, status: 'approved', approvedBy, approvedAt } as WorkflowTemplateDoc;
 }
 
 export async function deleteWorkflowTemplate(id: string): Promise<void> {
   const ref = db.collection(COLLECTION).doc(id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Template not found.');
-  if (snap.data()!.status === 'approved') {
-    throw new Error('Cannot delete the currently-active template — approve a replacement first.');
-  }
-  await ref.delete();
+  // Transaction so a concurrent approve landing between the status check and
+  // the delete below can't have this delete a template that just became the
+  // active one.
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) throw new Error('Template not found.');
+    if (snap.data()!.status === 'approved') {
+      throw new Error('Cannot delete the currently-active template — approve a replacement first.');
+    }
+    transaction.delete(ref);
+  });
 }
 
 export async function rejectWorkflowTemplate(id: string, rejectedBy: string, reason: string): Promise<WorkflowTemplateDoc> {
   const ref = db.collection(COLLECTION).doc(id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Template not found.');
-  const data = snap.data()!;
-  if (data.status !== 'pending_approval') {
-    throw new Error(`Template is already "${data.status}".`);
-  }
-
   const rejectedAt = new Date().toISOString();
-  await ref.update({ status: 'rejected', rejectedBy, rejectedAt, rejectionReason: reason });
+  let data!: FirebaseFirestore.DocumentData;
+
+  // Transaction so a concurrent approve landing between the status check and
+  // the write below can't be clobbered back to 'rejected' after it already
+  // became the active template.
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) throw new Error('Template not found.');
+    data = snap.data()!;
+    if (data.status !== 'pending_approval') {
+      throw new Error(`Template is already "${data.status}".`);
+    }
+    transaction.update(ref, { status: 'rejected', rejectedBy, rejectedAt, rejectionReason: reason });
+  });
+
   return { id, ...data, status: 'rejected', rejectedBy, rejectedAt, rejectionReason: reason } as WorkflowTemplateDoc;
 }

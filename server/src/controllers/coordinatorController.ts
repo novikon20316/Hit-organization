@@ -381,12 +381,26 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     const processType = deriveProcessType(project.degreeType, project.projectType);
     const signoffRole = await resolveExaminerSignoffRole(project.facultyId, processType, project.major ?? null);
     if (signoffRole) {
-      await recRef.update({
-        status: 'coordinator_approved',
-        coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
-        coordinatorApprovedBy: coordinatorId,
-        signoffRole,
-      });
+      // Transaction, not a plain update(): two near-simultaneous approve
+      // calls on the same pending recommendation could otherwise both pass
+      // the `rec.status !== 'pending'` check above before either writes.
+      try {
+        await db.runTransaction(async (transaction) => {
+          const freshSnap = await transaction.get(recRef);
+          if (freshSnap.data()?.status !== 'pending') throw new Error('ALREADY_DECIDED');
+          transaction.update(recRef, {
+            status: 'coordinator_approved',
+            coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+            coordinatorApprovedBy: coordinatorId,
+            signoffRole,
+          });
+        });
+      } catch (err: any) {
+        if (err?.message === 'ALREADY_DECIDED') {
+          return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+        }
+        throw err;
+      }
       await logAuditEvent({
         userId: coordinatorId,
         userRole: req.user!.role,
@@ -403,40 +417,65 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
       });
     }
 
-    const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
-      ex.type === 'internal'
-        ? { type: 'internal' as const, uid: ex.internalUserId }
-        : { type: 'external' as const, name: ex.name, email: ex.email, institution: ex.institution }
-    );
+    // Atomically claim this recommendation before sending any invitations —
+    // two near-simultaneous approve calls on the same pending recommendation
+    // could otherwise both pass the `rec.status !== 'pending'` check above
+    // and both email the same external examiners. The lock is cleared again
+    // if anything below throws, so a failed attempt can still be retried.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(recRef);
+        const freshData = freshSnap.data();
+        if (freshData?.status !== 'pending' || freshData?.approvalInProgress) throw new Error('ALREADY_DECIDED');
+        transaction.update(recRef, { approvalInProgress: true });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_DECIDED') {
+        return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+      }
+      throw err;
+    }
 
-    const result = await assignExaminersAndNotify(examinerInputs, {
-      projectId,
-      thesisTitle: rec.projectTitleHe || rec.projectTitleEn || project.titleHe || '',
-      studentName,
-      lang: 'he',
-    });
+    try {
+      const examinerInputs: ExaminerAssignmentInput[] = (rec.recommendedExaminers ?? []).map((ex: any) =>
+        ex.type === 'internal'
+          ? { type: 'internal' as const, uid: ex.internalUserId }
+          : { type: 'external' as const, name: ex.name, email: ex.email, institution: ex.institution }
+      );
 
-    await db.collection('projects').doc(projectId).update({
-      examinerIds: result.internalUids,
-      examinerNames: result.examinerNames,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      const result = await assignExaminersAndNotify(examinerInputs, {
+        projectId,
+        thesisTitle: rec.projectTitleHe || rec.projectTitleEn || project.titleHe || '',
+        studentName,
+        lang: 'he',
+      });
 
-    await openDefenseSchedulingIfPanelReady(projectId, result);
+      await db.collection('projects').doc(projectId).update({
+        examinerIds: result.internalUids,
+        examinerNames: result.examinerNames,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
-    await recRef.update({
-      status:     'approved',
-      decidedAt:  admin.firestore.FieldValue.serverTimestamp(),
-      decidedBy:  coordinatorId,
-    });
+      await openDefenseSchedulingIfPanelReady(projectId, result);
 
-    return res.status(200).json({
-      success: true,
-      message: 'Recommendation approved.',
-      internalAssigned: result.internalUids,
-      externalNotified: result.externalNotified,
-      externalFailed:   result.externalFailed,
-    });
+      await recRef.update({
+        status:     'approved',
+        decidedAt:  admin.firestore.FieldValue.serverTimestamp(),
+        decidedBy:  coordinatorId,
+        approvalInProgress: admin.firestore.FieldValue.delete(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Recommendation approved.',
+        internalAssigned: result.internalUids,
+        externalNotified: result.externalNotified,
+        externalFailed:   result.externalFailed,
+      });
+    } catch (err) {
+      await recRef.update({ approvalInProgress: admin.firestore.FieldValue.delete() }).catch(() => {});
+      throw err;
+    }
   } catch (error: any) {
     console.error('approveExaminerRecommendation error:', error);
     return res.status(500).json({ message: error.message || 'Failed to approve recommendation.' });
