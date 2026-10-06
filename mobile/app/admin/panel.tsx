@@ -266,6 +266,7 @@ export default function PanelScreen() {
   const [maintenanceStatus, setMaintenanceStatus] = useState<{ isActive: boolean; title: string; endsAt: string | null } | null>(null);
   const [deactivatingMaintenance, setDeactivatingMaintenance] = useState(false);
   // ── New project modal state ───────────────────────────────────────────────
+  const fetchSupervisorsSeqRef = useRef(0);
   const [newProjectFacultyIds, setNewProjectFacultyIds] = useState<string[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newTitleHe,  setNewTitleHe]  = useState('');
@@ -386,6 +387,11 @@ export default function PanelScreen() {
   // Fetches per selected faculty and merges (dedup by id) — a project can
   // now be posted open to more than one faculty at once.
   useEffect(() => {
+    // Toggling faculty checkboxes in quick succession reruns this effect
+    // once per toggle with no request cancellation — without this guard, a
+    // slower request for an earlier (now-stale) selection can resolve after
+    // a faster one for the current selection and silently overwrite it.
+    const seq = ++fetchSupervisorsSeqRef.current;
     const fetchSupervisors = async () => {
       if (newProjectFacultyIds.length === 0) {
         setAllSupervisors([]);
@@ -399,12 +405,14 @@ export default function PanelScreen() {
         // cross-faculty grant (supervisorFacultyIds/secondarySupervisorFacultyIds)
         // match correctly.
         const res = await apiClient.get('/api/admin/supervisors', { params: { facultyIds: newProjectFacultyIds } });
+        if (seq !== fetchSupervisorsSeqRef.current) return;
         // Single-select picker (one primary supervisor per project) — only
         // offer candidates actually eligible as a PRIMARY supervisor for the
         // selected faculty/ies (see getSupervisorsList's eligibleAsSupervisor).
         const eligible: AppUser[] = (res.data || []).filter((s: any) => s.eligibleAsSupervisor);
         setAllSupervisors(eligible);
       } catch (err) {
+        if (seq !== fetchSupervisorsSeqRef.current) return;
         console.error("Error loading panel supervisors:", err);
       }
     };
