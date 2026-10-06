@@ -64,11 +64,28 @@ export const submitCommitteeChairDecision = async (req: AuthenticatedRequest, re
       return res.status(403).json({ message: "Only this committee's chairman may record this decision." });
     }
 
+    // Transaction, not a plain get()-then-update(): a double-click or client
+    // retry sending two requests in quick succession could otherwise both
+    // pass the `committeeChairDecision` presence check above before either
+    // writes, and the second would silently overwrite the first's decision
+    // with no error ever surfaced — defeating the one-shot/409 contract this
+    // endpoint promises.
     const decidedAt = admin.firestore.FieldValue.serverTimestamp();
-    await milestoneRef.update({
-      committeeChairDecision: { decision, reason: reason.trim(), decidedBy: uid, decidedAt },
-      updatedAt: decidedAt,
-    });
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (freshSnap.data()?.committeeChairDecision) throw new Error('ALREADY_DECIDED');
+        transaction.update(milestoneRef, {
+          committeeChairDecision: { decision, reason: reason.trim(), decidedBy: uid, decidedAt },
+          updatedAt: decidedAt,
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_DECIDED') {
+        return res.status(409).json({ message: 'A decision has already been recorded for this submission.' });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,
@@ -138,11 +155,28 @@ export const submitExaminerOneSignoff = async (req: AuthenticatedRequest, res: R
       return res.status(403).json({ message: 'Only this project\'s examiner #1 may record this sign-off.' });
     }
 
+    // Transaction, not a plain get()-then-update(): a double-click or client
+    // retry sending two requests in quick succession could otherwise both
+    // pass the `examinerOneSignoff` presence check above before either
+    // writes, and the second would silently overwrite the first with no
+    // error ever surfaced — defeating the one-shot/409 contract this
+    // endpoint promises.
     const approvedAt = admin.firestore.FieldValue.serverTimestamp();
-    await milestoneRef.update({
-      examinerOneSignoff: { approvedBy: uid, approvedAt },
-      updatedAt: approvedAt,
-    });
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        if (freshSnap.data()?.examinerOneSignoff) throw new Error('ALREADY_SIGNED');
+        transaction.update(milestoneRef, {
+          examinerOneSignoff: { approvedBy: uid, approvedAt },
+          updatedAt: approvedAt,
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_SIGNED') {
+        return res.status(409).json({ message: 'This has already been signed off for this submission.' });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: uid,

@@ -610,12 +610,30 @@ export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Respons
 
         const { projectId, supervisorId, projectTitleHe, projectTitleEn, studentName, studentEmail } = appData;
 
-        await applicationRef.update({
-            status: 'meeting_confirmed',
-            meetingDate: selectedSlot,
-            meetingConfirmedAt: new Date().toISOString(),
-            meetingReminderSent: false,
-        });
+        // Transaction, not a plain get()-then-update(): a double-click (or
+        // the student picking two different proposed slots from two tabs)
+        // could otherwise both pass the `status !== 'meeting_proposed'`
+        // check above before either writes, and both go on to create a
+        // Calendar event / send notifications below — last write wins on
+        // which slot actually sticks, with a duplicate event/notification
+        // either way.
+        try {
+            await db.runTransaction(async (transaction) => {
+                const freshSnap = await transaction.get(applicationRef);
+                if (freshSnap.data()?.status !== 'meeting_proposed') throw new Error('ALREADY_DECIDED');
+                transaction.update(applicationRef, {
+                    status: 'meeting_confirmed',
+                    meetingDate: selectedSlot,
+                    meetingConfirmedAt: new Date().toISOString(),
+                    meetingReminderSent: false,
+                });
+            });
+        } catch (err: any) {
+            if (err?.message === 'ALREADY_DECIDED') {
+                return res.status(409).json({ success: false, message: 'This application has no pending meeting proposal.' });
+            }
+            throw err;
+        }
 
         // Calendar sync is additive, not load-bearing — the meeting is
         // already confirmed above regardless of whether this succeeds (no

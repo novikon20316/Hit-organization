@@ -1293,18 +1293,41 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       fileUrls.push(result.secure_url);
     }
 
-    await milestoneRef.update({
-      gradeOverride: {
-        kind,
-        proposedGrade,
-        ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
-        ...(fileUrls.length > 0 ? { fileUrls } : {}),
-        proposedBy: supervisorId,
-        proposedAt: admin.firestore.FieldValue.serverTimestamp(),
-        status: 'pending',
-      },
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // Transaction, not a plain get()-then-update(): a double-click or client
+    // retry sending two requests in quick succession could otherwise both
+    // pass the gradeApproved/gradeOverride checks above (read before the
+    // Cloudinary upload even started) and both create a 'pending' override —
+    // duplicating the coordinator's review queue entry and notification. A
+    // wasted upload for the loser is harmless; only this Firestore write
+    // needs to be atomic.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(milestoneRef);
+        const freshData = freshSnap.data() ?? {};
+        if (freshData.gradeApproved) throw new Error('ALREADY_APPROVED');
+        if (freshData.gradeOverride?.status === 'pending') throw new Error('ALREADY_PENDING');
+        transaction.update(milestoneRef, {
+          gradeOverride: {
+            kind,
+            proposedGrade,
+            ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
+            ...(fileUrls.length > 0 ? { fileUrls } : {}),
+            proposedBy: supervisorId,
+            proposedAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: 'pending',
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_APPROVED') {
+        return res.status(409).json({ message: 'This grade has already been finalized.' });
+      }
+      if (err?.message === 'ALREADY_PENDING') {
+        return res.status(409).json({ message: 'A grade override is already pending coordinator review.' });
+      }
+      throw err;
+    }
 
     await logAuditEvent({
       userId: supervisorId,

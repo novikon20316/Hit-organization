@@ -242,35 +242,51 @@ export const updateCommittee = async (req: AuthenticatedRequest, res: Response) 
 
   try {
     const ref = db.collection('committees').doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Committee not found.' });
-    const data = snap.data() as CommitteeDoc;
-
-    const admin_ = isSystemAdmin(req);
-    const isChairman = data.chairmanId === uid;
-    if (!admin_ && !isChairman) {
-      return res.status(403).json({ message: 'Only this committee\'s chairman or a system_admin may edit it.' });
-    }
-
     const { memberIds, chairmanId } = req.body ?? {};
-    const update: Record<string, unknown> = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    const admin_ = isSystemAdmin(req);
 
-    if (Array.isArray(memberIds)) {
-      update.memberIds = memberIds.filter((m) => typeof m === 'string');
-    }
-    if (chairmanId !== undefined) {
-      const nextMembers: string[] = (update.memberIds as string[] | undefined) ?? data.memberIds ?? [];
-      if (chairmanId && !nextMembers.includes(chairmanId) && !admin_) {
-        return res.status(400).json({ message: 'The chairman must already be a committee member.' });
-      }
-      if (chairmanId && !nextMembers.includes(chairmanId) && admin_) {
-        nextMembers.push(chairmanId);
-        update.memberIds = nextMembers;
-      }
-      update.chairmanId = chairmanId || null;
+    // Transaction, not a plain get()-then-update(): memberIds/chairmanId are
+    // each written as a whole-field replace, derived from a stale read of
+    // `data` — two near-simultaneous edits touching the same field (e.g. the
+    // chairman adding a member while system_admin reassigns the chair) could
+    // otherwise lost-update each other. Re-reads fresh inside the
+    // transaction so authorization and the nextMembers computation always
+    // see whatever the other request actually committed.
+    try {
+      await db.runTransaction(async (transaction) => {
+        const snap = await transaction.get(ref);
+        if (!snap.exists) throw new Error('NOT_FOUND');
+        const data = snap.data() as CommitteeDoc;
+
+        const isChairman = data.chairmanId === uid;
+        if (!admin_ && !isChairman) throw new Error('FORBIDDEN');
+
+        const update: Record<string, unknown> = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+
+        if (Array.isArray(memberIds)) {
+          update.memberIds = memberIds.filter((m) => typeof m === 'string');
+        }
+        if (chairmanId !== undefined) {
+          const nextMembers: string[] = (update.memberIds as string[] | undefined) ?? data.memberIds ?? [];
+          if (chairmanId && !nextMembers.includes(chairmanId) && !admin_) {
+            throw new Error('CHAIRMAN_NOT_MEMBER');
+          }
+          if (chairmanId && !nextMembers.includes(chairmanId) && admin_) {
+            nextMembers.push(chairmanId);
+            update.memberIds = nextMembers;
+          }
+          update.chairmanId = chairmanId || null;
+        }
+
+        transaction.update(ref, update);
+      });
+    } catch (err: any) {
+      if (err?.message === 'NOT_FOUND') return res.status(404).json({ message: 'Committee not found.' });
+      if (err?.message === 'FORBIDDEN') return res.status(403).json({ message: 'Only this committee\'s chairman or a system_admin may edit it.' });
+      if (err?.message === 'CHAIRMAN_NOT_MEMBER') return res.status(400).json({ message: 'The chairman must already be a committee member.' });
+      throw err;
     }
 
-    await ref.update(update);
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updateCommittee error:', error);
