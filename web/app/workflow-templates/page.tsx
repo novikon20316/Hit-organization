@@ -165,19 +165,30 @@ function WorkflowTemplatesContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- majorOptions is a fresh array each render; its content only ever depends on facultyId/activeProcessType/lang, listed here instead
   }, [role, facultyId, activeProcessType, lang]);
 
+  // facultyId/major can each change across two separate renders in quick
+  // succession (e.g. picking a faculty here also auto-selects its one major
+  // in a separate effect a render later) — both fire their own fetch with no
+  // cancellation, and without this guard a slower, now-stale request (e.g.
+  // the pre-auto-pick one with major=null) can resolve after the correct one
+  // and silently overwrite it, showing "no approved template" until the user
+  // happens to retry with different network timing (e.g. a refresh).
+  const fetchSeqRef = useRef(0);
   const fetchTemplates = useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
     if (!facultyId) {
       setLoading(false);
       return;
     }
     try {
       const data = await apiClient.getWorkflowTemplates(facultyId, major);
+      if (seq !== fetchSeqRef.current) return;
       setTemplates((data.templates ?? []) as unknown as WorkflowTemplateDoc[]);
       setLoadError('');
     } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת התבניות נכשלה' : 'Failed to load templates');
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   }, [facultyId, major, lang]);
 
