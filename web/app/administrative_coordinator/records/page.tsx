@@ -18,6 +18,18 @@ const ADMINISTRATIVE_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary']
 
 interface SupervisorSummary {
   id: string; displayName: string; email: string; facultyId: string;
+  lastLoginAt: string | null;
+  lastLoginPlatform: 'web' | 'mobile' | null;
+  lastLogoutAt: string | null;
+  lastLogoutPlatform: 'web' | 'mobile' | null;
+  pendingReviewCount: number;
+  oldestPendingSubmittedAt: string | null;
+}
+
+function formatLastAt(iso: string | null, platform: 'web' | 'mobile' | null, lang: 'he' | 'en'): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
 }
 
 export default function AdministrativeCoordinatorRecordsPage() {
@@ -64,6 +76,21 @@ export default function AdministrativeCoordinatorRecordsPage() {
             >
               <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{s.displayName}</p>
               <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">{s.email}</p>
+              <p className="mt-1 text-[11px] text-administrative-coordinator-on-surface-variant">
+                {lang === 'he' ? 'כניסה אחרונה: ' : 'Last login: '}{formatLastAt(s.lastLoginAt, s.lastLoginPlatform, lang)}
+                {' · '}
+                {lang === 'he' ? 'יציאה אחרונה: ' : 'Last logout: '}{formatLastAt(s.lastLogoutAt, s.lastLogoutPlatform, lang)}
+              </p>
+              {s.pendingReviewCount > 0 && (
+                <p className="mt-1 text-[11px] font-medium text-accent">
+                  {lang === 'he'
+                    ? `📥 ${s.pendingReviewCount} הגשות ממתינות לבדיקה`
+                    : `📥 ${s.pendingReviewCount} submission${s.pendingReviewCount === 1 ? '' : 's'} awaiting review`}
+                  {s.oldestPendingSubmittedAt && (lang === 'he'
+                    ? ` · הישנה ביותר מאז ${new Date(s.oldestPendingSubmittedAt).toLocaleDateString('he-IL')}`
+                    : ` · oldest since ${new Date(s.oldestPendingSubmittedAt).toLocaleDateString('en-US')}`)}
+                </p>
+              )}
             </Link>
           ))}
         </div>

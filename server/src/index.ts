@@ -52,7 +52,7 @@ import { getFacultyContent, dismissFacultyContent } from './controllers/facultyC
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
-import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders } from './services/notificationScheduler.js';
+import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders, sendSupervisorPendingReviewReminders } from './services/notificationScheduler.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
@@ -279,6 +279,9 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 setInterval(() => {
   sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
+}, ONE_HOUR_MS);
+setInterval(() => {
+  sendSupervisorPendingReviewReminders().catch((err) => console.error('sendSupervisorPendingReviewReminders sweep failed:', err));
 }, ONE_HOUR_MS);
 // Meeting reminders fire 1 hour before a confirmed supervisor↔student
 // meeting — a much narrower window than the deadline reminders above, so

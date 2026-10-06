@@ -495,6 +495,12 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
         milestoneNameEn,
         days,
         medianGrade,
+        // Written by server/src/controllers/userController.ts's
+        // logLogin/logout handlers — ISO strings, null if never recorded.
+        lastLoginAt: s.lastLoginAt ?? null,
+        lastLoginPlatform: s.lastLoginPlatform ?? null,
+        lastLogoutAt: s.lastLogoutAt ?? null,
+        lastLogoutPlatform: s.lastLogoutPlatform ?? null,
       };
     });
 

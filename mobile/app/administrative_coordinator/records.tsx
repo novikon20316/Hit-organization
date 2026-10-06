@@ -13,7 +13,21 @@ import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { ap } from '@/constants/theme';
 
-interface SupervisorRow { id: string; displayName: string; email: string; facultyId: string; }
+interface SupervisorRow {
+  id: string; displayName: string; email: string; facultyId: string;
+  lastLoginAt: string | null;
+  lastLoginPlatform: 'web' | 'mobile' | null;
+  lastLogoutAt: string | null;
+  lastLogoutPlatform: 'web' | 'mobile' | null;
+  pendingReviewCount: number;
+  oldestPendingSubmittedAt: string | null;
+}
+
+function formatLastAt(iso: string | null, platform: 'web' | 'mobile' | null, lang: Lang): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
+}
 
 export default function AdministrativeCoordinatorRecordsScreen() {
   const router = useRouter();
@@ -89,6 +103,18 @@ export default function AdministrativeCoordinatorRecordsScreen() {
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
               {sup.email}
             </Text>
+            <Text style={{ fontSize: 10, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
+              {lang === 'he' ? 'כניסה: ' : 'Login: '}{formatLastAt(sup.lastLoginAt, sup.lastLoginPlatform, lang)}
+              {'  ·  '}
+              {lang === 'he' ? 'יציאה: ' : 'Logout: '}{formatLastAt(sup.lastLogoutAt, sup.lastLogoutPlatform, lang)}
+            </Text>
+            {sup.pendingReviewCount > 0 && (
+              <Text style={{ fontSize: 11, fontWeight: '700', color: ap.primary, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
+                {lang === 'he'
+                  ? `📥 ${sup.pendingReviewCount} הגשות ממתינות לבדיקה`
+                  : `📥 ${sup.pendingReviewCount} submission${sup.pendingReviewCount === 1 ? '' : 's'} awaiting review`}
+              </Text>
+            )}
           </Pressable>
         ))}
       </ScrollView>

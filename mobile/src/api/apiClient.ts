@@ -337,7 +337,17 @@ class ApiClient {
 
   async getScopedSupervisorsForRecords() {
     const response = await this.api.get('/api/project-records/supervisors');
-    return response.data as { supervisors: Array<{ id: string; displayName: string; email: string; facultyId: string }> };
+    return response.data as {
+      supervisors: Array<{
+        id: string; displayName: string; email: string; facultyId: string;
+        lastLoginAt: string | null;
+        lastLoginPlatform: 'web' | 'mobile' | null;
+        lastLogoutAt: string | null;
+        lastLogoutPlatform: 'web' | 'mobile' | null;
+        pendingReviewCount: number;
+        oldestPendingSubmittedAt: string | null;
+      }>
+    };
   }
 
   async getSupervisorProjectRecords(supervisorId: string) {

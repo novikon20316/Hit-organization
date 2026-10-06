@@ -79,6 +79,12 @@ const ROSTER_IMPORT_FORMAT_HELP = {
     '   sciences, electrical, industrial, learning_tech, medical_tech, design, data_science',
 };
 
+function formatLastAt(iso: string | null | undefined, platform: 'web' | 'mobile' | null | undefined, lang: Lang): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
+}
+
 export default function PanelScreen() {
   const router = useRouter();
   const [projectFile, setProjectFile] = useState<string | null>(null);
@@ -1585,6 +1591,11 @@ export default function PanelScreen() {
                       </Text>
 
                       <Text style={styles.userEmail}>{u.email}</Text>
+                      <Text style={{ fontSize: 10, color: ap.onSurfaceVariant }}>
+                        {lang === 'he' ? 'כניסה: ' : 'Login: '}{formatLastAt(u.lastLoginAt, u.lastLoginPlatform, lang)}
+                        {'  ·  '}
+                        {lang === 'he' ? 'יציאה: ' : 'Logout: '}{formatLastAt(u.lastLogoutAt, u.lastLogoutPlatform, lang)}
+                      </Text>
                     </View>
 
                     <Switch

@@ -121,6 +121,76 @@ export async function sendMilestoneDeadlineReminders(): Promise<void> {
   }
 }
 
+// How many days a submission can sit unreviewed before the supervisor gets
+// nudged — shorter than the student-facing 7-day deadline warning above,
+// since this is "you have a backlog" rather than "a deadline is coming."
+const SUPERVISOR_PENDING_REVIEW_THRESHOLD_DAYS = 3;
+
+async function notifySupervisorOfPendingReview(
+  supervisorId: string,
+  milestone: FirebaseFirestore.DocumentData,
+  milestoneId: string,
+  daysPending: number,
+): Promise<void> {
+  try {
+    await notifyUser({
+      recipientId: supervisorId,
+      // Reuses milestone_submitted's existing template/icon/routing (see
+      // milestoneController.ts's submitMilestone, which fires the one-time
+      // immediate version of this same notification) rather than
+      // introducing a new NotificationType for what's really the same
+      // underlying fact — a submission is still waiting on this supervisor.
+      type: 'milestone_submitted',
+      titleHe: '📥 הגשה עדיין ממתינה לבדיקה',
+      titleEn: '📥 Submission Still Awaiting Your Review',
+      bodyHe: `"${milestone.nameHe ?? milestone.type}" ממתינה לבדיקתך כבר ${daysPending} ${daysPending === 1 ? 'יום' : 'ימים'}.`,
+      bodyEn: `"${milestone.nameEn ?? milestone.type}" has been awaiting your review for ${daysPending} day${daysPending === 1 ? '' : 's'}.`,
+      relatedProjectId: milestone.projectId ?? null,
+      relatedMilestoneId: milestoneId,
+      emailData: {
+        milestoneTitle: { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' },
+      },
+      taskKind: 'milestone_action',
+      taskRoleCandidates: ['supervisor', 'secondary_supervisor'],
+    });
+  } catch (err) {
+    console.error(`notifySupervisorOfPendingReview: failed for supervisor ${supervisorId} on milestone ${milestoneId}:`, err);
+  }
+}
+
+/** Run on a schedule (see index.ts). The read-only "monitor the supervisor's
+ *  work" view coordinators get (projectRecordsController.ts's
+ *  getScopedSupervisors) shows this same backlog passively — this is the
+ *  active half, nudging the supervisor directly rather than just surfacing
+ *  it to a coordinator who'd have to notice and chase it themselves. */
+export async function sendSupervisorPendingReviewReminders(): Promise<void> {
+  const snap = await db.collection('milestones').where('status', '==', 'submitted').get();
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const supervisorId: string | undefined = data.supervisorId;
+    const submittedAt: Date | null = data.submittedAt?.toDate?.() ?? null;
+    if (!supervisorId || !submittedAt) continue;
+
+    const daysPending = Math.floor((Date.now() - submittedAt.getTime()) / DAY_MS);
+    if (daysPending < SUPERVISOR_PENDING_REVIEW_THRESHOLD_DAYS) continue;
+
+    // Same "once per new calendar day" dedup idiom as the overdue branch of
+    // sendMilestoneDeadlineReminders above — fires once when it first
+    // crosses the threshold, then once per additional day it's still
+    // unreviewed, not once per hourly sweep.
+    const today = new Date().toISOString().slice(0, 10);
+    if (data.lastSupervisorPendingReminderDate === today) continue;
+
+    try {
+      await notifySupervisorOfPendingReview(supervisorId, data, doc.id, daysPending);
+      await doc.ref.update({ lastSupervisorPendingReminderDate: today });
+    } catch (err) {
+      console.error(`sendSupervisorPendingReviewReminders: failed for milestone ${doc.id}:`, err);
+    }
+  }
+}
+
 async function escalateOverdueExaminerToCoordinators(
   tokenId: string,
   t: FirebaseFirestore.DocumentData,

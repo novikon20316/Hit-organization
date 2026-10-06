@@ -204,15 +204,50 @@ export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Respo
     }
 
     const supervisorDocs = await queryUsersByRole('supervisor');
-    const supervisors = supervisorDocs
+    const scopedSupervisors = supervisorDocs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter((u) => supervisorInScope(u, scope))
-      .map((u: any) => ({
+      .filter((u) => supervisorInScope(u, scope));
+
+    // Read-only "monitor the supervisor's work, without interfering" view —
+    // how many student submissions are currently sitting in each
+    // supervisor's review queue (status === 'submitted', the same status
+    // milestoneController.ts's submitMilestone sets and immediately
+    // notifies the supervisor about) and how long the oldest one has been
+    // waiting. No coordinator-facing action reads/writes these milestones
+    // through this endpoint — it's a count, not a queue they can act on.
+    const supervisorIds = new Set(scopedSupervisors.map((u: any) => u.id));
+    const pendingBySupervisor = new Map<string, { count: number; oldestMs: number | null }>();
+    if (supervisorIds.size > 0) {
+      const pendingSnap = await db.collection('milestones').where('status', '==', 'submitted').get();
+      pendingSnap.docs.forEach((doc) => {
+        const m = doc.data();
+        const sid: string | undefined = m.supervisorId;
+        if (!sid || !supervisorIds.has(sid)) return;
+        const submittedMs: number | null = m.submittedAt?.toMillis?.() ?? null;
+        const entry = pendingBySupervisor.get(sid) ?? { count: 0, oldestMs: null };
+        entry.count += 1;
+        if (submittedMs !== null && (entry.oldestMs === null || submittedMs < entry.oldestMs)) entry.oldestMs = submittedMs;
+        pendingBySupervisor.set(sid, entry);
+      });
+    }
+
+    const supervisors = scopedSupervisors.map((u: any) => {
+      const pending = pendingBySupervisor.get(u.id);
+      return {
         id: u.id,
         displayName: u.displayName ?? u.fullName ?? 'Unknown',
         email: u.email ?? '',
         facultyId: u.facultyId ?? '',
-      }));
+        // Written by server/src/controllers/userController.ts's
+        // logLogin/logout handlers — ISO strings, null if never recorded.
+        lastLoginAt: u.lastLoginAt ?? null,
+        lastLoginPlatform: u.lastLoginPlatform ?? null,
+        lastLogoutAt: u.lastLogoutAt ?? null,
+        lastLogoutPlatform: u.lastLogoutPlatform ?? null,
+        pendingReviewCount: pending?.count ?? 0,
+        oldestPendingSubmittedAt: pending?.oldestMs != null ? new Date(pending.oldestMs).toISOString() : null,
+      };
+    });
 
     return res.status(200).json({ supervisors });
   } catch (error) {

@@ -16,6 +16,12 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { setActiveImpersonation, clearActiveImpersonation } from '@/lib/impersonation';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
+function formatLastAt(iso: string | null | undefined, platform: 'web' | 'mobile' | null | undefined, lang: 'he' | 'en'): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
+}
+
 interface UserRowProps {
   user: AdminUserRecord;
   statusConfig: StudentStatusConfig;
@@ -216,6 +222,13 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
           <p className="truncate text-sm font-semibold text-admin-on-surface">{user.displayName}</p>
           <p className="truncate text-xs text-admin-on-surface-variant" dir="ltr">
             {user.email}
+          </p>
+          <p className="truncate text-[11px] text-admin-on-surface-variant">
+            {lang === 'he' ? 'כניסה אחרונה: ' : 'Last login: '}
+            {formatLastAt(user.lastLoginAt, user.lastLoginPlatform, lang)}
+            {' · '}
+            {lang === 'he' ? 'יציאה אחרונה: ' : 'Last logout: '}
+            {formatLastAt(user.lastLogoutAt, user.lastLogoutPlatform, lang)}
           </p>
         </div>
         <label className="inline-flex shrink-0 cursor-pointer items-center gap-2">

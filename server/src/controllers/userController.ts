@@ -14,6 +14,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
+import { resolvePlatform } from '../services/maintenanceStatus.js';
 import multer from 'multer';
 
 const ALLOWED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -456,6 +457,16 @@ export const logLogin = async (req: AuthenticatedRequest, res: Response) => {
       userDisplayName: req.user?.displayName,
     });
 
+    // Feeds system_admin's Users panel + the scoped student/supervisor
+    // "last login" views (studentsListController.ts, projectRecordsController.ts's
+    // getScopedSupervisors) — the audit-log event above already recorded the
+    // event itself, but nothing before this read it back into a queryable
+    // field on the user doc, same gap lastLogoutAt below fills for logout.
+    await db.collection('users').doc(uid).update({
+      lastLoginAt: new Date().toISOString(),
+      lastLoginPlatform: resolvePlatform(req.headers['x-client-platform']),
+    });
+
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('logLogin error:', error);
@@ -492,6 +503,7 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
     await userRef.update({
       expoPushToken: null,
       lastLogoutAt:  now,
+      lastLogoutPlatform: resolvePlatform(req.headers['x-client-platform']),
     });
 
     // ─── 2. Role-specific cleanup ─────────────────────────────────────────

@@ -504,6 +504,13 @@ export interface UserRecord {
   permissionRules?: import('../constants/permissions').ScopeRule[];
   // A coordinator's own operational scope narrowing beyond their facultyId.
   coordinatorScopes?: import('../constants/permissions').CoordinatorScope[];
+  // Written by server/src/controllers/userController.ts's logLogin/logout
+  // handlers — ISO strings, absent for an account that's never done the
+  // corresponding action since this was added.
+  lastLoginAt?: string | null;
+  lastLoginPlatform?: 'web' | 'mobile' | null;
+  lastLogoutAt?: string | null;
+  lastLogoutPlatform?: 'web' | 'mobile' | null;
 }
 
 /**

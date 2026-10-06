@@ -32,6 +32,16 @@ interface StudentReportRow {
   facultyId: string | null;
   major: string | null;
   degreeType: 'bachelors' | 'masters' | null;
+  lastLoginAt: string | null;
+  lastLoginPlatform: 'web' | 'mobile' | null;
+  lastLogoutAt: string | null;
+  lastLogoutPlatform: 'web' | 'mobile' | null;
+}
+
+function formatLastAt(iso: string | null, platform: 'web' | 'mobile' | null, lang: 'he' | 'en'): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
 }
 
 const STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
@@ -173,6 +183,8 @@ export function StudentsReportTab() {
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'אבן דרך נוכחית' : 'Current Milestone'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ימים' : 'Days'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ציון חציוני' : 'Median Grade'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'כניסה אחרונה' : 'Last Login'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'יציאה אחרונה' : 'Last Logout'}</th>
             </tr>
           </thead>
           <tbody>
@@ -206,12 +218,14 @@ export function StudentsReportTab() {
                     {daysLabel}
                   </td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.medianGrade ?? '-'}</td>
+                  <td className="px-3 py-2 text-xs text-administrative-coordinator-on-surface-variant">{formatLastAt(r.lastLoginAt, r.lastLoginPlatform, lang)}</td>
+                  <td className="px-3 py-2 text-xs text-administrative-coordinator-on-surface-variant">{formatLastAt(r.lastLogoutAt, r.lastLogoutPlatform, lang)}</td>
                 </tr>
               );
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
+                <td colSpan={11} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>

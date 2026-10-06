@@ -56,6 +56,13 @@ export interface AdminUserRecord {
   degreeType?: 'bachelors' | 'masters' | null;
   major?: string | null;
   track?: 'thesis' | 'project' | null;
+  /** Written by server/src/controllers/userController.ts's logLogin/logout
+   *  handlers — ISO strings, absent for an account that's never done the
+   *  corresponding action since this was added. */
+  lastLoginAt?: string | null;
+  lastLoginPlatform?: 'web' | 'mobile' | null;
+  lastLogoutAt?: string | null;
+  lastLogoutPlatform?: 'web' | 'mobile' | null;
 }
 
 /** Mirrors apiClient.getStudentStatusOptions()'s response shape (see

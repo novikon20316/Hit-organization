@@ -88,6 +88,16 @@ interface StudentReportRow {
   milestoneNameHe: string | null;
   milestoneNameEn: string | null;
   days: number | null;
+  lastLoginAt: string | null;
+  lastLoginPlatform: 'web' | 'mobile' | null;
+  lastLogoutAt: string | null;
+  lastLogoutPlatform: 'web' | 'mobile' | null;
+}
+
+function formatLastAt(iso: string | null, platform: 'web' | 'mobile' | null, lang: Lang): string {
+  if (!iso) return lang === 'he' ? 'מעולם לא' : 'never';
+  const dateStr = new Date(iso).toLocaleString(lang === 'he' ? 'he-IL' : 'en-US', { dateStyle: 'short', timeStyle: 'short' });
+  return platform ? `${dateStr} (${platform})` : dateStr;
 }
 
 const STUDENT_REPORT_STATUS_LABEL: Record<StudentStatus, { he: string; en: string }> = {
@@ -2437,6 +2447,11 @@ export default function CoordinatorHome() {
                       <Text style={rs.cardSub}>📍 {milestoneName ?? (lang === 'he' ? 'אין' : 'None')}</Text>
                       <Text style={[rs.cardSub, { fontWeight: '700', color: row.days !== null && row.days < 0 ? '#EF4444' : undefined }]}>
                         ⏳ {daysLabel}
+                      </Text>
+                      <Text style={[rs.cardSub, { fontSize: 10 }]}>
+                        {lang === 'he' ? 'כניסה: ' : 'Login: '}{formatLastAt(row.lastLoginAt, row.lastLoginPlatform, lang)}
+                        {'  ·  '}
+                        {lang === 'he' ? 'יציאה: ' : 'Logout: '}{formatLastAt(row.lastLogoutAt, row.lastLogoutPlatform, lang)}
                       </Text>
                     </Pressable>
                   );

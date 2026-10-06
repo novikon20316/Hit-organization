@@ -2150,6 +2150,12 @@ export const apiClient = {
          *  student's CURRENT project — null when not enrolled or nothing's
          *  been graded yet (shown as '-'), never a final/official grade. */
         medianGrade: number | null;
+        /** Written by server/src/controllers/userController.ts's
+         *  logLogin/logout handlers — ISO strings, null if never recorded. */
+        lastLoginAt: string | null;
+        lastLoginPlatform: 'web' | 'mobile' | null;
+        lastLogoutAt: string | null;
+        lastLogoutPlatform: 'web' | 'mobile' | null;
       }>;
     }>('/api/project-coordinator/students-report', { method: 'GET' });
   },
@@ -2689,7 +2695,21 @@ export const apiClient = {
 
   async getScopedSupervisorsForRecords() {
     return request<{
-      supervisors: Array<{ id: string; displayName: string; email: string; facultyId: string }>;
+      supervisors: Array<{
+        id: string; displayName: string; email: string; facultyId: string;
+        /** Written by server/src/controllers/userController.ts's
+         *  logLogin/logout handlers — ISO strings, null if never recorded. */
+        lastLoginAt: string | null;
+        lastLoginPlatform: 'web' | 'mobile' | null;
+        lastLogoutAt: string | null;
+        lastLogoutPlatform: 'web' | 'mobile' | null;
+        /** Read-only monitoring: how many student submissions are
+         *  currently awaiting this supervisor's review, and how long the
+         *  oldest one has been waiting. See projectRecordsController.ts's
+         *  getScopedSupervisors. */
+        pendingReviewCount: number;
+        oldestPendingSubmittedAt: string | null;
+      }>;
     }>('/api/project-records/supervisors', { method: 'GET' });
   },
 
