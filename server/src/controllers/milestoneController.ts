@@ -520,7 +520,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });
   } catch (error: any) {
     console.error('submitMilestone error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to submit milestone.' });
+    return res.status(500).json({ message: 'Failed to submit milestone.' });
   }
 };
 
@@ -636,7 +636,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('updateMilestoneByCoordinator error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update milestone.' });
+    return res.status(500).json({ message: 'Failed to update milestone.' });
   }
 };
 
@@ -907,7 +907,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ milestones });
   } catch (e: any) {
     console.error("Milestone Controller Query Error: ", e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'Failed to load milestones.' });
   }
 };
 

@@ -14,49 +14,110 @@ import { AuthenticatedRequest, getUserRoles, hasAnyRole } from '../middleware/au
 import { db } from '../config/firebase.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { MAJORS_BY_FACULTY } from '../config/majors.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
 // Every staff role with read access to this feature, including system_admin
-// — callerFacultyScope/supervisorInScope already special-case system_admin's
+// — callerRecordScope/supervisorInScope already special-case system_admin's
 // 'all' scope, so it's safe to fold in here rather than re-deriving an
 // explicit system_admin bypass at every call site (a bug the admin drill-down
 // screen actually hit: getScopedSupervisors/getSupervisorProjectRecords used
 // to gate on the narrower list below, 403ing system_admin on its own feature).
-const STAFF_RECORD_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'];
+//
+// dean and school_head added alongside the per-faculty recordNumber feature
+// — both were previously locked out of this screen entirely. See
+// callerRecordScope for how each role's scope narrows (dean: own faculty,
+// every major/degree; school_head: own major(s) via coordinatorScopes, both
+// degrees; grad_school_head: every granted faculty but masters only).
+const STAFF_RECORD_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'dean', 'school_head', 'system_admin'];
 
 function serializeTimestamp(value: any): string | null {
   return value?.toDate?.().toISOString?.() ?? null;
 }
 
-/** Every real facultyId (never the 'all' sentinel) this caller's role covers
- *  — 'all' means unrestricted (system_admin, or a coordinator-tier account
- *  whose scope explicitly covers every faculty). An empty array means no
- *  access at all (e.g. a coordinator-tier account with no scope configured
- *  yet), matching withinCoordinatorScope's own "deny rather than silently
- *  grant" fallback. */
-function callerFacultyScope(user: AuthUser): string[] | 'all' {
+/** One faculty/major/degree-level restriction this caller's scope is built
+ *  from — 'all' on facultyId means every faculty, major/degreeLevel absent
+ *  means every major/degree within that faculty. A caller's full scope is
+ *  the union of these (any one entry matching is enough), or the literal
+ *  string 'all' meaning no restriction whatsoever. */
+interface RecordScopeEntry {
+  facultyId: string;
+  major?: string;
+  degreeLevel?: 'bachelors' | 'masters';
+}
+type RecordScope = RecordScopeEntry[] | 'all';
+
+/** This caller's full record-viewing scope — the project-level filter
+ *  (projectWithinScope) is what actually gates access; facultyWithinScope
+ *  is only used for the coarser "which faculties/supervisors to list at
+ *  all" step. An empty array means no access at all (e.g. a coordinator-
+ *  tier or school_head account with no scope configured yet), matching
+ *  withinCoordinatorScope's own "deny rather than silently grant" fallback. */
+function callerRecordScope(user: AuthUser): RecordScope {
   const roles = getUserRoles(user);
   if (roles.includes('system_admin')) return 'all';
-  if (roles.includes('faculty_admin')) return effectiveFacultyIds(user, 'facultyAdminFacultyIds');
-  if (roles.includes('program_head')) return effectiveFacultyIds(user, 'programHeadFacultyIds');
-  if (roles.includes('grad_school_head')) return effectiveFacultyIds(user, 'gradSchoolHeadFacultyIds');
-  if (roles.includes('coordinator') || roles.includes('administrative_secretary')) {
+  if (roles.includes('faculty_admin')) {
+    const ids = effectiveFacultyIds(user, 'facultyAdminFacultyIds');
+    return ids === 'all' ? 'all' : ids.map((facultyId) => ({ facultyId }));
+  }
+  if (roles.includes('program_head')) {
+    const ids = effectiveFacultyIds(user, 'programHeadFacultyIds');
+    return ids === 'all' ? 'all' : ids.map((facultyId) => ({ facultyId }));
+  }
+  // Every faculty she's granted, but masters only — regardless of any
+  // coordinatorScopes she might also carry; grad_school_head's entire
+  // reason to exist is the masters/thesis track, never bachelor's.
+  if (roles.includes('grad_school_head')) {
+    const ids = effectiveFacultyIds(user, 'gradSchoolHeadFacultyIds');
+    return (ids === 'all' ? ['all'] : ids).map((facultyId) => ({ facultyId, degreeLevel: 'masters' as const }));
+  }
+  // dean: own faculty only, every major/degree within it — no *FacultyIds
+  // multi-grant field exists for this role today (unlike faculty_admin/
+  // program_head/grad_school_head above).
+  if (roles.includes('dean')) {
+    return user.facultyId && user.facultyId !== 'all' ? [{ facultyId: user.facultyId }] : [];
+  }
+  // school_head, coordinator, administrative_secretary all share the same
+  // coordinatorScopes mechanism — school_head's scope entries are simply
+  // expected to always carry a `major` (that's this role's entire reason
+  // to exist, see scopeAuthorization.ts), but nothing here requires it; an
+  // entry with no major still works, it just means "this whole faculty".
+  if (roles.includes('coordinator') || roles.includes('administrative_secretary') || roles.includes('school_head')) {
     if (user.coordinatorScopes.length > 0) {
-      const ids = new Set<string>();
+      const entries: RecordScopeEntry[] = [];
       for (const scope of user.coordinatorScopes) {
         if (scope.facultyId === 'all') return 'all';
-        ids.add(scope.facultyId);
+        entries.push({
+          facultyId: scope.facultyId,
+          ...(scope.major ? { major: scope.major } : {}),
+          ...(scope.degreeLevel ? { degreeLevel: scope.degreeLevel } : {}),
+        });
       }
-      return [...ids];
+      return entries;
     }
-    return user.facultyId !== 'all' ? [user.facultyId] : [];
+    return user.facultyId !== 'all' ? [{ facultyId: user.facultyId }] : [];
   }
   return [];
 }
 
-function facultyWithinScope(scope: string[] | 'all', facultyId: string): boolean {
-  return scope === 'all' || scope.includes(facultyId);
+function facultyWithinScope(scope: RecordScope, facultyId: string): boolean {
+  return scope === 'all' || scope.some((e) => e.facultyId === 'all' || e.facultyId === facultyId);
+}
+
+/** The real project-level gate — unlike facultyWithinScope above, this also
+ *  honors a scope entry's own major/degreeLevel restriction, so a
+ *  school_head only sees her own major's projects (not her faculty's other
+ *  majors) and a grad_school_head only sees masters projects, even though
+ *  both are listed under a faculty that also has other majors/degrees. */
+function projectWithinScope(scope: RecordScope, project: { facultyId?: string | null; major?: string | null; degreeType?: string | null }): boolean {
+  if (scope === 'all') return true;
+  const facultyId = project.facultyId ?? '';
+  return scope.some((e) =>
+    (e.facultyId === 'all' || e.facultyId === facultyId) &&
+    (!e.major || e.major === project.major) &&
+    (!e.degreeLevel || e.degreeLevel === project.degreeType)
+  );
 }
 
 /**
@@ -67,7 +128,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
   const requester = req.user;
   const { projectId } = req.params;
   if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!projectId || typeof projectId !== 'string') {
+  if (!isValidDocId(projectId)) {
     return res.status(400).json({ message: 'Invalid projectId' });
   }
 
@@ -83,7 +144,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
     const hasStaffScopeAccess =
       hasAnyRole(requester, ['system_admin']) ||
       (hasAnyRole(requester, STAFF_RECORD_ROLES) &&
-        facultyWithinScope(callerFacultyScope(requester), project.facultyId ?? ''));
+        projectWithinScope(callerRecordScope(requester), project));
 
     if (!isOwnProject && !hasStaffScopeAccess) {
       return res.status(403).json({ message: 'Forbidden.' });
@@ -114,6 +175,10 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
         titleEn: project.titleEn ?? '',
         supervisorId: project.supervisorId ?? null,
         status: project.status ?? null,
+        // Permanent per-faculty record number (see services/
+        // projectRecordNumber.ts) — null for a project created before this
+        // feature existed and not yet covered by the backfill script.
+        recordNumber: project.recordNumber ?? null,
       },
       entries,
     });
@@ -132,6 +197,7 @@ function summarizeProject(doc: FirebaseFirestore.QueryDocumentSnapshot) {
     status: p.status ?? null,
     supervisorId: p.supervisorId ?? null,
     enrolledStudentCount: (p.enrolledStudentIds ?? []).length,
+    recordNumber: p.recordNumber ?? null,
   };
 }
 
@@ -174,13 +240,20 @@ async function queryUsersByRole(role: string): Promise<FirebaseFirestore.QueryDo
   return [...byId.values()];
 }
 
-function supervisorInScope(user: Record<string, unknown>, scope: string[] | 'all'): boolean {
+// Approximate, faculty-only check — just decides which supervisors are
+// worth listing at all in the drill-down. The precise major/degreeLevel
+// restriction (school_head/grad_school_head/coordinator-with-a-narrow-
+// scope) is enforced for real where it matters, at the PROJECT level, by
+// projectWithinScope in getSupervisorProjectRecords/getProjectRecord below
+// — a supervisor who teaches both the caller's major and another one still
+// shows up here, but drilling into them only reveals the in-scope projects.
+function supervisorInScope(user: Record<string, unknown>, scope: RecordScope): boolean {
   if (scope === 'all') return true;
   const eff = effectiveFacultyIds(user as any, 'supervisorFacultyIds');
   const ownFacultyId = user.facultyId as string | undefined;
   return (ownFacultyId === 'all') || (eff === 'all') ||
-    (typeof ownFacultyId === 'string' && scope.includes(ownFacultyId)) ||
-    (Array.isArray(eff) && eff.some((id) => scope.includes(id)));
+    (typeof ownFacultyId === 'string' && facultyWithinScope(scope, ownFacultyId)) ||
+    (Array.isArray(eff) && eff.some((id) => facultyWithinScope(scope, id)));
 }
 
 /**
@@ -198,7 +271,7 @@ export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Respo
   }
 
   try {
-    const scope = callerFacultyScope(requester);
+    const scope = callerRecordScope(requester);
     if (scope !== 'all' && scope.length === 0) {
       return res.status(200).json({ supervisors: [] });
     }
@@ -269,12 +342,12 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
   if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
     return res.status(403).json({ message: 'Access denied.' });
   }
-  if (!supervisorId || typeof supervisorId !== 'string') {
+  if (!isValidDocId(supervisorId)) {
     return res.status(400).json({ message: 'Invalid supervisorId' });
   }
 
   try {
-    const scope = callerFacultyScope(requester);
+    const scope = callerRecordScope(requester);
     const supervisorSnap = await db.collection('users').doc(supervisorId).get();
     if (!supervisorSnap.exists) return res.status(404).json({ message: 'Supervisor not found' });
     if (!supervisorInScope({ id: supervisorSnap.id, ...supervisorSnap.data() }, scope)) {
@@ -288,8 +361,15 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
     const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
     [...asSupervisor.docs, ...asSecondary.docs].forEach((doc) => byId.set(doc.id, doc));
 
+    // supervisorInScope above is only the coarse "is this supervisor worth
+    // showing at all" check (faculty-level) — a supervisor can teach
+    // several majors/degrees, so each of THEIR projects still needs its
+    // own precise major/degreeLevel check against the caller's real scope
+    // (a school_head must not see this supervisor's other-major projects
+    // just because the supervisor themselves passed the coarse check).
     const projects = [...byId.values()]
       .filter((doc) => (doc.data().enrolledStudentIds ?? []).length > 0)
+      .filter((doc) => projectWithinScope(scope, doc.data()))
       .map(summarizeProject);
 
     return res.status(200).json({ projects });

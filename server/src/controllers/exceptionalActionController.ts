@@ -46,7 +46,7 @@ export const getPendingExceptionalActions = async (req: AuthenticatedRequest, re
     const requests = await listPendingExceptionalActions(approverEffectiveFacultyIds(req));
     return res.status(200).json({ requests });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Failed to load pending exceptional actions.' });
+    return res.status(500).json({ message: 'Failed to load pending exceptional actions.' });
   }
 };
 

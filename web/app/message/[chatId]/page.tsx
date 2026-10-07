@@ -42,6 +42,7 @@ export default function ChatConversationPage() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [sendError, setSendError] = useState('');
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Before this flips false, a zero-length messages array is ambiguous
@@ -122,12 +123,14 @@ export default function ChatConversationPage() {
     const trimmed = text.trim();
     if (!trimmed || !firebaseUser || sending) return;
     setSending(true);
+    setSendError('');
     setText('');
     try {
       await apiClient.sendChatMessage(chatId, trimmed, firebaseUser.uid);
       await fetchMessages();
     } catch (err) {
       setText(trimmed);
+      setSendError(lang === 'he' ? 'שליחת ההודעה נכשלה' : 'Failed to send the message');
     } finally {
       setSending(false);
     }
@@ -140,11 +143,14 @@ export default function ChatConversationPage() {
     e.target.value = ''; // allow picking the same file again later
     if (!file || !chatId || uploadingImage) return;
     setUploadingImage(true);
+    setSendError('');
     try {
       const imageUrl = await apiClient.uploadChatImage(file);
       await apiClient.sendChatImageMessage(chatId, imageUrl);
       await fetchMessages();
-    } catch {} finally {
+    } catch {
+      setSendError(lang === 'he' ? 'שליחת התמונה נכשלה' : 'Failed to send the image');
+    } finally {
       setUploadingImage(false);
     }
   };
@@ -236,6 +242,9 @@ export default function ChatConversationPage() {
       </div>
 
       <div className="border-t border-line bg-surface p-3">
+        {sendError && (
+          <p className="mx-auto mb-1.5 max-w-2xl text-xs text-danger" role="alert">{sendError}</p>
+        )}
         <div className="mx-auto flex max-w-2xl items-end gap-2">
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelected} className="hidden" />
           <button

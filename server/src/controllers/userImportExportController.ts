@@ -74,7 +74,7 @@ export const importStaffAdmin = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStaffAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to import staff.' });
+    return res.status(500).json({ message: 'Failed to import staff.' });
   }
 };
 
@@ -98,6 +98,6 @@ export const importStaffCoordinator = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStaffCoordinator error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to import staff.' });
+    return res.status(500).json({ message: 'Failed to import staff.' });
   }
 };

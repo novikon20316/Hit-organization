@@ -6,6 +6,7 @@ import { submitCandidateDatesAndResolve, examinerKeyOf } from '../services/defen
 import { logAuditEvent } from '../services/auditLog.js';
 import { academicYearToHebrew } from '../services/hebrewYear.js';
 import { isDefenseDateConfirmed } from '../services/workflowTemplates.js';
+import { isStaffMember } from '../services/twoFactorEnforcement.js';
 
 const db = admin.firestore();
 
@@ -220,13 +221,36 @@ export const submitDefenseDates = async (req: AuthenticatedRequest, res: Respons
 };
 
 export const getList = async (req: AuthenticatedRequest, res: Response) => {
+  // Staff-only (coordinator/home.tsx, supervisor/dashboard.tsx, the Reports
+  // examiner filter) — no legitimate caller is a student, and this used to
+  // have no role check at all, letting any authenticated account pull the
+  // raw user doc (phoneNumber, expoPushToken, etc.) of every internal
+  // examiner in the system.
+  if (!isStaffMember(req.user?.role, req.user?.roles ?? [])) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
   try {
     // Internal examiners are app users whose `roles` array includes
     // 'internal_examiner' (see VALID_ROLES) — not a literal role of 'examiner'.
     const examinersSnap = await db.collection('users')
       .where('roles', 'array-contains', 'internal_examiner')
       .get();
-    const examiners = examinersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Scoped to exactly what callers use (ExaminerUser in
+    // coordinator/home/types.ts: id/displayName/email/facultyId) rather than
+    // spreading the raw doc — this previously leaked phoneNumber,
+    // expoPushToken, coordinatorScopes, and every other profile field to
+    // every caller.
+    const examiners = examinersSnap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        displayName: data.displayName ?? '',
+        displayNameHe: data.displayNameHe ?? null,
+        displayNameEn: data.displayNameEn ?? null,
+        email: data.email ?? '',
+        facultyId: data.facultyId ?? null,
+      };
+    });
     // Both call sites (coordinator/home.tsx, supervisor/dashboard.tsx) expect
     // res.data to be the array itself, not wrapped in { examiners }.
     res.status(200).json(examiners);

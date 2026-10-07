@@ -479,7 +479,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     }
   } catch (error: any) {
     console.error('approveExaminerRecommendation error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to approve recommendation.' });
+    return res.status(500).json({ message: 'Failed to approve recommendation.' });
   }
 };
 
@@ -537,7 +537,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
     return res.status(200).json({ success: true, message: 'Recommendation rejected.' });
   } catch (error: any) {
     console.error('rejectExaminerRecommendation error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reject recommendation.' });
+    return res.status(500).json({ message: 'Failed to reject recommendation.' });
   }
 };
 
@@ -854,8 +854,11 @@ async function approveChainMilestone(
   // signed form scan) — never required. Persisted under
   // stageAttachments[stage.id], parallel to stageFormData above, so an
   // earlier stage's attachment survives later stages' own approvals. See
-  // GradeMilestoneModal.tsx's approve-stage file field.
-  attachmentUrls?: string[],
+  // GradeMilestoneModal.tsx's approve-stage file field. Lazy (not a resolved
+  // array) so the actual Cloudinary upload only happens once this function's
+  // own authorizeStageActor check below has passed — the caller doesn't
+  // know yet whether this request will even be authorized.
+  getAttachmentUrls?: () => Promise<string[]>,
   // Research-proposal-only gate, mirrors projectController.ts's
   // submitMilestoneGrade's own 'grade'-stage version of this check — a
   // supervisor must tick "I have read the proposal thoroughly" before an
@@ -889,6 +892,7 @@ async function approveChainMilestone(
   const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: scopeMismatchMessage(stage, resource) });
+  const attachmentUrls = (await getAttachmentUrls?.()) ?? [];
 
   // Same required/non-locked rule milestoneController.ts's submitMilestone
   // already applies to studentFormFields — a locked (autoFill) field is
@@ -1276,7 +1280,7 @@ async function approveChainMilestone(
     });
   } catch (error: any) {
     console.error('approveChainMilestone error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to approve milestone.' });
+    return res.status(500).json({ message: 'Failed to approve milestone.' });
   }
 }
 
@@ -1330,14 +1334,27 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   // projectController.ts's submitMilestoneGrade's own optional grade file.
   // Only ever present when the client sent multipart (uploadMiddleware is a
   // no-op for a plain JSON body — see routes/coordinator.ts).
+  //
+  // Upload is deliberately lazy (not run here) — this point in the function
+  // is before either branch below (chain-driven or legacy) has confirmed the
+  // caller is actually authorized to act on this milestone. Each branch
+  // calls getAttachmentUrls() itself, once its own authorization check has
+  // passed, so an unauthorized/invalid request never triggers a real
+  // Cloudinary upload. Memoized so a branch that calls it more than once
+  // still only uploads each file once.
   const attachmentFiles = ((req as any).files as Express.Multer.File[]) ?? [];
-  const attachmentUrls: string[] = [];
-  for (const file of attachmentFiles) {
-    const base64 = file.buffer.toString('base64');
-    const dataUri = `data:${file.mimetype};base64,${base64}`;
-    const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
-    attachmentUrls.push(result.secure_url);
-  }
+  let attachmentUrlsPromise: Promise<string[]> | null = null;
+  const getAttachmentUrls = (): Promise<string[]> => {
+    if (!attachmentUrlsPromise) {
+      attachmentUrlsPromise = Promise.all(attachmentFiles.map(async (file) => {
+        const base64 = file.buffer.toString('base64');
+        const dataUri = `data:${file.mimetype};base64,${base64}`;
+        const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
+        return result.secure_url;
+      }));
+    }
+    return attachmentUrlsPromise;
+  };
 
   // Chain-driven (non-defense) milestone — the stage acting now might not be
   // coordinator-tier at all (could be faculty_admin, grad_school_head, ...),
@@ -1347,7 +1364,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, attachmentUrls, confirmedProposalRead);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, getAttachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
@@ -1473,7 +1490,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return res.status(200).json({ success: true, message: 'Milestone approved by coordinator.' });
   } catch (error: any) {
     console.error('coordinatorApproveMilestone error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to approve milestone.' });
+    return res.status(500).json({ message: 'Failed to approve milestone.' });
   }
 };
 
@@ -1486,8 +1503,10 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
 async function rejectChainMilestone(
   req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, reason: string,
   // Optional file(s) attached alongside the rejection — see
-  // approveChainMilestone's identical attachmentUrls param.
-  attachmentUrls?: string[],
+  // approveChainMilestone's identical getAttachmentUrls param (lazy for the
+  // same reason: don't upload before this function's own authorization
+  // check below has passed).
+  getAttachmentUrls?: () => Promise<string[]>,
   // See approveChainMilestone's identical param — same research_proposal/
   // supervisor-only gate, applied to a rejection too.
   confirmedProposalRead?: boolean,
@@ -1515,6 +1534,7 @@ async function rejectChainMilestone(
   const projectSupervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean);
   const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, milestone.examinerIds ?? []);
   if (!authorized) return res.status(403).json({ message: scopeMismatchMessage(stage, resource) });
+  const attachmentUrls = (await getAttachmentUrls?.()) ?? [];
 
   const rejectsToStudent = stage.rejectTo === 'student';
   const targetIndex = rejectsToStudent ? -1 : routing.findIndex((s) => s.id === stage.rejectTo);
@@ -1686,7 +1706,7 @@ async function rejectChainMilestone(
     });
   } catch (error: any) {
     console.error('rejectChainMilestone error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reject milestone.' });
+    return res.status(500).json({ message: 'Failed to reject milestone.' });
   }
 }
 
@@ -1716,21 +1736,28 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   }
 
   // Optional file(s) attached alongside the rejection — see
-  // coordinatorApproveMilestone's identical attachmentUrls handling.
+  // coordinatorApproveMilestone's identical lazy getAttachmentUrls handling
+  // (deferred so an unauthorized/invalid request never triggers a real
+  // Cloudinary upload).
   const attachmentFiles = ((req as any).files as Express.Multer.File[]) ?? [];
-  const attachmentUrls: string[] = [];
-  for (const file of attachmentFiles) {
-    const base64 = file.buffer.toString('base64');
-    const dataUri = `data:${file.mimetype};base64,${base64}`;
-    const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
-    attachmentUrls.push(result.secure_url);
-  }
+  let attachmentUrlsPromise: Promise<string[]> | null = null;
+  const getAttachmentUrls = (): Promise<string[]> => {
+    if (!attachmentUrlsPromise) {
+      attachmentUrlsPromise = Promise.all(attachmentFiles.map(async (file) => {
+        const base64 = file.buffer.toString('base64');
+        const dataUri = `data:${file.mimetype};base64,${base64}`;
+        const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
+        return result.secure_url;
+      }));
+    }
+    return attachmentUrlsPromise;
+  };
 
   const preSnap = await db.collection('milestones').doc(milestoneId).get();
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, attachmentUrls, confirmedProposalRead);
+    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, getAttachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
@@ -1835,7 +1862,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return res.status(200).json({ success: true, message: 'Milestone rejected.' });
   } catch (error: any) {
     console.error('coordinatorRejectMilestone error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reject milestone.' });
+    return res.status(500).json({ message: 'Failed to reject milestone.' });
   }
 };
 
@@ -2009,7 +2036,7 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(200).json({ success: true, message: 'Defense logistics saved successfully.' });
   } catch (error: any) {
     console.error('assignDefense error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to save defense logistics.' });
+    return res.status(500).json({ message: 'Failed to save defense logistics.' });
   }
 };
 
@@ -2062,6 +2089,6 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
     return res.status(400).json({ message: "action must be 'keep_examiners' or 'replace_examiner'." });
   } catch (error: any) {
     console.error('resolveDefenseDateConflict error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to resolve date conflict.' });
+    return res.status(500).json({ message: 'Failed to resolve date conflict.' });
   }
 };

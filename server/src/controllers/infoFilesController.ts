@@ -206,7 +206,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
     return res.status(201).json({ success: true, id: docRef.id, fileUrl: result.secure_url });
   } catch (error: any) {
     console.error('uploadInfoFile error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to upload file.' });
+    return res.status(500).json({ message: 'Failed to upload file.' });
   }
 };
 
@@ -258,7 +258,7 @@ export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true, message: 'File updated.' });
   } catch (error: any) {
     console.error('updateInfoFile error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update file.' });
+    return res.status(500).json({ message: 'Failed to update file.' });
   }
 };
 

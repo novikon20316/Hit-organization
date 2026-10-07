@@ -1842,7 +1842,7 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('Error fetching projects list:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };
 
@@ -2031,6 +2031,6 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
   } catch (error: any) {
     console.error('Error fetching projects list:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };

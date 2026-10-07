@@ -10,6 +10,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getStudentStatusConfig, updateStudentStatusConfig } from '../services/studentStatuses.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 const db = admin.firestore();
 
@@ -60,7 +61,7 @@ export const updateStudentStatusOptions = async (req: AuthenticatedRequest, res:
 // option keys, so a stale/removed status can never be written.
 export const setStudentStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id: studentId } = req.params;
-  if (!studentId || typeof studentId !== 'string') {
+  if (!isValidDocId(studentId)) {
     return res.status(400).json({ message: 'Invalid student id.' });
   }
   if (!isSystemAdmin(req) && !isFacultyAdmin(req)) {

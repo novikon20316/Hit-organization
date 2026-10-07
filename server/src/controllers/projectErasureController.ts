@@ -64,7 +64,7 @@ export const getPendingErasureRequests = async (req: AuthenticatedRequest, res: 
     const requests = await listPendingErasureRequests(callerEffectiveFacultyIds(req));
     return res.status(200).json({ requests });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Failed to load pending erasure requests.' });
+    return res.status(500).json({ message: 'Failed to load pending erasure requests.' });
   }
 };
 
@@ -136,6 +136,6 @@ export const getArchivedProjects = async (req: AuthenticatedRequest, res: Respon
     const projects = await listArchivedProjects(callerEffectiveFacultyIds(req));
     return res.status(200).json({ projects });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message || 'Failed to load archived projects.' });
+    return res.status(500).json({ message: 'Failed to load archived projects.' });
   }
 };

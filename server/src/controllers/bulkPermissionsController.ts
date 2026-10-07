@@ -172,6 +172,6 @@ export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, affectedCount: targets.length });
   } catch (error: any) {
     console.error('applyPermissionsToRole error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to bulk-apply permissions.' });
+    return res.status(500).json({ message: 'Failed to bulk-apply permissions.' });
   }
 };

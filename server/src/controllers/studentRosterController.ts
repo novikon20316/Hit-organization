@@ -29,7 +29,7 @@ export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to import student roster.' });
+    return res.status(500).json({ message: 'Failed to import student roster.' });
   }
 };
 
@@ -55,7 +55,7 @@ export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, entries: filtered });
   } catch (error: any) {
     console.error('listStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to load the student roster.' });
+    return res.status(500).json({ message: 'Failed to load the student roster.' });
   }
 };
 
@@ -108,7 +108,7 @@ export const deleteStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('deleteStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to delete the roster entry.' });
+    return res.status(500).json({ message: 'Failed to delete the roster entry.' });
   }
 };
 
@@ -135,6 +135,6 @@ export const importStudentRosterCoordinator = async (req: AuthenticatedRequest, 
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStudentRosterCoordinator error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to import student roster.' });
+    return res.status(500).json({ message: 'Failed to import student roster.' });
   }
 };

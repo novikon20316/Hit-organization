@@ -15,6 +15,7 @@ import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
 import { resolvePlatform } from '../services/maintenanceStatus.js';
+import { isValidDocId } from '../services/idValidation.js';
 import multer from 'multer';
 
 const ALLOWED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -66,7 +67,7 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /me error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to load profile.' });
   }
 };
 
@@ -85,7 +86,7 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /profile error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to load profile.' });
   }
 };
 
@@ -324,7 +325,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true, user: firestoreUserDoc });
   } catch (error: any) {
     console.error('POST /sync error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to create account profile.' });
   }
 };
 
@@ -346,7 +347,7 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updatePushToken error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to update push token.' });
   }
 };
 
@@ -373,7 +374,7 @@ export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('blockUser error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to block user.' });
+    return res.status(500).json({ message: 'Failed to block user.' });
   }
 };
 
@@ -393,7 +394,7 @@ export const unblockUser = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('unblockUser error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to unblock user.' });
+    return res.status(500).json({ message: 'Failed to unblock user.' });
   }
 };
 
@@ -412,7 +413,7 @@ export const completeOnboardingTour = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('completeOnboardingTour error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to update onboarding status.' });
   }
 };
 
@@ -435,7 +436,7 @@ export const markFieldGuideSeen = async (req: AuthenticatedRequest, res: Respons
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('markFieldGuideSeen error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to update field guide status.' });
   }
 };
 
@@ -663,7 +664,7 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('changePassword error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to change password.' });
+    return res.status(500).json({ error: 'Failed to change password.' });
   }
 };
 
@@ -693,7 +694,7 @@ export const requestAccountDeletion = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('requestAccountDeletion error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to request account deletion.' });
+    return res.status(500).json({ error: 'Failed to request account deletion.' });
   }
 };
 
@@ -707,7 +708,7 @@ export const cancelAccountDeletion = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('cancelAccountDeletion error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to cancel account deletion.' });
+    return res.status(500).json({ error: 'Failed to cancel account deletion.' });
   }
 };
 
@@ -729,7 +730,7 @@ export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true, photoUrl: resolveStudentPhotoUrl(publicId) });
   } catch (error: any) {
     console.error('uploadUserPhoto error:', error);
-    return res.status(500).json({ error: error.message || 'Photo upload failed.' });
+    return res.status(500).json({ error: 'Photo upload failed.' });
   }
 };
 
@@ -746,7 +747,10 @@ export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) 
 export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user?.uid) return res.status(401).json({ error: 'Unauthorized.' });
   const { uid } = req.params;
-  if (!uid || typeof uid !== 'string') return res.status(400).json({ error: 'Invalid uid.' });
+  // Beyond "is a string" — a uid containing '/' resolves to a DIFFERENT
+  // Firestore path (e.g. "<uid>/private/totp"), not a literal doc name. See
+  // services/idValidation.ts.
+  if (!isValidDocId(uid)) return res.status(400).json({ error: 'Invalid uid.' });
 
   try {
     const userDoc = await db.collection('users').doc(uid).get();
@@ -755,7 +759,7 @@ export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ photoUrl });
   } catch (error: any) {
     console.error('getUserPhotoUrl error:', error);
-    return res.status(500).json({ error: error.message || 'Failed to resolve photo URL.' });
+    return res.status(500).json({ error: 'Failed to resolve photo URL.' });
   }
 };
 

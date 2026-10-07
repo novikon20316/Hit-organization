@@ -15,6 +15,7 @@ import {
   adminOverrideStudentTrack,
   StudentTrackError,
 } from '../services/studentTrack.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 // Mirrors PROJECT_COORDINATOR_DASHBOARD_ROLES in projectCoordinatorController.ts
 // plus 'coordinator' — the plain faculty coordinator role is who the business
@@ -56,7 +57,7 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
   if (typeof eligible !== 'boolean') {
     return res.status(400).json({ message: 'eligible must be a boolean.' });
   }
-  if (!studentId || typeof studentId !== 'string') {
+  if (!isValidDocId(studentId)) {
     return res.status(400).json({ message: 'Invalid studentId.' });
   }
 
@@ -94,7 +95,7 @@ export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Re
   if (typeof average !== 'number') {
     return res.status(400).json({ message: 'average must be a number.' });
   }
-  if (!studentId || typeof studentId !== 'string') {
+  if (!isValidDocId(studentId)) {
     return res.status(400).json({ message: 'Invalid studentId.' });
   }
 
@@ -129,7 +130,7 @@ export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Respo
   }
   const { id: studentId } = req.params;
   const { track, trackLocked, thesisEligible } = req.body;
-  if (!studentId || typeof studentId !== 'string') {
+  if (!isValidDocId(studentId)) {
     return res.status(400).json({ message: 'Invalid studentId.' });
   }
 

@@ -76,7 +76,7 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true, classification, erased: false });
   } catch (error: any) {
     console.error('submitFeedback error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to submit feedback.' });
+    return res.status(500).json({ message: 'Failed to submit feedback.' });
   }
 };
 
@@ -178,6 +178,6 @@ export const resolveFeedback = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('resolveFeedback error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to resolve feedback.' });
+    return res.status(500).json({ message: 'Failed to resolve feedback.' });
   }
 };

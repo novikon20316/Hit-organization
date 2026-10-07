@@ -23,10 +23,12 @@ import {
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, isStudentWithinStaffScope, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { normalizePrerequisites, normalizeCompletedCourses, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 import { resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER } from '../services/workflowTemplates.js';
+import { assignProjectRecordNumber } from '../services/projectRecordNumber.js';
 import { isValidEmailFormat, domainHasMailServer } from '../services/emailValidation.js';
 import { notifyUser } from '../services/notify.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 const db = admin.firestore();
 
@@ -157,7 +159,7 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
 export const impersonateUser = async (req: AuthenticatedRequest, res: Response) => {
   const adminUid = req.user?.uid;
   const targetUid = req.params.id;
-  if (!targetUid || typeof targetUid !== 'string') {
+  if (!isValidDocId(targetUid)) {
     return res.status(400).json({ message: 'Missing target user id.' });
   }
 
@@ -445,7 +447,7 @@ export const setStandardSupervisorFlag = async (req: AuthenticatedRequest, res: 
   }
 
   const { id: userId } = req.params;
-  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  if (!isValidDocId(userId)) return res.status(400).json({ message: 'Missing userId.' });
   const { category, value } = req.body ?? {};
   if (!STANDARD_SUPERVISOR_CATEGORIES.includes(category)) {
     return res.status(400).json({ message: 'Invalid category.' });
@@ -490,7 +492,7 @@ export const setStandardSupervisorFlag = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('setStandardSupervisorFlag error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update supervisor.' });
+    return res.status(500).json({ message: 'Failed to update supervisor.' });
   }
 };
 
@@ -656,9 +658,15 @@ export const createAdminProject = async (req: AuthenticatedRequest, res: Respons
     for (const facultyId of facultyIds) {
       const newProjectRef = db.collection('projects').doc();
       createdIds.push(newProjectRef.id);
+      // Permanent per-faculty record number (see services/projectRecordNumber.ts)
+      // — assigned once, here, never recomputed. One per facultyId, even
+      // when this call posts the same project across several faculties at
+      // once (postingGroupId above).
+      const recordNumber = await assignProjectRecordNumber(facultyId);
       batch.set(newProjectRef, {
         ...sharedFields,
         facultyId,
+        recordNumber,
         degreeType: degreeTypes[0]!,
         degreeTypes,
         projectType: projectTypes[0]!,
@@ -881,9 +889,9 @@ export const enrollStudentAdmin = async (req: AuthenticatedRequest, res: Respons
   // defaults to the project's own primary values when omitted.
   const { studentId, track } = req.body;
 
-  if (!studentId) return res.status(400).json({ message: 'Missing studentId in request body.' });
-  if(!projectId || typeof projectId !== 'string'){
-    return res.status(500).json({
+  if (!isValidDocId(studentId)) return res.status(400).json({ message: 'Missing studentId in request body.' });
+  if (!isValidDocId(projectId)) {
+    return res.status(400).json({
         success:false,
         message:"projectId is not good"
     })
@@ -940,10 +948,10 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ message: 'Invalid roles array.' });
     }
   }
-  if(!userId || typeof userId !== 'string'){
-    return res.status(500).json({
+  if (!isValidDocId(userId)) {
+    return res.status(400).json({
         success:false,
-        message:"projectId is not good"
+        message:"userId is not valid"
     })
   }
 
@@ -1239,10 +1247,10 @@ export const toggleUserStatusAdmin = async (req: AuthenticatedRequest, res: Resp
   if (typeof isActive !== 'boolean') {
     return res.status(400).json({ message: 'isActive must be a boolean value.' });
   }
-  if(!userId || typeof userId !== 'string'){
-    return res.status(500).json({
+  if (!isValidDocId(userId)) {
+    return res.status(400).json({
         success:false,
-        message:"projectId is not good"
+        message:"userId is not valid"
     })
   }
   try {
@@ -1289,7 +1297,7 @@ export const resetUserOnboardingAdmin = async (req: AuthenticatedRequest, res: R
   }
 
   const { id: userId } = req.params;
-  if (!userId || typeof userId !== 'string') {
+  if (!isValidDocId(userId)) {
     return res.status(400).json({ message: 'Missing user id.' });
   }
 
@@ -1330,7 +1338,7 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
   }
 
   const { id: userId } = req.params;
-  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  if (!isValidDocId(userId)) return res.status(400).json({ message: 'Missing userId.' });
 
   // This always issues a random temp password + forces a change on next
   // login (see this function's own doc comment) — exactly what you don't
@@ -1408,7 +1416,7 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, tempPassword, message: 'Password reset.' });
   } catch (error: any) {
     console.error('resetUserPasswordAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reset password.' });
+    return res.status(500).json({ message: 'Failed to reset password.' });
   }
 };
 
@@ -1448,7 +1456,7 @@ export const liftLoginLockout = async (req: AuthenticatedRequest, res: Response)
   }
 
   const { code } = req.params;
-  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Missing code.' });
+  if (!isValidDocId(code)) return res.status(400).json({ message: 'Missing code.' });
 
   try {
     const result = await liftLockout(code);
@@ -1487,10 +1495,10 @@ export const deleteAdminProject = async (req: AuthenticatedRequest, res: Respons
   const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
 
   const { id: projectId } = req.params;
-  if(!projectId || typeof projectId !== 'string'){
-        return res.status(500).json({
+  if (!isValidDocId(projectId)) {
+        return res.status(400).json({
             success:false,
-            message:"projectId is not good"
+            message:"projectId is not valid"
         })
     }
   try {
@@ -1531,7 +1539,7 @@ export const disableUser2FA = async (req: AuthenticatedRequest, res: Response) =
   }
 
   const { id: userId } = req.params;
-  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  if (!isValidDocId(userId)) return res.status(400).json({ message: 'Missing userId.' });
 
   try {
     await Promise.all([
@@ -1570,7 +1578,7 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
   const isSystemAdmin = role === 'system_admin' || roles.includes('system_admin');
 
   const { id: userId } = req.params;
-  if (!userId || typeof userId !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  if (!isValidDocId(userId)) return res.status(400).json({ message: 'Missing userId.' });
 
   try {
     if (!isSystemAdmin) {
@@ -1604,7 +1612,7 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, message: 'User erased.' });
   } catch (error: any) {
     console.error('eraseUserBySystemAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to erase user.' });
+    return res.status(500).json({ message: 'Failed to erase user.' });
   }
 };
 
@@ -1667,7 +1675,7 @@ export const deleteAuditLogEntries = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ success: true, deleted });
   } catch (error: any) {
     console.error('deleteAuditLogEntries error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to delete audit log entries.' });
+    return res.status(500).json({ message: 'Failed to delete audit log entries.' });
   }
 };
 
@@ -1724,7 +1732,7 @@ export const extendDefenseAccessGrant = async (req: AuthenticatedRequest, res: R
   const { newExpiresAtISO, reason } = req.body;
   const adminUid = req.user!.uid;
 
-  if (!grantCode || typeof grantCode !== 'string') {
+  if (!isValidDocId(grantCode)) {
     return res.status(400).json({ message: 'Missing grantCode.' });
   }
   if (!newExpiresAtISO || isNaN(new Date(newExpiresAtISO).getTime())) {
@@ -1880,7 +1888,7 @@ export const updateStudentAcademicYear = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true, message: 'Academic year updated.' });
   } catch (error: any) {
     console.error('updateStudentAcademicYear error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update academic year.' });
+    return res.status(500).json({ message: 'Failed to update academic year.' });
   }
 };
 
@@ -2017,6 +2025,6 @@ export const updateStudentCompletedCoursesAsAdmin = async (req: AuthenticatedReq
     return res.status(200).json({ success: true, completedCourses: normalized });
   } catch (error: any) {
     console.error('updateStudentCompletedCoursesAsAdmin error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update completed courses.' });
+    return res.status(500).json({ message: 'Failed to update completed courses.' });
   }
 };

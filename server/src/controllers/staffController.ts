@@ -73,7 +73,7 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
         return res.status(200).json({ deadlines });
     } catch (error: any) {
         console.error('Error fetching deadlines:', error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: 'Failed to load deadlines.' });
     }
 }
 
@@ -90,6 +90,6 @@ export const getMyPendingSignoffs = async (req: AuthenticatedRequest, res: Respo
         return res.status(200).json({ items });
     } catch (error: any) {
         console.error('getMyPendingSignoffs error:', error);
-        return res.status(500).json({ message: error.message || 'Failed to load pending sign-offs.' });
+        return res.status(500).json({ message: 'Failed to load pending sign-offs.' });
     }
 };

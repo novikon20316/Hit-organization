@@ -20,6 +20,7 @@ import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
@@ -528,7 +529,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
   }
 
   const { studentId } = req.params;
-  if (!studentId || typeof studentId !== 'string') {
+  if (!isValidDocId(studentId)) {
     return res.status(400).json({ message: 'Invalid studentId.' });
   }
 

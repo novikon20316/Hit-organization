@@ -508,7 +508,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
     return res.status(200).json({ success: true, message: finalized ? 'Milestone approved.' : decision === 'approve' ? 'Advanced to the next stage.' : 'Milestone rejected.' });
   } catch (error: any) {
     console.error('submitCommitteeDecision error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to record the committee decision.' });
+    return res.status(500).json({ message: 'Failed to record the committee decision.' });
   }
 };
 

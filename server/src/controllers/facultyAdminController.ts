@@ -198,7 +198,7 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ message: error.message || 'Enrollment pipeline execution failure.' });
+    return res.status(500).json({ message: 'Enrollment pipeline execution failure.' });
   }
 };
 

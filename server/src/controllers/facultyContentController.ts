@@ -89,7 +89,7 @@ export const createFacultyContent = async (req: AuthenticatedRequest, res: Respo
     return res.status(201).json({ success: true, id: docRef.id });
   } catch (error: any) {
     console.error('createFacultyContent error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to post content.' });
+    return res.status(500).json({ message: 'Failed to post content.' });
   }
 };
 

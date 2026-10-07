@@ -923,7 +923,7 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
     });
   } catch (error: any) {
     console.error('approveExaminerRecommendationFinal error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to approve examiner list.' });
+    return res.status(500).json({ message: 'Failed to approve examiner list.' });
   }
 };
 
@@ -1000,6 +1000,6 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
     return res.status(200).json({ success: true, message: 'Examiner list rejected.' });
   } catch (error: any) {
     console.error('rejectExaminerRecommendationFinal error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reject examiner list.' });
+    return res.status(500).json({ message: 'Failed to reject examiner list.' });
   }
 };

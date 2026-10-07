@@ -586,7 +586,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {
     console.error('createWorkflowTemplateProposal error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to propose workflow template.' });
+    return res.status(500).json({ message: 'Failed to propose workflow template.' });
   }
 };
 
@@ -688,7 +688,7 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
     return res.status(200).json({ success: true, message: 'Proposal updated.' });
   } catch (error: any) {
     console.error('updateWorkflowTemplateProposalController error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to update the workflow template proposal.' });
+    return res.status(500).json({ message: 'Failed to update the workflow template proposal.' });
   }
 };
 
@@ -756,7 +756,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     });
   } catch (error: any) {
     console.error('approveWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to approve workflow template.' });
+    return res.status(500).json({ message: 'Failed to approve workflow template.' });
   }
 };
 
@@ -942,7 +942,7 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval', facultyId: targetFacultyId, major: targetMajor });
   } catch (error: any) {
     console.error('duplicateWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to duplicate workflow template.' });
+    return res.status(500).json({ message: 'Failed to duplicate workflow template.' });
   }
 };
 
@@ -990,7 +990,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
     return res.status(200).json({ success: true, message: 'Workflow template deleted.' });
   } catch (error: any) {
     console.error('deleteWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to delete workflow template.' });
+    return res.status(500).json({ message: 'Failed to delete workflow template.' });
   }
 };
 
@@ -1041,6 +1041,6 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
     return res.status(200).json({ success: true, message: 'Workflow template rejected.' });
   } catch (error: any) {
     console.error('rejectWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to reject workflow template.' });
+    return res.status(500).json({ message: 'Failed to reject workflow template.' });
   }
 };

@@ -97,6 +97,6 @@ export const submitRevisionDecision = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitRevisionDecision error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to record the revision decision.' });
+    return res.status(500).json({ message: 'Failed to record the revision decision.' });
   }
 };
