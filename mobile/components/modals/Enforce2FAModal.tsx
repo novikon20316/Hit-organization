@@ -48,9 +48,7 @@ export default function Enforce2FAModal({ visible, onClose, lang }: Props) {
         setLoading(true);
         const res = await apiClient.get('/api/admin/system/2fa-enforcement-status');
         setStatus(res.data);
-      } catch (e) {
-        console.error('Failed to load 2FA enforcement status:', e);
-      } finally {
+      } catch {} finally {
         setLoading(false);
       }
     })();

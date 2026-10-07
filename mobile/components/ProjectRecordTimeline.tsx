@@ -90,7 +90,6 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
       .then((res) => { if (!cancelled) setEntries(res.entries as unknown as RecordEntry[]); })
       .catch((err) => {
         if (cancelled) return;
-        console.error('Failed to load project record:', err);
         setError(lang === 'he' ? 'טעינת רישום הפרויקט נכשלה' : 'Failed to load the project record');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

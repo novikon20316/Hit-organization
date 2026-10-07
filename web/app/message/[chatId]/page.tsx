@@ -74,9 +74,7 @@ export default function ChatConversationPage() {
         const deduped = incoming.filter((m) => !seen.has(m.id));
         return deduped.length > 0 ? [...prev, ...deduped] : prev;
       });
-    } catch (err) {
-      console.error('Failed to load messages:', err);
-    } finally {
+    } catch {} finally {
       setLoadingMessages(false);
     }
   }, [chatId]);
@@ -108,7 +106,7 @@ export default function ChatConversationPage() {
           setHeaderRole(other.role ?? '');
         }
       })
-      .catch((err) => console.error('Failed to look up chat metadata:', err));
+      .catch(() => {});
   }, [chatId, firebaseUser, headerName]);
 
   useEffect(() => {
@@ -129,7 +127,6 @@ export default function ChatConversationPage() {
       await apiClient.sendChatMessage(chatId, trimmed, firebaseUser.uid);
       await fetchMessages();
     } catch (err) {
-      console.error('Send message error:', err);
       setText(trimmed);
     } finally {
       setSending(false);
@@ -147,9 +144,7 @@ export default function ChatConversationPage() {
       const imageUrl = await apiClient.uploadChatImage(file);
       await apiClient.sendChatImageMessage(chatId, imageUrl);
       await fetchMessages();
-    } catch (err) {
-      console.error('Send image error:', err);
-    } finally {
+    } catch {} finally {
       setUploadingImage(false);
     }
   };

@@ -68,7 +68,6 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
       .get('/api/admin/students-list')
       .then((res: any) => setStudents(res.data?.students ?? []))
       .catch((e: unknown) => {
-        console.error('StudentsListSection fetch error:', e);
       })
       .finally(() => setLoading(false));
   }, []);

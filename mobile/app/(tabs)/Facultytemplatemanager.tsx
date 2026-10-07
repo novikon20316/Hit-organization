@@ -112,9 +112,7 @@ export default function FacultyTemplateManager() {
 
         setAdminName(userData.displayName || '');
         setFacultyId(userData.facultyId || '');
-      } catch (err) {
-        console.error('Failed loading admin context metadata profile:', err);
-      }
+      } catch {}
     };
 
     loadAdminProfile();
@@ -130,9 +128,7 @@ export default function FacultyTemplateManager() {
       // Real response shape: { facultyId, templates, proposals, counts }
       setTemplates(response.data.templates || []);
       setPendingProps(response.data.proposals || []);
-    } catch (err) {
-      console.error('Failed compiling template records:', err);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   }, [facultyId]);
@@ -149,9 +145,7 @@ export default function FacultyTemplateManager() {
       try {
         const response = await apiClient.get('/api/notifications/badge-count');
         setUnreadCount(response.data.unreadCount || 0);
-      } catch (err) {
-        console.log('Notification telemetry fetch failed:', err);
-      }
+      } catch {}
     };
 
     fetchNotificationBadges();
@@ -218,7 +212,6 @@ export default function FacultyTemplateManager() {
       Alert.alert('✅', lang === 'he' ? 'התבנית נשמרה' : 'Template saved');
       await loadTemplatesAndProposals();
     } catch (e: any) {
-      console.error('Error saving template:', e);
       Alert.alert(
         '❌',
         e.response?.data?.message || (lang === 'he' ? 'שגיאה בשמירת התבנית' : 'Failed to save template')
@@ -244,7 +237,6 @@ export default function FacultyTemplateManager() {
               Alert.alert('✅', lang === 'he' ? 'התבנית נמחקה בהצלחה' : 'Template deleted successfully');
               await loadTemplatesAndProposals();
             } catch (err: any) {
-              console.error("Delete operation failure:", err);
               Alert.alert(
                 '❌',
                 err.response?.data?.message || (lang === 'he' ? 'מחיקת התבנית נכשלה' : 'Failed to delete template')
@@ -264,7 +256,6 @@ export default function FacultyTemplateManager() {
       Alert.alert('✅', lang === 'he' ? 'הצעה אושרה' : 'Proposal approved');
       await loadTemplatesAndProposals();
     } catch (e: any) {
-      console.error(e);
       Alert.alert('❌', e.response?.data?.message || (lang === 'he' ? 'שגיאה באישור ההצעה' : 'Error approving proposal'));
     } finally {
       setSaving(false);
@@ -297,7 +288,6 @@ export default function FacultyTemplateManager() {
       setRejectingTpl(null);
       await loadTemplatesAndProposals();
     } catch (e: any) {
-      console.error(e);
       Alert.alert('❌', e.response?.data?.message || (lang === 'he' ? 'שגיאה בדחיית ההצעה' : 'Error rejecting proposal'));
     } finally {
       setSaving(false);

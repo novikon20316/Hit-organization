@@ -32,7 +32,6 @@ export default function AdminRecordsScreen() {
     apiClient.getFacultyTaxonomyForRecords()
       .then((res) => { if (!cancelled) setFaculties(res.faculties ?? []); })
       .catch((err) => {
-        console.error('Failed to load faculty taxonomy:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת רשימת הפקולטות נכשלה' : 'Failed to load faculties');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

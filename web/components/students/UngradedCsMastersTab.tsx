@@ -101,7 +101,6 @@ export function UngradedCsMastersTab() {
         setLoading(false);
       },
       (err) => {
-        console.error('Ungraded CS-masters students snapshot error:', err);
         setLoadError(lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load students list');
         setLoading(false);
       }

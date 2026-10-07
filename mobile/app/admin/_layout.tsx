@@ -67,7 +67,6 @@ export default function AdminLayout() {
         setStatus(isSystemAdmin ? "admin" : "not-admin");
         return;
       } catch (e) {
-        console.error(`AdminLayout profile check failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, e);
         if (attempt < MAX_ATTEMPTS) {
           await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
         }

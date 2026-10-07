@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { isAxiosError } from 'axios';
 import * as Notifications from 'expo-notifications';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { apiClient } from '../api/apiClient';
@@ -74,9 +73,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       unreadMessagesRef.current = unreadMessages;
       setUnreadChats(chats.filter((c: any) => c.unreadCount > 0).length);
       setNativeBadge(unreadCount + unreadMessages);
-    } catch (e) {
-      console.warn('Failed refreshing chat counts', e);
-    }
+    } catch {}
   }, [unreadCount]);
 
   // ← Only poll (chats) when logged in
@@ -120,7 +117,6 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.warn('notifications: live unread-count listener error', err);
       }
     );
     return () => {
@@ -131,19 +127,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
       await apiClient.markNotificationsRead(targetScreens);
-    } catch (err) {
+    } catch {
       // Fire-and-forget from the header menu's badge-clearing onPress — a
-      // failure here must never block navigation, but it used to vanish
-      // into a console.warn with no way to tell it happened at all (a stuck
-      // badge looked identical to "nothing tried yet"). Logged as an error,
-      // with the request payload and whatever status/body the server
-      // returned, so a stuck-badge report can actually be traced.
-      console.error('markTabSeen: failed to mark notifications as read', {
-        targetScreens,
-        message: err instanceof Error ? err.message : String(err),
-        status: isAxiosError(err) ? err.response?.status : undefined,
-        body: isAxiosError(err) ? err.response?.data : undefined,
-      });
+      // failure here must never block navigation.
     }
   }, []);
 

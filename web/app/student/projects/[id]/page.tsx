@@ -70,7 +70,6 @@ export default function StudentProjectDetailPage() {
         setMilestones(list);
       } catch (err) {
         if (cancelled) return;
-        console.error('Failed to load project detail:', err);
         setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הפרויקט נכשלה' : 'Failed to load the project');
       } finally {
         if (!cancelled) setLoadingData(false);
@@ -140,7 +139,7 @@ export default function StudentProjectDetailPage() {
           projectId={projectId}
           onClose={() => setSubmitTarget(null)}
           onSubmitted={() => {
-            fetchMilestones().catch((err) => console.error('Failed to refresh milestones after submit:', err));
+            fetchMilestones().catch(() => {});
           }}
         />
       )}

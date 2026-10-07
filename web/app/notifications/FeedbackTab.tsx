@@ -27,9 +27,7 @@ export function FeedbackTab() {
     try {
       const res = await apiClient.getMyFeedback();
       setMessages(res.messages ?? []);
-    } catch (err) {
-      console.error('Failed to load feedback messages:', err);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   };
@@ -52,7 +50,6 @@ export function FeedbackTab() {
       await apiClient.submitFeedback(trimmed);
       await fetchMessages();
     } catch (err) {
-      console.error('Failed to send feedback:', err);
       setText(trimmed);
     } finally {
       setSending(false);

@@ -60,7 +60,6 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
         setPrimary(toEditable(res.data?.primary ?? []));
         setSecondary(toEditable(res.data?.secondary ?? []));
       } catch (e) {
-        console.error('Failed to load student status options:', e);
         Alert.alert(
           isHe ? 'שגיאה' : 'Error',
           isHe ? 'טעינת רשימות הסטטוסים נכשלה' : 'Failed to load the status lists'

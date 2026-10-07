@@ -12,7 +12,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
-import { apiClient, ApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { notifMatchesRole } from '@/lib/notificationScreens';
 
 interface NotificationsContextValue {
@@ -57,9 +57,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     try {
       const chatsRes = await apiClient.getChatDashboard();
       setUnreadChats((chatsRes.chats ?? []).filter((c) => Number(c.unreadCount ?? 0) > 0).length);
-    } catch (err) {
-      console.warn('Failed refreshing chat counts', err);
-    }
+    } catch {}
   }, [firebaseUser]);
 
   useEffect(() => {
@@ -102,7 +100,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.error('notifications: live unread-count listener error', err);
       }
     );
     return () => cancel(unsubUnread);
@@ -111,20 +108,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
       await apiClient.markNotificationsRead(targetScreens);
-    } catch (err) {
+    } catch {
       // Fire-and-forget from SidebarShell's badge-clearing effect — a
-      // failure here must never block navigation/rendering, but it used to
-      // vanish into a console.warn with no way to tell it happened at all
-      // (a stuck badge looked identical to "nothing tried yet"). Logged as
-      // an error, with the request payload and whatever status/body the
-      // server returned, so a stuck-badge report can actually be traced.
-      console.error('markTabSeen: failed to mark notifications as read', {
-        targetScreens,
-        name: err instanceof Error ? err.name : undefined,
-        message: err instanceof Error ? err.message : String(err),
-        status: err instanceof ApiError ? err.status : undefined,
-        body: err instanceof ApiError ? err.body : undefined,
-      });
+      // failure here must never block navigation/rendering.
     }
   }, []);
 

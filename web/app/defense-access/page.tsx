@@ -55,7 +55,6 @@ function DefenseAccessContent() {
       setStatus(res.status);
       setInfo(res);
     } catch (e) {
-      console.error('defense-access: load error', e);
       setStatus(e instanceof ApiError && e.status === 404 ? 'invalid' : 'error');
     }
   }, [grant]);

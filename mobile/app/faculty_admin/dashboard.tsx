@@ -158,7 +158,6 @@ export default function PanelScreen() {
       setMilestones(response.data.milestones || []);
       setAllSupervisors(response.data.supervisors || []);
     } catch (err: any) {
-      console.error('Fetch error:', err);
       Alert.alert('Error', lang === 'he' ? 'שגיאה בטעינת הנתונים' : 'Failed to synchronize administration items');
     } finally {
       setLoading(false);
@@ -191,7 +190,7 @@ export default function PanelScreen() {
         const eligible: AppUser[] = (r.data || []).filter((s: any) => s.eligibleAsSupervisor);
         setAllSupervisors(eligible);
       })
-      .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -203,7 +202,7 @@ export default function PanelScreen() {
   useEffect(() => {
     apiClient.get('/api/student-statuses')
       .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
-      .catch((err) => console.error('Failed to load student status options:', err));
+      .catch(() => {});
   }, []);
 
   const resolveStatusLabel = (key: string | null | undefined, list: StatusOption[]): string | null => {
@@ -220,7 +219,6 @@ export default function PanelScreen() {
         const res = await apiClient.get(`/api/staff/${uid}/deadlines`);
         setDeadlines(res.data.deadlines || []);
       } catch (e) {
-        console.error('Failed to load deadlines', e);
         Alert.alert('Error', 'Failed to load deadlines');
       } finally {
         setLoadingDeadlines(false);
@@ -258,9 +256,7 @@ export default function PanelScreen() {
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
       fetchAdminDashboard();
-    } catch (e) {
-      console.log(e);
-    } finally {
+    } catch {} finally {
       setSaving(false);
     }
   };
@@ -289,9 +285,7 @@ export default function PanelScreen() {
 
       Alert.alert('Success', 'User updated');
       setUserModal(false);
-    } catch (e) {
-      console.log(e);
-    } finally {
+    } catch {} finally {
       setSaving(false);
     }
   };*/
@@ -328,9 +322,7 @@ export default function PanelScreen() {
       setShowNewProject(false);
 
       await fetchAdminDashboard();
-    } catch (e) {
-      console.log(e);
-    } finally {
+    } catch {} finally {
       setCreating(false);
     }
   };
@@ -358,7 +350,6 @@ export default function PanelScreen() {
       );
 
     } catch (e) {
-      console.error('Toggle user error:', e);
 
       Alert.alert(
         'Error',

@@ -49,7 +49,6 @@ export default function AdminRecordsFacultyScreen() {
         setMajors(entry?.majors ?? []);
       })
       .catch((err) => {
-        console.error('Failed to load faculty majors:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת המגמות נכשלה' : 'Failed to load majors');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

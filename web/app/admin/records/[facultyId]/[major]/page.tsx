@@ -39,7 +39,6 @@ export default function AdminMajorRecordsPage() {
     apiClient.getScopedSupervisorsForRecords()
       .then((res) => setSupervisors(res.supervisors.filter((s) => s.facultyId === facultyId)))
       .catch((err) => {
-        console.error('Failed to load supervisors for records:', err);
         setError(lang === 'he' ? 'טעינת המנחים נכשלה' : 'Failed to load supervisors');
       });
   }, [isAllowed, lang, facultyId]);

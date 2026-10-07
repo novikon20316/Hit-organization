@@ -52,7 +52,6 @@ export default function SupervisorCreditPointsScreen() {
         setNoScopeAssigned(!!res.noScopeAssigned);
       })
       .catch((err) => {
-        console.error('Failed to load supervisor credit points:', err);
         setError(lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load data');
       })
       .finally(() => setLoading(false));
@@ -72,7 +71,6 @@ export default function SupervisorCreditPointsScreen() {
       await apiClient.updateSupervisorPaymentRates(rateEdits);
       load();
     } catch (err) {
-      console.error('Failed to save supervisor payment rates:', err);
       setSaveError(lang === 'he' ? 'השמירה נכשלה' : 'Save failed');
     } finally {
       setSaving(false);

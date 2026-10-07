@@ -128,9 +128,7 @@ export default function ChatScreen() {
         const deduped = incoming.filter((m: Message) => !seen.has(m.id));
         return deduped.length > 0 ? [...prev, ...deduped] : prev;
       });
-    } catch (err) {
-      console.error('Failed to load messages:', err);
-    } finally {
+    } catch {} finally {
       setLoadingMessages(false);
     }
   }, [chatId, currentUser]);
@@ -161,9 +159,7 @@ export default function ChatScreen() {
           setHeaderName(other.name  ?? 'Unknown');
           setHeaderRole(other.role  ?? '');
         }
-      } catch (err) {
-        console.error('Failed to look up chat metadata:', err);
-      }
+      } catch {}
     };
 
     fetchChatMetadata();
@@ -189,7 +185,6 @@ export default function ChatScreen() {
       // Immediately fetch so the sent message appears without waiting for the interval
       await fetchMessages();
     } catch (err) {
-      console.error('Send message error:', err);
       setText(trimmed); // restore on failure
     } finally {
       setSending(false);
@@ -213,9 +208,7 @@ export default function ChatScreen() {
       const imageUrl = await uploadChatImage(result.assets[0].uri);
       await apiClient.post(`/api/chats/${chatId}/messages`, { imageUrl });
       await fetchMessages();
-    } catch (err) {
-      console.error('Send image error:', err);
-    } finally {
+    } catch {} finally {
       setUploadingImage(false);
     }
   };
@@ -247,7 +240,6 @@ export default function ChatScreen() {
               await apiClient.post(`/api/chats/${chatId}/block`);
               router.back();
             } catch (err) {
-              console.error('Failed to block user:', err);
               Alert.alert(
                 isRtl ? 'שגיאה' : 'Error',
                 isRtl ? 'החסימה נכשלה. נסה/י שוב.' : 'Failed to block. Please try again.',
@@ -272,7 +264,6 @@ export default function ChatScreen() {
         isRtl ? 'הדיווח נשלח לבדיקה.' : 'Your report has been submitted for review.',
       );
     } catch (err) {
-      console.error('Failed to submit report:', err);
       Alert.alert(
         isRtl ? 'שגיאה' : 'Error',
         isRtl ? 'שליחת הדיווח נכשלה. נסה/י שוב.' : 'Failed to submit report. Please try again.',

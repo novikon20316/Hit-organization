@@ -42,7 +42,7 @@ export function ClockPauseControl({ projectId, lang }: { projectId: string; lang
     setLoading(true);
     apiClient.get(`/api/projects/${projectId}/clock-pause`)
       .then((res: any) => setActivePause(res.data?.activeClockPause ?? null))
-      .catch((err: unknown) => console.error('Failed to load clock-pause state:', err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 

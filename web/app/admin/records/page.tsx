@@ -29,7 +29,6 @@ export default function AdminRecordsPage() {
     apiClient.getFacultyTaxonomyForRecords()
       .then((res) => setFaculties(res.faculties))
       .catch((err) => {
-        console.error('Failed to load faculty taxonomy for records:', err);
         setError(lang === 'he' ? 'טעינת הפקולטות נכשלה' : 'Failed to load faculties');
       });
   }, [isAllowed, lang]);

@@ -46,7 +46,6 @@ export default function AdministrativeCoordinatorRecordsScreen() {
     apiClient.getScopedSupervisorsForRecords()
       .then((res) => { if (!cancelled) setSupervisors(res.supervisors ?? []); })
       .catch((err) => {
-        console.error('Failed to load supervisors:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

@@ -149,9 +149,7 @@ export default function ExaminerAccessScreen() {
         setDateWindow({ start: res.data.windowStart, end: res.data.windowEnd });
       }
       if (res.data.matchedDate) setMatchedDate(res.data.matchedDate);
-    } catch (e) {
-      console.error('examiner-access: defense-date status load error', e);
-    }
+    } catch {}
   }, [token]);
 
   const updateDateRow = (idx: number, value: string) =>
@@ -211,7 +209,6 @@ export default function ExaminerAccessScreen() {
       // caught client-side before ever reaching the server, so a rejection
       // here is almost always something generic (network, session expired,
       // already resolved) that this covers fine.
-      console.error('examiner-access: submit defense dates error', e);
       Alert.alert(L('שגיאה', 'Error'), L('שליחת התאריכים נכשלה — נסה/י שוב', 'Failed to submit dates — please try again'));
     } finally {
       setSubmittingDates(false);
@@ -252,7 +249,6 @@ export default function ExaminerAccessScreen() {
         setPhase('otp_required');
         return;
       }
-      console.error('examiner-access: load error', e);
       setPhase('error');
     }
   }, [token]);

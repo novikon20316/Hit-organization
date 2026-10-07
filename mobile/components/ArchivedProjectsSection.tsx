@@ -59,7 +59,6 @@ export function ArchivedProjectsSection({ lang }: { lang: Lang }) {
         setProjects(projRes.projects ?? []);
       })
       .catch((err: unknown) => {
-        console.error('Failed to load archived projects:', err);
         setLoadError(lang === 'he' ? 'טעינת הארכיון נכשלה' : 'Failed to load the archive');
       })
       .finally(() => setLoading(false));

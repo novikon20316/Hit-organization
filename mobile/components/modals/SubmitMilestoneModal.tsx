@@ -181,7 +181,6 @@ export default function SubmitMilestoneModal({
       }, 1500);
 
     } catch (e: any) {
-      console.error('Submit milestone error:', e?.message);
       // Prefer the server's per-language variant (see milestoneController.ts's
       // submitMilestone) when it sent one — any error without one falls back
       // to the translated generic message, not the raw server text.

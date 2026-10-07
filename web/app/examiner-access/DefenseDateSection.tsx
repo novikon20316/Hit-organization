@@ -49,7 +49,6 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       if (res.windowStart && res.windowEnd) setDateWindow({ start: res.windowStart, end: res.windowEnd });
       if (res.matchedDate) setMatchedDate(res.matchedDate);
     } catch (e) {
-      console.error('examiner-access: defense-date status load error', e);
       setLoadError(true);
     } finally {
       setLoaded(true);
@@ -138,7 +137,6 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       // window) are now caught client-side before ever reaching the
       // server, so a rejection here is almost always something generic
       // (network, session expired) that this covers fine.
-      console.error('examiner-access: submit defense dates error', e);
       setError(t('examinerDefenseDateSubmitError'));
     } finally {
       setSubmitting(false);

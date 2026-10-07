@@ -202,7 +202,6 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       // (weekend, past, outside window) are now caught client-side before
       // ever reaching the server, so a rejection here is almost always
       // something generic (network, already resolved) that this covers fine.
-      console.error('examinor: submit defense dates error', err);
       setDateMessage(lang === 'he' ? 'שליחת התאריכים נכשלה — נסה/י שוב' : 'Failed to submit dates — please try again');
     } finally {
       setSubmittingDates(false);

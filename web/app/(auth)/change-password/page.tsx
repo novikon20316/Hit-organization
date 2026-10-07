@@ -107,9 +107,7 @@ export default function ChangePasswordPage() {
     setSigningOut(true);
     try {
       await logout();
-    } catch (err) {
-      console.warn('Sign out failed, navigating to login anyway:', err);
-    } finally {
+    } catch {} finally {
       setSigningOut(false);
       router.replace('/login');
     }

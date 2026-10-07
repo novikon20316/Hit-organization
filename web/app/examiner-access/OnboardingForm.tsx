@@ -47,7 +47,6 @@ export function OnboardingForm({ token }: OnboardingFormProps) {
       .getExaminerOnboardingStatus(token)
       .then(setStatus)
       .catch((err) => {
-        console.error('OnboardingForm: status load error', err);
         setLoadError(true);
       });
   }, [token]);

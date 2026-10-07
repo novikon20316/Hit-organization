@@ -190,7 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileResolved(true);
       },
       (err) => {
-        console.error('Failed to subscribe to user profile:', err);
         setProfileResolved(true);
       }
     );
@@ -216,9 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await beforeSignOutRef.current?.();
-    } catch (err) {
-      console.error('registerBeforeSignOut callback failed — continuing with sign-out anyway:', err);
-    }
+    } catch {}
     // Cleared eagerly, before the async signOut() below resolves — closes
     // the window where clicking "sign out" and immediately pressing back
     // would still find the cookie present and slip past proxy.ts.

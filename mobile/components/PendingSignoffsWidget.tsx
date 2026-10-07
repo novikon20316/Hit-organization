@@ -70,7 +70,6 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
       setItems(res.data?.items ?? []);
       setError('');
     } catch (err) {
-      console.error('PendingSignoffsWidget: failed to load', err);
       setError(lang === 'he' ? 'טעינת האישורים הממתינים נכשלה' : 'Failed to load pending sign-offs');
     } finally {
       setLoading(false);
@@ -94,7 +93,6 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
       setStageFormValues({});
       await fetchItems();
     } catch (err) {
-      console.error('PendingSignoffsWidget: approve failed', err);
       setError(lang === 'he' ? 'האישור נכשל' : 'Approval failed');
     } finally {
       setBusyId(null);
@@ -112,7 +110,6 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
       setRejectReason('');
       await fetchItems();
     } catch (err) {
-      console.error('PendingSignoffsWidget: reject failed', err);
       setError(lang === 'he' ? 'הדחייה נכשלה' : 'Rejection failed');
     } finally {
       setBusyId(null);

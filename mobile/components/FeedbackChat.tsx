@@ -37,9 +37,7 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
     try {
       const res = await apiClient.get('/api/feedback');
       setMessages(res.data.messages ?? []);
-    } catch (err) {
-      console.error('Failed to load feedback messages:', err);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   };
@@ -59,7 +57,6 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
       await apiClient.post('/api/feedback', { text: trimmed });
       await fetchMessages();
     } catch (err) {
-      console.error('Failed to send feedback:', err);
       setText(trimmed);
     } finally {
       setSending(false);

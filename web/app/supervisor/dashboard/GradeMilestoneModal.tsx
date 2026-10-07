@@ -97,7 +97,6 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           try {
             await apiClient.submitIndividualGrade(m.id, { studentId, score: Number(raw) });
           } catch (err) {
-            console.error(`Failed to submit individual grade for ${studentId}:`, err);
             individualFailures.push(m.studentNames[m.studentIds.indexOf(studentId)] ?? studentId);
           }
         }

@@ -116,7 +116,6 @@ function ExaminerHomeContent() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.warn('examinor/home: live milestones listener error', err);
       }
     );
     return () => {

@@ -200,7 +200,6 @@ export default function ProfileSetup() {
       throw new Error('Sync failed: ' + (response.data?.message ?? 'unknown error'));
     }
 
-    console.log("✅ Sync confirmed, navigating to login");
     // Small buffer so Firestore propagation completes before onAuthStateChanged fires on login
     await new Promise(resolve => setTimeout(resolve, 1000));
     router.replace('/(auth)/login');
@@ -253,7 +252,6 @@ export default function ProfileSetup() {
       setStage('verify');
 
     } catch (e: any) {
-      console.error("Registration Error:", e);
       let msg = lang === 'he' ? 'ההרשמה נכשלה. נסה שוב.' : 'Registration failed. Please try again.';
       if (e.code === 'auth/email-already-in-use' || e.code === 'auth/email-in-use-mismatched-password') {
         msg = lang === 'he'
@@ -288,7 +286,6 @@ export default function ProfileSetup() {
       }
       await finishRegistration(user);
     } catch (e: any) {
-      console.error('Verify-continue error:', e);
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.message ?? 'Something went wrong.');
     } finally {
       setSaving(false);

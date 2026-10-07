@@ -48,7 +48,6 @@ export default function DefenseAccessScreen() {
       setStatus(res.data.status);
       setInfo(res.data);
     } catch (e) {
-      console.error('defense-access: load error', e);
       setStatus('error');
     }
   }, [grant]);

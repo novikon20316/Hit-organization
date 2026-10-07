@@ -157,7 +157,6 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
       const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
       setAgreedDate(res.matchedDate ?? null);
     } catch (e) {
-      console.error('examiner-evaluation: defense-date status load error', e);
       setLoadError(true);
     } finally {
       setDateLoaded(true);

@@ -35,7 +35,6 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
       await apiClient.post(`/api/applications/${application.id}/confirm-meeting`, { selectedSlot: slot });
       onWithdrawn();
     } catch (err: any) {
-      console.error(err);
       Alert.alert('Error', err.response?.data?.message || 'Action failed');
     } finally {
       setMeetingBusy(false);
@@ -56,7 +55,6 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
               await apiClient.post(`/api/applications/${application.id}/withdraw`);
               onWithdrawn();
             } catch (err: any) {
-              console.error(err);
               Alert.alert('Error', err.response?.data?.message || 'Action failed');
             }
           },
@@ -70,7 +68,6 @@ export default function ApplicationStatusCard({ application, lang, isRtl, onWith
       await apiClient.post(`/api/applications/${application.id}/confirm-start`, { decision });
       onWithdrawn();
     } catch (err: any) {
-      console.error(err);
       Alert.alert('Error', err.response?.data?.message || 'Action failed');
     }
   };

@@ -115,7 +115,6 @@ export default function StudentDetailScreen() {
     return apiClient.get(`/api/project-coordinator/students/${studentId}/detail`)
       .then((res: any) => { setData(res.data); })
       .catch((err: any) => {
-        console.error('Failed to load student detail:', err);
         setError(lang === 'he' ? 'טעינת נתוני הסטודנט נכשלה' : 'Failed to load student data');
       })
       .finally(() => { setLoading(false); });

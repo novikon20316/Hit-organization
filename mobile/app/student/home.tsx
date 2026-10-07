@@ -44,9 +44,7 @@ export default function StudentHome() {
   const handleBeforeSignOut = async () => {
     try {
       await apiClient.post('/api/users/logout');
-    } catch (e) {
-      console.warn('Logout API call failed, continuing anyway');
-    } finally {
+    } catch {} finally {
       cancelAllListeners();
     }
   };

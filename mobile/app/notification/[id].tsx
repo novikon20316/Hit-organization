@@ -70,7 +70,6 @@ export default function NotificationDetailScreen() {
       setUserRole(profileRes.data.role ?? null);
       setListReady(true);
     }).catch((err) => {
-      console.error('Failed to load notification list for paging:', err);
       if (!cancelled) setListReady(true); // paging just stays disabled
     });
     return () => { cancelled = true; };
@@ -134,7 +133,6 @@ export default function NotificationDetailScreen() {
 
     if (!target.isRead) {
       apiClient.markNotificationRead(target.id).catch((err: unknown) => {
-        console.error('Failed to mark notification as read:', err);
       });
       setAlerts((prev) => prev.map((n) => (n.id === target.id ? { ...n, isRead: true } : n)));
       refresh();

@@ -260,7 +260,6 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
     } else {
       setApplyMessage(translateApplyError(e?.response?.data?.message, lang));
     }
-    console.error('Apply error:', e);
   } finally {
     setSubmitting(false);
   }

@@ -17,7 +17,6 @@ export default function Setup2FA() {
       const res = await apiClient.post('/api/auth/2fa/setup');
       setQrCode(res.data.qrCode);
     } catch (err) {
-      console.error('Failed to load 2FA QR code:', err);
       setError('Failed to load the QR code. Please try again.');
     }
   };

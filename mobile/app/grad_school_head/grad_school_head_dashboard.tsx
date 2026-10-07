@@ -205,7 +205,6 @@ export default function GradSchoolHeadDashboard() {
       const res = await apiClient.get(`/api/grad-school-head/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      console.error('grad_school_head dashboard error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -222,7 +221,6 @@ export default function GradSchoolHeadDashboard() {
       setStaff(res.data.staff ?? []);
     } catch (e) {
       // Non-fatal — the Staff tab just shows an empty list if this fails.
-      console.error('grad_school_head fetchStaff error:', e);
     }
   }, []);
 
@@ -251,7 +249,7 @@ export default function GradSchoolHeadDashboard() {
         const eligible: AppUser[] = (r.data || []).filter((sup: any) => sup.eligibleAsSupervisor);
         setAllSupervisors(eligible);
       })
-      .catch((err) => console.error('Error loading supervisors for selected faculties:', err));
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

@@ -51,7 +51,6 @@ export default function NotificationDetailPage() {
         setListReady(true);
       })
       .catch((err) => {
-        console.error('Failed to load notification list for paging:', err);
         setListReady(true); // paging just stays disabled
       });
     return () => {
@@ -120,7 +119,6 @@ export default function NotificationDetailPage() {
 
     if (!target.isRead) {
       apiClient.markNotificationRead(target.id).catch((err) => {
-        console.error('Failed to mark notification as read:', err);
       });
       setAlerts((prev) => prev.map((n) => (n.id === target.id ? { ...n, isRead: true } : n)));
       refreshBadges();

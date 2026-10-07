@@ -117,7 +117,6 @@ export function BrowseSupervisors({ studentFaculty, studentDegree, studentEffect
       () => fetchSupervisors(),
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
-        console.error('Browse-supervisors snapshot error:', err);
       }
     );
     return () => unsub();

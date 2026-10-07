@@ -43,7 +43,6 @@ export default function AdministrativeCoordinatorRecordsPage() {
     apiClient.getScopedSupervisorsForRecords()
       .then((res) => setSupervisors(res.supervisors))
       .catch((err) => {
-        console.error('Failed to load supervisors for records:', err);
         setError(lang === 'he' ? 'טעינת המנחים נכשלה' : 'Failed to load supervisors');
       });
   }, [isAllowed, lang]);

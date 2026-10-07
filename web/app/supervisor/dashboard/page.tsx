@@ -269,7 +269,6 @@ function SupervisorDashboardContent() {
     };
     const onErr = (err: any) => {
       if (err?.code === 'permission-denied') return; // expected during sign-out
-      console.warn('supervisor/dashboard: live milestones listener error', err);
     };
 
     unsubPrimary.current = onSnapshot(query(collection(db, 'milestones'), where('supervisorId', '==', uid)), onSnap, onErr);

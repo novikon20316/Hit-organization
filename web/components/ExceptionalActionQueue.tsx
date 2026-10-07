@@ -40,7 +40,6 @@ export function ExceptionalActionQueue() {
     apiClient.getPendingExceptionalActions()
       .then((res) => setRequests(res.requests))
       .catch((err) => {
-        console.error('Failed to load exceptional-action queue:', err);
         setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הבקשות הממתינות נכשלה' : 'Failed to load pending requests');
       })
       .finally(() => setLoading(false));

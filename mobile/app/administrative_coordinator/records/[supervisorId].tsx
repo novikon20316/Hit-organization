@@ -36,7 +36,6 @@ export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
     apiClient.getSupervisorProjectRecords(supervisorId)
       .then((res) => { if (!cancelled) setProjects(res.projects ?? []); })
       .catch((err) => {
-        console.error('Failed to load supervisor project records:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת הפרויקטים נכשלה' : 'Failed to load projects');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

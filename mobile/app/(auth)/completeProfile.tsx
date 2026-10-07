@@ -149,7 +149,6 @@ export default function CompleteProfile() {
       }
       router.replace(getHomeRoute(role as any) as any);
     } catch (e: any) {
-      console.error('completeProfile save error:', e);
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e.message ?? 'Registration failed.');
     } finally {
       setSaving(false);

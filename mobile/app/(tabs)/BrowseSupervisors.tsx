@@ -137,7 +137,6 @@ export default function BrowseSupervisors({ lang, isRtl, studentFaculty, student
       () => fetchSupervisors(),
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
-        console.error('Browse-supervisors snapshot error:', err);
       }
     );
     return () => unsub();

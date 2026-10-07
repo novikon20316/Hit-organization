@@ -81,7 +81,6 @@ export default function Index() {
             safeSetRedirectPath("/(auth)/login");
         }
       } catch (error) {
-        console.log("Backend role resolution error:", error);
         safeSetRedirectPath("/(auth)/login");
       }
     };

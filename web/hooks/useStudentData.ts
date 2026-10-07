@@ -139,7 +139,6 @@ export function useStudentData() {
             return { project, milestones: sorted };
           })
         );
-        results.filter((r) => r.status === 'rejected').forEach((r) => console.error('Failed to load an active project:', (r as PromiseRejectedResult).reason));
         const loaded = results.filter((r): r is PromiseFulfilledResult<ActiveProjectEntry> => r.status === 'fulfilled').map((r) => r.value);
         if (loaded.length > 0) {
           setActiveProjects(loaded);
@@ -177,7 +176,6 @@ export function useStudentData() {
         setStudentState(firstStep.firstStepMode === 'choose_supervisor' ? 'choose_supervisor' : 'no_project');
       }
     } catch (err) {
-      console.error('Student Dashboard Fetch Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data.');
       setStudentState('no_project');
     }
@@ -257,7 +255,6 @@ export function useStudentData() {
       },
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
-        console.error('Proposals snapshot error:', err);
       }
     );
 
@@ -290,7 +287,6 @@ export function useStudentData() {
       },
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
-        console.error('User doc snapshot error:', err);
       }
     );
 
@@ -374,7 +370,6 @@ export function useStudentData() {
       },
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
-        console.error('Milestones snapshot error:', err);
       }
     );
 

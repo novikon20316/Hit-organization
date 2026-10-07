@@ -135,7 +135,6 @@ export default function ProgramHeadDashboard() {
       const res = await apiClient.get(`/api/program-head/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      console.error('program_head dashboard error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -152,7 +151,6 @@ export default function ProgramHeadDashboard() {
       setStaff(res.data.staff ?? []);
     } catch (e) {
       // Non-fatal — the Staff tab just shows an empty list if this fails.
-      console.error('program_head fetchStaff error:', e);
     }
   }, []);
 
@@ -162,7 +160,6 @@ export default function ProgramHeadDashboard() {
       setMyProjects(res.data.myProjects ?? []);
     } catch (e) {
       // Non-fatal — the tab just shows an empty list if this fails.
-      console.error('program_head fetchMyProjects error:', e);
     }
   }, []);
 

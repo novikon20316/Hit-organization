@@ -115,7 +115,6 @@ export default function ProjectMilestonesScreen() {
         const mapped = raw.map(toRoadmapMilestone).sort((a, b) => resolveOrder(a) - resolveOrder(b));
         setMilestones(mapped);
       } catch (err) {
-        console.error('Failed to load project milestones:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load data');
       } finally {
         if (!cancelled) setLoading(false);

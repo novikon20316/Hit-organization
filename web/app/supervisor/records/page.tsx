@@ -33,7 +33,6 @@ export default function SupervisorRecordsPage() {
     apiClient.getMyProjectRecords()
       .then((res) => setProjects(res.projects))
       .catch((err) => {
-        console.error('Failed to load project records:', err);
         setError(lang === 'he' ? 'טעינת הרישומים נכשלה' : 'Failed to load records');
       });
   }, [isAllowed, lang]);

@@ -62,9 +62,7 @@ export default function AccountDeletionPendingPage() {
         const reason = profile.deletionReason;
         setDeletionReason(reason === 'graduated' || reason === 'self_requested' ? reason : null);
         setScheduledFor(parseServerDate(profile.deletionScheduledFor));
-      } catch (err) {
-        console.error('Failed to load account deletion status:', err);
-      } finally {
+      } catch {} finally {
         setLoadingProfile(false);
       }
     })();
@@ -78,7 +76,6 @@ export default function AccountDeletionPendingPage() {
       const profile = await apiClient.getMyProfile();
       router.replace(getHomeRoute(profile.role as AppRole | undefined));
     } catch (err) {
-      console.error('Failed to cancel account deletion:', err);
       setError(
         err instanceof ApiError
           ? err.message

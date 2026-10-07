@@ -118,9 +118,7 @@ export default function ChangePasswordScreen() {
     setSigningOut(true);
     try {
       await signOut(auth);
-    } catch (e) {
-      console.warn('Sign out failed, navigating to login anyway:', e);
-    } finally {
+    } catch {} finally {
       setSigningOut(false);
       router.replace('/(auth)/login' as any);
     }

@@ -23,7 +23,7 @@ export function ExaminerEscalationPanel() {
     setLoading(true);
     apiClient.getExaminerEscalations()
       .then((res) => setEscalations(res.escalations))
-      .catch((err) => console.error('Failed to load examiner escalations:', err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 

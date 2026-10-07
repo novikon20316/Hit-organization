@@ -331,7 +331,6 @@ export default function PanelScreen() {
       setProjects(dataMatrix.data.projects || []);
       setMilestones(dataMatrix.data.milestones || []);
     } catch (err) {
-      console.error("Critical Admin Matrix Sync Fault:", err);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'טעינת לוח הבקרה נכשלה.' : 'Failed to load the dashboard.',
@@ -355,7 +354,7 @@ export default function PanelScreen() {
   useEffect(() => {
     apiClient.get('/api/student-statuses')
       .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
-      .catch((err) => console.error('Failed to load student status options:', err));
+      .catch(() => {});
   }, []);
 
   const resolveStatusLabel = (key: string | null | undefined, list: StatusOption[]): string | null => {
@@ -367,23 +366,18 @@ export default function PanelScreen() {
   useEffect(() => {
     const fetchProjectMilestones = async () => {
       try {
-        console.log("📍 Loading milestones for Project ID:", projectId);
-
         if (!projectId) {
-          console.warn("⚠️ No projectId found in search params");
           return;
         }
 
         // 2. Call your existing list endpoint passing the parameter filter
-        const responseData = await apiClient.get('/api/admin/milestones',{ 
-          params: { projectId } 
+        const responseData = await apiClient.get('/api/admin/milestones',{
+          params: { projectId }
         });
         const milestones = responseData.data;
         // Update your state here (e.g., setMilestones(responseData))
-        
-      } catch (error) {
-        console.error("❌ Error fetching milestones:", error);
-      }
+
+      } catch {}
     };
 
     fetchProjectMilestones();
@@ -419,7 +413,6 @@ export default function PanelScreen() {
         setAllSupervisors(eligible);
       } catch (err) {
         if (seq !== fetchSupervisorsSeqRef.current) return;
-        console.error("Error loading panel supervisors:", err);
       }
     };
     if (showNewProject) fetchSupervisors();
@@ -433,9 +426,7 @@ export default function PanelScreen() {
         setLoadingDefenseGrants(true);
         const res = await apiClient.get('/api/admin/defense-access-grants', { params: { status: 'expired' } });
         setDefenseGrants(res.data.grants || []);
-      } catch (err) {
-        console.error('Error loading defense access grants:', err);
-      } finally {
+      } catch {} finally {
         setLoadingDefenseGrants(false);
       }
     };
@@ -456,7 +447,6 @@ export default function PanelScreen() {
       });
       setRosterEntries(entries);
     } catch (err) {
-      console.error('Error loading student roster:', err);
       setRosterError(lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load the student roster');
     } finally {
       setLoadingRoster(false);
@@ -528,9 +518,7 @@ export default function PanelScreen() {
         setLoadingFeedback(true);
         const res = await apiClient.get('/api/feedback/admin', { params: { status: feedbackStatusFilter } });
         setFeedbackMessages(res.data.messages || []);
-      } catch (err) {
-        console.error('Error loading feedback:', err);
-      } finally {
+      } catch {} finally {
         setLoadingFeedback(false);
       }
     };
@@ -543,9 +531,7 @@ export default function PanelScreen() {
       setLoadingLocked(true);
       const res = await apiClient.getLockedUsers();
       setLockedUsers(res.lockouts ?? []);
-    } catch (e) {
-      console.error('Failed to load locked accounts:', e);
-    } finally {
+    } catch {} finally {
       setLoadingLocked(false);
     }
   };
@@ -565,7 +551,6 @@ export default function PanelScreen() {
         lang === 'he' ? 'הנעילה הוסרה. סיסמה זמנית חדשה נשלחה למשתמש.' : 'Lockout lifted. A new temp password was emailed to the user.'
       );
     } catch (e: any) {
-      console.error('Failed to lift lockout:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'הסרת הנעילה נכשלה' : 'Failed to lift the lockout')
@@ -652,8 +637,6 @@ export default function PanelScreen() {
               fetchAllDashboardData(); 
 
             } catch (e: any) {
-              console.error('Enroll student verification error:', e);
-              
               // Pull backend error messages gracefully
               const errorMsg = e.response?.data?.message || String(e);
               Alert.alert('Error', errorMsg);
@@ -779,8 +762,6 @@ export default function PanelScreen() {
       fetchAllDashboardData();
 
     } catch (e: any) {
-      console.error('Create user error:', e);
-      
       // Checks if your backend custom error middleware dispatched a precise error string
       const fallbackError = e.response?.data?.message || String(e);
       Alert.alert('Error', fallbackError);
@@ -812,7 +793,6 @@ export default function PanelScreen() {
     try {
       await exportUsers('admin');
     } catch (e: any) {
-      console.error('Export users error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'ייצוא המשתמשים נכשל' : 'Failed to export users'
@@ -831,7 +811,6 @@ export default function PanelScreen() {
       showImportSummary(summary);
       fetchAllDashboardData();
     } catch (e: any) {
-      console.error('Import staff error:', e);
       const timedOut = e.code === 'ECONNABORTED';
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
@@ -871,7 +850,6 @@ export default function PanelScreen() {
       );
       if (activeTab === 'studentRoster') fetchRosterEntries();
     } catch (e: any) {
-      console.error('Import student roster error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         e.response?.data?.message || (lang === 'he' ? 'ייבוא רשימת הסטודנטים נכשל' : 'Failed to import the student roster')
@@ -927,9 +905,7 @@ export default function PanelScreen() {
 
       Alert.alert('✅', lang === 'he' ? 'הפרויקט פורסם בהצלחה!' : 'Project published successfully!');
       fetchAllDashboardData();
-    } catch (e) {
-      console.error(e);
-    } finally {
+    } catch {} finally {
       setCreating(false);
     }
   };
@@ -950,9 +926,7 @@ export default function PanelScreen() {
             try {
               await apiClient.delete(`/api/admin/projects/${projectId}`);
               fetchAllDashboardData();
-            } catch (e) {
-              console.log(e);
-            }
+            } catch {}
           },
         },
       ]
@@ -1129,9 +1103,7 @@ export default function PanelScreen() {
       Alert.alert('Success', lang === 'he' ? 'המשתמש עודכן בהצלחה' : 'User updated successfully');
       setUserModal(false);
       fetchAllDashboardData();
-    } catch (e) {
-      console.log(e);
-    } finally {
+    } catch {} finally {
       setSaving(false);
     }
   };
@@ -1143,9 +1115,7 @@ export default function PanelScreen() {
         isActive: !current
       });
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !current } : u));
-    } catch (e) {
-      console.error(e);
-    }
+    } catch {}
   };
 
   const eraseUser = (userId: string, userName: string) => {
@@ -1196,9 +1166,7 @@ export default function PanelScreen() {
 
       Alert.alert('Success', lang === 'he' ? 'מצב תחזוקה הופעל' : 'Maintenance mode activated');
       setMaintenanceModal(false);
-    } catch (e) {
-      console.log(e);
-    }
+    } catch {}
   };
 
   const fetchMaintenanceStatus = async () => {
@@ -1206,7 +1174,6 @@ export default function PanelScreen() {
       const res = await apiClient.get('/api/system/maintenance-status', { params: { platform: 'mobile' } });
       setMaintenanceStatus(res.data);
     } catch (e) {
-      console.log(e);
       setMaintenanceStatus(null);
     }
   };
@@ -1218,7 +1185,6 @@ export default function PanelScreen() {
       await fetchMaintenanceStatus();
       Alert.alert('✅', lang === 'he' ? 'מצב התחזוקה בוטל' : 'Maintenance mode ended');
     } catch (e) {
-      console.log(e);
       Alert.alert('Error', lang === 'he' ? 'ביטול מצב התחזוקה נכשל' : 'Failed to end maintenance mode');
     } finally {
       setDeactivatingMaintenance(false);
@@ -2596,7 +2562,7 @@ export default function PanelScreen() {
           // the EditUserModal's dropdowns rely on this cached copy.
           apiClient.get('/api/student-statuses')
             .then((res) => setStudentStatusOptions({ primary: res.data?.primary ?? [], secondary: res.data?.secondary ?? [] }))
-            .catch((err) => console.error('Failed to refresh student status options:', err));
+            .catch(() => {});
         }}
         lang={lang}
       />

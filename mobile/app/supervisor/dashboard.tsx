@@ -434,12 +434,12 @@ export default function SupervisorHome() {
     const unsubPrimary = onSnapshot(
       query(collection(db, 'projects'), where('supervisorId', '==', supervisorId), where('facultyId', '==', facultyId)),
       (snapshot) => { latestPrimary = snapshot.docs.map(toProject); mergeAndSet(); },
-      (error) => console.warn('❌ Projects listener (primary) error:', error),
+      () => {},
     );
     const unsubSecondary = onSnapshot(
       query(collection(db, 'projects'), where('secondarySupervisorId', '==', supervisorId), where('facultyId', '==', facultyId)),
       (snapshot) => { latestSecondary = snapshot.docs.map(toProject); mergeAndSet(); },
-      (error) => console.warn('❌ Projects listener (secondary) error:', error),
+      () => {},
     );
 
     const unsub = () => { unsubPrimary(); unsubSecondary(); };
@@ -499,7 +499,7 @@ export default function SupervisorHome() {
           // every application for this project, not just open ones.
           applyAndSet();
         },
-        (error) => console.error('❌ Applications listener error:', error.code, error.message),
+        () => {},
       )
     );
 
@@ -760,7 +760,6 @@ export default function SupervisorHome() {
             score: Number(raw),
           });
         } catch (individualError) {
-          console.error(`Failed to submit individual grade for ${sid}:`, individualError);
           const idx = groupStudentIds.indexOf(sid);
           individualFailures.push((activeMilestone as PendingMilestone).studentNames?.[idx] ?? sid);
         }
@@ -785,8 +784,6 @@ export default function SupervisorHome() {
       setIndividualScores({});
       fetchDashboardData(); // refresh grading list from API
     } catch (error: any) {
-      console.error("❌ Network or Execution catch block error:", error);
-      console.error("❌ Response Details:", error?.response?.data || "No response data available");
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         // Surfaces the server's message when there is one — in particular the
@@ -924,7 +921,6 @@ export default function SupervisorHome() {
         setEditProjectFileName(asset.name);
       }
     } catch (e) {
-      console.error('Project file upload error:', e);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'העלאת הקובץ נכשלה. נסה שוב.' : 'File upload failed. Please try again.'

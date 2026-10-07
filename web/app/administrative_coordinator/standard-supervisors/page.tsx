@@ -49,7 +49,6 @@ export default function StandardSupervisorsPage() {
       .getStandardSupervisors()
       .then((res) => setSupervisors(res.supervisors))
       .catch((err) => {
-        console.error('Failed to load standard supervisors:', err);
         setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors');
       });
   }, [isAllowed, lang]);
@@ -64,7 +63,6 @@ export default function StandardSupervisorsPage() {
     try {
       await apiClient.setStandardSupervisorFlag(supervisor.id, category, nextValue);
     } catch (err) {
-      console.error('Failed to update standard supervisor flag:', err);
       // Revert on failure.
       setSupervisors((prev) =>
         prev?.map((s) => (s.id === supervisor.id ? { ...s, standardSupervisorEligibility: { ...s.standardSupervisorEligibility, [category]: !nextValue } } : s)) ?? null,

@@ -35,7 +35,6 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
     apiClient.get('/api/exceptional-actions/pending')
       .then((res: any) => setRequests(res.data?.requests ?? []))
       .catch((err: unknown) => {
-        console.error('Failed to load exceptional-action queue:', err);
         setLoadError(lang === 'he' ? 'טעינת הבקשות הממתינות נכשלה' : 'Failed to load pending requests');
       })
       .finally(() => setLoading(false));

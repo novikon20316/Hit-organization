@@ -142,7 +142,6 @@ export function useStudentData() {
             return { project: projectRes.data as ActiveProject, milestones: sorted as Milestone[] };
           })
         );
-        results.filter((r) => r.status === 'rejected').forEach((r) => console.error('Failed to load an active project:', (r as PromiseRejectedResult).reason));
         const loaded = results.filter((r): r is PromiseFulfilledResult<ActiveProjectEntry> => r.status === 'fulfilled').map((r) => r.value);
         if (loaded.length > 0) {
           setActiveProjects(loaded);
@@ -190,12 +189,9 @@ export function useStudentData() {
       try {
         const notifRes = await apiClient.get('/api/notifications/inbox');
         setNotifications(notifRes.data?.notifications || []);
-      } catch (e) {
-        console.error('Failed to fetch notifications:', e);
-      }
+      } catch {}
 
     } catch (err: any) {
-      console.error('Student Dashboard Fetch Error:', err);
       setError(err.message || 'Failed to load dashboard data.');
       setStudentState('no_project');
     }
@@ -273,7 +269,6 @@ export function useStudentData() {
       (error) => {
         // Ignore permission errors — this fires during logout when auth is revoked
         if (error.code === 'permission-denied') return;
-        console.error('Proposals snapshot error:', error);
       }
     );
 
@@ -303,7 +298,6 @@ export function useStudentData() {
       },
       (error) => {
         if (error.code === 'permission-denied') return;
-        console.error('User doc snapshot error:', error);
       }
     );
 
@@ -390,7 +384,6 @@ export function useStudentData() {
       },
       (error) => {
         if (error.code === 'permission-denied') return;
-        console.error('Milestones snapshot error:', error);
       }
     );
 

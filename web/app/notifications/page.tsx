@@ -93,7 +93,6 @@ export default function NotificationsPage() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.error('notifications: live listener error', err);
         setNotifsError(lang === 'he' ? 'טעינת ההתראות נכשלה' : 'Failed to load notifications');
         setLoadingNotifs(false);
       }
@@ -111,7 +110,6 @@ export default function NotificationsPage() {
       setChats((res.chats ?? []) as unknown as ChatRow[]);
       setChatsError('');
     } catch (err) {
-      console.error('Failed compiling chat list feed items:', err);
       setChatsError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
     } finally {
       setLoadingChats(false);
@@ -155,7 +153,6 @@ export default function NotificationsPage() {
         await apiClient.markNotificationRead(notif.id);
         setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)));
       } catch (err) {
-        console.error('Failed to mark notification as read:', err);
         setActionError(lang === 'he' ? 'סימון ההתראה כנקראה נכשל' : 'Failed to mark the notification as read');
       }
     }
@@ -194,9 +191,7 @@ export default function NotificationsPage() {
         await apiClient.markNotificationRead(notif.id);
         setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)));
         refreshBadges();
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
+      } catch {}
     }
     // Chat notifications don't go through computeNotifTargetRoute's
     // role/targetScreen table at all — their destination is the specific
@@ -222,7 +217,6 @@ export default function NotificationsPage() {
       setChats((prev) => prev.filter((c) => c.chatId !== deletingChat.chatId));
       setDeletingChat(null);
     } catch (err) {
-      console.error('Failed to delete chat:', err);
       setActionError(lang === 'he' ? 'מחיקת השיחה נכשלה' : 'Failed to delete the conversation');
     } finally {
       setDeleting(false);
@@ -243,7 +237,6 @@ export default function NotificationsPage() {
       setNotifications((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n)));
       refreshBadges();
     } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
       setActionError(lang === 'he' ? 'סימון הכל כנקרא נכשל' : 'Failed to mark all as read');
     }
   };

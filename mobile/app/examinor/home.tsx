@@ -188,13 +188,12 @@ export default function ExaminerHome() {
     try {
       setLoading(true);
       const [profileRes, dashboardRes] = await Promise.all([
-        apiClient.get('/api/users/profile').catch(e => { console.error('❌ profile failed:', e.response?.status, e.response?.config?.url); throw e; }),
-        apiClient.get('/api/examiner/dashboard').catch(e => { console.error('❌ dashboard failed:', e.response?.status, e.response?.config?.url); throw e; }),
+        apiClient.get('/api/users/profile'),
+        apiClient.get('/api/examiner/dashboard'),
       ]);
       setExaminerName(profileRes.data?.displayName || '');
       setAssignments(dashboardRes.data.milestones || []);
     } catch (err: any) {
-      console.error('Error fetching dashboard data:', err);
       Alert.alert(
         lang === 'he' ? 'שגיאה בהבאת נתונים' : 'Data Fetch Error',
         lang === 'he' ? 'נכשלה טעינת נתוני השרת' : 'Could not synchronize data with backend server.'
@@ -252,7 +251,6 @@ export default function ExaminerHome() {
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
-        console.warn('examinor/home: live milestones listener error', err);
       }
     );
     return () => {
@@ -420,7 +418,6 @@ export default function ExaminerHome() {
       }
       await fetchDashboardData();
     } catch (e) {
-      console.error(e);
       Alert.alert('Error', String(e));
     } finally {
       setEvalSubmitting(false);
@@ -507,7 +504,6 @@ export default function ExaminerHome() {
       // are now caught client-side before ever reaching the server, so a
       // rejection here is almost always something generic (network,
       // already resolved) that this covers fine.
-      console.error('examinor: submit defense dates error', err);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'שליחת התאריכים נכשלה — נסה/י שוב' : 'Failed to submit dates — please try again'
@@ -562,7 +558,6 @@ export default function ExaminerHome() {
       setGradeModal(false);
       await fetchDashboardData();
     } catch (e) {
-      console.error(e);
       Alert.alert('Error', String(e));
     } finally {
       setSubmitting(false);
@@ -620,7 +615,6 @@ export default function ExaminerHome() {
       setFormModal(false);
       await fetchDashboardData();
     } catch (e) {
-      console.error(e);
       Alert.alert('Error', String(e));
     } finally {
       setFormSubmitting(false);
@@ -646,7 +640,6 @@ export default function ExaminerHome() {
               await apiClient.post(`/api/milestones/${m.id}/examiner-one-signoff`, {});
               await fetchDashboardData();
             } catch (e) {
-              console.error(e);
               Alert.alert('Error', String(e));
             } finally {
               setSigningOffId(null);

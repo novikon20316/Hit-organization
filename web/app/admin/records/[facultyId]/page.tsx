@@ -32,7 +32,6 @@ export default function AdminFacultyRecordsPage() {
     apiClient.getFacultyTaxonomyForRecords()
       .then((res) => setMajors(res.faculties.find((f) => f.facultyId === facultyId)?.majors ?? []))
       .catch((err) => {
-        console.error('Failed to load faculty taxonomy for records:', err);
         setError(lang === 'he' ? 'טעינת התוכניות נכשלה' : 'Failed to load majors');
       });
   }, [isAllowed, lang, facultyId]);

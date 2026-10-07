@@ -96,7 +96,6 @@ export default function PdfViewer() {
       setStatus('ready');
 
     } catch (e: any) {
-      console.error('Download error:', e);
       setErrorMsg(e?.message ?? 'Unknown error');
       setStatus('error');
     }

@@ -48,7 +48,6 @@ export function ImpersonationBanner() {
       setSession(null);
       router.replace('/admin/panel?tab=users');
     } catch (err) {
-      console.error('Failed to return to admin session:', err);
       setReturning(false);
     }
   };

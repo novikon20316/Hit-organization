@@ -48,7 +48,6 @@ export default function ExternalExaminersPage() {
       .getExternalExaminers()
       .then((res) => setExaminers(res.examiners))
       .catch((err) => {
-        console.error('Failed to load external examiners:', err);
         setError(lang === 'he' ? 'טעינת רשימת הבוחנים נכשלה' : 'Failed to load examiners');
       });
   }, [isAllowed, lang]);

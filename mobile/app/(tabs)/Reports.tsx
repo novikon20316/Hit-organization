@@ -296,9 +296,7 @@ export default function Reports() {
         const res = await apiClient.get('/api/users/profile');
         setUserName(res.data.displayName || '');
         setUserRole(res.data.role || null);
-      } catch (err) {
-        console.error('Reports: failed to load profile', err);
-      }
+      } catch {}
     })();
   }, [uid]);
 
@@ -334,7 +332,6 @@ export default function Reports() {
       // "Create Report" against a project no longer shown.
       setSelectedIds((prev) => new Set([...prev].filter((id) => list.some((p) => p.id === id))));
     } catch (err) {
-      console.error('Reports: failed to load projects', err);
       setProjects([]);
     } finally {
       setProjectsLoading(false);
@@ -374,7 +371,6 @@ export default function Reports() {
         setMeta(null);
       }
     } catch (err) {
-      console.error('Reports: failed to load report', err);
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'טעינת הדוח נכשלה' : 'Failed to load the report');
       setRows([]);
     } finally {

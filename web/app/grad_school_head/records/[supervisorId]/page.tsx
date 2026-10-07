@@ -34,7 +34,6 @@ export default function GradSchoolHeadSupervisorRecordsPage() {
     apiClient.getSupervisorProjectRecords(supervisorId)
       .then((res) => setProjects(res.projects))
       .catch((err) => {
-        console.error('Failed to load supervisor project records:', err);
         setError(lang === 'he' ? 'טעינת הרישומים נכשלה' : 'Failed to load records');
       });
   }, [isAllowed, lang, supervisorId]);

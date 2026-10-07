@@ -39,7 +39,7 @@ export function RevisionDecisionPanel({ milestoneId, canDecide }: { milestoneId:
     setLoading(true);
     apiClient.getExaminerOpinions(milestoneId)
       .then((res) => { setOpinions(res.opinions); setHistory(res.revisionDecisions); })
-      .catch((err) => console.error('Failed to load examiner opinions:', err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 

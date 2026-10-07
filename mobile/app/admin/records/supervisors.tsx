@@ -45,7 +45,6 @@ export default function AdminRecordsSupervisorsScreen() {
         setSupervisors((res.supervisors ?? []).filter((s) => s.facultyId === facultyId));
       })
       .catch((err) => {
-        console.error('Failed to load supervisors:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors');
       })
       .finally(() => { if (!cancelled) setLoading(false); });

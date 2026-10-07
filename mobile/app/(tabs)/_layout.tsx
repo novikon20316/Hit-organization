@@ -257,7 +257,6 @@ export default function TabLayout() {
         }
       }
     } catch (err) {
-      console.error("Error loading user layout configurations:", err);
       setRole(null);
       setProfileError(true);
     } finally {
@@ -281,9 +280,7 @@ export default function TabLayout() {
         // Assuming your backend payload formats unread counts dynamically
         // If your endpoint gives raw arrays, filter via: response.data.notifications.filter(n => !n.isRead).length
         setUnread(response.data.unreadCount ?? 0);
-      } catch (err) {
-        console.error("Error polling unread navigation badges:", err);
-      }
+      } catch {}
     };
 
     fetchUnreadCount();

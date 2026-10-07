@@ -102,7 +102,6 @@ export default function AdminProjectMilestonesPage() {
         await apiClient.coordinatorApproveMilestone(milestone.id);
         await fetchMilestones();
       } catch (err) {
-        console.error('Failed to approve milestone grade:', err);
         setActionError(err instanceof Error ? err.message : lang === 'he' ? 'אישור הציון נכשל' : 'Failed to approve the grade');
       }
     },
@@ -123,7 +122,6 @@ export default function AdminProjectMilestonesPage() {
         setProject(found ?? null);
       } catch (err) {
         if (cancelled) return;
-        console.error('Failed to load project milestones:', err);
         setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load data');
       } finally {
         if (!cancelled) setLoadingData(false);
@@ -193,7 +191,7 @@ export default function AdminProjectMilestonesPage() {
               projectId={projectId}
               onCoordinatorApprove={handleApproveGrade}
               onAdjustDate={() => {
-                fetchMilestones().catch((err) => console.error('Failed to refresh milestones after date adjust:', err));
+                fetchMilestones().catch(() => {});
               }}
             />
           </div>

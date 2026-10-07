@@ -109,7 +109,6 @@ function ExaminerAccessContent() {
         setPhase('otp_required');
         return;
       }
-      console.error('examiner-access: load error', e);
       setPhase('error');
     }
   }, [token]);

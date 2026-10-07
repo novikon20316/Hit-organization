@@ -91,7 +91,6 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
       setCandidates(serverCandidates ?? []);
       setFiltered(serverCandidates ?? []);
     } catch (e) {
-      console.error('NewChatSheet loadCandidates:', e);
       setLoadError('Failed to load contacts.');
     } finally {
       setLoading(false);
@@ -121,7 +120,6 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
       // Navigate using parameters sent back safely from the backend engine
       onChatCreated(response.data.chatId, other.name, other.role);
     } catch (e) {
-      console.error('handleSelectUser endpoint failure:', e);
       Alert.alert('Error', 'Could not resolve chat link context parameters.');
     } finally {
       setCreating(false);
@@ -146,7 +144,6 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
       Alert.alert('✅ Broadcast sent', 'Message delivered to target recipients successfully.');
       onClose();
     } catch (e) {
-      console.error('handleBroadcast endpoint failure:', e);
       Alert.alert('Error', 'Broadcast compilation execution failed.');
     } finally {
       setCreating(false);

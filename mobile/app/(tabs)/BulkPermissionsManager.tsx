@@ -77,9 +77,7 @@ export default function BulkPermissionsManager() {
         const res = await apiClient.get('/api/users/profile');
         setUserRole(res.data.role || null);
         setOwnFacultyId(res.data.facultyId || null);
-      } catch (err) {
-        console.error('BulkPermissionsManager: failed to load profile', err);
-      } finally {
+      } catch {} finally {
         setLoadingProfile(false);
       }
     })();

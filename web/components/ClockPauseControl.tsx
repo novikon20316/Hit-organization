@@ -34,7 +34,7 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
     setLoading(true);
     apiClient.getClockPauseState(projectId)
       .then((res) => setActivePause(res.activeClockPause))
-      .catch((err) => console.error('Failed to load clock-pause state:', err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 

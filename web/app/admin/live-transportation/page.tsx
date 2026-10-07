@@ -259,7 +259,6 @@ export default function LiveTransportationPage() {
         // manual `firebase deploy --only firestore:rules`) — surface that
         // instead of leaving an uncaught console error and a silently-stuck
         // "0 active" count.
-        console.error('presence listener error:', err);
         setPresenceError(lang === 'he' ? 'שגיאה בטעינת נתוני נוכחות — ייתכן שחוקי Firestore טרם פורסמו.' : 'Failed to load presence data — the Firestore rules may not be deployed yet.');
       }
     );
@@ -290,7 +289,6 @@ export default function LiveTransportationPage() {
         );
       },
       (err) => {
-        console.error('auditLog listener error:', err);
         setAuditError(lang === 'he' ? 'שגיאה בטעינת יומן הפעולות.' : 'Failed to load the actions log.');
       }
     );
@@ -316,7 +314,6 @@ export default function LiveTransportationPage() {
             const name = (data?.displayName as string) || (data?.displayNameHe as string) || (data?.displayNameEn as string) || '';
             return [uid, name] as const;
           } catch (err) {
-            console.error(`Failed resolving display name for uid ${uid}:`, err);
             return [uid, ''] as const;
           }
         })
@@ -365,7 +362,6 @@ export default function LiveTransportationPage() {
         setHistory(rows);
       },
       (err) => {
-        console.error('presenceHistory listener error:', err);
         setHistoryError(lang === 'he' ? 'שגיאה בטעינת היסטוריית הנוכחות.' : 'Failed to load presence history.');
       }
     );

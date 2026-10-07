@@ -44,9 +44,7 @@ export default function AccountDeletionPending() {
         if (scheduled?._seconds) {
           setScheduledFor(new Date(scheduled._seconds * 1000).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US'));
         }
-      } catch (err) {
-        console.error('Failed to load account deletion status:', err);
-      } finally {
+      } catch {} finally {
         setLoading(false);
       }
     })();
@@ -60,7 +58,6 @@ export default function AccountDeletionPending() {
       const role = res.data?.role ?? 'student';
       router.replace((ROLE_ROUTES[role] ?? '/student/home') as any);
     } catch (err) {
-      console.error('Failed to cancel account deletion:', err);
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'ביטול המחיקה נכשל. נסה שוב.' : 'Failed to cancel deletion. Please try again.',

@@ -126,9 +126,7 @@ export default function ActiveDashboard({
       const res = await apiClient.get('/api/student/thesis-template');
       const url = res.data?.url;
       if (url) await Linking.openURL(url);
-    } catch (e) {
-      console.error('Failed to open thesis template:', e);
-    } finally {
+    } catch {} finally {
       setDownloadingTemplate(false);
     }
   };

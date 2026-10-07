@@ -39,7 +39,6 @@ export default function SupervisorRecordsScreen() {
     apiClient.getMyProjectRecords()
       .then((res) => { if (!cancelled) setProjects(res.projects ?? []); })
       .catch((err) => {
-        console.error('Failed to load project records:', err);
         if (!cancelled) setError(lang === 'he' ? 'טעינת הפרויקטים נכשלה' : 'Failed to load projects');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
