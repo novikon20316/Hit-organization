@@ -40,6 +40,11 @@ interface PendingSignoffItem {
    *  Approve collects these answers first instead of approving immediately. */
   stageId?: string;
   stageFormFields?: StageFormField[];
+  /** Only present for type === 'chain_stage' — every chain_stage item today
+   *  is a research_proposal milestone (see pendingSignoffs.ts), so this
+   *  alone tells us whether the "I've read the proposal thoroughly"
+   *  checkbox is required before Approve/Reject (supervisor stages only). */
+  stageRole?: string;
 }
 
 const TYPE_LABEL: Record<SignoffType, { he: string; en: string }> = {
@@ -77,6 +82,11 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   // straight to the plain approve, same as every other signoff type.
   const [formTargetId, setFormTargetId] = useState<string | null>(null);
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Only meaningful for a chain_stage item whose stageRole is 'supervisor'
+  // (a research_proposal milestone's supervisor approve stage) — gates
+  // Approve/Reject below until ticked, mirroring GradeMilestoneModal.tsx's
+  // identical checkbox for the same server-side confirmedProposalRead gate.
+  const [confirmedReadIds, setConfirmedReadIds] = useState<Record<string, boolean>>({});
 
   const fetchItems = useCallback(async () => {
     try {
@@ -103,13 +113,15 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
       setStageFormValues({});
       return;
     }
+    if (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) return;
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.approveExaminerRecommendationFinal(item.id);
-      else if (item.type === 'chain_stage') await apiClient.coordinatorApproveMilestone(item.id, undefined, undefined, stageFormValues);
+      else if (item.type === 'chain_stage') await apiClient.coordinatorApproveMilestone(item.id, undefined, undefined, stageFormValues, undefined, item.stageRole === 'supervisor' ? confirmedReadIds[item.id] : undefined);
       else await apiClient.approveFinalGrade(item.id);
       setFormTargetId(null);
       setStageFormValues({});
+      setConfirmedReadIds((v) => ({ ...v, [item.id]: false }));
       await fetchItems();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'האישור נכשל' : 'Approval failed');
@@ -120,13 +132,15 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
 
   const handleReject = async (item: PendingSignoffItem) => {
     if (!rejectReason.trim()) return;
+    if (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) return;
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.rejectExaminerRecommendationFinal(item.id, rejectReason.trim());
-      else if (item.type === 'chain_stage') await apiClient.coordinatorRejectMilestone(item.id, rejectReason.trim());
+      else if (item.type === 'chain_stage') await apiClient.coordinatorRejectMilestone(item.id, rejectReason.trim(), undefined, item.stageRole === 'supervisor' ? confirmedReadIds[item.id] : undefined);
       else await apiClient.rejectFinalGrade(item.id, rejectReason.trim());
       setRejectTargetId(null);
       setRejectReason('');
+      setConfirmedReadIds((v) => ({ ...v, [item.id]: false }));
       await fetchItems();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'הדחייה נכשלה' : 'Rejection failed');
@@ -162,6 +176,22 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
             </div>
             <p className="mt-1.5 text-sm font-semibold text-ink">{item.studentName}</p>
             <p className="mt-0.5 text-xs text-muted">{item.title}</p>
+
+            {item.type === 'chain_stage' && item.stageRole === 'supervisor' && (
+              <label className="mt-2 flex items-start gap-1.5 text-[11px] text-ink">
+                <input
+                  type="checkbox"
+                  checked={!!confirmedReadIds[item.id]}
+                  onChange={(e) => setConfirmedReadIds((v) => ({ ...v, [item.id]: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  {lang === 'he'
+                    ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי ההחלטה שאני מגיש/ה.'
+                    : 'I confirm that I have read the proposal thoroughly, and I stand behind the decision I am submitting.'}
+                </span>
+              </label>
+            )}
 
             {rejectTargetId === item.id && (
               <input
@@ -210,7 +240,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
               <button
                 type="button"
                 onClick={() => (rejectTargetId === item.id ? handleReject(item) : setRejectTargetId(item.id))}
-                disabled={busyId === item.id}
+                disabled={busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id])}
                 className="flex-1 rounded-lg border border-danger px-3 py-2 text-xs font-semibold text-danger disabled:opacity-60"
               >
                 {rejectTargetId === item.id ? (lang === 'he' ? 'שלח דחייה' : 'Submit rejection') : (lang === 'he' ? 'דחה' : 'Reject')}
@@ -218,7 +248,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
               <button
                 type="button"
                 onClick={() => handleApprove(item)}
-                disabled={busyId === item.id}
+                disabled={busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id])}
                 className="flex-1 rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
                 {busyId === item.id

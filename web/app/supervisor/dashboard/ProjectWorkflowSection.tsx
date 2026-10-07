@@ -226,6 +226,11 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   // answers (e.g. research_proposal's supervisor_sign stage: courses still
   // needed, agree-to-supervise). See ChainStage.formFields.
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Only meaningful while signingId is set on a research_proposal milestone
+  // whose current stage is the supervisor's own — must be ticked before
+  // "Confirm & sign" is enabled (see the server-side gate this satisfies,
+  // approveChainMilestone's confirmedProposalRead check).
+  const [confirmedProposalRead, setConfirmedProposalRead] = useState(false);
   // Scoped to the sign-off form itself, deliberately separate from the
   // page-level `error` below — that one REPLACES this whole section's
   // content when set (see the loading/error/content ternary in the return
@@ -610,6 +615,22 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                 </p>
                               ) : signingId === m.id ? (
                                 <div className="mt-1 rounded-md border border-supervisor-outline-variant bg-supervisor-surface-container-low p-2">
+                                  {/* Must be ticked before "Confirm & sign" is enabled — see
+                                      approveChainMilestone's confirmedProposalRead gate in
+                                      coordinatorController.ts, which this satisfies. */}
+                                  <label className="mb-2 flex items-start gap-1.5 text-[11px] text-supervisor-on-surface">
+                                    <input
+                                      type="checkbox"
+                                      checked={confirmedProposalRead}
+                                      onChange={(e) => setConfirmedProposalRead(e.target.checked)}
+                                      className="mt-0.5"
+                                    />
+                                    <span>
+                                      {lang === 'he'
+                                        ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי ההחלטה שאני מגיש/ה.'
+                                        : 'I confirm that I have read the proposal thoroughly, and I stand behind the decision I am submitting.'}
+                                    </span>
+                                  </label>
                                   {/* This stage's own fields (e.g. courses still needed,
                                       agree-to-supervise) — only meaningful when the
                                       CURRENT stage is the supervisor's own. */}
@@ -719,14 +740,15 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                   </span>
                                   <button
                                     type="button"
-                                    disabled={signBusy}
+                                    disabled={signBusy || !confirmedProposalRead}
                                     onClick={async () => {
                                       setSignBusy(true);
                                       setSignError('');
                                       try {
-                                        await apiClient.coordinatorApproveMilestone(m.id!, undefined, undefined, stageFormValues);
+                                        await apiClient.coordinatorApproveMilestone(m.id!, undefined, undefined, stageFormValues, undefined, confirmedProposalRead);
                                         setSigningId(null);
                                         setStageFormValues({});
+                                        setConfirmedProposalRead(false);
                                         fetchDetail();
                                       } catch (err) {
                                         setSignError(err instanceof Error ? err.message : (lang === 'he' ? 'החתימה נכשלה' : 'Signing failed'));
@@ -741,7 +763,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                   <button
                                     type="button"
                                     disabled={signBusy}
-                                    onClick={() => { setSigningId(null); setStageFormValues({}); setSignError(''); }}
+                                    onClick={() => { setSigningId(null); setStageFormValues({}); setConfirmedProposalRead(false); setSignError(''); }}
                                     className="text-xs text-supervisor-on-surface-variant hover:text-supervisor-on-surface disabled:opacity-60"
                                   >
                                     {lang === 'he' ? 'ביטול' : 'Cancel'}
@@ -752,7 +774,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => { setSigningId(m.id!); setSignError(''); }}
+                                  onClick={() => { setSigningId(m.id!); setConfirmedProposalRead(false); setSignError(''); }}
                                   className="mt-1 text-xs font-medium text-[#00236f] hover:underline"
                                 >
                                   ✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}

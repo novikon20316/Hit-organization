@@ -60,6 +60,13 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   // every milestone created before this feature existed.
   const currentStage = m.routing?.[m.currentStageIndex ?? 0] ?? null;
   const isApproveStage = currentStage?.action === 'approve';
+  // A research_proposal milestone's supervisor stage (grade OR approve —
+  // which one depends on the faculty's own routing) requires the supervisor
+  // to explicitly confirm they read the student's proposal thoroughly
+  // before their grade/decision is accepted — enforced server-side too (see
+  // submitMilestoneGrade/approveChainMilestone/rejectChainMilestone's own
+  // confirmedProposalRead gate), this is just the UI for it.
+  const requiresReadConfirmation = m.type === 'research_proposal' && currentStage?.role === 'supervisor';
 
   const activeFields: ActiveGradingField[] = m.gradingComponents?.length
     ? m.gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }))
@@ -81,6 +88,9 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   // Approve-stage only — reveals the mandatory reason field below "Reject".
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  // Only meaningful when requiresReadConfirmation — gates every submit
+  // action below (grade/approve/reject) until checked.
+  const [confirmedRead, setConfirmedRead] = useState(false);
   // Set on a 200 response that didn't fully finalize the stage (e.g. a
   // dual-sign stage this actor wasn't the last required signer for) —
   // shown instead of silently closing, since there's a message worth reading.
@@ -104,6 +114,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         comments: comment,
         projectId: m.projectId,
         criteria: Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0])),
+        ...(requiresReadConfirmation ? { confirmedProposalRead: confirmedRead } : {}),
       }, attachedFiles);
 
       // Individual components are optional per student and independent of
@@ -148,7 +159,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
     setSubmitting(true);
     setError('');
     try {
-      const result = await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, undefined, undefined, attachedFiles);
+      const result = await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, undefined, undefined, attachedFiles, requiresReadConfirmation ? confirmedRead : undefined);
       if (result.partialSignoff) {
         setNotice(result.message);
         onGraded();
@@ -171,7 +182,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
     setSubmitting(true);
     setError('');
     try {
-      await apiClient.coordinatorRejectMilestone(m.id, rejectReason.trim(), attachedFiles);
+      await apiClient.coordinatorRejectMilestone(m.id, rejectReason.trim(), attachedFiles, requiresReadConfirmation ? confirmedRead : undefined);
       onGraded();
       onClose();
     } catch (err) {
@@ -241,6 +252,22 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
               </div>
             ))}
           </div>
+        )}
+
+        {requiresReadConfirmation && (
+          <label className="mt-4 flex items-start gap-2 rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low p-3">
+            <input
+              type="checkbox"
+              checked={confirmedRead}
+              onChange={(e) => setConfirmedRead(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="text-sm font-medium text-supervisor-on-surface">
+              {lang === 'he'
+                ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי הציון/ההחלטה שאני מגיש/ה.'
+                : 'I confirm that I have read the proposal thoroughly, and I stand behind the grade/decision I am submitting.'}
+            </span>
+          </label>
         )}
 
         {!isApproveStage && (
@@ -363,7 +390,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                 <button
                   type="button"
                   onClick={handleReject}
-                  disabled={submitting}
+                  disabled={submitting || (requiresReadConfirmation && !confirmedRead)}
                   className="flex-1 rounded-lg bg-danger py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
                 >
                   {submitting ? '…' : lang === 'he' ? 'אשר דחייה' : 'Confirm rejection'}
@@ -382,7 +409,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
                 <button
                   type="button"
                   onClick={handleApprove}
-                  disabled={submitting}
+                  disabled={submitting || (requiresReadConfirmation && !confirmedRead)}
                   className="flex-1 rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
                 >
                   {submitting ? '…' : `👍 ${lang === 'he' ? 'אשר' : 'Approve'}`}
@@ -394,7 +421,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || (requiresReadConfirmation && !confirmedRead)}
             className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
           >
             {submitting ? '…' : lang === 'he' ? 'שלח ציון' : t('submit')}

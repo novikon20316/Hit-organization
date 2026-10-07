@@ -33,6 +33,14 @@ export interface PendingSignoffItem {
    *  stageFormData[stageId]. */
   stageId?: string;
   stageFormFields?: FormFieldSpec[];
+  /** Only meaningful for type === 'chain_stage' — every chain_stage item
+   *  today is a research_proposal milestone's 'approve' stage (see this
+   *  query's own comment above), so the widget uses this alone to know
+   *  whether to require the "I've read the proposal thoroughly" checkbox
+   *  before Approve/Reject — only when the acting stage is 'supervisor'.
+   *  See approveChainMilestone/rejectChainMilestone's own confirmedProposalRead
+   *  gate in coordinatorController.ts, which this exists to satisfy. */
+  stageRole?: ChainRole;
 }
 
 function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacultyId: string): ResourceScope {
@@ -183,6 +191,7 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
       urgency: urgencyFromAge(data.stageEnteredAt ?? data.submittedAt),
       stageId: stage.id,
       stageFormFields: stage.formFields ?? [],
+      stageRole: stage.role,
     });
   }
 

@@ -38,6 +38,12 @@ interface PendingSignoffItem {
    *  web/components/dashboard/PendingSignoffsWidget.tsx. */
   stageId?: string;
   stageFormFields?: StageFormField[];
+  /** Only present for type === 'chain_stage' — mirrors
+   *  web/components/dashboard/PendingSignoffsWidget.tsx's identical field.
+   *  Every chain_stage item today is a research_proposal milestone, so
+   *  this alone tells us whether the "I've read the proposal thoroughly"
+   *  checkbox is required (supervisor stages only). */
+  stageRole?: string;
 }
 
 const TYPE_LABEL: Record<SignoffType, { he: string; en: string }> = {
@@ -63,6 +69,11 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
   // fields — Approve opens this instead of approving immediately.
   const [formTargetId, setFormTargetId] = useState<string | null>(null);
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Only meaningful for a chain_stage item whose stageRole is 'supervisor'
+  // — gates Approve/Reject below until ticked. Mirrors web's identical
+  // widget and GradeMilestoneModal's own checkbox for the same server-side
+  // confirmedProposalRead gate.
+  const [confirmedReadIds, setConfirmedReadIds] = useState<Record<string, boolean>>({});
 
   const fetchItems = useCallback(async () => {
     try {
@@ -84,13 +95,15 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
       setStageFormValues({});
       return;
     }
+    if (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) return;
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.post(`/api/grad-school-head/examiner-recommendations/${item.id}/approve`);
-      else if (item.type === 'chain_stage') await apiClient.post(`/api/coordinator/${item.id}/approve`, { stageFormData: stageFormValues });
+      else if (item.type === 'chain_stage') await apiClient.post(`/api/coordinator/${item.id}/approve`, { stageFormData: stageFormValues, ...(item.stageRole === 'supervisor' ? { confirmedProposalRead: confirmedReadIds[item.id] } : {}) });
       else await apiClient.post(`/api/grad-school-head/milestones/${item.id}/approve-grade`);
       setFormTargetId(null);
       setStageFormValues({});
+      setConfirmedReadIds((v) => ({ ...v, [item.id]: false }));
       await fetchItems();
     } catch (err) {
       setError(lang === 'he' ? 'האישור נכשל' : 'Approval failed');
@@ -101,13 +114,15 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
 
   const handleReject = async (item: PendingSignoffItem) => {
     if (!rejectReason.trim()) return;
+    if (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) return;
     setBusyId(item.id);
     try {
       if (item.type === 'examiners') await apiClient.post(`/api/grad-school-head/examiner-recommendations/${item.id}/reject`, { reason: rejectReason.trim() });
-      else if (item.type === 'chain_stage') await apiClient.post(`/api/coordinator/${item.id}/reject`, { reason: rejectReason.trim() });
+      else if (item.type === 'chain_stage') await apiClient.post(`/api/coordinator/${item.id}/reject`, { reason: rejectReason.trim(), ...(item.stageRole === 'supervisor' ? { confirmedProposalRead: confirmedReadIds[item.id] } : {}) });
       else await apiClient.post(`/api/grad-school-head/milestones/${item.id}/reject-grade`, { reason: rejectReason.trim() });
       setRejectTargetId(null);
       setRejectReason('');
+      setConfirmedReadIds((v) => ({ ...v, [item.id]: false }));
       await fetchItems();
     } catch (err) {
       setError(lang === 'he' ? 'הדחייה נכשלה' : 'Rejection failed');
@@ -149,6 +164,24 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
           </View>
           <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B', marginTop: 6 }}>{item.studentName}</Text>
           <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>{item.title}</Text>
+
+          {item.type === 'chain_stage' && item.stageRole === 'supervisor' && (
+            <Pressable
+              onPress={() => setConfirmedReadIds((v) => ({ ...v, [item.id]: !v[item.id] }))}
+              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 10 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: !!confirmedReadIds[item.id] }}
+            >
+              <View style={{ width: 16, height: 16, marginTop: 1, borderRadius: 3, borderWidth: 1, borderColor: '#64748B', backgroundColor: confirmedReadIds[item.id] ? '#065F46' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                {!!confirmedReadIds[item.id] && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✓</Text>}
+              </View>
+              <Text style={{ fontSize: 12, color: '#1E293B', flex: 1 }}>
+                {lang === 'he'
+                  ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי ההחלטה שאני מגיש/ה.'
+                  : 'I confirm that I have read the proposal thoroughly, and I stand behind the decision I am submitting.'}
+              </Text>
+            </Pressable>
+          )}
 
           {rejectTargetId === item.id && (
             <TextInput
@@ -195,9 +228,9 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                 <Pressable
                   style={[{ flex: 1, backgroundColor: rejectReason.trim() ? '#EF4444' : '#FCA5A5', borderRadius: 8, padding: 10, alignItems: 'center' }]}
                   onPress={() => handleReject(item)}
-                  disabled={!rejectReason.trim() || busyId === item.id}
+                  disabled={!rejectReason.trim() || busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id])}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: !rejectReason.trim() || busyId === item.id }}
+                  accessibilityState={{ disabled: !rejectReason.trim() || busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'שלח דחייה' : 'Submit rejection'}</Text>
                 </Pressable>
@@ -221,11 +254,11 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                   <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? 'דחה' : 'Reject'}</Text>
                 </Pressable>
                 <Pressable
-                  style={[{ flex: 1, backgroundColor: '#D1FAE5', borderRadius: 8, padding: 10, alignItems: 'center' }, busyId === item.id && { opacity: 0.6 }]}
+                  style={[{ flex: 1, backgroundColor: '#D1FAE5', borderRadius: 8, padding: 10, alignItems: 'center' }, (busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id])) && { opacity: 0.6 }]}
                   onPress={() => handleApprove(item)}
-                  disabled={busyId === item.id}
+                  disabled={busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id])}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: busyId === item.id }}
+                  accessibilityState={{ disabled: busyId === item.id || (item.type === 'chain_stage' && item.stageRole === 'supervisor' && !confirmedReadIds[item.id]) }}
                 >
                   {busyId === item.id ? <ActivityIndicator color="#065F46" /> : (
                     <Text style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>

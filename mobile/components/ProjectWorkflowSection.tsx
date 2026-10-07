@@ -181,6 +181,10 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   // ProjectWorkflowSection.tsx's signingId/stageFormValues.
   const [signingId, setSigningId] = useState<string | null>(null);
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Must be ticked before "Confirm & sign" is enabled — mirrors web's
+  // ProjectWorkflowSection.tsx's identical checkbox, satisfying the
+  // server-side confirmedProposalRead gate in approveChainMilestone.
+  const [confirmedProposalRead, setConfirmedProposalRead] = useState(false);
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
@@ -510,26 +514,43 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                                 {lang === 'he' ? 'מנחה נוסף: ' : 'Secondary supervisor: '}{secondarySupervisorName}
                               </Text>
                             )}
+                            <Pressable
+                              onPress={() => setConfirmedProposalRead((v) => !v)}
+                              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: confirmedProposalRead }}
+                            >
+                              <View style={{ width: 16, height: 16, marginTop: 1, borderRadius: 3, borderWidth: 1, borderColor: '#64748B', backgroundColor: confirmedProposalRead ? '#00236f' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                                {confirmedProposalRead && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✓</Text>}
+                              </View>
+                              <Text style={{ fontSize: 11, color: '#1E293B', flex: 1 }}>
+                                {lang === 'he'
+                                  ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי ההחלטה שאני מגיש/ה.'
+                                  : 'I confirm that I have read the proposal thoroughly, and I stand behind the decision I am submitting.'}
+                              </Text>
+                            </Pressable>
                             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                               <Pressable
+                                disabled={!confirmedProposalRead}
                                 onPress={async () => {
-                                  await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues });
+                                  await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues, confirmedProposalRead });
                                   setSigningId(null);
                                   setStageFormValues({});
+                                  setConfirmedProposalRead(false);
                                   refreshDetailSilently();
                                 }}
-                                style={{ backgroundColor: '#00236f', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 }}
+                                style={{ backgroundColor: '#00236f', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, opacity: confirmedProposalRead ? 1 : 0.5 }}
                                 accessibilityRole="button"
                               >
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
                               </Pressable>
-                              <Pressable onPress={() => { setSigningId(null); setStageFormValues({}); }} accessibilityRole="button">
+                              <Pressable onPress={() => { setSigningId(null); setStageFormValues({}); setConfirmedProposalRead(false); }} accessibilityRole="button">
                                 <Text style={{ fontSize: 12, color: '#64748B' }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                               </Pressable>
                             </View>
                           </View>
                         ) : (
-                          <Pressable onPress={() => setSigningId(m.id!)} style={{ marginTop: 4 }} accessibilityRole="button">
+                          <Pressable onPress={() => { setSigningId(m.id!); setConfirmedProposalRead(false); }} style={{ marginTop: 4 }} accessibilityRole="button">
                             <Text style={{ fontSize: 12, fontWeight: '600', color: '#00236f' }}>✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}</Text>
                           </Pressable>
                         )

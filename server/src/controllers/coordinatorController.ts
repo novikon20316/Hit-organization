@@ -856,12 +856,26 @@ async function approveChainMilestone(
   // earlier stage's attachment survives later stages' own approvals. See
   // GradeMilestoneModal.tsx's approve-stage file field.
   attachmentUrls?: string[],
+  // Research-proposal-only gate, mirrors projectController.ts's
+  // submitMilestoneGrade's own 'grade'-stage version of this check — a
+  // supervisor must tick "I have read the proposal thoroughly" before an
+  // approve/reject stage of theirs on a research_proposal milestone is
+  // accepted. Meaningless (ignored) for every other role/milestone type.
+  confirmedProposalRead?: boolean,
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
   const stage = routing[currentStageIndex];
   if (!stage || stage.action !== 'approve') {
     return res.status(400).json({ message: 'This milestone is not currently awaiting an approval.' });
+  }
+
+  if (milestone.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
+    return res.status(400).json({
+      message: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+      messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.',
+      messageEn: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+    });
   }
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
@@ -999,6 +1013,9 @@ async function approveChainMilestone(
       // those two roles, unchanged from before this generalization.
       update[`${stage.role}SignedAt`] = admin.firestore.FieldValue.serverTimestamp();
       update[`${stage.role}SignedByName`] = req.user?.displayName ?? '';
+      if (fresh.type === 'research_proposal' && stage.role === 'supervisor') {
+        update.supervisorConfirmedReadAt = admin.firestore.FieldValue.serverTimestamp();
+      }
 
       // Walk past any administrative_secretary 'notify' stage(s) immediately
       // following this one — they auto-approve themselves the instant the
@@ -1297,6 +1314,9 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (req.body?.stageFormData && typeof req.body.stageFormData === 'object') {
     stageFormData = req.body.stageFormData;
   }
+  // See approveChainMilestone's own doc comment — only meaningful for a
+  // research_proposal milestone's supervisor stage, validated there.
+  const confirmedProposalRead = req.body?.confirmedProposalRead === true || req.body?.confirmedProposalRead === 'true';
 
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
@@ -1327,7 +1347,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, attachmentUrls);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, attachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
@@ -1468,12 +1488,23 @@ async function rejectChainMilestone(
   // Optional file(s) attached alongside the rejection — see
   // approveChainMilestone's identical attachmentUrls param.
   attachmentUrls?: string[],
+  // See approveChainMilestone's identical param — same research_proposal/
+  // supervisor-only gate, applied to a rejection too.
+  confirmedProposalRead?: boolean,
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
   const stage = routing[currentStageIndex];
   if (!stage || stage.action !== 'approve') {
     return res.status(400).json({ message: 'This milestone is not currently awaiting an approval, so it cannot be rejected here.' });
+  }
+
+  if (milestone.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
+    return res.status(400).json({
+      message: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+      messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.',
+      messageEn: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+    });
   }
 
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: milestone.facultyId ?? '' };
@@ -1670,6 +1701,9 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   const { milestoneId } = req.params;
   const { reason } = req.body;
   const coordinatorId = req.user?.uid;
+  // See approveChainMilestone's own doc comment — only meaningful for a
+  // research_proposal milestone's supervisor stage, validated there.
+  const confirmedProposalRead = req.body?.confirmedProposalRead === true || req.body?.confirmedProposalRead === 'true';
 
   if (!milestoneId || typeof milestoneId !== 'string') {
     return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
@@ -1696,7 +1730,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, attachmentUrls);
+    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, attachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {

@@ -259,6 +259,11 @@ export default function SupervisorHome() {
   // answers (e.g. research_proposal's supervisor_sign stage). See
   // ChainStage.formFields in server/src/services/workflowTemplates.ts.
   const [stageFormValues, setStageFormValues] = useState<Record<string, string>>({});
+  // Must be ticked before "Confirm & sign" is enabled — satisfies the
+  // server-side confirmedProposalRead gate in approveChainMilestone/
+  // rejectChainMilestone (coordinatorController.ts). Mirrors
+  // ProjectWorkflowSection.tsx's identical checkbox.
+  const [confirmedProposalRead, setConfirmedProposalRead] = useState(false);
   const [activeMilestone, setActiveMilestone] = useState<any | null>(null);
   const [expandedCards,   setExpandedCards]   = useState<Record<string, boolean>>({});
   const [criteria, setCriteria] = useState<Record<string, string>>({
@@ -1783,6 +1788,21 @@ export default function SupervisorHome() {
                                   </View>
                                 );
                               })()}
+                              <Pressable
+                                onPress={(e) => { e.stopPropagation(); setConfirmedProposalRead((v) => !v); }}
+                                style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: confirmedProposalRead }}
+                              >
+                                <View style={{ width: 16, height: 16, marginTop: 1, borderRadius: 3, borderWidth: 1, borderColor: ap.onSurfaceVariant, backgroundColor: confirmedProposalRead ? fc.primary : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                                  {confirmedProposalRead && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✓</Text>}
+                                </View>
+                                <Text style={[{ fontSize: 11, color: ap.onSurface, flex: 1 }, isRtl && styles.textRight]}>
+                                  {lang === 'he'
+                                    ? 'אני מאשר/ת שקראתי את הצעת המחקר לעומק, ועומד/ת מאחורי ההחלטה שאני מגיש/ה.'
+                                    : 'I confirm that I have read the proposal thoroughly, and I stand behind the decision I am submitting.'}
+                                </Text>
+                              </Pressable>
                               <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <Text
                                 style={
@@ -1794,15 +1814,16 @@ export default function SupervisorHome() {
                                 {currentUser?.displayName}
                               </Text>
                               <Pressable
-                                style={[styles.gradeBtn, { backgroundColor: fc.primary }]}
-                                disabled={signing}
+                                style={[styles.gradeBtn, { backgroundColor: fc.primary, opacity: confirmedProposalRead ? 1 : 0.5 }]}
+                                disabled={signing || !confirmedProposalRead}
                                 onPress={async (e) => {
                                   e.stopPropagation();
                                   setSigning(true);
                                   try {
-                                    await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues });
+                                    await apiClient.post(`/api/coordinator/${m.id}/approve`, { stageFormData: stageFormValues, confirmedProposalRead });
                                     setSigningId(null);
                                     setStageFormValues({});
+                                    setConfirmedProposalRead(false);
                                     fetchDashboardData();
                                   } catch {
                                     Alert.alert('Error', 'Failed to sign the proposal.');
@@ -1814,7 +1835,7 @@ export default function SupervisorHome() {
                               >
                                 <Text style={styles.gradeBtnText}>{lang === 'he' ? 'אשר וחתום' : 'Confirm & sign'}</Text>
                               </Pressable>
-                              <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); setStageFormValues({}); }} accessibilityRole="button">
+                              <Pressable onPress={(e) => { e.stopPropagation(); setSigningId(null); setStageFormValues({}); setConfirmedProposalRead(false); }} accessibilityRole="button">
                                 <Text style={{ color: ap.onSurfaceVariant, fontSize: 12 }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
                               </Pressable>
                               </View>
@@ -1822,7 +1843,7 @@ export default function SupervisorHome() {
                           ) : (
                             <Pressable
                               style={[styles.gradeBtn, { backgroundColor: fc.primary, marginTop: 4 }]}
-                              onPress={(e) => { e.stopPropagation(); setSigningId(m.id); }}
+                              onPress={(e) => { e.stopPropagation(); setSigningId(m.id); setConfirmedProposalRead(false); }}
                               accessibilityRole="button"
                             >
                               <Text style={styles.gradeBtnText}>✍️ {lang === 'he' ? 'חתום על הצעת המחקר' : 'Sign the research proposal'}</Text>

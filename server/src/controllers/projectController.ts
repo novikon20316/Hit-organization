@@ -107,6 +107,11 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   // overwriting a score they already submitted (enforced further down, once
   // we know whether this is an edit) — see the "update grade" flow.
   const { givenScore, comments, projectId, reason } = req.body;
+  // Research-proposal-only gate (see the chain-driven branch below) — a
+  // supervisor must tick "I have read the proposal thoroughly" before their
+  // grade is accepted. Arrives as a real boolean over JSON, or the string
+  // 'true' when this request is multipart (an optional grade file attached).
+  const confirmedProposalRead = req.body.confirmedProposalRead === true || req.body.confirmedProposalRead === 'true';
   // Multipart (uploadMiddleware) when an optional file is attached alongside
   // the grade — FormData fields arrive as strings, so `criteria` needs
   // JSON.parse there; a plain JSON body (no file) keeps working as-is. Same
@@ -237,6 +242,20 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const projectSupervisorIds = [data.supervisorId].filter(Boolean);
       const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, examinerIds);
       if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
+
+      // A research_proposal milestone's supervisor stage must not be graded
+      // on autopilot — the supervisor has to actively confirm they read the
+      // student's proposal thoroughly before their grade is accepted. Scoped
+      // to this one milestone type/role; every other grade stage (progress
+      // reports, defense, examiner panels, ...) is unaffected.
+      if (data.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
+        return res.status(400).json({
+          message: 'Please confirm you have read the proposal thoroughly before submitting your grade.',
+          messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת הציון.',
+          messageEn: 'Please confirm you have read the proposal thoroughly before submitting your grade.',
+        });
+      }
+
       const gradeFileUrls = await getGradeFileUrls();
 
       // A milestone with its own configured rubric (see workflowTemplates.ts's
@@ -342,6 +361,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
             gradedBy: uid,
             gradedAt: admin.firestore.FieldValue.serverTimestamp(),
             ...(criteriaBreakdown ? { criteria: criteriaBreakdown } : {}),
+            // Only ever true here — the gate above already rejected the
+            // request otherwise for a research_proposal supervisor stage,
+            // and this is simply omitted for every other stage/milestone.
+            ...(data.type === 'research_proposal' && currentStage.role === 'supervisor' ? { confirmedRead: true } : {}),
           };
         }
 

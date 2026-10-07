@@ -1020,35 +1020,43 @@ export const apiClient = {
     recommendation?: 'approved' | 'approved_conditionally',
     stageFormData?: Record<string, unknown>,
     files?: File[],
+    /** Required by the server when this is a research_proposal milestone's
+     *  supervisor approve stage — see submitMilestoneGrade's identical
+     *  param in this same file, and approveChainMilestone's gate in
+     *  coordinatorController.ts. Ignored for every other role/milestone. */
+    confirmedProposalRead?: boolean,
   ) {
     if (files && files.length > 0) {
       const formData = new FormData();
       if (comment) formData.append('comment', comment);
       if (recommendation) formData.append('recommendation', recommendation);
+      if (confirmedProposalRead) formData.append('confirmedProposalRead', 'true');
       files.forEach((f) => formData.append('files', f));
       return request<{ success: boolean; message: string; partialSignoff?: boolean }>(`/api/coordinator/${milestoneId}/approve`, { method: 'POST', body: formData, raw: true });
     }
     return request<{ success: boolean; message: string; partialSignoff?: boolean }>(`/api/coordinator/${milestoneId}/approve`, {
       method: 'POST',
-      body: (comment || recommendation || stageFormData) ? {
+      body: (comment || recommendation || stageFormData || confirmedProposalRead) ? {
         ...(comment ? { comment } : {}),
         ...(recommendation ? { recommendation } : {}),
         ...(stageFormData ? { stageFormData } : {}),
+        ...(confirmedProposalRead ? { confirmedProposalRead: true } : {}),
       } : undefined,
     });
   },
 
   /** `files` is optional, same treatment as coordinatorApproveMilestone above. */
-  async coordinatorRejectMilestone(milestoneId: string, reason: string, files?: File[]) {
+  async coordinatorRejectMilestone(milestoneId: string, reason: string, files?: File[], confirmedProposalRead?: boolean) {
     if (files && files.length > 0) {
       const formData = new FormData();
       formData.append('reason', reason);
+      if (confirmedProposalRead) formData.append('confirmedProposalRead', 'true');
       files.forEach((f) => formData.append('files', f));
       return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/reject`, { method: 'POST', body: formData, raw: true });
     }
     return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/reject`, {
       method: 'POST',
-      body: { reason },
+      body: { reason, ...(confirmedProposalRead ? { confirmedProposalRead: true } : {}) },
     });
   },
 
@@ -1672,6 +1680,12 @@ export const apiClient = {
        *  already submitted (see UpdateGradeModal.tsx) — omit on first-time
        *  grading. */
       reason?: string;
+      /** Required by the server when this is a research_proposal
+       *  milestone's supervisor grade stage — the supervisor confirming
+       *  they read the proposal thoroughly before grading it. Meaningless
+       *  (ignored server-side) for every other milestone type/stage. See
+       *  GradeMilestoneModal.tsx's confirm-read checkbox. */
+      confirmedProposalRead?: boolean;
     },
     files?: File[]
   ) {
@@ -1682,6 +1696,7 @@ export const apiClient = {
       formData.append('projectId', payload.projectId);
       if (payload.criteria) formData.append('criteria', JSON.stringify(payload.criteria));
       if (payload.reason) formData.append('reason', payload.reason);
+      if (payload.confirmedProposalRead) formData.append('confirmedProposalRead', 'true');
       files.forEach((f) => formData.append('files', f));
       return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: formData, raw: true });
     }
