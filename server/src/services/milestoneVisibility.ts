@@ -31,6 +31,59 @@ const STAFF_ROLES_WITH_FULL_VISIBILITY = [
   'system_admin',
 ];
 
+// Mirrors the client-side gate already used by web's ActiveDashboard.tsx
+// ("Grades & Weights" tab) and mobile's student/milestones.tsx — a grade is
+// only shown once the coordinator has signed off on it, not the instant a
+// supervisor/examiner enters it. That gate was UI-only: the server always
+// sent the raw fields, so a student could read an unreleased grade straight
+// off the network response. This makes the same status check an actual
+// server-side redaction. Not final — the plan is a future explicit
+// release-to-student permission step; this status-based gate is the interim
+// stand-in for it.
+const GRADE_RELEASED_STATUSES = new Set(['coordinator_approved', 'completed']);
+export function isGradeReleasedToStudent(status: string | null | undefined): boolean {
+  return !!status && GRADE_RELEASED_STATUSES.has(status);
+}
+
+// Fields that carry a student's own grade/evaluation outcome for a
+// milestone. Kept as a single list so the write side (whoever adds a new
+// grade-bearing field) and this redaction stay easy to keep in sync.
+const GRADE_BEARING_FIELDS = [
+  'finalGrade',
+  'supervisorScore',
+  'examiner1Score',
+  'examiner2Score',
+  'examinerScores',
+  'autoCalculatedFinalGrade',
+  'supervisorEvaluation',
+  'gradeOverride',
+] as const;
+
+/** Strips grade-bearing fields from a milestone doc when the viewer is the
+ *  student it belongs to and the milestone hasn't reached a
+ *  coordinator-approved/completed status yet. Staff and supervisor/examiner
+ *  roles always see the real values — they're the ones producing or
+ *  approving the grade, not the subject of it. */
+export function redactUnreleasedGradeForStudent(
+  data: Record<string, any>,
+  viewerUid: string,
+  viewerRoles: string[],
+): Record<string, any> {
+  // getMilestonesByQuery (the only caller) already branches any requester
+  // whose roles include 'student' into a student-scoped query ahead of
+  // every other role check, so treating 'student' here the same way —
+  // regardless of what other roles the account also holds — matches how
+  // this endpoint already scoped the query that produced `data`.
+  if (!viewerRoles.includes('student')) return data;
+  if (isGradeReleasedToStudent(data.status)) return data;
+
+  const result = { ...data };
+  for (const field of GRADE_BEARING_FIELDS) {
+    if (field in result) result[field] = null;
+  }
+  return result;
+}
+
 /** Strips examiner-only content from a milestone doc unless the viewer is
  *  the examiner who actually submitted it, or a coordinator/admin-tier role
  *  (full visibility, per "all forms accessible to the coordinator"). Covers

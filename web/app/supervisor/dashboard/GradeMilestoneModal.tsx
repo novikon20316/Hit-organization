@@ -52,6 +52,15 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
 
+  // The milestone's own configured chain may route the supervisor's current
+  // turn through a plain approve/reject sign-off instead of a numeric grade
+  // (see workflowTemplates.ts's ChainStage.action) — e.g. a custom milestone
+  // type whose staff reviews it without scoring it. A legacy/non-chain-driven
+  // milestone (no `routing` snapshot) always behaves as "grade", matching
+  // every milestone created before this feature existed.
+  const currentStage = m.routing?.[m.currentStageIndex ?? 0] ?? null;
+  const isApproveStage = currentStage?.action === 'approve';
+
   const activeFields: ActiveGradingField[] = m.gradingComponents?.length
     ? m.gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }))
     : GRADING_CRITERIA.map((c) => ({ key: c.key, max: c.max, weight: c.max, he: c.he, en: c.en }));
@@ -63,8 +72,19 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   // Group projects only (studentIds.length > 1) — optional per-student score
   // layered on top of the shared group score above, keyed by studentId.
   const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
+  // Optional — never required to grade, or to approve/reject. Accepts PDF/Word,
+  // same as the student's own submission (see uploadMiddleware's shared mime
+  // allowlist).
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Approve-stage only — reveals the mandatory reason field below "Reject".
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  // Set on a 200 response that didn't fully finalize the stage (e.g. a
+  // dual-sign stage this actor wasn't the last required signer for) —
+  // shown instead of silently closing, since there's a message worth reading.
+  const [notice, setNotice] = useState('');
 
   const totalScore = Math.round(
     activeFields.reduce((sum, f) => sum + ((Number(criteria[f.key]) || 0) / f.max) * f.weight, 0)
@@ -84,7 +104,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
         comments: comment,
         projectId: m.projectId,
         criteria: Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0])),
-      });
+      }, attachedFiles);
 
       // Individual components are optional per student and independent of
       // the group score above — submit each filled-in one, but a failure
@@ -124,6 +144,43 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
     }
   };
 
+  const handleApprove = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const result = await apiClient.coordinatorApproveMilestone(m.id, comment || undefined, undefined, undefined, attachedFiles);
+      if (result.partialSignoff) {
+        setNotice(result.message);
+        onGraded();
+      } else {
+        onGraded();
+        onClose();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'האישור נכשל' : 'Failed to approve');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      setError(lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await apiClient.coordinatorRejectMilestone(m.id, rejectReason.trim(), attachedFiles);
+      onGraded();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'הדחייה נכשלה' : 'Failed to reject');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
@@ -135,10 +192,17 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
       >
         <FieldGuideOverlay
           guideKey={GRADE_MILESTONE_GUIDE_KEY}
-          steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) => (s.key !== 'submittedDocument' || m.fileUrls.length > 0) && (s.key !== 'individualGrade' || isGroupProject))}
+          steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) =>
+            (s.key !== 'submittedDocument' || m.fileUrls.length > 0)
+            && (s.key !== 'individualGrade' || (isGroupProject && !isApproveStage))
+            && (s.key !== 'criteria' || !isApproveStage)
+            && (s.key !== 'decision' || isApproveStage)
+          )}
         />
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-supervisor-on-surface">{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</h2>
+          <h2 className="text-lg font-semibold text-supervisor-on-surface">
+            {isApproveStage ? (lang === 'he' ? 'אישור אבן דרך' : 'Milestone Approval') : (lang === 'he' ? 'טופס ציון' : 'Grading Form')}
+          </h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-supervisor-on-surface-variant hover:text-supervisor-on-surface">
             ✕
           </button>
@@ -179,32 +243,34 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           </div>
         )}
 
-        <div data-field-guide-id="criteria" className="mt-4 grid gap-3">
-          <p className="flex items-center text-sm font-semibold text-supervisor-on-surface">
-            {lang === 'he' ? 'מדדי ציון' : 'Grading criteria'}
-            <InfoTooltip text={gradeGuideEntry('criteria').description} />
-          </p>
-          {activeFields.map((field) => (
-            <label key={field.key} className="block">
-              <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
-                {lang === 'he' ? field.he : field.en} (0–{field.max})
-              </span>
-              <input
-                type="number"
-                min={0}
-                max={field.max}
-                value={criteria[field.key]}
-                onChange={(e) => setCriteria({ ...criteria, [field.key]: clampScoreInput(e.target.value, field.max) })}
-                className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
-              />
-            </label>
-          ))}
-        </div>
+        {!isApproveStage && (
+          <div data-field-guide-id="criteria" className="mt-4 grid gap-3">
+            <p className="flex items-center text-sm font-semibold text-supervisor-on-surface">
+              {lang === 'he' ? 'מדדי ציון' : 'Grading criteria'}
+              <InfoTooltip text={gradeGuideEntry('criteria').description} />
+            </p>
+            {activeFields.map((field) => (
+              <label key={field.key} className="block">
+                <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+                  {lang === 'he' ? field.he : field.en} (0–{field.max})
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={field.max}
+                  value={criteria[field.key]}
+                  onChange={(e) => setCriteria({ ...criteria, [field.key]: clampScoreInput(e.target.value, field.max) })}
+                  className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
+                />
+              </label>
+            ))}
+          </div>
+        )}
 
         {/* Group projects only: personal component per student, on top of
             the shared group score above — final grades can differ within
-            the group. */}
-        {isGroupProject && (
+            the group. Not meaningful for a plain approve/reject sign-off. */}
+        {isGroupProject && !isApproveStage && (
           <div data-field-guide-id="individualGrade" className="mt-4">
             <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
               {lang === 'he' ? 'ציון אישי (לצד הציון הקבוצתי)' : 'Individual grade (on top of the group score)'}
@@ -231,7 +297,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
 
         <label data-field-guide-id="comment" className="mt-4 block">
           <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
-            {lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}
+            {isApproveStage ? (lang === 'he' ? 'הערות (אופציונלי)' : 'Comments (optional)') : (lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student')}
             <InfoTooltip text={gradeGuideEntry('comment').description} />
           </span>
           <textarea
@@ -242,18 +308,98 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           />
         </label>
 
-        <p className="mt-3 text-sm font-bold text-supervisor-on-surface">Total: {totalScore}/{maxTotal}</p>
+        <label data-field-guide-id="attachFile" className="mt-4 block">
+          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+            {lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)'}
+            <InfoTooltip text={gradeGuideEntry('attachFile').description} />
+          </span>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            multiple
+            onChange={(e) => setAttachedFiles(Array.from(e.target.files ?? []))}
+            className="block w-full text-sm text-supervisor-on-surface file:me-3 file:rounded-lg file:border-0 file:bg-supervisor-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-supervisor-on-primary hover:file:opacity-90"
+          />
+          {attachedFiles.length > 0 && (
+            <ul className="mt-1.5 grid gap-0.5">
+              {attachedFiles.map((f, i) => (
+                <li key={i} className="text-xs text-supervisor-on-surface-variant">📎 {f.name}</li>
+              ))}
+            </ul>
+          )}
+        </label>
 
+        {!isApproveStage && <p className="mt-3 text-sm font-bold text-supervisor-on-surface">Total: {totalScore}/{maxTotal}</p>}
+
+        {isApproveStage && rejecting && (
+          <label className="mt-4 block">
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+              {lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)'}
+            </span>
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
+            />
+          </label>
+        )}
+
+        {notice && <p className="mt-3 rounded-md bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface" role="status">{notice}</p>}
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
-        >
-          {submitting ? '…' : lang === 'he' ? 'שלח ציון' : t('submit')}
-        </button>
+        {isApproveStage ? (
+          <div data-field-guide-id="decision" className="mt-4 flex gap-2.5">
+            {rejecting ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setRejecting(false); setRejectReason(''); setError(''); }}
+                  disabled={submitting}
+                  className="rounded-lg border border-supervisor-outline-variant px-4 py-2.5 text-sm font-semibold text-supervisor-on-surface disabled:opacity-60"
+                >
+                  {lang === 'he' ? 'ביטול' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={submitting}
+                  className="flex-1 rounded-lg bg-danger py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {submitting ? '…' : lang === 'he' ? 'אשר דחייה' : 'Confirm rejection'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRejecting(true)}
+                  disabled={submitting}
+                  className="flex-1 rounded-lg border border-danger py-2.5 text-sm font-semibold text-danger hover:bg-danger-bg disabled:opacity-60"
+                >
+                  👎 {lang === 'he' ? 'דחה' : 'Disapprove'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApprove}
+                  disabled={submitting}
+                  className="flex-1 rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
+                >
+                  {submitting ? '…' : `👍 ${lang === 'he' ? 'אשר' : 'Approve'}`}
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="mt-4 w-full rounded-lg bg-supervisor-primary py-2.5 text-sm font-semibold text-supervisor-on-primary hover:opacity-90 disabled:opacity-60"
+          >
+            {submitting ? '…' : lang === 'he' ? 'שלח ציון' : t('submit')}
+          </button>
+        )}
       </div>
     </div>
   );

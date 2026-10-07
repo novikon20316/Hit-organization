@@ -123,16 +123,15 @@ function StudentHomeContent() {
           )
         )}
 
-        {/* TEMP-2-ACTIVE-PROJECTS: activeProjects can hold more than one
-            entry while the server-side bypass is on (projectEnrollment.ts) —
-            normally just the one. Say "revert the temp 2-active-projects
-            bypass" to undo. */}
-        {studentState === 'active' &&
-          activeProjects.map((ap) => (
-            <div key={ap.project.id} className="mb-6">
-              <ActiveDashboard project={ap.project} milestones={ap.milestones} progress={ap.progress} onChanged={refresh} tab={activeTab} />
-            </div>
-          ))}
+        {studentState === 'active' && activeProjects.length > 0 && (
+          <ActiveDashboard
+            project={activeProjects[0].project}
+            milestones={activeProjects[0].milestones}
+            progress={activeProjects[0].progress}
+            onChanged={refresh}
+            tab={activeTab}
+          />
+        )}
     </DashboardShell>
   );
 }

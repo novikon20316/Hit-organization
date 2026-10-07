@@ -268,6 +268,9 @@ export default function SupervisorHome() {
   // Group projects only: per-student personal component (e.g. individual oral-exam
   // impression), entered alongside the shared group score — keyed by studentId.
   const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
+  // Optional — never required to grade. Accepts PDF/Word, mirrors the
+  // web app's GradeMilestoneModal.tsx attach-file field.
+  const [gradeAttachedFiles, setGradeAttachedFiles] = useState<{ uri: string; name: string; mimeType: string }[]>([]);
 
   // ── Edit project modal ────────────────────────────────────────────────────
   const [projectModal,    setProjectModal]    = useState(false);
@@ -736,12 +739,32 @@ export default function SupervisorHome() {
     if (!activeMilestone) return;
     setSubmitting(true);
     try {
-      const res = await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/grade`, {
-        givenScore: totalScore, // Map your calculated total score
-        comments: gradeComment, // Map your text input comment
-        projectId: activeMilestone.projectId,
-        criteria: Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0])),
-      });
+      // Switches to multipart only when at least one file is attached —
+      // otherwise behaves exactly as before (plain JSON body). Mirrors the
+      // web app's apiClient.submitMilestoneGrade.
+      const criteriaPayload = Object.fromEntries(activeFields.map((f) => [f.key, Number(criteria[f.key]) || 0]));
+      let res;
+      if (gradeAttachedFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('givenScore', String(totalScore));
+        formData.append('comments', gradeComment);
+        formData.append('projectId', activeMilestone.projectId);
+        formData.append('criteria', JSON.stringify(criteriaPayload));
+        gradeAttachedFiles.forEach((f) => {
+          formData.append('files', { uri: f.uri, type: f.mimeType, name: f.name } as any);
+        });
+        res = await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/grade`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        res = await apiClient.post(`/api/projects/milestones/${activeMilestone.id}/grade`, {
+          givenScore: totalScore, // Map your calculated total score
+          comments: gradeComment, // Map your text input comment
+          projectId: activeMilestone.projectId,
+          criteria: criteriaPayload,
+        });
+      }
       // Group projects: layer each student's individual component on top of
       // the shared group score just submitted above (see
       // submitIndividualGrade). Each student's submission is tried
@@ -782,6 +805,7 @@ export default function SupervisorHome() {
       setGradeModal(false);
       setGradeComment('');
       setIndividualScores({});
+      setGradeAttachedFiles([]);
       fetchDashboardData(); // refresh grading list from API
     } catch (error: any) {
       Alert.alert(
@@ -791,6 +815,85 @@ export default function SupervisorHome() {
         // returns a specific 409 explaining an authorized unlock is needed first,
         // which a generic fallback here would otherwise hide.
         error?.response?.data?.message || (lang === 'he' ? 'שגיאה בשמירת הציון' : 'Failed to submit grade.')
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Approve-stage counterpart to handleGrade above — the milestone's own
+  // configured chain routed the supervisor's current turn through a plain
+  // sign-off instead of a numeric grade (see workflowTemplates.ts's
+  // ChainStage.action), so GradeMilestoneModal renders Approve/Disapprove
+  // buttons instead of the grading form. Reuses the same optional
+  // gradeAttachedFiles/gradeComment as the grade flow. Mirrors web's
+  // identical GradeMilestoneModal.tsx addition.
+  const handleApprove = async () => {
+    if (!gradeMilestone) return;
+    setSubmitting(true);
+    try {
+      let res;
+      if (gradeAttachedFiles.length > 0) {
+        const formData = new FormData();
+        if (gradeComment) formData.append('comment', gradeComment);
+        gradeAttachedFiles.forEach((f) => {
+          formData.append('files', { uri: f.uri, type: f.mimeType, name: f.name } as any);
+        });
+        res = await apiClient.post(`/api/coordinator/${gradeMilestone.id}/approve`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        res = await apiClient.post(`/api/coordinator/${gradeMilestone.id}/approve`, gradeComment ? { comment: gradeComment } : undefined);
+      }
+      if (res.data?.partialSignoff) {
+        Alert.alert(lang === 'he' ? 'נחתם' : 'Signed', res.data.message);
+      } else {
+        Alert.alert(lang === 'he' ? 'הצלחה' : 'Success', lang === 'he' ? 'אבן הדרך אושרה' : 'Milestone approved');
+      }
+      setGradeModal(false);
+      setGradeComment('');
+      setGradeAttachedFiles([]);
+      fetchDashboardData();
+    } catch (error: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        error?.response?.data?.message || (lang === 'he' ? 'האישור נכשל' : 'Failed to approve')
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async (reason: string) => {
+    if (!gradeMilestone) return;
+    if (!reason.trim()) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (gradeAttachedFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('reason', reason.trim());
+        gradeAttachedFiles.forEach((f) => {
+          formData.append('files', { uri: f.uri, type: f.mimeType, name: f.name } as any);
+        });
+        await apiClient.post(`/api/coordinator/${gradeMilestone.id}/reject`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          transformRequest: (data: any) => data,
+        });
+      } else {
+        await apiClient.post(`/api/coordinator/${gradeMilestone.id}/reject`, { reason: reason.trim() });
+      }
+      setGradeModal(false);
+      setGradeComment('');
+      setGradeAttachedFiles([]);
+      fetchDashboardData();
+    } catch (error: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        error?.response?.data?.message || (lang === 'he' ? 'הדחייה נכשלה' : 'Failed to reject')
       );
     } finally {
       setSubmitting(false);
@@ -928,6 +1031,29 @@ export default function SupervisorHome() {
     } finally {
       setUploadingProjectFile(false);
     }
+  };
+
+  // Optional file(s) attached alongside a grade (e.g. an annotated copy of
+  // the student's submission) — never required. Picked files are only sent
+  // to the server inside handleGrade's own FormData, not uploaded here.
+  const pickGradeFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
+      multiple: true,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    setGradeAttachedFiles((prev) => [
+      ...prev,
+      ...result.assets.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType ?? 'application/octet-stream' })),
+    ]);
+  };
+
+  const removeGradeFile = (index: number) => {
+    setGradeAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -1733,6 +1859,7 @@ export default function SupervisorHome() {
                                 setGradeComment('');
                                 setCriteria(Object.fromEntries(activeGradingFields(m).map((f) => [f.key, ''])));
                                 setIndividualScores({});
+                                setGradeAttachedFiles([]);
                                 setGradeMilestone(m);
                                 setGradeModal(true);
                               }}
@@ -1888,10 +2015,15 @@ export default function SupervisorHome() {
         }
         comment={gradeComment}
         onCommentChange={setGradeComment}
+        attachedFiles={gradeAttachedFiles}
+        onPickFile={pickGradeFile}
+        onRemoveFile={removeGradeFile}
         totalScore={totalScore}
         submitting={submitting}
-        onClose={() => { setGradeModal(false); setGradeComment(''); }}
+        onClose={() => { setGradeModal(false); setGradeComment(''); setGradeAttachedFiles([]); }}
         onSubmit={handleGrade}
+        onApprove={handleApprove}
+        onReject={handleReject}
       />
 
       {/* ── Edit Project Modal ── */}

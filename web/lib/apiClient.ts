@@ -1007,9 +1007,28 @@ export const apiClient = {
 
   /** `recommendation` is only meaningful for a research_proposal milestone's
    *  coordinator_sign stage — see ProposalRecommendationModal.tsx. A comment
-   *  is mandatory server-side when recommendation === 'approved_conditionally'. */
-  async coordinatorApproveMilestone(milestoneId: string, comment?: string, recommendation?: 'approved' | 'approved_conditionally', stageFormData?: Record<string, unknown>) {
-    return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/approve`, {
+   *  is mandatory server-side when recommendation === 'approved_conditionally'.
+   *  `files` is optional — whoever's turn it is at this stage (e.g. a
+   *  supervisor's own approve-stage, see GradeMilestoneModal.tsx) may attach
+   *  a file alongside the approval, for the record. Switches to multipart
+   *  only when at least one file is given, same pattern as
+   *  submitMilestoneGrade above — stageFormData isn't supported in that case
+   *  (no current caller needs both at once). */
+  async coordinatorApproveMilestone(
+    milestoneId: string,
+    comment?: string,
+    recommendation?: 'approved' | 'approved_conditionally',
+    stageFormData?: Record<string, unknown>,
+    files?: File[],
+  ) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      if (comment) formData.append('comment', comment);
+      if (recommendation) formData.append('recommendation', recommendation);
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success: boolean; message: string; partialSignoff?: boolean }>(`/api/coordinator/${milestoneId}/approve`, { method: 'POST', body: formData, raw: true });
+    }
+    return request<{ success: boolean; message: string; partialSignoff?: boolean }>(`/api/coordinator/${milestoneId}/approve`, {
       method: 'POST',
       body: (comment || recommendation || stageFormData) ? {
         ...(comment ? { comment } : {}),
@@ -1019,7 +1038,14 @@ export const apiClient = {
     });
   },
 
-  async coordinatorRejectMilestone(milestoneId: string, reason: string) {
+  /** `files` is optional, same treatment as coordinatorApproveMilestone above. */
+  async coordinatorRejectMilestone(milestoneId: string, reason: string, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('reason', reason);
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/reject`, { method: 'POST', body: formData, raw: true });
+    }
     return request<{ success: boolean; message: string }>(`/api/coordinator/${milestoneId}/reject`, {
       method: 'POST',
       body: { reason },
@@ -1594,6 +1620,8 @@ export const apiClient = {
           /** The supervisor's own last-submitted score — distinct from
            *  finalGrade (which may blend in examiner scores). */
           supervisorScore: number | null;
+          /** File(s) the supervisor optionally attached alongside the grade. */
+          supervisorGradeFileUrls: string[];
           gradeApproved: boolean;
           gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
           studentFormFields?: Array<{ key: string; labelHe: string; labelEn: string; type: 'text' | 'textarea' | 'date' | 'number' | 'table'; tableColumns?: Array<{ key: string; labelHe: string; labelEn: string }>; locked?: boolean }> | null;
@@ -1606,6 +1634,9 @@ export const apiClient = {
             requireAllAssignedSupervisors?: boolean;
           }> | null;
           currentStageIndex?: number;
+          /** File(s) a chain stage's actor optionally attached alongside
+           *  their approve/reject decision — keyed by stage id. */
+          stageAttachments?: Record<string, string[]> | null;
           /** Per-signer stamps for a requireAllAssignedSupervisors stage,
            *  keyed by uid — see server's getSupervisorProjectDetail. */
           supervisorApprovals?: Record<string, { signedAt: string | null; signedByName: string }> | null;
@@ -1620,6 +1651,11 @@ export const apiClient = {
     }>(`/api/supervisor/projects/${projectId}/detail`, { method: 'GET' });
   },
 
+  /** `files` is optional — a supervisor may attach a file (e.g. an annotated
+   *  copy of the student's submission) alongside the grade, for the record.
+   *  Switches to multipart only when at least one file is given; otherwise
+   *  behaves exactly as before (plain JSON body). Same pattern as
+   *  submitSupervisorEvaluation above. */
   async submitMilestoneGrade(
     milestoneId: string,
     payload: {
@@ -1636,8 +1672,19 @@ export const apiClient = {
        *  already submitted (see UpdateGradeModal.tsx) — omit on first-time
        *  grading. */
       reason?: string;
-    }
+    },
+    files?: File[]
   ) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('givenScore', String(payload.givenScore));
+      if (payload.comments !== undefined) formData.append('comments', payload.comments);
+      formData.append('projectId', payload.projectId);
+      if (payload.criteria) formData.append('criteria', JSON.stringify(payload.criteria));
+      if (payload.reason) formData.append('reason', payload.reason);
+      files.forEach((f) => formData.append('files', f));
+      return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: formData, raw: true });
+    }
     return request<{ success?: boolean; message?: string }>(`/api/projects/milestones/${milestoneId}/grade`, { method: 'POST', body: payload });
   },
 

@@ -39,6 +39,22 @@ export const GRADE_MILESTONE_FIELD_GUIDE: FieldGuideStep[] = [
       en: 'Free-text feedback shown to the student alongside the grade.',
     },
   },
+  {
+    key: 'attachFile',
+    label: { he: 'צירוף קובץ', en: 'Attach a file' },
+    description: {
+      he: 'אופציונלי — ניתן לצרף קובץ PDF או Word (למשל עותק מסומן של ההגשה) יחד עם הציון, לתיעוד.',
+      en: 'Optional — attach a PDF or Word file (e.g. a marked-up copy of the submission) alongside the grade, for the record.',
+    },
+  },
+  {
+    key: 'decision',
+    label: { he: 'אישור / דחייה', en: 'Approve / Reject' },
+    description: {
+      he: 'אבן דרך זו ממתינה לאישור חתימה פשוט, לא לציון מספרי. אשרו כדי להעביר אותה לשלב הבא, או דחו עם נימוק.',
+      en: "This milestone is awaiting a plain sign-off, not a numeric grade. Approve to move it to the next stage, or reject with a reason.",
+    },
+  },
 ];
 
 export const RECOMMEND_EXAMINERS_GUIDE_KEY = 'supervisor-recommend-examiners';

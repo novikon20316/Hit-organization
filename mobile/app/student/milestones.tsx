@@ -2,8 +2,8 @@
 //
 // Bottom-nav "Milestones" tab (see (tabs)/_layout.tsx's ROLE_TABS.student).
 // Mirrors student/home.tsx's session/routing pattern (same useStudentData()
-// hook, same TEMP-2-ACTIVE-PROJECTS multi-project switcher) but renders the
-// "Mobile Milestone Tracker with Files" Stitch design instead of the full
+// hook) but renders the "Mobile Milestone Tracker with Files" Stitch design
+// instead of the full
 // active-project dashboard — a focused, scrollable list of the active
 // project's milestones, each with its submitted files as tappable chips.
 // (Upgraded from the plain, no-files "Mobile Milestone Tracker" variant —
@@ -84,7 +84,6 @@ const SUBMISSION_REQUIREMENT_LABEL: Record<string, { he: string; en: string }> =
 export default function StudentMilestones() {
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
-  const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
 
   const {
@@ -135,29 +134,8 @@ export default function StudentMilestones() {
         </View>
       ) : (
         <>
-          {activeProjects.length > 1 && (
-            <View style={[mt.switcherRow, isRtl && mt.switcherRowRtl]}>
-              {activeProjects.map((ap, i) => (
-                <Pressable
-                  key={ap.project.id}
-                  style={[mt.switcherPill, i === selectedProjectIndex && mt.switcherPillActive]}
-                  onPress={() => setSelectedProjectIndex(i)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: i === selectedProjectIndex }}
-                >
-                  <Text
-                    style={[mt.switcherText, i === selectedProjectIndex && mt.switcherTextActive]}
-                    numberOfLines={1}
-                  >
-                    {lang === 'he' ? ap.project.titleHe : ap.project.titleEn}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
           {(() => {
-            const selected = activeProjects[Math.min(selectedProjectIndex, activeProjects.length - 1)];
+            const selected = activeProjects[0];
             const { project, milestones, progress } = selected;
             const completed = milestones.filter((m) => m.status === 'coordinator_approved' || m.status === 'completed').length;
 
@@ -374,7 +352,7 @@ export default function StudentMilestones() {
       )}
 
       {submitTarget && (() => {
-        const selected = activeProjects[Math.min(selectedProjectIndex, activeProjects.length - 1)];
+        const selected = activeProjects[0];
         if (!submitTarget.studentFormFields?.length) {
           return (
             <SubmitMilestoneModal
@@ -420,13 +398,6 @@ const mt = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: studentSpacing.xl },
   emptyIcon: { fontSize: 40, marginBottom: studentSpacing.md },
   emptyText: { fontSize: 14, color: studentPalette.onSurfaceVariant, textAlign: 'center' },
-
-  switcherRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: studentPalette.surfaceContainerLowest, borderBottomWidth: 1, borderBottomColor: studentPalette.outlineVariant },
-  switcherRowRtl: { flexDirection: 'row-reverse' },
-  switcherPill: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: studentRadius.lg, backgroundColor: studentPalette.surfaceContainerLow, borderWidth: 1, borderColor: studentPalette.outlineVariant, alignItems: 'center' },
-  switcherPillActive: { backgroundColor: studentPalette.primary, borderColor: studentPalette.primary },
-  switcherText: { fontSize: 12, fontWeight: '600', color: studentPalette.onSurfaceVariant },
-  switcherTextActive: { color: studentPalette.onPrimary },
 
   content: { padding: studentSpacing.md, backgroundColor: studentPalette.surface },
 

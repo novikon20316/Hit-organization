@@ -16,12 +16,9 @@ import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Mileston
 import { resolveMilestoneOrder, isDefenseDateConfirmed } from '@/app/student/home/types';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
 
-// TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
-// enrolled in — normally just one, but the server-side bypass in
-// projectEnrollment.ts can seat a student in up to two at once. Say "revert
-// the temp 2-active-projects bypass" to undo — once the server side is
-// reverted, activeProjectIds is always a single-element array again and
-// this just renders one dashboard, same as before this existed.
+// One entry per project the student is currently enrolled in — in practice
+// always a single-element array, since a student may only have one active
+// project at a time (see projectEnrollment.ts's hasActiveProject guard).
 export interface ActiveProjectEntry {
   project: ActiveProject;
   milestones: Milestone[];
@@ -103,9 +100,8 @@ export function useStudentData() {
       setStudentThesisEligible(userData.thesisEligibility?.eligible === true);
       setStudentHasGradeRecord(!!userData.thesisEligibility);
 
-      // activeProjectIds is the TEMP-2-ACTIVE-PROJECTS field — falls back to
-      // the single scalar activeProjectId for any student not currently
-      // seated in a 2nd project (i.e. everyone, with the bypass reverted).
+      // activeProjectIds falls back to the single scalar activeProjectId for
+      // any student whose doc predates that array field.
       const activeIds: string[] = userData.activeProjectIds?.length
         ? userData.activeProjectIds
         : userData.hasActiveProject && userData.activeProjectId
@@ -113,8 +109,7 @@ export function useStudentData() {
           : [];
 
       if (activeIds.length > 0) {
-        // allSettled, not all — with several active projects (see
-        // TEMP-2-ACTIVE-PROJECTS above), one project failing to load (stale
+        // allSettled, not all — one project failing to load (stale
         // doc, transient error) used to reject the whole batch and drop
         // studentState to 'no_project', silently hiding every other active
         // project too and turning the sidebar's Milestones/Grades links into
@@ -406,8 +401,7 @@ export function useStudentData() {
   }, [fetchDashboardData]);
 
   // Back-compat single-project view for any code not yet updated to the
-  // activeProjects array — the first entry, same as the only entry when the
-  // TEMP-2-ACTIVE-PROJECTS bypass isn't in effect.
+  // activeProjects array — the first (and in practice only) entry.
   const activeProject = activeProjectsWithDerived[0]?.project ?? null;
   const milestones = activeProjectsWithDerived[0]?.milestones ?? [];
   const nextMilestone = activeProjectsWithDerived[0]?.nextMilestone ?? null;

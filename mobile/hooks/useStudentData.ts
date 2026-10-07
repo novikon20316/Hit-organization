@@ -11,12 +11,9 @@ import {
 import { normalizeCompletedCourses, type CompletedCourse } from '@/components/Prerequisites';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/constants/studentTrack';
 
-// TEMP-2-ACTIVE-PROJECTS: one entry per project the student is currently
-// enrolled in — normally just one, but the server-side bypass in
-// projectEnrollment.ts can seat a student in up to two at once. Say "revert
-// the temp 2-active-projects bypass" to undo — once the server side is
-// reverted, activeProjectIds is always a single-element array again and
-// this just renders one dashboard, same as before this existed.
+// One entry per project the student is currently enrolled in — in practice
+// always a single-element array, since a student may only have one active
+// project at a time (see projectEnrollment.ts's hasActiveProject guard).
 export interface ActiveProjectEntry {
   project: ActiveProject;
   milestones: Milestone[];
@@ -114,9 +111,8 @@ export function useStudentData() {
       // year 2 while still finishing their thesis), so check hasActiveProject
       // first and only fall back to the eligibility gate when there's
       // nothing already in progress to show.
-      // activeProjectIds is the TEMP-2-ACTIVE-PROJECTS field — falls back to
-      // the single scalar activeProjectId for any student not currently
-      // seated in a 2nd project (i.e. everyone, with the bypass reverted).
+      // activeProjectIds falls back to the single scalar activeProjectId for
+      // any student whose doc predates that array field.
       const activeIds: string[] = userData.activeProjectIds?.length
         ? userData.activeProjectIds
         : userData.hasActiveProject && userData.activeProjectId
@@ -125,8 +121,7 @@ export function useStudentData() {
 
       if (activeIds.length > 0) {
         // --- CASE A: Active Project(s) ---
-        // allSettled, not all — with several active projects (see
-        // TEMP-2-ACTIVE-PROJECTS above), one project failing to load (stale
+        // allSettled, not all — one project failing to load (stale
         // doc, transient error) used to reject the whole batch and drop
         // studentState to 'no_project', silently hiding every other active
         // project too. Now a single bad project is just dropped instead of
@@ -430,8 +425,7 @@ export function useStudentData() {
   }, [fetchDashboardData]);
 
   // Back-compat single-project view for any code not yet updated to the
-  // activeProjects array — the first entry, same as the only entry when the
-  // TEMP-2-ACTIVE-PROJECTS bypass isn't in effect.
+  // activeProjects array — the first (and in practice only) entry.
   const activeProject  = activeProjectsWithDerived[0]?.project ?? null;
   const milestones     = activeProjectsWithDerived[0]?.milestones ?? [];
   const nextMilestone  = activeProjectsWithDerived[0]?.nextMilestone ?? null;

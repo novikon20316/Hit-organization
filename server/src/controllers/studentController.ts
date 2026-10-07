@@ -8,6 +8,7 @@ import {
   type WorkflowMilestoneSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
+import { isGradeReleasedToStudent } from '../services/milestoneVisibility.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
@@ -95,8 +96,22 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       const resolved = await getActiveMilestonesFor(data?.facultyId, processType, data?.major ?? null);
       templateMilestones = resolved.milestones;
     }
+    // The requester reaching this endpoint as the project's own enrolled
+    // student (as opposed to via a staff/supervisor FULL_ACCESS_ROLES etc.
+    // branch above) is exactly the "classify the grade from them" case —
+    // same student-vs-everyone-else distinction as
+    // milestoneVisibility.ts's redactUnreleasedGradeForStudent. An
+    // unreleased milestone's finalGrade is treated as not-yet-graded here
+    // so the aggregate itself doesn't leak it early.
+    const isEnrolledStudentViewer = (data?.enrolledStudentIds ?? []).includes(requester.uid);
     const milestonesSnap = await db.collection('milestones').where('projectId', '==', id).get();
-    const actualMilestones = milestonesSnap.docs.map((d) => d.data() as { type: string; finalGrade?: number | null });
+    const actualMilestones = milestonesSnap.docs.map((d) => {
+      const m = d.data() as { type: string; status?: string; finalGrade?: number | null };
+      if (isEnrolledStudentViewer && !isGradeReleasedToStudent(m.status)) {
+        return { type: m.type, finalGrade: null };
+      }
+      return m;
+    });
     const overallFinalGrade = computeProjectFinalGrade(templateMilestones, actualMilestones);
 
     // The project doc itself only rarely carries a denormalized

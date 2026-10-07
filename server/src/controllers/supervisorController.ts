@@ -426,6 +426,13 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             routing: m?.routing ?? null,
             currentStageIndex: m?.currentStageIndex ?? 0,
             stageFormData: m?.stageFormData ?? null,
+            // File(s) a chain stage's actor optionally attached alongside
+            // their approve/reject decision (e.g. a signed sign-off doc) —
+            // keyed by stage id, same shape as it's stored in Firestore, so
+            // the client can look up routing[currentStageIndex].id (or any
+            // earlier stage's id) directly. See coordinatorController.ts's
+            // approveChainMilestone/rejectChainMilestone.
+            stageAttachments: m?.stageAttachments ?? null,
             // Per-signer stamps for a stage with requireAllAssignedSupervisors
             // set (e.g. research_proposal's supervisor_sign) — keyed by uid,
             // distinct from the single flat supervisorSignedAt/ByName fields
@@ -446,6 +453,10 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // finalGrade (which may blend in examiner scores) — so the
             // "Update grade" modal can prefill and PATCH the right value.
             supervisorScore: m?.supervisorScore ?? null,
+            // File(s) the supervisor optionally attached alongside the grade
+            // (e.g. an annotated copy of the student's submission) — see
+            // projectController.ts's submitMilestoneGrade.
+            supervisorGradeFileUrls: m?.supervisorGradeFileUrls ?? [],
             gradeApproved: !!m?.gradeApproved,
             gradeOverrideStatus: m?.gradeOverride?.status ?? null,
             // Independent parallel signoffs gating this milestone's grade —

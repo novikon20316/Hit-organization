@@ -12,7 +12,7 @@
 // web app's split (web/app/supervisor/dashboard/GradeMilestoneModal.tsx also
 // receives fully-formed values and calls back up rather than owning state).
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
@@ -50,6 +50,13 @@ export interface GradeMilestoneModalMilestone {
   submissionNote: string;
   dueDate?: string | null;
   submittedAt?: string | null;
+  /** The milestone's own snapshotted approval chain (see
+   *  workflowTemplates.ts's ChainStage) — lets this modal tell whether the
+   *  supervisor's current turn is a numeric grade or a plain approve/reject
+   *  sign-off. null/undefined (a legacy, non-chain-driven milestone) always
+   *  means "grade", matching today's only behavior. */
+  routing?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify' }> | null;
+  currentStageIndex?: number;
 }
 
 interface Props {
@@ -64,10 +71,22 @@ interface Props {
   onIndividualScoreChange: (studentId: string, value: string) => void;
   comment: string;
   onCommentChange: (value: string) => void;
+  /** File(s) the supervisor has picked to attach alongside the grade —
+   *  never required. Picking/uploading is owned by the parent screen (see
+   *  app/supervisor/dashboard.tsx's pickGradeFile), this just renders the
+   *  chips + an "attach" button. */
+  attachedFiles: { name: string }[];
+  onPickFile: () => void;
+  onRemoveFile: (index: number) => void;
   totalScore: number;
   submitting: boolean;
   onClose: () => void;
   onSubmit: () => void;
+  /** Approve-stage only (see isApproveStage below) — parent-owned, same
+   *  "fully-formed values, call back up" split as onSubmit above. Reuses
+   *  attachedFiles/comment, same as the grade flow. */
+  onApprove?: () => void;
+  onReject?: (reason: string) => void;
 }
 
 // Duplicated locally rather than imported — same per-screen local-copy
@@ -106,7 +125,8 @@ function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string 
 export function GradeMilestoneModal({
   visible, milestone, lang, isRtl, activeFields,
   criteria, onCriteriaChange, individualScores, onIndividualScoreChange,
-  comment, onCommentChange, totalScore, submitting, onClose, onSubmit,
+  comment, onCommentChange, attachedFiles, onPickFile, onRemoveFile,
+  totalScore, submitting, onClose, onSubmit, onApprove, onReject,
 }: Props) {
   const router = useRouter();
   const isGroupProject = (milestone?.studentIds.length ?? 0) > 1;
@@ -116,12 +136,35 @@ export function GradeMilestoneModal({
   const maxTotal = activeFields.reduce((sum, f) => sum + f.weight, 0) || 100;
   const pct = Math.max(0, Math.min(100, (totalScore / maxTotal) * 100));
 
+  // The milestone's own configured chain may route the supervisor's current
+  // turn through a plain approve/reject sign-off instead of a numeric grade
+  // (see workflowTemplates.ts's ChainStage.action) — mirrors web's identical
+  // GradeMilestoneModal.tsx addition. Reuses the same attachedFiles/comment
+  // props as the grade flow; only the reject-reason toggle below is local to
+  // this modal, same as every other purely-UI bit of state here.
+  const currentStage = milestone?.routing?.[milestone?.currentStageIndex ?? 0] ?? null;
+  const isApproveStage = currentStage?.action === 'approve';
+
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Reset the reject-reason toggle each time this reopens for a (possibly
+  // different) milestone.
+  useEffect(() => {
+    if (visible) {
+      setRejecting(false);
+      setRejectReason('');
+    }
+  }, [visible, milestone?.id]);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet">
       <View style={s.root}>
         <View style={[s.header, isRtl && s.rowReverse]}>
           <View>
-            <Text style={[s.headerTitle, isRtl && s.textRight]}>{lang === 'he' ? 'טופס ציון' : 'Grading Form'}</Text>
+            <Text style={[s.headerTitle, isRtl && s.textRight]}>
+              {isApproveStage ? (lang === 'he' ? 'אישור אבן דרך' : 'Milestone Approval') : (lang === 'he' ? 'טופס ציון' : 'Grading Form')}
+            </Text>
             <Text style={[s.headerSubtitle, isRtl && s.textRight]}>
               {lang === 'he' ? 'הערכת הגשת הסטודנט' : 'Evaluate the student submission'}
             </Text>
@@ -135,7 +178,12 @@ export function GradeMilestoneModal({
           {visible && (
             <FieldGuideOverlay
               guideKey={GRADE_MILESTONE_GUIDE_KEY}
-              steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) => (s.key !== 'submittedDocument' || !!milestone?.fileUrls?.length) && (s.key !== 'individualGrade' || isGroupProject))}
+              steps={GRADE_MILESTONE_FIELD_GUIDE.filter((s) =>
+                (s.key !== 'submittedDocument' || !!milestone?.fileUrls?.length)
+                && (s.key !== 'individualGrade' || (isGroupProject && !isApproveStage))
+                && (s.key !== 'criteria' || !isApproveStage)
+                && (s.key !== 'decision' || isApproveStage)
+              )}
             />
           )}
           {milestone && (
@@ -198,6 +246,7 @@ export function GradeMilestoneModal({
             </View>
           )}
 
+          {!isApproveStage && (
           <FieldGuideTarget fieldKey="criteria">
           <View style={s.card}>
             <View style={[s.rowBetween, isRtl && s.rowReverse]}>
@@ -233,8 +282,9 @@ export function GradeMilestoneModal({
             </View>
           </View>
           </FieldGuideTarget>
+          )}
 
-          {isGroupProject && milestone && (
+          {isGroupProject && !isApproveStage && milestone && (
             <FieldGuideTarget fieldKey="individualGrade">
             <View style={s.card}>
               <View style={[s.rowBetween, isRtl && s.rowReverse]}>
@@ -279,17 +329,112 @@ export function GradeMilestoneModal({
           </View>
           </FieldGuideTarget>
 
-          <Pressable
-            style={[s.submitBtn, submitting && { opacity: 0.6 }]}
-            onPress={onSubmit}
-            disabled={submitting}
-            accessibilityRole="button"
-          >
-            {submitting
-              ? <ActivityIndicator color={p.onPrimary} />
-              : <Text style={s.submitBtnText}>{lang === 'he' ? 'שלח ציון' : 'Submit Grade'}</Text>
-            }
-          </Pressable>
+          <FieldGuideTarget fieldKey="attachFile">
+          <View style={s.card}>
+            <View style={[s.rowBetween, isRtl && s.rowReverse]}>
+              <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)'}</Text>
+              <InfoTooltip textHe={gradeGuideEntry('attachFile').description.he} textEn={gradeGuideEntry('attachFile').description.en} />
+            </View>
+            <Pressable onPress={onPickFile} style={s.attachBtn} accessibilityRole="button">
+              <Text style={s.attachBtnText}>📎 {lang === 'he' ? 'בחר קובץ (PDF/Word)' : 'Choose file (PDF/Word)'}</Text>
+            </Pressable>
+            {attachedFiles.length > 0 && (
+              <View style={[s.chipsRow, isRtl && s.rowReverse]}>
+                {attachedFiles.map((f, idx) => (
+                  <Pressable
+                    key={idx}
+                    onPress={() => onRemoveFile(idx)}
+                    style={s.fileChip}
+                    accessibilityRole="button"
+                    accessibilityLabel={lang === 'he' ? `הסר ${f.name}` : `Remove ${f.name}`}
+                  >
+                    <Text style={s.fileChipText} numberOfLines={1}>📄 {f.name} ✕</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+          </FieldGuideTarget>
+
+          {isApproveStage ? (
+            <FieldGuideTarget fieldKey="decision">
+            <View>
+              {rejecting && (
+                <View style={[s.card, { marginBottom: spacing.sm }]}>
+                  <Text style={[s.cardTitle, isRtl && s.textRight]}>
+                    {lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)'}
+                  </Text>
+                  <TextInput
+                    style={[s.input, s.textarea, isRtl && s.textRight]}
+                    value={rejectReason}
+                    onChangeText={setRejectReason}
+                    multiline
+                    numberOfLines={3}
+                    placeholderTextColor={p.outline}
+                    textAlign={isRtl ? 'right' : 'left'}
+                  />
+                </View>
+              )}
+              <View style={[s.decisionRow, isRtl && s.rowReverse]}>
+                {rejecting ? (
+                  <>
+                    <Pressable
+                      style={[s.decisionBtn, s.cancelBtn]}
+                      onPress={() => { setRejecting(false); setRejectReason(''); }}
+                      disabled={submitting}
+                      accessibilityRole="button"
+                    >
+                      <Text style={s.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.decisionBtn, s.rejectBtn, submitting && { opacity: 0.6 }]}
+                      onPress={() => onReject?.(rejectReason)}
+                      disabled={submitting}
+                      accessibilityRole="button"
+                    >
+                      {submitting
+                        ? <ActivityIndicator color="#fff" />
+                        : <Text style={s.rejectBtnText}>{lang === 'he' ? 'אשר דחייה' : 'Confirm rejection'}</Text>}
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Pressable
+                      style={[s.decisionBtn, s.rejectOutlineBtn, submitting && { opacity: 0.6 }]}
+                      onPress={() => setRejecting(true)}
+                      disabled={submitting}
+                      accessibilityRole="button"
+                    >
+                      <Text style={s.rejectOutlineBtnText}>👎 {lang === 'he' ? 'דחה' : 'Disapprove'}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.decisionBtn, s.submitBtn, submitting && { opacity: 0.6 }]}
+                      onPress={onApprove}
+                      disabled={submitting}
+                      accessibilityRole="button"
+                    >
+                      {submitting
+                        ? <ActivityIndicator color={p.onPrimary} />
+                        : <Text style={s.submitBtnText}>👍 {lang === 'he' ? 'אשר' : 'Approve'}</Text>}
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            </View>
+            </FieldGuideTarget>
+          ) : (
+            <Pressable
+              style={[s.submitBtn, submitting && { opacity: 0.6 }]}
+              onPress={onSubmit}
+              disabled={submitting}
+              accessibilityRole="button"
+            >
+              {submitting
+                ? <ActivityIndicator color={p.onPrimary} />
+                : <Text style={s.submitBtnText}>{lang === 'he' ? 'שלח ציון' : 'Submit Grade'}</Text>
+              }
+            </Pressable>
+          )}
         </ScrollView>
       </View>
     </Modal>
@@ -366,6 +511,15 @@ const s = StyleSheet.create({
   },
   fileChipText: { fontSize: 11, color: p.onSurface },
 
+  attachBtn: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: p.surfaceContainer,
+  },
+  attachBtnText: { fontSize: 12, fontWeight: '700', color: p.primary },
+
   rubricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
   rubricRowDivider: { borderBottomWidth: 1, borderBottomColor: p.outlineVariant },
   rubricLabel: { flex: 1, fontSize: 13, color: p.onSurface, paddingRight: spacing.sm },
@@ -409,4 +563,13 @@ const s = StyleSheet.create({
     marginTop: spacing.sm,
   },
   submitBtnText: { color: p.onPrimary, fontSize: 15, fontWeight: '700' },
+
+  decisionRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  decisionBtn: { flex: 1, borderRadius: radius.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  cancelBtn: { flex: 0, paddingHorizontal: spacing.md, backgroundColor: 'transparent' },
+  cancelBtnText: { color: p.onSurfaceVariant, fontSize: 14, fontWeight: '600' },
+  rejectBtn: { backgroundColor: '#D32F2F' },
+  rejectBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  rejectOutlineBtn: { borderWidth: 1.5, borderColor: '#D32F2F' },
+  rejectOutlineBtnText: { color: '#D32F2F', fontSize: 15, fontWeight: '700' },
 });

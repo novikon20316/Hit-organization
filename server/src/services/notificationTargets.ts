@@ -83,6 +83,12 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
         case 'school_head':              return 'school_head_approvals';
         case 'program_head':             return 'program_head_approvals';
         case 'internal_examiner':        return 'examiner_defenses';
+        // A supervisor's own deadline-override request has no dedicated
+        // queue screen of its own — land them back on their projects tab
+        // (same destination 'defense'/'milestone_action' already use for
+        // this role) rather than a generic admin fallback.
+        case 'supervisor':
+        case 'secondary_supervisor':     return 'supervisor_projects';
         // No dedicated system_admin screen for this narrower workflow —
         // they're already permitted onto /coordinator/home (see its own
         // COORDINATOR_ROLES guard), so land them on the same place the

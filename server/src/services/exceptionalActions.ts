@@ -11,6 +11,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from './deadlineOverride.js';
+import { targetScreenFor } from './notificationTargets.js';
 
 export type ExceptionalActionType = 'deadline_override' | 'bulk_deadline_override';
 
@@ -202,11 +203,11 @@ async function notifyRequester(
         : `Your exceptional deadline-override request was rejected. Reason: ${decisionReason ?? ''}`,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      // EXCEPTIONAL_ACTION_GATED_ROLES (milestoneController.ts) only ever
-      // lets coordinator/administrative_secretary request one — both
-      // resolve to the same targetScreenFor(role, 'deadline_examiner')
-      // destination.
-      targetScreen: 'coordinator_deadlines',
+      // EXCEPTIONAL_ACTION_GATED_ROLES (milestoneController.ts) now also
+      // includes supervisor, which has its own destination (supervisor_projects)
+      // distinct from coordinator/administrative_secretary's — resolve per
+      // requester role rather than hardcoding one.
+      targetScreen: targetScreenFor(data.requestedByRole, 'deadline_examiner') ?? null,
     });
   } catch (err) {
     console.error('notifyRequester (exceptionalActions) failed:', err);

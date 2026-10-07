@@ -12,7 +12,7 @@
 // Ports web/app/supervisor/dashboard/ProjectWorkflowSection.tsx.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
 import { auth } from '../src/firebase/firebase';
 import { roleLabel, type Lang, type AppRole } from './i18n';
@@ -20,6 +20,20 @@ import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
+
+// Attachment URLs carry no separate filename field — derive a human-readable
+// one from the URL itself, same approach as app/student/milestones.tsx's own
+// fileNameFromUrl.
+function fileNameFromUrl(url: string, index: number, lang: Lang): string {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const last = path.split('/').filter(Boolean).pop();
+    if (last) return last;
+  } catch {
+    // fall through to generic label below
+  }
+  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
 
 interface StaffFormField {
   key: string;
@@ -86,6 +100,10 @@ interface StudentMilestoneRow {
    *  "awaiting X" label instead of guessing from the coarse status string. */
   routing?: RoutingStage[] | null;
   currentStageIndex?: number;
+  /** File(s) a chain stage's actor optionally attached alongside their
+   *  approve/reject decision — keyed by stage id. See web's
+   *  GradeMilestoneModal.tsx's attach-file field on an approve-stage. */
+  stageAttachments?: Record<string, string[]> | null;
   /** Per-signer stamps for a requireAllAssignedSupervisors stage, keyed by
    *  uid — see server's getSupervisorProjectDetail. */
   supervisorApprovals?: Record<string, { signedAt: string | null; signedByName: string }> | null;
@@ -169,6 +187,20 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
 
+  // Deadline-override control — a supervisor may push back their own
+  // advisee's due date, same PUT /api/milestones/:id as web's
+  // MilestoneTimeline.tsx, gated server-side to a documented reason +
+  // program_head/faculty_admin sign-off (see milestoneController.ts's
+  // EXCEPTIONAL_ACTION_GATED_ROLES). Keyed by milestone id since only one
+  // row's inline form is ever open at a time. Mirrors web's identical
+  // ProjectWorkflowSection.tsx addition.
+  const [adjustingMilestoneId, setAdjustingMilestoneId] = useState<string | null>(null);
+  const [adjustDateText, setAdjustDateText] = useState('');
+  const [adjustReasonText, setAdjustReasonText] = useState('');
+  const [adjustSaving, setAdjustSaving] = useState(false);
+  const [adjustError, setAdjustError] = useState('');
+  const [adjustPendingMilestoneId, setAdjustPendingMilestoneId] = useState<string | null>(null);
+
   // The final-grade certificate (digitizing Project_final_grade.docx) is
   // data_science-only — that faculty's masters students are always on the
   // project track (see server's studentTrack.ts, project_only policy), so no
@@ -204,6 +236,39 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   }, [projectId, lang]);
 
   const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
+
+  const handleSaveAdjustedDueDate = async (milestoneId: string) => {
+    if (!adjustDateText.trim()) return;
+    const parsed = new Date(adjustDateText);
+    if (isNaN(parsed.getTime())) {
+      setAdjustError(lang === 'he' ? 'תאריך לא תקין' : 'Invalid date');
+      return;
+    }
+    if (!adjustReasonText.trim()) {
+      setAdjustError(lang === 'he' ? 'יש לציין סיבה' : 'A reason is required');
+      return;
+    }
+    setAdjustSaving(true);
+    setAdjustError('');
+    try {
+      const res = await apiClient.put(`/api/milestones/${milestoneId}`, {
+        dueDate: parsed.toISOString(),
+        reason: adjustReasonText.trim(),
+      });
+      setAdjustingMilestoneId(null);
+      setAdjustDateText('');
+      setAdjustReasonText('');
+      if (res.data?.pendingApproval) {
+        setAdjustPendingMilestoneId(milestoneId);
+      } else {
+        refreshDetailSilently();
+      }
+    } catch (err: any) {
+      setAdjustError(err?.response?.data?.message || (lang === 'he' ? 'עדכון התאריך נכשל' : 'Failed to update the date'));
+    } finally {
+      setAdjustSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetchDetail();
@@ -302,6 +367,76 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                         {statusLabel(m.status, lang)}
                       </Text>
                     </View>
+
+                    {(m.dueDate || m.id) && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 }}>
+                        {m.dueDate && (
+                          <Text style={{ fontSize: 11, color: '#64748B' }}>
+                            📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'} {formatShortDate(m.dueDate, lang)}
+                          </Text>
+                        )}
+                        {m.id && (
+                          <Pressable
+                            onPress={() => {
+                              setAdjustingMilestoneId((v) => (v === m.id ? null : m.id));
+                              setAdjustError('');
+                              setAdjustDateText('');
+                              setAdjustReasonText('');
+                            }}
+                            accessibilityRole="button"
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#00236f' }}>
+                              ✏️ {lang === 'he' ? 'דחה תאריך יעד' : 'Extend deadline'}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    )}
+
+                    {m.id && adjustPendingMilestoneId === m.id && (
+                      <View style={{ marginTop: 4, borderRadius: 6, backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 11, color: '#92400E' }}>
+                          {lang === 'he'
+                            ? 'הבקשה לדחיית תאריך היעד נשלחה לאישור ראש התוכנית/הפקולטה.'
+                            : 'Your deadline-extension request was sent for program-head/faculty-admin approval.'}
+                        </Text>
+                      </View>
+                    )}
+
+                    {m.id && adjustingMilestoneId === m.id && (
+                      <View style={{ marginTop: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 8, gap: 8 }}>
+                        <TextInput
+                          value={adjustDateText}
+                          onChangeText={setAdjustDateText}
+                          placeholder={lang === 'he' ? 'YYYY-MM-DD' : 'YYYY-MM-DD'}
+                          placeholderTextColor="#9CA3AF"
+                          style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, padding: 6, fontSize: 12, backgroundColor: '#fff' }}
+                        />
+                        <TextInput
+                          value={adjustReasonText}
+                          onChangeText={setAdjustReasonText}
+                          placeholder={lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
+                          placeholderTextColor="#9CA3AF"
+                          style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, padding: 6, fontSize: 12, backgroundColor: '#fff' }}
+                        />
+                        {adjustError ? <Text style={{ fontSize: 11, color: '#EF4444' }}>{adjustError}</Text> : null}
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+                          <Pressable onPress={() => setAdjustingMilestoneId(null)} accessibilityRole="button">
+                            <Text style={{ fontSize: 12, color: '#64748B' }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleSaveAdjustedDueDate(m.id!)}
+                            disabled={adjustSaving}
+                            style={{ backgroundColor: '#00236f', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, opacity: adjustSaving ? 0.6 : 1 }}
+                            accessibilityRole="button"
+                          >
+                            {adjustSaving
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{lang === 'he' ? 'שמור' : 'Save'}</Text>}
+                          </Pressable>
+                        </View>
+                      </View>
+                    )}
 
                     {/* research_proposal's supervisor_sign stage — a pure
                         sign-off (action: 'approve'), not a grade, so it's
@@ -413,6 +548,28 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                       ) : null
                       );
                     })()}
+
+                    {/* File(s) attached alongside a chain stage's approve/reject
+                        decision (e.g. a signed sign-off doc) — see web's
+                        GradeMilestoneModal.tsx's attach-file field on an
+                        approve-stage. Shown regardless of milestone type/stage,
+                        flattened across every stage id that has any. */}
+                    {m.stageAttachments && Object.values(m.stageAttachments).some((urls) => urls.length > 0) && (
+                      <View style={{ marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {Object.values(m.stageAttachments).flat().map((url, i) => (
+                          <Pressable
+                            key={i}
+                            onPress={() => Linking.openURL(url)}
+                            accessibilityRole="link"
+                            style={{ borderWidth: 1, borderColor: '#c5c5d3', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#f4f3fa' }}
+                          >
+                            <Text style={{ fontSize: 11, color: '#1a1b21' }} numberOfLines={1}>
+                              📎 {fileNameFromUrl(url, i, lang)}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
 
                     {/* Staff record action (research_proposal/progress_report only). */}
                     {m.staffRecordMode === 'upload_or_form' && m.id && (

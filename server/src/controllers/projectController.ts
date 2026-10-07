@@ -106,7 +106,21 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   // reason is optional on first submission; required when a supervisor is
   // overwriting a score they already submitted (enforced further down, once
   // we know whether this is an edit) — see the "update grade" flow.
-  const { givenScore, comments, projectId, criteria, reason } = req.body;
+  const { givenScore, comments, projectId, reason } = req.body;
+  // Multipart (uploadMiddleware) when an optional file is attached alongside
+  // the grade — FormData fields arrive as strings, so `criteria` needs
+  // JSON.parse there; a plain JSON body (no file) keeps working as-is. Same
+  // pattern as submitSupervisorEvaluation's own `scores` field.
+  let criteria: any;
+  if (typeof req.body.criteria === 'string') {
+    try {
+      criteria = JSON.parse(req.body.criteria);
+    } catch {
+      return res.status(400).json({ message: 'Invalid criteria payload' });
+    }
+  } else {
+    criteria = req.body.criteria;
+  }
 
   // criteria is optional — an examiner grading via their own rubric sends
   // only givenScore, with no criteria breakdown at all.
@@ -144,6 +158,35 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     const data        = milestoneSnap.data() || {};
     const supervisorId= data.supervisorId;
     const examinerIds: string[] = data.examinerIds ?? [];
+
+    // Optional file(s) the grader attaches alongside the grade (e.g. an
+    // annotated/marked-up copy of the student's submission, PDF or Word) —
+    // never required, same "attach for the record" treatment as
+    // submitSupervisorEvaluation's own optional file. Stored at the
+    // milestone's root as `supervisorGradeFileUrls` regardless of which
+    // branch below ends up handling the grade, so downstream viewers don't
+    // need to know which grading path produced it.
+    //
+    // Upload is deliberately lazy (not run here) — this point in the function
+    // is before any of the branches below have confirmed the caller is
+    // actually authorized to grade this milestone. Each branch calls
+    // getGradeFileUrls() itself, once its own authorization check has
+    // passed, so an unauthorized/invalid request never triggers a real
+    // Cloudinary upload. Memoized so a branch that calls it more than once
+    // still only uploads each file once.
+    const gradeFiles = ((req as any).files as Express.Multer.File[]) ?? [];
+    let gradeFileUrlsPromise: Promise<string[]> | null = null;
+    const getGradeFileUrls = (): Promise<string[]> => {
+      if (!gradeFileUrlsPromise) {
+        gradeFileUrlsPromise = Promise.all(gradeFiles.map(async (file) => {
+          const base64 = file.buffer.toString('base64');
+          const dataUri = `data:${file.mimetype};base64,${base64}`;
+          const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'gradeFiles' });
+          return result.secure_url;
+        }));
+      }
+      return gradeFileUrlsPromise;
+    };
 
     // Once a grad-school-head has signed off on the computed final grade
     // (gradSchoolHeadController.ts's approveFinalGrade), it must not be
@@ -194,6 +237,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const projectSupervisorIds = [data.supervisorId].filter(Boolean);
       const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, examinerIds);
       if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
+      const gradeFileUrls = await getGradeFileUrls();
 
       // A milestone with its own configured rubric (see workflowTemplates.ts's
       // GradingComponentSpec) computes its score SERVER-SIDE from the
@@ -307,6 +351,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           stageScores,
           stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(gradeFileUrls.length > 0 ? { supervisorGradeFileUrls: gradeFileUrls } : {}),
         };
 
         if (nextStage && nextStage.action === 'grade') {
@@ -432,6 +477,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       if (!isSupervisor && !isExaminer) {
         return res.status(403).json({ message: 'Not authorized to grade this milestone' });
       }
+      const gradeFileUrls = await getGradeFileUrls();
 
       // A supervisor overwriting a grade they already submitted must say why
       // — the reason is what the "update grade" UI surfaces to the student
@@ -490,6 +536,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           if (comments !== undefined) update.supervisorComment = comments.trim();
           update.status            = 'supervisor_graded';
           if (criteriaBreakdown) update.supervisorCriteria = criteriaBreakdown;
+          if (gradeFileUrls.length > 0) update.supervisorGradeFileUrls = gradeFileUrls;
           nextSupervisorScore = scoreValue;
         } else {
           previousScore = freshExaminerScores[uid]?.score ?? null;
@@ -721,6 +768,8 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // actually sent one — see the identical guard above.
       if (comments !== undefined) updatePayload.supervisorComment = comments.trim();
       updatePayload.status            = 'supervisor_graded';
+      const gradeFileUrls = await getGradeFileUrls();
+      if (gradeFileUrls.length > 0) updatePayload.supervisorGradeFileUrls = gradeFileUrls;
     } else if (examinerIds[0] === uid) {
       graderRole = 'examiner1';
       scoreField = 'examiner1Score';

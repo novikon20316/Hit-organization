@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { Request, Response } from 'express';
+import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
@@ -849,6 +850,12 @@ async function approveChainMilestone(
   // stageFormData[stage.id] on every stage transition, not just the
   // terminal one, so an earlier stage's answers survive later approvals.
   stageFormData?: Record<string, unknown>,
+  // Optional file(s) the actor attaches alongside their approval (e.g. a
+  // signed form scan) — never required. Persisted under
+  // stageAttachments[stage.id], parallel to stageFormData above, so an
+  // earlier stage's attachment survives later stages' own approvals. See
+  // GradeMilestoneModal.tsx's approve-stage file field.
+  attachmentUrls?: string[],
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
@@ -968,6 +975,9 @@ async function approveChainMilestone(
       }
       if (stageFormData && Object.keys(stageFormData).length > 0) {
         update[`stageFormData.${stage.id}`] = stageFormData;
+      }
+      if (attachmentUrls && attachmentUrls.length > 0) {
+        update[`stageAttachments.${stage.id}`] = attachmentUrls;
       }
 
       if (stillMissingUids.length > 0) {
@@ -1295,6 +1305,20 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return res.status(401).json({ message: 'Unauthorized.' });
   }
 
+  // Optional file(s) the actor attaches alongside their approval — never
+  // required, same "attach for the record" treatment as
+  // projectController.ts's submitMilestoneGrade's own optional grade file.
+  // Only ever present when the client sent multipart (uploadMiddleware is a
+  // no-op for a plain JSON body — see routes/coordinator.ts).
+  const attachmentFiles = ((req as any).files as Express.Multer.File[]) ?? [];
+  const attachmentUrls: string[] = [];
+  for (const file of attachmentFiles) {
+    const base64 = file.buffer.toString('base64');
+    const dataUri = `data:${file.mimetype};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
+    attachmentUrls.push(result.secure_url);
+  }
+
   // Chain-driven (non-defense) milestone — the stage acting now might not be
   // coordinator-tier at all (could be faculty_admin, grad_school_head, ...),
   // so this bypasses the COORDINATOR_ROLES gate below entirely in favor of
@@ -1303,7 +1327,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData);
+    return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, attachmentUrls);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
@@ -1441,6 +1465,9 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
  *  resolved staff are notified — the student sees no rejection at all. */
 async function rejectChainMilestone(
   req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, reason: string,
+  // Optional file(s) attached alongside the rejection — see
+  // approveChainMilestone's identical attachmentUrls param.
+  attachmentUrls?: string[],
 ): Promise<Response> {
   const routing: ChainStage[] = milestone.routing;
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
@@ -1498,6 +1525,7 @@ async function rejectChainMilestone(
           // stamps from THIS round must not silently count toward the next
           // round's own requireAllAssignedSupervisors check.
           supervisorApprovals: {},
+          ...(attachmentUrls && attachmentUrls.length > 0 ? { [`stageAttachments.${stage.id}`]: attachmentUrls } : {}),
         });
 
         const studentIds: string[] = fresh.studentIds ?? [];
@@ -1540,6 +1568,7 @@ async function rejectChainMilestone(
           // Deliberately no coordinatorRejectedAt/rejectionReason/status:
           // 'rejected' here — this is an internal staff reroute, not a
           // student-facing rejection (see the "fully silent" scope decision).
+          ...(attachmentUrls && attachmentUrls.length > 0 ? { [`stageAttachments.${stage.id}`]: attachmentUrls } : {}),
         });
       }
     });
@@ -1652,11 +1681,22 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return res.status(400).json({ message: 'A rejection reason is required.' });
   }
 
+  // Optional file(s) attached alongside the rejection — see
+  // coordinatorApproveMilestone's identical attachmentUrls handling.
+  const attachmentFiles = ((req as any).files as Express.Multer.File[]) ?? [];
+  const attachmentUrls: string[] = [];
+  for (const file of attachmentFiles) {
+    const base64 = file.buffer.toString('base64');
+    const dataUri = `data:${file.mimetype};base64,${base64}`;
+    const result = await cloudinary.uploader.upload(dataUri, { resource_type: 'raw', folder: 'stageAttachments' });
+    attachmentUrls.push(result.secure_url);
+  }
+
   const preSnap = await db.collection('milestones').doc(milestoneId).get();
   if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
-    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason);
+    return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, attachmentUrls);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {

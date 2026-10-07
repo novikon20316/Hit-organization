@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../middleware/auth.js';
-import { uploadMiddleware } from '../controllers/milestoneController.js';
+import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import {
   getStudentProject,
   submitStudentMilestone,
@@ -15,7 +15,11 @@ import {
 const router = Router();
 
 router.get('/', verifyToken, getProjects)
-router.post('/milestones/:milestoneId/grade', verifyToken, submitMilestoneGrade);
+// uploadMiddleware is a no-op for a plain JSON body (no file attached) — see
+// the supervisor-evaluation route below's identical precedent. Lets a
+// supervisor optionally attach a file (e.g. an annotated copy of the
+// student's submission) alongside the grade via GradeMilestoneModal.
+router.post('/milestones/:milestoneId/grade', verifyToken, uploadMiddleware, handleUploadError, submitMilestoneGrade);
 router.post('/milestones/:milestoneId/individual-grade', verifyToken, submitIndividualGrade);
 // Three-rubric final-grade workflow (defense milestones with a template-
 // configured finalGradeComponents — see workflowTemplates.ts). uploadMiddleware

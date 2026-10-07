@@ -105,6 +105,13 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
   );
 
   const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
+  // Project/thesis wording below follows the track the student was actually
+  // assigned to (project.projectType), not just the masters-thesis template
+  // download gate above.
+  const isThesisTrack = project.projectType === 'thesis';
+  const trackNounHe = isThesisTrack ? 'התזה' : 'הפרויקט';
+  const trackNounIndefiniteHe = isThesisTrack ? 'תזה' : 'פרויקט';
+  const trackNounEn = isThesisTrack ? 'Thesis' : 'Project';
 
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true);
@@ -156,11 +163,11 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-student-on-surface md:text-3xl">
-          {lang === 'he' ? 'התקדמות הפרויקט הפעיל' : 'Active Project Progress'}
+          {lang === 'he' ? `התקדמות ${trackNounHe} הפעיל${isThesisTrack ? 'ה' : ''}` : `Active ${trackNounEn} Progress`}
         </h1>
         <p className="mt-1 text-sm text-student-on-surface-variant">
           {lang === 'he'
-            ? `מעקב אחר אבני הדרך והמשוב האחרון של המנחה לפרויקט '${project.titleHe}'.`
+            ? `מעקב אחר אבני הדרך והמשוב האחרון של המנחה ל${trackNounIndefiniteHe} '${project.titleHe}'.`
             : `Track your milestones and recent supervisor feedback for '${project.titleEn}'.`}
         </p>
       </div>
@@ -253,7 +260,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
           )}
 
           <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm">
-            <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? 'תיאור הפרויקט' : 'Project Description'}</p>
+            <p className="text-sm font-semibold text-student-on-surface">{lang === 'he' ? `תיאור ${trackNounHe}` : `${trackNounEn} Description`}</p>
             <p className="mt-1.5 text-sm text-student-on-surface-variant">{lang === 'he' ? project.descriptionHe : project.descriptionEn}</p>
           </div>
         </div>
@@ -464,7 +471,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
             {untaggedProjectFiles.length > 0 && (
               <div className="rounded-student-lg border border-student-outline-variant bg-student-surface-container-low p-5 shadow-sm">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-student-on-surface">
-                  📎 {lang === 'he' ? 'מסמכי הפרויקט' : 'Project Resources'}
+                  📎 {lang === 'he' ? `מסמכי ${trackNounHe}` : `${trackNounEn} Resources`}
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {untaggedProjectFiles.map((f) => (

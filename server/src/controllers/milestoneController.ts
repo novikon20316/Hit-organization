@@ -8,7 +8,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
-import { sanitizeMilestoneForViewer } from '../services/milestoneVisibility.js';
+import { sanitizeMilestoneForViewer, redactUnreleasedGradeForStudent } from '../services/milestoneVisibility.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
@@ -532,14 +532,23 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
 // student(s). Overriding is allowed regardless of the milestone's current
 // status — an emergency delay (illness, war, etc.) may need to push back a
 // deadline even for a milestone already submitted or approved.
+//
+// A milestone's own supervisor (the advisor, not just anyone in the
+// coordinator-tier roles below) may also adjust it — but only THEIR OWN
+// advisee's milestone, checked by ownership (milestone.supervisorId ===
+// uid), never by the coordinator-tier's facultyId/coordinatorScopes check,
+// which would otherwise let any supervisor reach any other supervisor's
+// student in the same faculty. See isOwnAdvisee below and the identical
+// precedent in revisionDecisionController.ts.
 const UPDATE_MILESTONE_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
-// P1 backlog item #12 — these two roles previously acted unilaterally
+// P1 backlog item #12 — these roles previously acted unilaterally
 // (deadline_overridden was only ever audit-logged AFTER the write went
 // through). They now need documented program_head/faculty_admin/system_admin
 // sign-off first — see services/exceptionalActions.ts. faculty_admin/
 // system_admin keep acting immediately: gating a senior role's own action
-// behind its own approval would be circular.
-const EXCEPTIONAL_ACTION_GATED_ROLES = ['coordinator', 'administrative_secretary'];
+// behind its own approval would be circular. supervisor is included here
+// too — even over their own advisee, a deadline push still needs sign-off.
+const EXCEPTIONAL_ACTION_GATED_ROLES = ['coordinator', 'administrative_secretary', 'supervisor'];
 
 export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
@@ -549,7 +558,10 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ message: 'Invalid milestoneId.' });
   }
-  if (!role || !(UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)))) {
+
+  const isCoordinatorTier = !!role && (UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)));
+  const isSupervisor = role === 'supervisor' || roles.includes('supervisor');
+  if (!isCoordinatorTier && !isSupervisor) {
     return res.status(403).json({ message: 'You do not have permission to update this milestone.' });
   }
 
@@ -557,9 +569,37 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   if (!updateScope) {
     return res.status(404).json({ message: 'Milestone not found.' });
   }
-  if (!withinCoordinatorScope(req.user, updateScope) && !hasActionGrant(req.user, 'approve_milestones', updateScope)) {
-    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+
+  // A supervisor may only ever touch their OWN advisee's milestone — this is
+  // an ownership check, not a scope check, so it's resolved independently of
+  // (and checked before falling back to) the coordinator-tier scope check
+  // below. See isOwnAdvisee precedent in revisionDecisionController.ts.
+  let isOwnAdvisee = false;
+  if (isSupervisor) {
+    const milestoneSnap = await db.collection('milestones').doc(id).get();
+    const milestoneData = milestoneSnap.data();
+    isOwnAdvisee = milestoneSnap.exists && (milestoneData?.supervisorId === req.user!.uid || milestoneData?.secondarySupervisorId === req.user!.uid);
   }
+
+  if (!isOwnAdvisee) {
+    if (!isCoordinatorTier) {
+      return res.status(403).json({ message: 'Only this milestone\'s own supervisor, or a coordinator-tier role within scope, may update it.' });
+    }
+    if (!withinCoordinatorScope(req.user, updateScope) && !hasActionGrant(req.user, 'approve_milestones', updateScope)) {
+      return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+    }
+  }
+
+  // Which role is actually exercising this action — the supervisor's own
+  // advisee-ownership path takes precedence over an incidental coordinator-
+  // tier role the same account might also hold, since the grant that got
+  // them past the check above was advisee ownership, not scope. Otherwise,
+  // resolve via matchedRole rather than the singular `role` field — a
+  // multi-role account can be isCoordinatorTier purely through `roles[]`
+  // while its own singular `role` is something outside
+  // EXCEPTIONAL_ACTION_GATED_ROLES, which would wrongly skip the mandatory
+  // sign-off below (see auth.ts's matchedRole doc comment).
+  const actingRole = isOwnAdvisee && !isCoordinatorTier ? 'supervisor' : (matchedRole(req.user, UPDATE_MILESTONE_ROLES) ?? role!);
 
   const { dueDate, reason } = req.body;
   if (!dueDate) {
@@ -572,7 +612,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   }
 
   try {
-    if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(role)) {
+    if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(actingRole)) {
       if (typeof reason !== 'string' || !reason.trim()) {
         return res.status(400).json({ message: 'A documented reason is required to request this exceptional action.' });
       }
@@ -582,7 +622,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
         reason,
         facultyId: updateScope.facultyId,
         requestedBy: req.user!.uid,
-        requestedByRole: role,
+        requestedByRole: actingRole,
       });
       return res.status(202).json({
         success: true,
@@ -592,7 +632,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
       });
     }
 
-    const result = await applySingleDueDateOverride(id, parsedDate, typeof reason === 'string' ? reason : undefined, req.user!.uid, role);
+    const result = await applySingleDueDateOverride(id, parsedDate, typeof reason === 'string' ? reason : undefined, req.user!.uid, actingRole);
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('updateMilestoneByCoordinator error:', error);
@@ -846,7 +886,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         status: data.status,
         type: data.type,
       });
-      return sanitizeMilestoneForViewer({
+      const sanitized = sanitizeMilestoneForViewer({
         id: d.id,
         ...data,
         // ✅ Convert ALL Timestamps to ISO strings so React Native can use them
@@ -861,6 +901,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         defenseDate:  isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
         coordinatorApprovedAt: data.coordinatorApprovedAt?.toDate?.()?.toISOString() ?? null,
       }, requester.uid, viewerRoles);
+      return redactUnreleasedGradeForStudent(sanitized, requester.uid, viewerRoles);
     });
     
     return res.status(200).json({ milestones });

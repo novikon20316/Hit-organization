@@ -143,6 +143,14 @@ export interface SupervisorPendingMilestone {
   // empty means GradeMilestoneModal falls back to the hardcoded
   // GRADING_CRITERIA below.
   gradingComponents?: GradingComponentSpec[];
+  /** The milestone's own snapshotted approval chain (see
+   *  workflowTemplates.ts's ChainStage) — lets GradeMilestoneModal tell
+   *  whether the supervisor's current turn is a numeric grade or a plain
+   *  approve/reject sign-off, instead of always rendering the grading form.
+   *  null/undefined (a legacy, non-chain-driven milestone) always means
+   *  "grade", matching today's only behavior. */
+  routing?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify' }> | null;
+  currentStageIndex?: number;
 }
 
 export const MILESTONE_LABEL: Record<string, { he: string; en: string }> = {
