@@ -68,12 +68,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     try {
-      // silent — this poll's own failure is already swallowed below with no
-      // UI/retry consequence; without it, the 30s interval (running for
-      // every signed-in session) is one of the noisiest paths through
-      // apiClient's generic network_failure alerting. See apiClient.ts and
-      // app/_layout.tsx's presence heartbeat, which had the same problem.
-      const chatsRes = await apiClient.get('/api/chats/dashboard', { silent: true });
+      const chatsRes = await apiClient.get('/api/chats/dashboard');
       const chats = chatsRes.data.chats ?? [];
       const unreadMessages = chats.reduce((sum: number, c: any) => sum + (c.unreadCount > 0 ? c.unreadCount : 0), 0);
       unreadMessagesRef.current = unreadMessages;

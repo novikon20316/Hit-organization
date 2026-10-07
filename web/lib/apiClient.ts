@@ -109,11 +109,6 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Set true when body is already a FormData/Blob/etc — skips JSON headers/stringify. */
   raw?: boolean;
-  /** Set true for best-effort calls (e.g. the presence heartbeat) whose own
-   *  caller already treats a failure as harmless — skips the system_admin
-   *  network_failure/api_timeout alert that `request()` would otherwise fire
-   *  on every fetch failure, regardless of how expected it is. */
-  silent?: boolean;
 }
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
@@ -132,7 +127,7 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { params, body, raw, silent, headers, signal: callerSignal, ...rest } = options;
+  const { params, body, raw, headers, signal: callerSignal, ...rest } = options;
 
   const finalHeaders = new Headers(headers);
   finalHeaders.set('Accept', 'application/json');
@@ -180,7 +175,7 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     });
   } catch (err) {
     clearTimeout(timeoutId);
-    if (!callerSignal?.aborted && !silent) {
+    if (!callerSignal?.aborted) {
       const timedOut = err instanceof DOMException && err.name === 'AbortError';
       reportClientError({
         kind: timedOut ? 'api_timeout' : 'network_failure',
@@ -197,7 +192,7 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
 
   // A 5xx is the server's own failure, not a validation/permission issue —
   // exactly the "data-receiving problem" system_admin needs to hear about.
-  if (res.status >= 500 && !silent) {
+  if (res.status >= 500) {
     reportClientError({ kind: 'network_failure', message: `HTTP ${res.status} from ${path}`, route: path });
   }
 
@@ -371,10 +366,9 @@ export const apiClient = {
   },
 
   // ─── 3b. CHAT ───────────────────────────────────────────────────────────────
-  async getChatDashboard(options?: { silent?: boolean }) {
+  async getChatDashboard() {
     return request<{ chats: Array<Record<string, unknown> & { chatId: string }>; unreadTotal: number }>('/api/chats/dashboard', {
       method: 'GET',
-      silent: options?.silent,
     });
   },
 

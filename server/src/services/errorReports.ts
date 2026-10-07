@@ -14,6 +14,16 @@
 // A fingerprint that's gone quiet for longer than the window (or that an
 // admin already marked resolved) re-alerts on its next occurrence, so a
 // recurring-but-intermittent bug doesn't go silent after the first ping.
+//
+// Burst confirmation for network_failure/api_timeout: these two kinds are
+// inherently flaky (one dropped connection, one deploy-window restart) and
+// a LONE occurrence proves nothing — alerting on it is a false alarm, not a
+// real failure. So for these kinds, the first occurrence is recorded (and
+// still visible in the System Health widget) but not emailed; only a SECOND
+// occurrence landing within BURST_CONFIRM_WINDOW_MS of the first confirms
+// it's recurring rather than a one-off blip, and that's what triggers the
+// actual admin notification (see `notifiedAt`). client_crash is exempt —
+// a JS exception is already a real bug on its first occurrence.
 
 import crypto from 'crypto';
 import admin from 'firebase-admin';
@@ -39,6 +49,12 @@ export function isValidErrorReportPlatform(v: unknown): v is ErrorReportPlatform
 // never explicitly resolved — keeps a rare-but-recurring bug from going
 // permanently quiet after its first notification.
 const RENOTIFY_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// A second occurrence within this window of the first confirms a
+// network_failure/api_timeout fingerprint is recurring, not a one-off blip.
+const BURST_CONFIRM_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+const DEBOUNCED_KINDS: ErrorReportKind[] = ['network_failure', 'api_timeout'];
 
 const KIND_LABEL: Record<ErrorReportKind, { he: string; en: string }> = {
   client_crash:    { he: 'קריסת לקוח', en: 'Client crash' },
@@ -89,6 +105,8 @@ export async function recordClientError(input: ClientErrorInput): Promise<void> 
   const fingerprint = fingerprintFor(input);
   const ref = db.collection('errorReports').doc(fingerprint);
 
+  const debounced = DEBOUNCED_KINDS.includes(input.kind);
+
   const { shouldNotify, count } = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const nowMs = Date.now();
@@ -105,21 +123,26 @@ export async function recordClientError(input: ClientErrorInput): Promise<void> 
         count: 1,
         firstOccurredAt: FieldValue.serverTimestamp(),
         lastOccurredAt: FieldValue.serverTimestamp(),
+        // null = "seen but not yet confirmed as a real, recurring failure"
+        // for a debounced kind; non-debounced kinds are confirmed on sight.
+        notifiedAt: debounced ? null : FieldValue.serverTimestamp(),
         sampleUserId: input.userId ?? null,
         sampleUserRole: input.userRole ?? null,
         resolvedAt: null,
         resolvedBy: null,
       });
-      return { shouldNotify: true, count: 1 };
+      return { shouldNotify: !debounced, count: 1 };
     }
 
     const data = snap.data() as FirebaseFirestore.DocumentData;
     const lastMs: number = (data.lastOccurredAt as admin.firestore.Timestamp | undefined)?.toMillis?.() ?? 0;
+    const firstMs: number = (data.firstOccurredAt as admin.firestore.Timestamp | undefined)?.toMillis?.() ?? nowMs;
+    const neverConfirmed = debounced && !data.notifiedAt;
     const wasResolved = data.status === 'resolved';
     const wentQuiet = nowMs - lastMs > RENOTIFY_WINDOW_MS;
     const nextCount = (typeof data.count === 'number' ? data.count : 0) + 1;
 
-    tx.update(ref, {
+    const updates: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
       count: nextCount,
       lastOccurredAt: FieldValue.serverTimestamp(),
       status: 'open',
@@ -129,9 +152,28 @@ export async function recordClientError(input: ClientErrorInput): Promise<void> 
       sampleUserId: input.userId ?? null,
       sampleUserRole: input.userRole ?? null,
       ...(wasResolved ? { resolvedAt: null, resolvedBy: null } : {}),
-    });
+    };
 
-    return { shouldNotify: wasResolved || wentQuiet, count: nextCount };
+    let shouldNotify: boolean;
+    if (neverConfirmed) {
+      const withinBurst = nowMs - firstMs <= BURST_CONFIRM_WINDOW_MS;
+      if (withinBurst) {
+        // Second hit while the first is still fresh — confirmed recurring.
+        updates.notifiedAt = FieldValue.serverTimestamp();
+        shouldNotify = true;
+      } else {
+        // The lone first occurrence is stale — this looks like a fresh,
+        // isolated blip rather than a continuation. Restart the burst
+        // window instead of alerting on an unconfirmed single event.
+        updates.firstOccurredAt = FieldValue.serverTimestamp();
+        shouldNotify = false;
+      }
+    } else {
+      shouldNotify = wasResolved || wentQuiet;
+    }
+
+    tx.update(ref, updates);
+    return { shouldNotify, count: nextCount };
   });
 
   if (shouldNotify) {

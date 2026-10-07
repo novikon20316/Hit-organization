@@ -16,11 +16,7 @@ export function usePresenceHeartbeat(enabled: boolean) {
     if (!enabled) return;
 
     const send = () => {
-      // silent: true — a missed heartbeat just means this session briefly
-      // drops out of the live count, not a system_admin-worthy incident.
-      // Without this, the 25s interval makes this by far the noisiest path
-      // through the generic network_failure alerting in apiClient.ts.
-      apiClient.post('/api/presence/heartbeat', { platform: 'web' }, { silent: true }).catch(() => {});
+      apiClient.post('/api/presence/heartbeat', { platform: 'web' }).catch(() => {});
     };
 
     send();
