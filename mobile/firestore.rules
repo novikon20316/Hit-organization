@@ -97,10 +97,20 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Covers both get() and list() — a verified-only gate specifically
-      // because list() here means a full dump of every user's profile in
-      // one query, the single biggest mass-enumeration surface in this file.
-      allow read:  if isVerifiedSignedIn();
+      // Split get() from list() — a single-document get() by an ALREADY-KNOWN
+      // uid (every real call site in web/mobile: self-profile reads, a
+      // staff screen looking up one specific user, a student's own
+      // supervisor-name autofill) stays open to any verified user, same as
+      // before. list() is the actual mass-enumeration vector — a single
+      // query against the whole collection (e.g. where('role','==','student'))
+      // previously returned every matching user's full profile, including
+      // phoneNumber/studentId/coordinatorScopes, to ANY verified signed-in
+      // account regardless of role. Now restricted to staff roles, which is
+      // the only real need for a multi-document users query (rosters,
+      // candidate pickers, etc.) — see userDoc()'s own single-get-per-rule
+      // comment above for why this still costs just one extra get().
+      allow get:   if isVerifiedSignedIn();
+      allow list:  if isVerifiedSignedIn() && isStaffRole(userDoc());
 
       // CRITICAL FIX: this used to be a single unrestricted `allow write`
       // covering create+update+delete, granted to (a) the doc's own owner

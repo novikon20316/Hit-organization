@@ -47,16 +47,33 @@ export function isGradeReleasedToStudent(status: string | null | undefined): boo
 
 // Fields that carry a student's own grade/evaluation outcome for a
 // milestone. Kept as a single list so the write side (whoever adds a new
-// grade-bearing field) and this redaction stay easy to keep in sync.
+// grade-bearing field) and this redaction stay easy to keep in sync — this
+// list was found to already be incomplete once (missing supervisorCriteria,
+// stageScores, supervisorGradeFileUrls, supervisorComment,
+// examiner1Comments/examiner2Comments, finalGradeByStudent, and
+// coordinatorComment — all confirmed as real write sites in
+// projectController.ts/coordinatorController.ts and added here), which is
+// exactly the failure mode a manually-maintained denylist invites. Whoever
+// adds a new field to a milestone doc that carries a score, a grading
+// comment, a per-student grade breakdown, or a file attached alongside a
+// grade MUST add it here too, in the same commit.
 const GRADE_BEARING_FIELDS = [
   'finalGrade',
+  'finalGradeByStudent',
   'supervisorScore',
+  'supervisorComment',
+  'supervisorCriteria',
+  'supervisorGradeFileUrls',
   'examiner1Score',
+  'examiner1Comments',
   'examiner2Score',
+  'examiner2Comments',
   'examinerScores',
   'autoCalculatedFinalGrade',
   'supervisorEvaluation',
   'gradeOverride',
+  'stageScores',
+  'coordinatorComment',
 ] as const;
 
 /** Strips grade-bearing fields from a milestone doc when the viewer is the

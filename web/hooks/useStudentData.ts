@@ -7,7 +7,7 @@
 // since nothing in this slice's UI (no NotificationBell yet) reads it.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, getDoc, getDocs, documentId } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
@@ -229,20 +229,16 @@ export function useStudentData() {
 
         const nameMap: Record<string, string> = {};
         if (supervisorIds.length > 0) {
-          // Batched `documentId() in [...]` reads instead of one getDoc per
-          // supervisor — Firestore's `in` operator caps at 10 values, so
-          // this chunks rather than truncating (a plain project list can
-          // easily list more than 10 distinct supervisors).
-          const chunks: string[][] = [];
-          for (let i = 0; i < supervisorIds.length; i += 10) chunks.push(supervisorIds.slice(i, i + 10));
-          const chunkSnapshots = await Promise.all(
-            chunks.map((ids) => getDocs(query(collection(db, 'users'), where(documentId(), 'in', ids))))
-          );
-          chunkSnapshots.forEach((snap) => {
-            snap.forEach((docSnap) => {
-              const data = docSnap.data();
-              nameMap[docSnap.id] = data?.displayName || data?.displayNameHe || '';
-            });
+          // One getDoc() per supervisor rather than a documentId()-in-[...]
+          // list() query — firestore.rules now restricts list() on /users to
+          // staff roles (the mass-enumeration fix), but a student's own
+          // single-document get() by an already-known uid stays open, same
+          // as every other "look up one specific user" call site.
+          const docSnaps = await Promise.all(supervisorIds.map((id) => getDoc(doc(db, 'users', id))));
+          docSnaps.forEach((docSnap) => {
+            if (!docSnap.exists()) return;
+            const data = docSnap.data();
+            nameMap[docSnap.id] = data?.displayName || data?.displayNameHe || '';
           });
         }
 

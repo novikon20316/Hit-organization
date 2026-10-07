@@ -1,7 +1,7 @@
 // student/hooks/useStudentData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../src/api/apiClient';
-import { collection, query, where, onSnapshot, doc, getDocs, documentId } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../src/firebase/firebase';
 import {
   StudentState, DegreeType, ProjectType, MilestoneStatus,
@@ -243,15 +243,17 @@ export function useStudentData() {
         const cache = supervisorNameCacheRef.current;
         const uncachedIds = supervisorIds.filter(uid => !cache.has(uid));
         if (uncachedIds.length > 0) {
-          const chunks: string[][] = [];
-          for (let i = 0; i < uncachedIds.length; i += 30) chunks.push(uncachedIds.slice(i, i + 30));
+          // One getDoc() per supervisor rather than a documentId()-in-[...]
+          // list() query — firestore.rules now restricts list() on /users to
+          // staff roles (the mass-enumeration fix), but a student's own
+          // single-document get() by an already-known uid stays open, same
+          // as every other "look up one specific user" call site.
           await Promise.all(
-            chunks.map(async (chunk) => {
-              const usersSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)));
-              usersSnap.docs.forEach(snap => {
-                const data = snap.data();
-                cache.set(snap.id, data?.displayName || data?.displayNameHe || '');
-              });
+            uncachedIds.map(async (uid) => {
+              const docSnap = await getDoc(doc(db, 'users', uid));
+              if (!docSnap.exists()) return;
+              const data = docSnap.data();
+              cache.set(uid, data?.displayName || data?.displayNameHe || '');
             })
           );
         }
