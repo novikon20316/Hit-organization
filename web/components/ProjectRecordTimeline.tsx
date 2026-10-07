@@ -83,6 +83,7 @@ function describeEntry(entry: RecordEntry, lang: 'he' | 'en'): string {
 export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
   const { lang } = useLanguage();
   const [entries, setEntries] = useState<RecordEntry[] | null>(null);
+  const [project, setProject] = useState<{ titleHe: string; titleEn: string; recordNumber: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -95,6 +96,7 @@ export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
       .then((res) => {
         if (cancelled) return;
         setEntries(res.entries as unknown as RecordEntry[]);
+        setProject(res.project);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -106,7 +108,17 @@ export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
 
   return (
     <div className="rounded-[var(--radius)] border border-line bg-surface p-5">
-      <p className="text-base font-semibold text-ink">📜 {lang === 'he' ? 'רישום הפרויקט' : 'Project Record'}</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-base font-semibold text-ink">📜 {lang === 'he' ? 'רישום הפרויקט' : 'Project Record'}</p>
+        {project?.recordNumber && (
+          <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-mono font-semibold text-ink">
+            {project.recordNumber}
+          </span>
+        )}
+      </div>
+      {project && (
+        <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe || project.titleEn : project.titleEn || project.titleHe}</p>
+      )}
       <p className="mt-1 text-xs text-muted">
         {lang === 'he'
           ? 'רישום קבוע לצפייה בלבד — לא ניתן לעריכה או מחיקה על ידי אף משתמש.'

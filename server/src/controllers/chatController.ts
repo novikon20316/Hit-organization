@@ -323,12 +323,22 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     await batch.commit();
 
     if (projectId) {
+      // The permanent record keeps the FULL message (previewText is already
+      // the complete text for a 'text' message — the 60-char crop above is
+      // only ever used for the push-notification body, a separate concern),
+      // plus the image itself for an 'image' message, not just a "📷 Photo"
+      // placeholder — a dean/coordinator reviewing this record later should
+      // be able to see exactly what was sent, not merely that something was.
       await logProjectRecordEntry({
         projectId,
         type: 'message_sent',
         actorId: uid,
         actorRole: req.user?.role ?? '',
-        data: { preview: previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText, messageType: type },
+        data: {
+          preview: previewText,
+          messageType: type,
+          ...(type === 'image' && imageUrl ? { imageUrl } : {}),
+        },
       });
     }
 

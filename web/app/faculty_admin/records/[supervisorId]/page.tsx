@@ -18,7 +18,7 @@ const FACULTY_ADMIN_ROLES: AppRole[] = ['faculty_admin'];
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
-  supervisorId: string | null; enrolledStudentCount: number;
+  supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
 export default function FacultyAdminSupervisorRecordsPage() {
@@ -66,7 +66,7 @@ export default function FacultyAdminSupervisorRecordsPage() {
             >
               <p className="text-sm font-semibold text-faculty-admin-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
               <p className="mt-0.5 text-xs text-faculty-admin-on-surface-variant">
-                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
+                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
               </p>
             </Link>
           ))}

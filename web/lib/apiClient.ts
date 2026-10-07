@@ -2727,7 +2727,13 @@ export const apiClient = {
   // see projectRecordsController.ts's callerFacultyScope ────────────────────
   async getProjectRecord(projectId: string) {
     return request<{
-      project: { id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null };
+      project: {
+        id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null;
+        /** Permanent per-faculty record number (see services/
+         *  projectRecordNumber.ts), e.g. "ELEC-000042" — null for a project
+         *  created before this feature existed and not yet backfilled. */
+        recordNumber: string | null;
+      };
       entries: Array<{
         id: string;
         type: string;
@@ -2744,7 +2750,7 @@ export const apiClient = {
     return request<{
       projects: Array<{
         id: string; titleHe: string; titleEn: string; status: string | null;
-        supervisorId: string | null; enrolledStudentCount: number;
+        supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
       }>;
     }>('/api/project-records/my-projects', { method: 'GET' });
   },
@@ -2773,7 +2779,7 @@ export const apiClient = {
     return request<{
       projects: Array<{
         id: string; titleHe: string; titleEn: string; status: string | null;
-        supervisorId: string | null; enrolledStudentCount: number;
+        supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
       }>;
     }>(`/api/project-records/supervisors/${supervisorId}/projects`, { method: 'GET' });
   },

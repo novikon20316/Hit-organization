@@ -19,7 +19,7 @@ const SUPERVISOR_ROLES: AppRole[] = ['supervisor', 'secondary_supervisor'];
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
-  supervisorId: string | null; enrolledStudentCount: number;
+  supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
 export default function SupervisorRecordsPage() {
@@ -65,7 +65,7 @@ export default function SupervisorRecordsPage() {
             >
               <p className="text-sm font-semibold text-supervisor-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
               <p className="mt-0.5 text-xs text-supervisor-on-surface-variant">
-                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
+                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
               </p>
             </Link>
           ))}

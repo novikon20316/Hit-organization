@@ -1,10 +1,10 @@
-// app/administrative_coordinator/records/[supervisorId].tsx
-// Second level of the administrative coordinator's Project Records
-// drill-down: lists one supervisor's own projects that already have an
-// enrolled student, then hands off to the shared, role-agnostic detail
-// screen at app/records/[projectId].tsx — the backend's own auth check on
-// GET /api/project-records/:projectId is the real authorization boundary,
-// so there is no need for a separate detail screen per role.
+// app/dean/records.tsx
+// Entry point for the dean's "Project Records" drill-down: lists every
+// supervisor within this dean's own faculty (the server resolves that
+// scope — see apiClient.getScopedSupervisorsForRecords() and
+// callerRecordScope's dean branch in projectRecordsController.ts). Tap a
+// supervisor to see their projects at records/[supervisorId].tsx. Mirrors
+// app/faculty_admin/records.tsx.
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,50 +13,49 @@ import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { ap } from '@/constants/theme';
 
-interface RecordProject {
-  id: string; titleHe: string; titleEn: string; status: string | null;
-  supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
-}
+interface SupervisorRow { id: string; displayName: string; email: string; facultyId: string; }
 
-export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
+export default function DeanRecordsScreen() {
   const router = useRouter();
-  const { supervisorId, lang: langParam } = useLocalSearchParams<{ supervisorId: string; lang?: string }>();
+  const { lang: langParam } = useLocalSearchParams<{ lang?: string }>();
   const lang: Lang = langParam === 'en' ? 'en' : 'he';
   const isRtl = lang === 'he';
 
-  const [projects, setProjects] = useState<RecordProject[]>([]);
+  const [supervisors, setSupervisors] = useState<SupervisorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!supervisorId) return;
     let cancelled = false;
     setLoading(true);
     setError('');
-    apiClient.getSupervisorProjectRecords(supervisorId)
-      .then((res) => { if (!cancelled) setProjects(res.projects ?? []); })
+    apiClient.getScopedSupervisorsForRecords()
+      .then((res) => { if (!cancelled) setSupervisors(res.supervisors ?? []); })
       .catch((err) => {
-        if (!cancelled) setError(lang === 'he' ? 'טעינת הפרויקטים נכשלה' : 'Failed to load projects');
+        if (!cancelled) setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [supervisorId, lang]);
+  }, [lang]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/administrative_coordinator/records', params: { lang } } as any))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/dean/dean_dashboard' as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >
           <Text style={{ fontSize: 14, fontWeight: '600', color: ap.primary }}>
-            {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה לרשימת המנחים' : 'Back to supervisors'}
+            {isRtl ? '→' : '←'} {lang === 'he' ? 'חזרה' : 'Back'}
           </Text>
         </Pressable>
 
         <Text style={{ fontSize: 20, fontWeight: '700', color: ap.onSurface }}>
-          📜 {lang === 'he' ? 'הפרויקטים של המנחה' : "Supervisor's Projects"}
+          📜 {lang === 'he' ? 'רישומי פרויקטים' : 'Project Records'}
+        </Text>
+        <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4 }}>
+          {lang === 'he' ? 'בחר/י מנחה כדי לצפות בפרויקטים שלו/שלה, בפקולטה שלך.' : "Choose a supervisor to see their projects, within your faculty."}
         </Text>
 
         {loading && <ActivityIndicator size="large" color={ap.primary} style={{ marginTop: 30 }} />}
@@ -67,30 +66,27 @@ export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
           </View>
         )}
 
-        {!loading && !error && projects.length === 0 && (
+        {!loading && !error && supervisors.length === 0 && (
           <View style={{ marginTop: 30, alignItems: 'center' }}>
             <Text style={{ fontSize: 32 }}>📭</Text>
             <Text style={{ marginTop: 8, fontSize: 13, color: ap.onSurfaceVariant, textAlign: 'center' }}>
-              {lang === 'he'
-                ? 'למנחה זה אין עדיין פרויקטים עם סטודנטים רשומים.'
-                : 'This supervisor has no projects with enrolled students yet.'}
+              {lang === 'he' ? 'אין מנחים בהיקף שלך.' : 'No supervisors in your scope.'}
             </Text>
           </View>
         )}
 
-        {!loading && !error && projects.map((p) => (
+        {!loading && !error && supervisors.map((sup) => (
           <Pressable
-            key={p.id}
-            onPress={() => router.push({ pathname: '/records/[projectId]', params: { projectId: p.id, lang } } as any)}
+            key={sup.id}
+            onPress={() => router.push({ pathname: '/dean/records/[supervisorId]', params: { supervisorId: sup.id, lang } } as any)}
             style={{ backgroundColor: ap.surfaceContainerLowest, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: ap.outlineVariant }}
             accessibilityRole="link"
           >
             <Text style={{ fontSize: 15, fontWeight: '700', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
-              {lang === 'he' ? p.titleHe : p.titleEn}
+              {sup.displayName}
             </Text>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
-              {p.status ? `${p.status} · ` : ''}
-              👥 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'students'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
+              {sup.email}
             </Text>
           </Pressable>
         ))}

@@ -18,7 +18,7 @@ const PROGRAM_HEAD_ROLES: AppRole[] = ['program_head'];
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
-  supervisorId: string | null; enrolledStudentCount: number;
+  supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
 export default function ProgramHeadSupervisorRecordsPage() {
@@ -66,7 +66,7 @@ export default function ProgramHeadSupervisorRecordsPage() {
             >
               <p className="text-sm font-semibold text-program-head-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
               <p className="mt-0.5 text-xs text-program-head-on-surface-variant">
-                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
+                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
               </p>
             </Link>
           ))}

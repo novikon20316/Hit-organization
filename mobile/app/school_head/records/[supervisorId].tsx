@@ -1,10 +1,12 @@
-// app/administrative_coordinator/records/[supervisorId].tsx
-// Second level of the administrative coordinator's Project Records
-// drill-down: lists one supervisor's own projects that already have an
-// enrolled student, then hands off to the shared, role-agnostic detail
-// screen at app/records/[projectId].tsx — the backend's own auth check on
-// GET /api/project-records/:projectId is the real authorization boundary,
-// so there is no need for a separate detail screen per role.
+// app/school_head/records/[supervisorId].tsx
+// Second level of the school head's Project Records drill-down: lists one
+// supervisor's own projects that already have an enrolled student AND fall
+// within this school head's own assigned major(s) — the server applies the
+// precise major/degree filter (projectWithinScope in
+// projectRecordsController.ts), so a supervisor who also teaches another
+// major never leaks those projects into this list. Hands off to the
+// shared, role-agnostic detail screen at app/records/[projectId].tsx.
+// Mirrors app/faculty_admin/records/[supervisorId].tsx.
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +20,7 @@ interface RecordProject {
   supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
-export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
+export default function SchoolHeadSupervisorRecordsScreen() {
   const router = useRouter();
   const { supervisorId, lang: langParam } = useLocalSearchParams<{ supervisorId: string; lang?: string }>();
   const lang: Lang = langParam === 'en' ? 'en' : 'he';
@@ -46,7 +48,7 @@ export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/administrative_coordinator/records', params: { lang } } as any))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/school_head/records', params: { lang } } as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >
@@ -72,8 +74,8 @@ export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
             <Text style={{ fontSize: 32 }}>📭</Text>
             <Text style={{ marginTop: 8, fontSize: 13, color: ap.onSurfaceVariant, textAlign: 'center' }}>
               {lang === 'he'
-                ? 'למנחה זה אין עדיין פרויקטים עם סטודנטים רשומים.'
-                : 'This supervisor has no projects with enrolled students yet.'}
+                ? 'למנחה זה אין עדיין פרויקטים עם סטודנטים רשומים במגמה שלך.'
+                : 'This supervisor has no projects with enrolled students yet within your major.'}
             </Text>
           </View>
         )}

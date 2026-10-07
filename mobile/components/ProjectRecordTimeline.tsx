@@ -78,6 +78,7 @@ function describeEntry(entry: RecordEntry, lang: Lang): string {
 
 export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; lang: Lang }) {
   const [entries, setEntries] = useState<RecordEntry[] | null>(null);
+  const [project, setProject] = useState<{ titleHe: string; titleEn: string; recordNumber: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -87,7 +88,11 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
     setLoading(true);
     setError('');
     apiClient.getProjectRecord(projectId)
-      .then((res) => { if (!cancelled) setEntries(res.entries as unknown as RecordEntry[]); })
+      .then((res) => {
+        if (cancelled) return;
+        setEntries(res.entries as unknown as RecordEntry[]);
+        setProject(res.project);
+      })
       .catch((err) => {
         if (cancelled) return;
         setError(lang === 'he' ? 'טעינת רישום הפרויקט נכשלה' : 'Failed to load the project record');
@@ -98,7 +103,17 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
 
   return (
     <View style={{ marginTop: 12, borderWidth: 1, borderColor: '#E2E2E2', borderRadius: 10, padding: 14 }}>
-      <Text style={{ fontSize: 15, fontWeight: '700' }}>📜 {lang === 'he' ? 'רישום הפרויקט' : 'Project Record'}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Text style={{ fontSize: 15, fontWeight: '700' }}>📜 {lang === 'he' ? 'רישום הפרויקט' : 'Project Record'}</Text>
+        {!!project?.recordNumber && (
+          <View style={{ backgroundColor: '#F7F7F7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700' }}>{project.recordNumber}</Text>
+          </View>
+        )}
+      </View>
+      {!!project && (
+        <Text style={{ fontSize: 13, marginTop: 2 }}>{lang === 'he' ? project.titleHe || project.titleEn : project.titleEn || project.titleHe}</Text>
+      )}
       <Text style={{ fontSize: 11, color: '#777', marginTop: 2 }}>
         {lang === 'he'
           ? 'רישום קבוע לצפייה בלבד — לא ניתן לעריכה או מחיקה על ידי אף משתמש.'

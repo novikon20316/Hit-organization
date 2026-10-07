@@ -289,7 +289,7 @@ class ApiClient {
   async getProjectRecord(projectId: string) {
     const response = await this.api.get(`/api/project-records/${projectId}`);
     return response.data as {
-      project: { id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null };
+      project: { id: string; titleHe: string; titleEn: string; supervisorId: string | null; status: string | null; recordNumber: string | null };
       entries: Array<{
         id: string; type: string; actorId: string; actorRole: string;
         actorDisplayName: string | null; data: Record<string, unknown> | null; timestamp: string | null;
@@ -301,7 +301,7 @@ class ApiClient {
     const response = await this.api.get('/api/project-records/my-projects');
     return response.data as { projects: Array<{
       id: string; titleHe: string; titleEn: string; status: string | null;
-      supervisorId: string | null; enrolledStudentCount: number;
+      supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
     }> };
   }
 
@@ -348,7 +348,7 @@ class ApiClient {
     const response = await this.api.get(`/api/project-records/supervisors/${supervisorId}/projects`);
     return response.data as { projects: Array<{
       id: string; titleHe: string; titleEn: string; status: string | null;
-      supervisorId: string | null; enrolledStudentCount: number;
+      supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
     }> };
   }
 

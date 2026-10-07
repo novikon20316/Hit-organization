@@ -18,7 +18,7 @@ const ADMINISTRATIVE_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary']
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
-  supervisorId: string | null; enrolledStudentCount: number;
+  supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
 export default function AdministrativeCoordinatorSupervisorRecordsPage() {
@@ -66,7 +66,7 @@ export default function AdministrativeCoordinatorSupervisorRecordsPage() {
             >
               <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
               <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">
-                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}
+                {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
               </p>
             </Link>
           ))}

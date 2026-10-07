@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { TopBar } from '../../components/shared';
 import type { Lang } from '../../components/i18n';
@@ -12,6 +13,7 @@ import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 
 export default function DeanDashboard() {
   const [lang, setLang] = useState<Lang>('he');
+  const router = useRouter();
 
   return (
     <SafeAreaView style={s.root}>
@@ -22,6 +24,13 @@ export default function DeanDashboard() {
         isRtl={lang === 'he'}
         onToggleLang={() => setLang((l) => (l === 'he' ? 'en' : 'he'))}
         showBack={false}
+        extraMenuItems={[
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/dean/records', params: { lang } } as any),
+          },
+        ]}
       />
       <ScrollView contentContainerStyle={s.content}>
         <Text style={s.subtitle}>

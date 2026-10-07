@@ -348,6 +348,10 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         milestoneName: { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type },
         note,
         fileCount: fileUrls.length,
+        // The actual submitted file(s), not just a count — the permanent
+        // record is meant to include what was submitted, not merely that
+        // something was.
+        fileUrls,
       },
     });
 

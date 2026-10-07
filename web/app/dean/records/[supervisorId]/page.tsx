@@ -1,8 +1,8 @@
 'use client';
 
-// app/admin/records/[facultyId]/[major]/[supervisorId]/page.tsx
-// Lists one supervisor's projects that already have a record (see
-// GET /api/project-records/supervisors/:supervisorId/projects). Each row
+// app/dean/records/[supervisorId]/page.tsx
+// Lists one supervisor's projects that already have a record (see GET
+// /api/project-records/supervisors/:supervisorId/projects). Each row
 // drills into [projectId] for the full read-only timeline.
 
 import { useEffect, useState } from 'react';
@@ -14,18 +14,18 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 
-const ADMIN_ROLES: AppRole[] = ['system_admin'];
+const DEAN_ROLES: AppRole[] = ['dean'];
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
   supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
-export default function AdminSupervisorRecordsPage() {
-  const { isAllowed } = useRequireRole(ADMIN_ROLES);
+export default function DeanSupervisorRecordsPage() {
+  const { isAllowed } = useRequireRole(DEAN_ROLES);
   const { lang } = useLanguage();
-  const params = useParams<{ facultyId: string; major: string; supervisorId: string }>();
-  const { facultyId, major, supervisorId } = params;
+  const params = useParams<{ supervisorId: string }>();
+  const supervisorId = params.supervisorId;
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [error, setError] = useState('');
 
@@ -61,8 +61,8 @@ export default function AdminSupervisorRecordsPage() {
           {projects?.map((p) => (
             <Link
               key={p.id}
-              href={`/admin/records/${facultyId}/${major}/${supervisorId}/${p.id}`}
-              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-primary"
+              href={`/dean/records/${supervisorId}/${p.id}`}
+              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-ink"
             >
               <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
               <p className="mt-0.5 text-xs text-muted">

@@ -17,7 +17,7 @@ import {
   ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar } from '../../components/shared';
@@ -114,6 +114,7 @@ const URGENCY_COLOR: Record<PendingApproval['urgency'], string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SchoolHeadDashboard() {
+  const router = useRouter();
   const [lang, setLang]      = useState<Lang>('he');
   const [loading, setLoading]      = useState(true);
   const [refreshing, setRefreshing]= useState(false);
@@ -257,6 +258,13 @@ export default function SchoolHeadDashboard() {
         lang={lang}
         isRtl={lang === 'he'}
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
+        extraMenuItems={[
+          {
+            key: 'project-records', icon: '📜',
+            label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
+            onPress: () => router.push({ pathname: '/school_head/records', params: { lang } } as any),
+          },
+        ]}
       />
 
       {data?.noScopeAssigned && (

@@ -1,10 +1,10 @@
-// app/administrative_coordinator/records/[supervisorId].tsx
-// Second level of the administrative coordinator's Project Records
-// drill-down: lists one supervisor's own projects that already have an
-// enrolled student, then hands off to the shared, role-agnostic detail
-// screen at app/records/[projectId].tsx — the backend's own auth check on
-// GET /api/project-records/:projectId is the real authorization boundary,
-// so there is no need for a separate detail screen per role.
+// app/dean/records/[supervisorId].tsx
+// Second level of the dean's Project Records drill-down: lists one
+// supervisor's own projects that already have an enrolled student, then
+// hands off to the shared, role-agnostic detail screen at
+// app/records/[projectId].tsx — the backend's own auth check on
+// GET /api/project-records/:projectId is the real authorization boundary.
+// Mirrors app/faculty_admin/records/[supervisorId].tsx.
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ interface RecordProject {
   supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
-export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
+export default function DeanSupervisorRecordsScreen() {
   const router = useRouter();
   const { supervisorId, lang: langParam } = useLocalSearchParams<{ supervisorId: string; lang?: string }>();
   const lang: Lang = langParam === 'en' ? 'en' : 'he';
@@ -46,7 +46,7 @@ export default function AdministrativeCoordinatorSupervisorRecordsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: ap.surface }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/administrative_coordinator/records', params: { lang } } as any))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: '/dean/records', params: { lang } } as any))}
           style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', marginBottom: 12 }}
           accessibilityRole="button"
         >

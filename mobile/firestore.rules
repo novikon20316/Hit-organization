@@ -635,7 +635,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         role(userDoc()) in [
           'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary',
-          'grad_school_head', 'system_admin'
+          'grad_school_head', 'dean', 'school_head', 'system_admin'
         ] ||
         get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('supervisorId', '') == request.auth.uid ||
         get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('secondarySupervisorId', '') == request.auth.uid ||

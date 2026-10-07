@@ -20,6 +20,7 @@ interface RecordProject {
   status: string | null;
   supervisorId: string | null;
   enrolledStudentCount: number;
+  recordNumber: string | null;
 }
 
 export default function SupervisorRecordsScreen() {
@@ -98,7 +99,7 @@ export default function SupervisorRecordsScreen() {
             </Text>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
               {p.status ? `${p.status} · ` : ''}
-              👥 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'students'}
+              👥 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'students'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
             </Text>
           </Pressable>
         ))}

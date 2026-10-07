@@ -32,6 +32,17 @@ export const DEAN_NAV_SECTIONS: SidebarSection[] = [
         },
         isActive: (pathname) => pathname === '/committees',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/dean/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        description: {
+          he: 'ארכיון קבוע לחיפוש של כל פרויקט שטופל בפקולטה שלך.',
+          en: 'A permanent, searchable archive of every project handled by your faculty.',
+        },
+        isActive: (pathname) => pathname.startsWith('/dean/records'),
+      },
     ],
   },
 ];

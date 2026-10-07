@@ -1,9 +1,13 @@
 'use client';
 
-// app/admin/records/[facultyId]/[major]/[supervisorId]/page.tsx
-// Lists one supervisor's projects that already have a record (see
-// GET /api/project-records/supervisors/:supervisorId/projects). Each row
-// drills into [projectId] for the full read-only timeline.
+// app/school_head/records/[supervisorId]/page.tsx
+// Lists one supervisor's projects that already have a record AND fall
+// within the school head's own assigned major(s) — see GET
+// /api/project-records/supervisors/:supervisorId/projects, which applies
+// the precise major/degree filter server-side (projectWithinScope in
+// projectRecordsController.ts), so a supervisor who also teaches another
+// major never leaks those projects into this list. Each row drills into
+// [projectId] for the full read-only timeline.
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -14,18 +18,18 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 
-const ADMIN_ROLES: AppRole[] = ['system_admin'];
+const SCHOOL_HEAD_ROLES: AppRole[] = ['school_head'];
 
 interface ProjectSummary {
   id: string; titleHe: string; titleEn: string; status: string | null;
   supervisorId: string | null; enrolledStudentCount: number; recordNumber: string | null;
 }
 
-export default function AdminSupervisorRecordsPage() {
-  const { isAllowed } = useRequireRole(ADMIN_ROLES);
+export default function SchoolHeadSupervisorRecordsPage() {
+  const { isAllowed } = useRequireRole(SCHOOL_HEAD_ROLES);
   const { lang } = useLanguage();
-  const params = useParams<{ facultyId: string; major: string; supervisorId: string }>();
-  const { facultyId, major, supervisorId } = params;
+  const params = useParams<{ supervisorId: string }>();
+  const supervisorId = params.supervisorId;
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [error, setError] = useState('');
 
@@ -43,16 +47,16 @@ export default function AdminSupervisorRecordsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'רישומי הפרויקטים של המנחה' : 'Supervisor Project Records'}>
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <p className="mb-4 text-sm text-muted">
+        <p className="mb-4 text-sm text-grad-school-head-on-surface-variant">
           {lang === 'he'
-            ? 'רישום קבוע וקריאה בלבד לכל פרויקט של המנחה שכבר יש בו סטודנטים.'
-            : 'A permanent, read-only record for every project of this supervisor that already has students.'}
+            ? 'רישום קבוע וקריאה בלבד לכל פרויקט של המנחה שכבר יש בו סטודנטים, במגמה/ות שלך בלבד.'
+            : "A permanent, read-only record for every project of this supervisor that already has students, within your assigned major(s) only."}
         </p>
 
         {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-        {!error && projects === null && <p className="text-sm text-muted" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
+        {!error && projects === null && <p className="text-sm text-grad-school-head-on-surface-variant" role="status" aria-live="polite">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>}
         {!error && projects !== null && projects.length === 0 && (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-grad-school-head-on-surface-variant">
             {lang === 'he' ? 'אין עדיין פרויקטים עם רישום.' : 'No projects have a record yet.'}
           </p>
         )}
@@ -61,11 +65,11 @@ export default function AdminSupervisorRecordsPage() {
           {projects?.map((p) => (
             <Link
               key={p.id}
-              href={`/admin/records/${facultyId}/${major}/${supervisorId}/${p.id}`}
-              className="rounded-[var(--radius)] border border-line bg-surface px-4 py-3 transition-colors hover:border-primary"
+              href={`/school_head/records/${supervisorId}/${p.id}`}
+              className="rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest px-4 py-3 transition-colors hover:border-grad-school-head-primary"
             >
-              <p className="text-sm font-semibold text-ink">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
-              <p className="mt-0.5 text-xs text-muted">
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">{lang === 'he' ? p.titleHe || p.titleEn : p.titleEn || p.titleHe}</p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">
                 {p.enrolledStudentCount} {lang === 'he' ? 'סטודנטים' : 'student(s)'} · {p.status ?? '—'}{p.recordNumber ? ` · ${p.recordNumber}` : ''}
               </p>
             </Link>

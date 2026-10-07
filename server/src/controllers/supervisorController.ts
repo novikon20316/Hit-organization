@@ -16,6 +16,7 @@ import {
 import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
+import { assignProjectRecordNumber } from '../services/projectRecordNumber.js';
 import {
   isCalendarConfigured, getCalendarAuthUrl, handleCalendarOAuthCallback,
   isCalendarConnected, disconnectCalendar,
@@ -667,6 +668,9 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
     }
 
     const newProjectRef = db.collection('projects').doc();
+    // Permanent per-faculty record number (see services/projectRecordNumber.ts)
+    // — assigned once, here, never recomputed.
+    const recordNumber = await assignProjectRecordNumber(resolvedFacultyId);
 
     await newProjectRef.set({
       titleHe,
@@ -682,6 +686,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       NumberOfStudents:   NumberOfStudents   ?? 1,
       requiredSkills:     requiredSkills     ?? [],
       prerequisites:      normalizePrerequisites(prerequisites),
+      recordNumber,
       minAverageGrade:    normalizeMinAverageGrade(minAverageGrade),
       minCreditPoints:    normalizeMinCreditPoints(minCreditPoints),
       facultyId:          resolvedFacultyId,

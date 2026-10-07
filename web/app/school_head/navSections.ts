@@ -78,6 +78,17 @@ export const SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
         },
         isActive: (pathname, sp) => pathname === '/school_head/dashboard' && sp.get('tab') === 'students',
       },
+      {
+        key: 'records',
+        icon: '📜',
+        href: '/school_head/records',
+        label: { he: 'רישומי פרויקטים', en: 'Project Records' },
+        description: {
+          he: 'ארכיון קבוע לחיפוש של כל פרויקט במגמה/ות שלך.',
+          en: 'A permanent, searchable archive of every project within your assigned major(s).',
+        },
+        isActive: (pathname) => pathname.startsWith('/school_head/records'),
+      },
     ],
   },
 ];

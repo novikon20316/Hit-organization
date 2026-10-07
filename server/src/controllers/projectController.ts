@@ -1605,6 +1605,9 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         milestoneName: { he: milestoneData.nameHe ?? milestoneData.type, en: milestoneData.nameEn ?? milestoneData.type },
         note: submissionNote ?? '',
         fileCount: Array.isArray(fileUrls) ? fileUrls.length : 0,
+        // The actual submitted file(s), not just a count — see
+        // milestoneController.ts's submitMilestone's identical addition.
+        fileUrls: Array.isArray(fileUrls) ? fileUrls : [],
       },
     });
 
