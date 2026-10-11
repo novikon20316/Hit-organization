@@ -754,6 +754,12 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
   // Set only for administrative coordinator below — Firestore 'in' query
   // instead of the single '==' facultyId the other faculty-manager roles use.
   let facultyIdIn: string[] | undefined;
+  // Set only for internal_examiner below — she should only ever see
+  // milestones she's actually assigned to examine, not every milestone in
+  // her faculty (see M4 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md).
+  // getExaminerDashboard already scopes this way for her real dashboard;
+  // this endpoint had never been given the same treatment.
+  let examinerUid: string | undefined;
 
   // This endpoint previously trusted these filters completely, so any
   // authenticated user (e.g. a student) could call it with no params at all
@@ -803,15 +809,23 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     const eff = effectiveFacultyIds(requester, field);
     if (eff === 'all') { /* unscoped, same as a cross-faculty role below */ }
     else facultyIdIn = eff;
-  } else if (requesterRoles.includes('grad_school_head') || requesterRoles.includes('internal_examiner')) {
+  } else if (requesterRoles.includes('grad_school_head')) {
     // Used to be unconditionally cross-faculty by role alone; now scoped by
     // its own effective faculty set, same as faculty_admin/program_head —
     // 'all' (explicit, or a grandfathered legacy account) stays unscoped,
     // matching this role's original firestore.rules-aligned access level.
-    const role = matchedRole(requester, ['grad_school_head', 'internal_examiner'])!;
-    const field = role === 'grad_school_head' ? 'gradSchoolHeadFacultyIds' : 'internalExaminerFacultyIds';
-    const eff = effectiveFacultyIds(requester, field);
+    // grad_school_head keeps faculty-wide visibility (her role's reason to
+    // exist — oversight of every masters thesis in her faculty), unlike
+    // internal_examiner below.
+    const eff = effectiveFacultyIds(requester, 'gradSchoolHeadFacultyIds');
     if (eff !== 'all') facultyIdIn = eff;
+  } else if (requesterRoles.includes('internal_examiner')) {
+    // Scoped to her own assignments, not her whole faculty — see
+    // examinerUid's declaration above. Previously used the same
+    // faculty-wide branch as grad_school_head, matching getMilestonesByQuery's
+    // own now-stale comment ("this role's original firestore.rules-aligned
+    // access level" — that access level is exactly what M4 found and fixed).
+    examinerUid = requester.uid;
   } else if (!requesterRoles.includes('system_admin')) {
     return res.status(403).json({ error: 'Access denied.' });
   }
@@ -833,6 +847,9 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
       q = q.where('facultyId', 'in', facultyIdIn);
     } else if (facultyId) {
       q = q.where('facultyId', '==', facultyId);
+    }
+    if (examinerUid) {
+      q = q.where('examinerIds', 'array-contains', examinerUid);
     }
     
     if (statusFilterRaw) {

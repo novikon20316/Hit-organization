@@ -354,7 +354,15 @@ service cloud.firestore {
         // milestone's own faculty (mirrors processFiles below). Previously
         // any holder of these roles could read every faculty's milestones.
         (isFacultyManager(userDoc()) && sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
-        (role(userDoc()) in ['grad_school_head', 'internal_examiner'] &&
+        // grad_school_head keeps faculty-wide read (her own role's reason to
+        // exist — she oversees every masters thesis in her faculty, not just
+        // ones she's personally assigned to). internal_examiner does NOT —
+        // see M4 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md: she should
+        // only see milestones she's actually assigned to examine, which the
+        // `request.auth.uid in examinerIds` fast-path above already covers;
+        // she used to ALSO match here via her faculty alone, seeing every
+        // other examiner's milestones in the same faculty too.
+        (role(userDoc()) == 'grad_school_head' &&
           sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
         isCrossFaculty(userDoc())
       );
