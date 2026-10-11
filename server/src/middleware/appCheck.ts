@@ -18,6 +18,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { getAppCheck } from 'firebase-admin/app-check';
 import { app } from '../config/firebase.js';
+import { L } from '../utils/localize.js';
 
 type EnforcementMode = 'off' | 'monitor' | 'enforce';
 
@@ -35,7 +36,7 @@ export const verifyAppCheck = async (req: Request, res: Response, next: NextFunc
 
   if (!rawToken) {
     console.warn(`[appCheck] missing token — ${req.method} ${req.originalUrl}`);
-    if (mode === 'enforce') return res.status(401).json({ error: 'APP_CHECK_FAILED' });
+    if (mode === 'enforce') return res.status(401).json({ error: L(req, 'APP_CHECK_FAILED', 'אימות App Check נכשל.') });
     return next();
   }
 
@@ -45,7 +46,7 @@ export const verifyAppCheck = async (req: Request, res: Response, next: NextFunc
     return next();
   } catch (err: any) {
     console.warn(`[appCheck] verification failed — ${req.method} ${req.originalUrl}:`, err?.message ?? err);
-    if (mode === 'enforce') return res.status(401).json({ error: 'APP_CHECK_FAILED' });
+    if (mode === 'enforce') return res.status(401).json({ error: L(req, 'APP_CHECK_FAILED', 'אימות App Check נכשל.') });
     return next();
   }
 };

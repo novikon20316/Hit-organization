@@ -23,6 +23,7 @@ import {
   projectListReport,
 } from '../services/reports.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const REPORT_ROLES = ['coordinator', 'faculty_admin', 'program_head', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 
@@ -86,7 +87,7 @@ async function runReport(type: ReportType, filters: ReportFilters) {
 function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | undefined; error?: { status: number; message: string } | undefined } {
   const role = matchedRole(req.user, REPORT_ROLES);
   if (!role) {
-    return { error: { status: 403, message: 'You do not have permission to view reports.' } };
+    return { error: { status: 403, message: L(req, 'You do not have permission to view reports.', 'אין לך הרשאה לצפות בדוחות.') } };
   }
   const requested = (req.query.facultyId as string | undefined) ?? undefined;
 
@@ -106,7 +107,7 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
     const eff = effectiveFacultyIds(req.user!, field);
     if (eff === 'all') return { facultyId: requested };
     if (requested && !eff.includes(requested)) {
-      return { error: { status: 403, message: 'You may only view reports for your own assigned faculties.' } };
+      return { error: { status: 403, message: L(req, 'You may only view reports for your own assigned faculties.', 'ניתן לצפות בדוחות רק לפקולטות המוקצות לך.') } };
     }
     return { facultyId: requested ?? req.user?.facultyId };
   }
@@ -132,11 +133,11 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
     // fail-closed contract as getProjectCoordinatorDashboard's
     // noScopeAssigned and withinCoordinatorScope's 'all'-with-no-scopes
     // fallback).
-    return { error: { status: 403, message: 'No faculty/degree scope is assigned to your account yet.' } };
+    return { error: { status: 403, message: L(req, 'No faculty/degree scope is assigned to your account yet.', 'לא הוקצה לחשבונך תחום פקולטה/תואר עדיין.') } };
   }
   if (requested) {
     if (!scopeFacultyIds.includes(requested)) {
-      return { error: { status: 403, message: 'You may only view reports for your own assigned faculties.' } };
+      return { error: { status: 403, message: L(req, 'You may only view reports for your own assigned faculties.', 'ניתן לצפות בדוחות רק לפקולטות המוקצות לך.') } };
     }
     return { facultyId: requested };
   }
@@ -148,7 +149,7 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
   // query below only takes one facultyId at a time. Rather than silently
   // pick one (hiding the other scope's data) or fall back to unrestricted
   // (leaking outside her scope), surface it as a limitation.
-  return { error: { status: 400, message: 'Your account has more than one assigned faculty/degree scope — pass ?facultyId= to pick which one to report on.' } };
+  return { error: { status: 400, message: L(req, 'Your account has more than one assigned faculty/degree scope — pass ?facultyId= to pick which one to report on.', 'לחשבונך הוקצה יותר מתחום פקולטה/תואר אחד — יש להעביר ?facultyId= כדי לבחור על איזה מהם להפיק דוח.') } };
 }
 
 // ─── GET /api/reports/projects ─────────────────────────────────────────────────
@@ -167,7 +168,7 @@ export const getReportProjects = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ projects });
   } catch (error) {
     console.error('getReportProjects error:', error);
-    return res.status(500).json({ message: 'Failed to load projects.' });
+    return res.status(500).json({ message: L(req, 'Failed to load projects.', 'טעינת הפרויקטים נכשלה.') });
   }
 };
 
@@ -175,7 +176,7 @@ export const getReportProjects = async (req: AuthenticatedRequest, res: Response
 export const getReport = async (req: AuthenticatedRequest, res: Response) => {
   const { reportType } = req.params;
   if (!reportType || typeof reportType !== 'string' || !REPORT_TYPES.includes(reportType as ReportType)) {
-    return res.status(400).json({ message: `Unknown report type: ${reportType}` });
+    return res.status(400).json({ message: L(req, `Unknown report type: ${reportType}`, `סוג דוח לא מוכר: ${reportType}`) });
   }
 
   const scope = resolveFacultyScope(req);
@@ -187,7 +188,7 @@ export const getReport = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ reportType, filters, data });
   } catch (error: any) {
     console.error(`getReport(${reportType}) error:`, error);
-    return res.status(500).json({ message: 'Failed to generate report.' });
+    return res.status(500).json({ message: L(req, 'Failed to generate report.', 'הפקת הדוח נכשלה.') });
   }
 };
 
@@ -195,7 +196,7 @@ export const getReport = async (req: AuthenticatedRequest, res: Response) => {
 export const exportReport = async (req: AuthenticatedRequest, res: Response) => {
   const { reportType } = req.params;
   if (!reportType || typeof reportType !== 'string' || !REPORT_TYPES.includes(reportType as ReportType)) {
-    return res.status(400).json({ message: `Unknown report type: ${reportType}` });
+    return res.status(400).json({ message: L(req, `Unknown report type: ${reportType}`, `סוג דוח לא מוכר: ${reportType}`) });
   }
 
   const scope = resolveFacultyScope(req);
@@ -226,7 +227,7 @@ export const exportReport = async (req: AuthenticatedRequest, res: Response) => 
     return res.status(200).send(buffer);
   } catch (error: any) {
     console.error(`exportReport(${reportType}) error:`, error);
-    return res.status(500).json({ message: 'Failed to export report.' });
+    return res.status(500).json({ message: L(req, 'Failed to export report.', 'ייצוא הדוח נכשל.') });
   }
 };
 

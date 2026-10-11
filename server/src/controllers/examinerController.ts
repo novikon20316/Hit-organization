@@ -7,6 +7,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { academicYearToHebrew } from '../services/hebrewYear.js';
 import { isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { isStaffMember } from '../services/twoFactorEnforcement.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -19,7 +20,7 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
   const examinerId = req.user?.uid; // <-- FIXED: was const { examinerId } = req.params
 
   if (!examinerId) {
-    return res.status(401).json({ message: 'Unauthorized: missing examiner identity.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized: missing examiner identity.', 'המשתמש אינו מאומת: לא ניתן לזהות את הבוחן.') });
   }
 
   try {
@@ -179,7 +180,7 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
 
   } catch (error) {
     console.error('Failed to fetch examiner dashboard:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -196,10 +197,10 @@ export const submitDefenseDates = async (req: AuthenticatedRequest, res: Respons
   const examinerUid = req.user?.uid;
 
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Missing required milestoneId parameter.' });
+    return res.status(400).json({ message: L(req, 'Missing required milestoneId parameter.', 'חסר פרמטר milestoneId נדרש.') });
   }
   if (!examinerUid) {
-    return res.status(401).json({ message: 'Unauthorized: Unable to verify examiner credentials.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized: Unable to verify examiner credentials.', 'המשתמש אינו מאומת: לא ניתן לאמת את פרטי הבוחן.') });
   }
 
   try {
@@ -216,7 +217,7 @@ export const submitDefenseDates = async (req: AuthenticatedRequest, res: Respons
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitDefenseDates error:', error);
-    return res.status(400).json({ message: error.message || 'Failed to submit candidate dates.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.') });
   }
 };
 
@@ -227,7 +228,7 @@ export const getList = async (req: AuthenticatedRequest, res: Response) => {
   // raw user doc (phoneNumber, expoPushToken, etc.) of every internal
   // examiner in the system.
   if (!isStaffMember(req.user?.role, req.user?.roles ?? [])) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   try {
     // Internal examiners are app users whose `roles` array includes
@@ -256,6 +257,6 @@ export const getList = async (req: AuthenticatedRequest, res: Response) => {
     res.status(200).json(examiners);
   } catch (error) {
     console.error('Failed to fetch examiners:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 }

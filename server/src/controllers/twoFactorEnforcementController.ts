@@ -21,6 +21,7 @@ import {
   setTwoFactorExempt,
   isStaffMember,
 } from '../services/twoFactorEnforcement.js';
+import { L } from '../utils/localize.js';
 
 const DEFAULT_GRACE_DAYS = 7;
 const PAGE_SIZE = 500; // same page size as accountDeletion.ts's flagGraduatedStudents
@@ -28,7 +29,7 @@ const PAGE_SIZE = 500; // same page size as accountDeletion.ts's flagGraduatedSt
 // ─── GET /api/admin/system/2fa-enforcement-status ────────────────────────────
 export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   try {
     const status = await readTwoFactorEnforcementStatus();
@@ -40,7 +41,7 @@ export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedReque
     });
   } catch (error: any) {
     console.error('getTwoFactorEnforcementStatusAdmin error:', error);
-    return res.status(500).json({ message: 'Failed to load 2FA enforcement status.' });
+    return res.status(500).json({ message: L(req, 'Failed to load 2FA enforcement status.', 'טעינת סטטוס אכיפת האימות הדו-שלבי נכשלה.') });
   }
 };
 
@@ -71,7 +72,7 @@ function buildNoticeContent(deadlineLabel: string): { title: string; body: strin
 // other system-wide notice.
 export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
 
   const graceDaysRaw = req.body?.graceDays;
@@ -124,7 +125,7 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
     });
   } catch (error: any) {
     console.error('activateTwoFactorEnforcementHandler error:', error);
-    return res.status(500).json({ message: 'Failed to activate 2FA enforcement.' });
+    return res.status(500).json({ message: L(req, 'Failed to activate 2FA enforcement.', 'הפעלת אכיפת האימות הדו-שלבי נכשלה.') });
   }
 };
 
@@ -133,14 +134,14 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
 // where their individual deadline stood. Does not undo the earlier notice.
 export const deactivateTwoFactorEnforcementHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   try {
     await deactivateTwoFactorEnforcement();
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('deactivateTwoFactorEnforcementHandler error:', error);
-    return res.status(500).json({ message: 'Failed to cancel 2FA enforcement.' });
+    return res.status(500).json({ message: L(req, 'Failed to cancel 2FA enforcement.', 'ביטול אכיפת האימות הדו-שלבי נכשל.') });
   }
 };
 
@@ -152,21 +153,21 @@ export const deactivateTwoFactorEnforcementHandler = async (req: AuthenticatedRe
 // shown only on users currently exempted.
 export const setTwoFactorExemptHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing userId.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing userId.', 'חסר מזהה משתמש.') });
 
   const exempt = req.body?.exempt === true;
 
   try {
     const userSnap = await db.collection('users').doc(id).get();
-    if (!userSnap.exists) return res.status(404).json({ message: 'User not found.' });
+    if (!userSnap.exists) return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
 
     await setTwoFactorExempt(id, exempt);
     return res.status(200).json({ success: true, exempt });
   } catch (error: any) {
     console.error('setTwoFactorExemptHandler error:', error);
-    return res.status(500).json({ message: 'Failed to update 2FA exemption.' });
+    return res.status(500).json({ message: L(req, 'Failed to update 2FA exemption.', 'עדכון פטור האימות הדו-שלבי נכשל.') });
   }
 };

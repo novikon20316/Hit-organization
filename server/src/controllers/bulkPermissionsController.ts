@@ -18,6 +18,7 @@ import { AuthenticatedRequest, matchedRole } from '../middleware/auth.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { validateScopeDescriptor, VIEW_TYPES, ACTION_TYPES, DELEGATE_RESTRICTED_ACTIONS, type ViewType, type ActionType, type ScopeRule } from '../config/permissionScopes.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { L } from '../utils/localize.js';
 
 // system_admin: fully unscoped (any role, any faculty). faculty_admin: scoped
 // to their own faculty only, enforced server-side below regardless of what
@@ -44,11 +45,11 @@ async function findUsersByRole(role: string): Promise<Map<string, FirebaseFirest
 export const getUsersByRole = async (req: AuthenticatedRequest, res: Response) => {
   const callerRole = matchedRole(req.user, BULK_PERMISSION_ROLES);
   if (!callerRole) {
-    return res.status(403).json({ message: 'You do not have permission to view this.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this.', 'אין לך הרשאה לצפות בכך.') });
   }
   const role = req.query.role as string | undefined;
   if (!role || !VALID_ROLES.includes(role)) {
-    return res.status(400).json({ message: `Invalid role: ${role}` });
+    return res.status(400).json({ message: L(req, `Invalid role: ${role}`, `תפקיד לא תקין: ${role}`) });
   }
 
   try {
@@ -62,7 +63,7 @@ export const getUsersByRole = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ users });
   } catch (error: any) {
     console.error('getUsersByRole error:', error);
-    return res.status(500).json({ message: 'Failed to fetch users.' });
+    return res.status(500).json({ message: L(req, 'Failed to fetch users.', 'טעינת המשתמשים נכשלה.') });
   }
 };
 
@@ -72,23 +73,23 @@ export const getUsersByRole = async (req: AuthenticatedRequest, res: Response) =
  */
 export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Response) => {
   const callerUid = req.user?.uid;
-  if (!callerUid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!callerUid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const callerRole = matchedRole(req.user, BULK_PERMISSION_ROLES);
   if (!callerRole) {
-    return res.status(403).json({ message: 'You do not have permission to bulk-apply permissions.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to bulk-apply permissions.', 'אין לך הרשאה להחיל הרשאות בצובר.') });
   }
 
   const { targetRole, view, actions } = req.body;
   let { facultyId, major, degreeLevel, processType } = req.body;
 
   if (!targetRole || !VALID_ROLES.includes(targetRole)) {
-    return res.status(400).json({ message: `Invalid targetRole: ${targetRole}` });
+    return res.status(400).json({ message: L(req, `Invalid targetRole: ${targetRole}`, `תפקיד יעד לא תקין: ${targetRole}`) });
   }
   if (!Array.isArray(view) || view.length === 0 || !view.every((v: unknown) => VIEW_TYPES.includes(v as ViewType))) {
-    return res.status(400).json({ message: 'view must be a non-empty array of valid view types.' });
+    return res.status(400).json({ message: L(req, 'view must be a non-empty array of valid view types.', 'יש לציין מערך לא ריק של סוגי תצוגה תקינים.') });
   }
   if (!Array.isArray(actions) || actions.length === 0 || !actions.every((a: unknown) => ACTION_TYPES.includes(a as ActionType))) {
-    return res.status(400).json({ message: 'actions must be a non-empty array of valid action types.' });
+    return res.status(400).json({ message: L(req, 'actions must be a non-empty array of valid action types.', 'יש לציין מערך לא ריק של סוגי פעולות תקינים.') });
   }
 
   // CRITICAL FIX: adminController.ts's updateUserRoleAdmin already blocks a
@@ -100,7 +101,7 @@ export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Res
   // system_admin-equivalent power; a grad_school_head (cross-faculty by
   // design) could do the same institution-wide with facultyId: 'all'.
   if (callerRole !== 'system_admin' && actions.some((a: ActionType) => DELEGATE_RESTRICTED_ACTIONS.includes(a))) {
-    return res.status(403).json({ message: 'Only system_admin may grant delete_users or all_actions.' });
+    return res.status(403).json({ message: L(req, 'Only system_admin may grant delete_users or all_actions.', 'רק מנהל מערכת יכול להעניק את ההרשאות delete_users או all_actions.') });
   }
 
   // A faculty_admin's bulk grant can never escape their own faculty, no
@@ -172,6 +173,6 @@ export const applyPermissionsToRole = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, affectedCount: targets.length });
   } catch (error: any) {
     console.error('applyPermissionsToRole error:', error);
-    return res.status(500).json({ message: 'Failed to bulk-apply permissions.' });
+    return res.status(500).json({ message: L(req, 'Failed to bulk-apply permissions.', 'החלת ההרשאות בצובר נכשלה.') });
   }
 };

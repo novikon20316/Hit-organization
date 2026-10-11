@@ -12,6 +12,7 @@
 
 import { Request, Response } from 'express';
 import { db } from '../config/firebase.js';
+import { L } from '../utils/localize.js';
 
 function serializeTimestamp(value: any): string | null {
   return value?.toDate?.().toISOString?.() ?? null;
@@ -27,7 +28,7 @@ function serializeTimestamp(value: any): string | null {
 export const getStudentProgressByIdNumber = async (req: Request, res: Response) => {
   const idNumber = String(req.params.idNumber ?? '');
   if (!idNumber || !/^\d{9}$/.test(idNumber)) {
-    return res.status(400).json({ message: 'Invalid idNumber - expected a 9-digit ת"ז.' });
+    return res.status(400).json({ message: L(req, 'Invalid idNumber - expected a 9-digit ת"ז.', 'מספר הזיהוי אינו תקין - נדרשת תעודת זהות בת 9 ספרות.') });
   }
 
   try {
@@ -105,6 +106,6 @@ export const getStudentProgressByIdNumber = async (req: Request, res: Response) 
     });
   } catch (error) {
     console.error('getStudentProgressByIdNumber error:', error);
-    return res.status(500).json({ message: 'Failed to load student progress.' });
+    return res.status(500).json({ message: L(req, 'Failed to load student progress.', 'טעינת ההתקדמות של הסטודנט נכשלה.') });
   }
 };

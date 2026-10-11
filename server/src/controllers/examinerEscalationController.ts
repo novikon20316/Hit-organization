@@ -9,6 +9,7 @@ import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import { promoteNextExaminer, sendManualExaminerReminder } from '../services/examinerEscalation.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const COORDINATOR_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 
@@ -31,8 +32,8 @@ function hasAccess(req: AuthenticatedRequest): boolean {
  * it's 'all' (grad_school_head/system_admin).
  */
 export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
 
   try {
     const snap = await db.collection('examinerTokens')
@@ -97,29 +98,29 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ escalations: rows.filter(Boolean) });
   } catch (error: any) {
     console.error('getExaminerEscalations error:', error);
-    return res.status(500).json({ message: 'Failed to load examiner escalations.' });
+    return res.status(500).json({ message: L(req, 'Failed to load examiner escalations.', 'טעינת ההסלמות לבוחנים נכשלה.') });
   }
 };
 
 export const remindExaminer = async (req: AuthenticatedRequest, res: Response) => {
   const { tokenId } = req.params;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!tokenId || typeof tokenId !== 'string') return res.status(400).json({ message: 'Missing tokenId.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!tokenId || typeof tokenId !== 'string') return res.status(400).json({ message: L(req, 'Missing tokenId.', 'חסר מזהה טוקן.') });
 
   try {
     await sendManualExaminerReminder(tokenId, req.user.uid, req.user.role);
     return res.status(200).json({ success: true, message: 'Reminder sent.' });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to send reminder.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to send reminder.', 'שליחת התזכורת נכשלה.') });
   }
 };
 
 export const promoteNext = async (req: AuthenticatedRequest, res: Response) => {
   const { tokenId } = req.params;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!tokenId || typeof tokenId !== 'string') return res.status(400).json({ message: 'Missing tokenId.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!tokenId || typeof tokenId !== 'string') return res.status(400).json({ message: L(req, 'Missing tokenId.', 'חסר מזהה טוקן.') });
 
   try {
     const result = await promoteNextExaminer(tokenId, req.user.uid, req.user.role);
@@ -131,6 +132,6 @@ export const promoteNext = async (req: AuthenticatedRequest, res: Response) => {
         : 'No available internal examiner was found — manual assignment is needed.',
     });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to promote the next examiner.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to promote the next examiner.', 'קידום הבוחן הבא נכשל.') });
   }
 };

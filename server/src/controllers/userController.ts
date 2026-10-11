@@ -16,6 +16,7 @@ import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentP
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
 import { resolvePlatform } from '../services/maintenanceStatus.js';
 import { isValidDocId } from '../services/idValidation.js';
+import { L } from '../utils/localize.js';
 import multer from 'multer';
 
 const ALLOWED_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg']);
@@ -57,17 +58,17 @@ export function computeIsEligible(
 export const getFullFirestore = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Missing uid.' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Missing uid.', 'חסר מזהה משתמש.') });
 
     const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
+    if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
 
     const data = userDoc.data()!;
     const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? []);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /me error:', error);
-    return res.status(500).json({ error: 'Failed to load profile.' });
+    return res.status(500).json({ error: L(req, 'Failed to load profile.', 'טעינת הפרופיל נכשלה.') });
   }
 };
 
@@ -76,17 +77,17 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
 export const getUserProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Missing uid.' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Missing uid.', 'חסר מזהה משתמש.') });
 
     const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
+    if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
 
     const data = userDoc.data()!;
     const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? []);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /profile error:', error);
-    return res.status(500).json({ error: 'Failed to load profile.' });
+    return res.status(500).json({ error: L(req, 'Failed to load profile.', 'טעינת הפרופיל נכשלה.') });
   }
 };
 
@@ -133,7 +134,7 @@ function withRecomputedEligibility(data: FirebaseFirestore.DocumentData): Fireba
 export const verifyStudentEligibility = async (req: Request, res: Response) => {
   const { studentId, facultyId, degreeType, major } = req.body;
   if (!studentId || !facultyId || !degreeType) {
-    return res.status(400).json({ eligible: false, message: 'Missing studentId, facultyId, or degreeType.' });
+    return res.status(400).json({ eligible: false, message: L(req, 'Missing studentId, facultyId, or degreeType.', 'חסרים פרטי מספר סטודנט, פקולטה או סוג תואר.') });
   }
 
   try {
@@ -141,7 +142,7 @@ export const verifyStudentEligibility = async (req: Request, res: Response) => {
     return res.status(200).json({ eligible: result.eligible, message: result.reason });
   } catch (error: any) {
     console.error('verifyStudentEligibility error:', error);
-    return res.status(500).json({ eligible: false, message: 'Failed to verify eligibility.' });
+    return res.status(500).json({ eligible: false, message: L(req, 'Failed to verify eligibility.', 'בדיקת הזכאות נכשלה.') });
   }
 };
 
@@ -159,7 +160,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // Firestore profile (and thus the working account) until the user has
     // confirmed the email address they signed up with.
     if (!req.user?.emailVerified) {
-      return res.status(403).json({ error: 'Please verify your email before completing registration.' });
+      return res.status(403).json({ error: L(req, 'Please verify your email before completing registration.', 'יש לאמת את כתובת האימייל לפני השלמת ההרשמה.') });
     }
 
     const {
@@ -168,7 +169,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     } = req.body;
 
     if (!newUid || !email || !role) {
-      return res.status(400).json({ error: 'Missing required fields: newUid, email, role.' });
+      return res.status(400).json({ error: L(req, 'Missing required fields: newUid, email, role.', 'שדות חובה חסרים: newUid, email, role.') });
     }
 
     // Students may only self-register with an @gmail.com or @my.hit.ac.il
@@ -178,15 +179,15 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // pages enforce this too (before creating the Firebase Auth account at
     // all), this is defense-in-depth for anyone hitting the API directly.
     if (!isAllowedStudentEmailDomain(email)) {
-      return res.status(400).json({ error: `Email must be an @${STUDENT_ALLOWED_EMAIL_DOMAINS.join(' or @')} address.` });
+      return res.status(400).json({ error: L(req, `Email must be an @${STUDENT_ALLOWED_EMAIL_DOMAINS.join(' or @')} address.`, `כתובת האימייל חייבת להיות מהסוג @${STUDENT_ALLOWED_EMAIL_DOMAINS.join(' או @')}.`) });
     }
 
     if (newUid !== req.user?.uid) {
-      return res.status(403).json({ error: 'newUid must match the authenticated user.' });
+      return res.status(403).json({ error: L(req, 'newUid must match the authenticated user.', 'ה-newUid חייב להתאים למשתמש המאומת.') });
     }
 
     if (role !== 'student') {
-      return res.status(403).json({ error: 'This endpoint may only provision student accounts.' });
+      return res.status(403).json({ error: L(req, 'This endpoint may only provision student accounts.', 'נקודת קצה זו מיועדת ליצירת חשבונות סטודנטים בלבד.') });
     }
 
     // Mirrors CROSS_FACULTY_ROLES in mobile/firebase/roles.ts — keep in sync.
@@ -205,10 +206,10 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // own — see projectCoordinatorController.ts's getStudentsReport).
     const validFaculties = [...Object.keys(MAJORS_BY_FACULTY), 'all'];
     if (facultyId && !validFaculties.includes(facultyId)) {
-      return res.status(400).json({ error: `Invalid facultyId: ${facultyId}` });
+      return res.status(400).json({ error: L(req, `Invalid facultyId: ${facultyId}`, `פקולטה לא תקינה: ${facultyId}`) });
     }
     if (!isCrossFaculty && !facultyId) {
-      return res.status(400).json({ error: 'facultyId is required for this role.' });
+      return res.status(400).json({ error: L(req, 'facultyId is required for this role.', 'שדה הפקולטה נדרש לתפקיד זה.') });
     }
     const resolvedFacultyId = isCrossFaculty ? 'all' : facultyId;
 
@@ -216,7 +217,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // text or a silently-guessed default — since scope-matching (e.g.
     // coordinator assignment by major) depends on it being reliable.
     if (role === 'student' && !VALID_MAJORS.has(major)) {
-      return res.status(400).json({ error: `Invalid major: "${major}"` });
+      return res.status(400).json({ error: L(req, `Invalid major: "${major}"`, `חוג לא תקין: "${major}"`) });
     }
 
     // Student thesis/project track — see config/studentTrack.ts. Resolved
@@ -225,10 +226,10 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // 'thesis'/'project' are valid values there.
     const trackPolicy = role === 'student' ? resolveTrackPolicy(degreeType, major) : null;
     if (trackPolicy === 'signup_choice' && chosenTrack !== 'thesis' && chosenTrack !== 'project') {
-      return res.status(400).json({ error: 'You must choose a track (thesis or project) to register for this program.' });
+      return res.status(400).json({ error: L(req, 'You must choose a track (thesis or project) to register for this program.', 'עליך לבחור מסלול (תזה או פרויקט) כדי להירשם לתוכנית זו.') });
     }
     if (trackPolicy && trackPolicy !== 'signup_choice' && (chosenTrack === 'thesis' || chosenTrack === 'project')) {
-      return res.status(400).json({ error: 'This program does not allow choosing a track at signup.' });
+      return res.status(400).json({ error: L(req, 'This program does not allow choosing a track at signup.', 'תוכנית זו אינה מאפשרת בחירת מסלול בעת ההרשמה.') });
     }
 
     // Authoritative gate — the public verify-eligibility endpoint the client
@@ -236,7 +237,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // decides whether the account gets created. See services/studentRoster.ts.
     const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major);
     if (!eligibility.eligible) {
-      return res.status(403).json({ error: eligibility.reason || 'You are not on the approved students list for this faculty and degree.' });
+      return res.status(403).json({ error: eligibility.reason || L(req, 'You are not on the approved students list for this faculty and degree.', 'את/ה לא מופיע/ה ברשימת הסטודנטים המאושרים לפקולטה ולתואר אלו.') });
     }
 
     const isEligibleForProcess = computeIsEligible(
@@ -325,7 +326,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true, user: firestoreUserDoc });
   } catch (error: any) {
     console.error('POST /sync error:', error);
-    return res.status(500).json({ error: 'Failed to create account profile.' });
+    return res.status(500).json({ error: L(req, 'Failed to create account profile.', 'יצירת פרופיל החשבון נכשלה.') });
   }
 };
 
@@ -335,8 +336,8 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
     const uid   = req.user?.uid;
     const { token } = req.body;
 
-    if (!uid)   return res.status(401).json({ error: 'Unauthorized' });
-    if (!token) return res.status(400).json({ error: 'Missing token' });
+    if (!uid)   return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
+    if (!token) return res.status(400).json({ error: L(req, 'Missing token', 'חסר טוקן') });
 
     await db.collection('users').doc(uid).update({
       expoPushToken: token,
@@ -347,7 +348,7 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updatePushToken error:', error);
-    return res.status(500).json({ error: 'Failed to update push token.' });
+    return res.status(500).json({ error: L(req, 'Failed to update push token.', 'עדכון טוקן ההתראות נכשל.') });
   }
 };
 
@@ -360,14 +361,14 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
 export const completeOnboardingTour = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
 
     await db.collection('users').doc(uid).update({ hasSeenOnboardingTour: true });
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('completeOnboardingTour error:', error);
-    return res.status(500).json({ error: 'Failed to update onboarding status.' });
+    return res.status(500).json({ error: L(req, 'Failed to update onboarding status.', 'עדכון סטטוס ההכרות עם המערכת נכשל.') });
   }
 };
 
@@ -382,15 +383,15 @@ export const markFieldGuideSeen = async (req: AuthenticatedRequest, res: Respons
   try {
     const uid = req.user?.uid;
     const { guideKey } = req.body;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
-    if (!guideKey || typeof guideKey !== 'string') return res.status(400).json({ error: 'Missing guideKey' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
+    if (!guideKey || typeof guideKey !== 'string') return res.status(400).json({ error: L(req, 'Missing guideKey', 'חסר מזהה מדריך') });
 
     await db.collection('users').doc(uid).update({ seenFieldGuides: FieldValue.arrayUnion(guideKey) });
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('markFieldGuideSeen error:', error);
-    return res.status(500).json({ error: 'Failed to update field guide status.' });
+    return res.status(500).json({ error: L(req, 'Failed to update field guide status.', 'עדכון סטטוס מדריך השדה נכשל.') });
   }
 };
 
@@ -401,7 +402,7 @@ export const markFieldGuideSeen = async (req: AuthenticatedRequest, res: Respons
 export const logLogin = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
 
     await logAuditEvent({
       userId: uid,
@@ -425,7 +426,7 @@ export const logLogin = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('logLogin error:', error);
-    return res.status(500).json({ error: 'Failed to log login' });
+    return res.status(500).json({ error: L(req, 'Failed to log login', 'תיעוד הכניסה נכשל') });
   }
 };
 
@@ -436,7 +437,7 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
     const facultyId = req.user?.facultyId;
 
     if (!uid) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
     }
 
     const userRef = db.collection('users').doc(uid);
@@ -523,7 +524,7 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('Logout error:', error);
-    return res.status(500).json({ error: 'Failed to logout' });
+    return res.status(500).json({ error: L(req, 'Failed to logout', 'תהליך ההתנתקות נכשל') });
   }
 };
 
@@ -581,14 +582,14 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
   try {
     const uid = req.user?.uid;
     const authTime = req.user?.authTime;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'לא מורשה.') });
     if (!authTime || (Date.now() / 1000 - authTime) > PASSWORD_CHANGE_REAUTH_MAX_AGE_SECONDS) {
-      return res.status(403).json({ error: 'Please log in again before changing your password.' });
+      return res.status(403).json({ error: L(req, 'Please log in again before changing your password.', 'יש להתחבר מחדש לפני שינוי הסיסמה.') });
     }
 
     const { newPassword } = req.body;
     if (!newPassword || typeof newPassword !== 'string') {
-      return res.status(400).json({ error: 'A new password is required.' });
+      return res.status(400).json({ error: L(req, 'A new password is required.', 'יש להזין סיסמה חדשה.') });
     }
 
     const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
@@ -605,7 +606,7 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     // setTempPasswordHash's own comment for why.
     const tempPasswordHash = await getTempPasswordHash(uid);
     if (tempPasswordHash && hashPassword(newPassword) === tempPasswordHash) {
-      return res.status(400).json({ error: 'Your new password cannot be the same as the temporary password you were issued.' });
+      return res.status(400).json({ error: L(req, 'Your new password cannot be the same as the temporary password you were issued.', 'הסיסמה החדשה לא יכולה להיות זהה לסיסמה הזמנית שהונפקה לך.') });
     }
 
     await auth.updateUser(uid, { password: newPassword });
@@ -618,7 +619,7 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('changePassword error:', error);
-    return res.status(500).json({ error: 'Failed to change password.' });
+    return res.status(500).json({ error: L(req, 'Failed to change password.', 'שינוי הסיסמה נכשל.') });
   }
 };
 
@@ -632,14 +633,14 @@ const REAUTH_MAX_AGE_SECONDS = 5 * 60; // 5 minutes
 export const requestAccountDeletion = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const authTime = req.user?.authTime;
-  if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   if (!authTime || (Date.now() / 1000 - authTime) > REAUTH_MAX_AGE_SECONDS) {
-    return res.status(401).json({ error: 'Please re-authenticate before deleting your account.' });
+    return res.status(401).json({ error: L(req, 'Please re-authenticate before deleting your account.', 'יש להתחבר מחדש לפני מחיקת החשבון שלך.') });
   }
 
   try {
-    const result = await checkDeletionEligibility(uid);
+    const result = await checkDeletionEligibility(uid, 'self', req.lang);
     if (!result.eligible) {
       return res.status(409).json({ error: result.reason });
     }
@@ -648,21 +649,21 @@ export const requestAccountDeletion = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('requestAccountDeletion error:', error);
-    return res.status(500).json({ error: 'Failed to request account deletion.' });
+    return res.status(500).json({ error: L(req, 'Failed to request account deletion.', 'בקשת מחיקת החשבון נכשלה.') });
   }
 };
 
 // ─── POST /api/users/delete-account/cancel ───────────────────────────────────
 export const cancelAccountDeletion = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'לא מורשה.') });
 
   try {
     await cancelDeletion(uid);
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('cancelAccountDeletion error:', error);
-    return res.status(500).json({ error: 'Failed to cancel account deletion.' });
+    return res.status(500).json({ error: L(req, 'Failed to cancel account deletion.', 'ביטול מחיקת החשבון נכשל.') });
   }
 };
 
@@ -673,10 +674,10 @@ export const cancelAccountDeletion = async (req: AuthenticatedRequest, res: Resp
 // `authenticated` asset, never a public one — see that file's header for why.
 export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'לא מורשה.') });
 
   const file = (req as any).file as Express.Multer.File | undefined;
-  if (!file) return res.status(400).json({ error: 'A PNG or JPEG photo is required.' });
+  if (!file) return res.status(400).json({ error: L(req, 'A PNG or JPEG photo is required.', 'יש להעלות תמונה בפורמט PNG או JPEG.') });
 
   try {
     const { publicId } = await uploadStudentPhoto(uid, file);
@@ -684,7 +685,7 @@ export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true, photoUrl: resolveStudentPhotoUrl(publicId) });
   } catch (error: any) {
     console.error('uploadUserPhoto error:', error);
-    return res.status(500).json({ error: 'Photo upload failed.' });
+    return res.status(500).json({ error: L(req, 'Photo upload failed.', 'העלאת התמונה נכשלה.') });
   }
 };
 
@@ -699,21 +700,21 @@ export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) 
 // per-viewer restriction, since a face photo isn't more sensitive than the
 // profile fields already exposed that way.
 export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user?.uid) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!req.user?.uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'לא מורשה.') });
   const { uid } = req.params;
   // Beyond "is a string" — a uid containing '/' resolves to a DIFFERENT
   // Firestore path (e.g. "<uid>/private/totp"), not a literal doc name. See
   // services/idValidation.ts.
-  if (!isValidDocId(uid)) return res.status(400).json({ error: 'Invalid uid.' });
+  if (!isValidDocId(uid)) return res.status(400).json({ error: L(req, 'Invalid uid.', 'מזהה משתמש לא תקין.') });
 
   try {
     const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) return res.status(404).json({ error: 'User not found.' });
+    if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
     const photoUrl = resolveStudentPhotoUrl(userDoc.data()?.photoPublicId ?? null);
     return res.status(200).json({ photoUrl });
   } catch (error: any) {
     console.error('getUserPhotoUrl error:', error);
-    return res.status(500).json({ error: 'Failed to resolve photo URL.' });
+    return res.status(500).json({ error: L(req, 'Failed to resolve photo URL.', 'אחזור כתובת התמונה נכשל.') });
   }
 };
 

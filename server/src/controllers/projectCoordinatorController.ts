@@ -21,6 +21,7 @@ import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workf
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { isValidDocId } from '../services/idValidation.js';
+import { L } from '../utils/localize.js';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
@@ -100,14 +101,14 @@ function resolveCoordinatorScopes(user: AuthenticatedRequest['user']): DegreeSco
  */
 export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this dashboard.', 'אין לך הרשאה לצפות בלוח הבקרה הזה.') });
   }
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
+    if (!userSnap.exists) return res.status(404).json({ message: L(req, 'User record not found.', 'רשומת המשתמש לא נמצאה.') });
     const userData = userSnap.data()!;
 
     // system_admin has no "own" degree — sees everything, unfiltered.
@@ -292,7 +293,7 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     });
   } catch (error: any) {
     console.error('getProjectCoordinatorDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load project coordinator dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load project coordinator dashboard.', 'טעינת לוח הבקרה של רכז הפרויקטים נכשלה.') });
   }
 };
 
@@ -339,9 +340,9 @@ export type StudentReportStatus = 'not_in_project' | 'applied' | 'in_project' | 
  */
 export const getStudentsReport = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, STUDENTS_REPORT_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this report.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this report.', 'אין לך הרשאה לצפות בדוח הזה.') });
   }
 
   try {
@@ -508,7 +509,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ students: rows });
   } catch (error: any) {
     console.error('getStudentsReport error:', error);
-    return res.status(500).json({ message: 'Failed to load students report.' });
+    return res.status(500).json({ message: L(req, 'Failed to load students report.', 'טעינת דוח הסטודנטים נכשלה.') });
   }
 };
 
@@ -523,25 +524,25 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
  */
 export const getStudentDetail = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, STUDENT_DETAIL_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this student.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this student.', 'אין לך הרשאה לצפות בסטודנט הזה.') });
   }
 
   const { studentId } = req.params;
   if (!isValidDocId(studentId)) {
-    return res.status(400).json({ message: 'Invalid studentId.' });
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה סטודנט לא תקין.') });
   }
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
     if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
-      return res.status(404).json({ message: 'Student not found.' });
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
     }
     const studentData = studentSnap.data()!;
 
     if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     const activeProjectId: string | null = studentData.hasActiveProject ? (studentData.activeProjectId ?? null) : null;
@@ -662,7 +663,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
     });
   } catch (error: any) {
     console.error('getStudentDetail error:', error);
-    return res.status(500).json({ message: 'Failed to load student detail.' });
+    return res.status(500).json({ message: L(req, 'Failed to load student detail.', 'טעינת פרטי הסטודנט נכשלה.') });
   }
 };
 
@@ -678,9 +679,9 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
  */
 export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, PROJECT_COORDINATOR_DASHBOARD_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this queue.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this queue.', 'אין לך הרשאה לצפות בתור הזה.') });
   }
 
   try {
@@ -773,7 +774,7 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ overrides });
   } catch (error: any) {
     console.error('getPendingGradeOverrides error:', error);
-    return res.status(500).json({ message: 'Failed to load pending grade overrides.' });
+    return res.status(500).json({ message: L(req, 'Failed to load pending grade overrides.', 'טעינת רשימת שינויי הציונים הממתינים נכשלה.') });
   }
 };
 
@@ -821,7 +822,7 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
   const requestedFacultyId = (req.query.facultyId as string | undefined) || undefined;
   if (requestedFacultyId && !isSystemAdmin && !allowedFacultyIds.includes(requestedFacultyId)) {
     return {
-      error: { status: 403, message: 'You may only view statistics for your own assigned faculties.' },
+      error: { status: 403, message: L(req, 'You may only view statistics for your own assigned faculties.', 'ניתן לצפות בסטטיסטיקות רק של הפקולטות שהוקצו לך.') },
       isSystemAdmin, scopes, allowedFacultyIds,
     };
   }
@@ -845,9 +846,9 @@ function resolveStatisticsScope(req: AuthenticatedRequest): {
  */
 export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view these statistics.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view these statistics.', 'אין לך הרשאה לצפות בסטטיסטיקות אלה.') });
   }
 
   try {
@@ -884,7 +885,7 @@ export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: R
     });
   } catch (error: any) {
     console.error('getCoordinatorStatistics error:', error);
-    return res.status(500).json({ message: 'Failed to load statistics.' });
+    return res.status(500).json({ message: L(req, 'Failed to load statistics.', 'טעינת הסטטיסטיקות נכשלה.') });
   }
 };
 
@@ -901,9 +902,9 @@ export const getCoordinatorStatistics = async (req: AuthenticatedRequest, res: R
  */
 export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to edit these rates.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to edit these rates.', 'אין לך הרשאה לערוך את התעריפים האלה.') });
   }
 
   try {
@@ -913,13 +914,13 @@ export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, re
 
     const body = (req.body?.rates ?? {}) as SupervisorPaymentRates;
     if (typeof body !== 'object' || body === null) {
-      return res.status(400).json({ message: 'Invalid rates payload.' });
+      return res.status(400).json({ message: L(req, 'Invalid rates payload.', 'מבנה נתוני התעריפים אינו תקין.') });
     }
 
     const updates: SupervisorPaymentRates = {};
     for (const [facultyId, row] of Object.entries(body)) {
       if (!isSystemAdmin && !allowedFacultyIds.includes(facultyId)) {
-        return res.status(403).json({ message: `You may only edit rates for your own assigned faculties (not ${facultyId}).` });
+        return res.status(403).json({ message: L(req, `You may only edit rates for your own assigned faculties (not ${facultyId}).`, `ניתן לערוך תעריפים רק עבור הפקולטות שהוקצו לך (לא ${facultyId}).`) });
       }
       const clean = { msc_thesis: null as number | null, msc_project: null as number | null, bsc_project: null as number | null };
       for (const cat of ['msc_thesis', 'msc_project', 'bsc_project'] as const) {
@@ -927,7 +928,7 @@ export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, re
         if (v === null || v === undefined || v === '') continue;
         const n = Number(v);
         if (!Number.isFinite(n) || n < 0) {
-          return res.status(400).json({ message: `Invalid rate for ${facultyId}/${cat}.` });
+          return res.status(400).json({ message: L(req, `Invalid rate for ${facultyId}/${cat}.`, `תעריף לא תקין עבור ${facultyId}/${cat}.`) });
         }
         clean[cat] = n;
       }
@@ -938,7 +939,7 @@ export const updateSupervisorPaymentRates = async (req: AuthenticatedRequest, re
     return res.status(200).json({ rates });
   } catch (error: any) {
     console.error('updateSupervisorPaymentRates error:', error);
-    return res.status(500).json({ message: 'Failed to save rates.' });
+    return res.status(500).json({ message: L(req, 'Failed to save rates.', 'שמירת התעריפים נכשלה.') });
   }
 };
 
@@ -960,9 +961,9 @@ function addStatsSheet(workbook: XLSX.WorkBook, name: string, rows: Record<strin
  */
 export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_STATISTICS_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to export these statistics.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to export these statistics.', 'אין לך הרשאה לייצא את הסטטיסטיקות האלה.') });
   }
 
   try {
@@ -971,7 +972,7 @@ export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res
     const { isSystemAdmin, scopes, allowedFacultyIds, requestedFacultyId } = scope;
 
     if (!isSystemAdmin && scopes.length === 0) {
-      return res.status(400).json({ message: 'No degree assigned — nothing to export.' });
+      return res.status(400).json({ message: L(req, 'No degree assigned — nothing to export.', 'לא הוקצתה תוכנית לימודים — אין מה לייצא.') });
     }
 
     const records = await gatherScopedEngagements(scopes, isSystemAdmin, requestedFacultyId);
@@ -1022,6 +1023,6 @@ export const exportCoordinatorStatistics = async (req: AuthenticatedRequest, res
     return res.status(200).send(buffer);
   } catch (error: any) {
     console.error('exportCoordinatorStatistics error:', error);
-    return res.status(500).json({ message: 'Failed to export statistics.' });
+    return res.status(500).json({ message: L(req, 'Failed to export statistics.', 'ייצוא הסטטיסטיקות נכשל.') });
   }
 };

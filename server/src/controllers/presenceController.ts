@@ -10,11 +10,12 @@ import { Response } from 'express';
 import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { L } from '../utils/localize.js';
 
 export const heartbeat = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized', 'אין הרשאה') });
 
     const platform = req.body?.platform === 'mobile' ? 'mobile' : 'web';
 
@@ -30,6 +31,6 @@ export const heartbeat = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('presence heartbeat error:', error);
-    return res.status(500).json({ error: 'Failed to record presence' });
+    return res.status(500).json({ error: L(req, 'Failed to record presence', 'רישום הנוכחות נכשל') });
   }
 };

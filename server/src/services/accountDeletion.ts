@@ -14,6 +14,8 @@ import { db, auth } from '../config/firebase.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { getAcademicCalendar } from './academicCalendar.js';
+import type { Lang } from '../middleware/language.js';
+import { L } from '../utils/localize.js';
 
 // Provisional — neither store mandates a specific number.
 const GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
@@ -47,16 +49,22 @@ export function getEffectiveRoles(userData: FirebaseFirestore.DocumentData): str
  * deletion and system_admin's manual erase — an admin can't bypass this
  * either, to avoid the same orphaning risk the block exists to prevent.
  */
-export async function checkDeletionEligibility(uid: string): Promise<EligibilityResult> {
+export async function checkDeletionEligibility(
+  uid: string,
+  viewer: 'self' | 'admin' = 'self',
+  lang: Lang = 'he',
+): Promise<EligibilityResult> {
   const userSnap = await db.collection('users').doc(uid).get();
-  if (!userSnap.exists) return { eligible: false, reason: 'User not found.' };
+  if (!userSnap.exists) return { eligible: false, reason: L(lang, 'User not found.', 'המשתמש לא נמצא.') };
   const userData = userSnap.data()!;
   const roles = getEffectiveRoles(userData);
 
   if (roles.includes('student') && userData.hasActiveProject) {
     return {
       eligible: false,
-      reason: 'You have an active project. Ask your coordinator or faculty admin to resolve this before deleting your account.',
+      reason: viewer === 'admin'
+        ? L(lang, 'This user has an active project. Ask their coordinator or faculty admin to resolve this before the account can be deleted.', 'למשתמש זה יש פרויקט פעיל. יש לבקש מהרכז או ממנהל הפקולטה לטפל בכך לפני שניתן יהיה למחוק את החשבון.')
+        : L(lang, 'You have an active project. Ask your coordinator or faculty admin to resolve this before deleting your account.', 'יש לך פרויקט פעיל. בקש/י מהרכז או ממנהל הפקולטה שלך לטפל בכך לפני מחיקת החשבון שלך.'),
     };
   }
 
@@ -66,9 +74,13 @@ export async function checkDeletionEligibility(uid: string): Promise<Eligibility
       .where('status', 'in', ['active', 'in_progress'])
       .get();
     if (!activeSnap.empty) {
+      const count = activeSnap.size;
+      const plural = count === 1 ? '' : 's';
       return {
         eligible: false,
-        reason: `You are supervising ${activeSnap.size} active student project${activeSnap.size === 1 ? '' : 's'}. Ask your faculty admin to reassign them before deleting your account.`,
+        reason: viewer === 'admin'
+          ? L(lang, `This user is supervising ${count} active student project${plural}. Reassign them before the account can be deleted.`, `משתמש זה מנחה ${count} פרויקט${count === 1 ? ' סטודנט פעיל' : 'ים פעילים של סטודנטים'}. יש להעביר אותם לפני שניתן יהיה למחוק את החשבון.`)
+          : L(lang, `You are supervising ${count} active student project${plural}. Ask your faculty admin to reassign them before deleting your account.`, `את/ה מנחה ${count} פרויקט${count === 1 ? ' סטודנט פעיל' : 'ים פעילים של סטודנטים'}. בקש/י ממנהל הפקולטה שלך להעביר אותם לפני מחיקת החשבון שלך.`),
       };
     }
   }
@@ -80,9 +92,13 @@ export async function checkDeletionEligibility(uid: string): Promise<Eligibility
       .get();
     const ungraded = defenseSnap.docs.filter((d) => !d.data().examinerGrading?.[uid]?.gradedAt);
     if (ungraded.length > 0) {
+      const count = ungraded.length;
+      const plural = count === 1 ? '' : 's';
       return {
         eligible: false,
-        reason: `You have ${ungraded.length} pending defense grading assignment${ungraded.length === 1 ? '' : 's'}. Ask your coordinator to reassign it before deleting your account.`,
+        reason: viewer === 'admin'
+          ? L(lang, `This user has ${count} pending defense grading assignment${plural}. Reassign ${count === 1 ? 'it' : 'them'} before the account can be deleted.`, `למשתמש זה יש ${count} ${count === 1 ? 'מטלת' : 'מטלות'} בדיקת הגנה ${count === 1 ? 'ממתינה' : 'ממתינות'}. יש להעביר אות${count === 1 ? 'ה' : 'ן'} לפני שניתן יהיה למחוק את החשבון.`)
+          : L(lang, `You have ${count} pending defense grading assignment${plural}. Ask your coordinator to reassign it before deleting your account.`, `יש לך ${count} ${count === 1 ? 'מטלת' : 'מטלות'} בדיקת הגנה ${count === 1 ? 'ממתינה' : 'ממתינות'}. בקש/י מהרכז שלך להעביר אות${count === 1 ? 'ה' : 'ן'} לפני מחיקת החשבון שלך.`),
       };
     }
   }
@@ -122,7 +138,12 @@ export async function checkDeletionEligibility(uid: string): Promise<Eligibility
       });
     } catch (err: any) {
       if (err?.message === 'LAST_ADMIN') {
-        return { eligible: false, reason: 'You are the last active system_admin — promote another account to system_admin first.' };
+        return {
+          eligible: false,
+          reason: viewer === 'admin'
+            ? L(lang, 'This is the last active system_admin — promote another account to system_admin before deleting this one.', 'זהו מנהל המערכת הפעיל האחרון — יש לקדם חשבון אחר למנהל מערכת לפני מחיקת חשבון זה.')
+            : L(lang, 'You are the last active system_admin — promote another account to system_admin first.', 'את/ה מנהל/ת המערכת הפעיל/ה האחרון/ה — יש לקדם חשבון אחר למנהל מערכת קודם.'),
+        };
       }
       throw err;
     }

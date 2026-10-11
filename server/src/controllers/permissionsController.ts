@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { grantedFacultyIdsFor } from '../services/scopeAuthorization.js';
 import { ACTION_TYPES, type ActionType } from '../config/permissionScopes.js';
+import { L } from '../utils/localize.js';
 
 /**
  * GET /api/permissions/my-grants?action=add_projects
@@ -18,7 +19,7 @@ import { ACTION_TYPES, type ActionType } from '../config/permissionScopes.js';
 export const getMyGrants = async (req: AuthenticatedRequest, res: Response) => {
   const action = req.query.action;
   if (typeof action !== 'string' || !ACTION_TYPES.includes(action as ActionType)) {
-    return res.status(400).json({ message: `Invalid or missing action query param.` });
+    return res.status(400).json({ message: L(req, 'Invalid or missing action query param.', 'פרמטר ה-action חסר או לא תקין.') });
   }
 
   const facultyIds = grantedFacultyIdsFor(req.user, action as ActionType);

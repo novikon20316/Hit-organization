@@ -22,6 +22,7 @@ import {
   isCalendarConnected, disconnectCalendar,
 } from '../services/googleCalendarService.js';
 import { WEBSITE_URL } from '../config/links.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -96,7 +97,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // secondarySupervisorId field to filter on directly.
 export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized access.', 'גישה לא מורשית.') });
 
   try {
     const userSnap = await db.collection('users').doc(supervisorId).get();
@@ -289,7 +290,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
     });
   } catch (error: any) {
     console.error('getSupervisorDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to compile supervisor dashboard data.' });
+    return res.status(500).json({ message: L(req, 'Failed to compile supervisor dashboard data.', 'טעינת נתוני לוח הבקרה של המנחה נכשלה.') });
   }
 };
 
@@ -303,15 +304,15 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
 export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: projectId } = req.params;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Invalid projectId.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Invalid projectId.', 'מזהה פרויקט לא תקין.') });
 
   try {
     const projectSnap = await db.collection('projects').doc(projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const project = projectSnap.data()!;
     if (project.supervisorId !== supervisorId && project.secondarySupervisorId !== supervisorId) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
 
     // Resolve the template this project is running on — same fallback chain
@@ -500,7 +501,7 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
     });
   } catch (error: any) {
     console.error('getSupervisorProjectDetail error:', error);
-    return res.status(500).json({ message: 'Failed to load project workflow detail.' });
+    return res.status(500).json({ message: L(req, 'Failed to load project workflow detail.', 'טעינת פרטי תהליך העבודה של הפרויקט נכשלה.') });
   }
 };
 
@@ -515,7 +516,7 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
 export const uploadProjectFile = async (req: AuthenticatedRequest, res: Response) => {
   const files = ((req as any).files as Express.Multer.File[]) ?? [];
   const file = files[0];
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const base64 = file.buffer.toString('base64');
@@ -524,7 +525,7 @@ export const uploadProjectFile = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ url: result.secure_url });
   } catch (uploadError) {
     console.error('uploadProjectFile error:', uploadError);
-    return res.status(502).json({ message: 'File upload failed. Please try again in a few minutes.' });
+    return res.status(502).json({ message: L(req, 'File upload failed. Please try again in a few minutes.', 'העלאת הקובץ נכשלה. יש לנסות שוב בעוד מספר דקות.') });
   }
 };
 
@@ -585,7 +586,7 @@ async function notifyEligibleStudentsOfNewProject(project: {
 // ─── POST /api/supervisor/projects ───────────────────────────────────────────
 export const createSupervisorProject = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized access.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized access.', 'גישה לא מורשית.') });
   // Checking only req.user.role missed anyone holding 'supervisor' as an
   // ADDITIONAL role rather than their primary one (e.g. a coordinator or
   // program_head who also supervises — see adminController.ts's
@@ -595,7 +596,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
   const supervisorRoles = ['supervisor', 'secondary_supervisor'];
   const isAuthorized = supervisorRoles.includes(req.user?.role ?? '') || (req.user?.roles ?? []).some((r) => supervisorRoles.includes(r));
   if (!isAuthorized) {
-    return res.status(403).json({ message: 'Access denied: supervisors only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: supervisors only.', 'הגישה נדחתה: מנחים בלבד.') });
   }
 
   try {
@@ -618,7 +619,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
     } = req.body;
 
     if (!titleHe?.trim() || !titleEn?.trim()) {
-      return res.status(400).json({ message: 'Title in both languages is required.' });
+      return res.status(400).json({ message: L(req, 'Title in both languages is required.', 'יש להזין כותרת בשתי השפות.') });
     }
 
     // Backward-compatible input shape: accept either the new array fields or
@@ -632,10 +633,10 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
     const degreeTypes = DEGREE_TYPE_ORDER.filter((d) => degreeTypesInput.includes(d));
     const projectTypes = PROJECT_TYPE_ORDER.filter((t) => projectTypesInput.includes(t));
     if (degreeTypes.length === 0) {
-      return res.status(400).json({ message: 'At least one degree type must be selected.' });
+      return res.status(400).json({ message: L(req, 'At least one degree type must be selected.', 'יש לבחור לפחות סוג תואר אחד.') });
     }
     if (projectTypes.length === 0) {
-      return res.status(400).json({ message: 'At least one project type must be selected.' });
+      return res.status(400).json({ message: L(req, 'At least one project type must be selected.', 'יש לבחור לפחות סוג פרויקט אחד.') });
     }
 
     const resolvedFacultyId = facultyId ?? req.user?.facultyId ?? '';
@@ -647,12 +648,12 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
     if (major) {
       const validForFaculty = majorsForFaculty(resolvedFacultyId);
       if (!validForFaculty.includes(major)) {
-        return res.status(400).json({ message: `Invalid major "${major}" for faculty "${resolvedFacultyId}".` });
+        return res.status(400).json({ message: L(req, `Invalid major "${major}" for faculty "${resolvedFacultyId}".`, `המגמה "${major}" אינה תקינה לפקולטה "${resolvedFacultyId}".`) });
       }
       const supervisorSnap = await db.collection('users').doc(supervisorId).get();
       const supervisorMajors: string[] = supervisorSnap.data()?.assignedMajors ?? [];
       if (supervisorMajors.length > 0 && !supervisorMajors.includes(major)) {
-        return res.status(403).json({ message: `You're only assigned to post projects in: ${supervisorMajors.join(', ')}.` });
+        return res.status(403).json({ message: L(req, `You're only assigned to post projects in: ${supervisorMajors.join(', ')}.`, `את/ה מורשה לפרסם פרויקטים רק במגמות הבאות: ${supervisorMajors.join(', ')}.`) });
       }
     }
 
@@ -663,7 +664,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
       resolvedFacultyId, degreeTypes, projectTypes, major ?? null
     );
     if (missing.length > 0) {
-      const messages = missing.map((m) => `No approved workflow template for ${m.degreeType}/${m.projectType} — approve one in Workflow Templates first.`);
+      const messages = missing.map((m) => L(req, `No approved workflow template for ${m.degreeType}/${m.projectType} — approve one in Workflow Templates first.`, `לא קיימת תבנית תהליך עבודה מאושרת עבור ${m.degreeType}/${m.projectType} — יש לאשר תבנית במסך תבניות תהליך העבודה.`));
       return res.status(400).json({ message: messages.join(' ') });
     }
 
@@ -713,7 +714,7 @@ export const createSupervisorProject = async (req: AuthenticatedRequest, res: Re
     return res.status(201).json({ success: true, projectId: newProjectRef.id });
   } catch (error: any) {
     console.error('createSupervisorProject Error:', error);
-    return res.status(500).json({ message: 'Failed to create new project.' });
+    return res.status(500).json({ message: L(req, 'Failed to create new project.', 'יצירת הפרויקט החדש נכשלה.') });
   }
 };
 
@@ -722,14 +723,14 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
   const supervisorId = req.user?.uid;
   const { applicationId, decision, notes } = req.body;
 
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!applicationId || !decision) return res.status(400).json({ message: 'Missing decision parameters.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!applicationId || !decision) return res.status(400).json({ message: L(req, 'Missing decision parameters.', 'חסרים פרטי ההחלטה.') });
 
   try {
     const applicationRef = db.collection('applications').doc(applicationId);
     const appSnap = await applicationRef.get();
 
-    if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
+    if (!appSnap.exists) return res.status(404).json({ message: L(req, 'Application not found.', 'הבקשה לא נמצאה.') });
     // The application doc only ever denormalizes the project's PRIMARY
     // supervisorId at apply time (see applyApplication) — it never carries
     // secondarySupervisorId, so a co-supervisor (who can already see this
@@ -741,7 +742,7 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     if (appData.supervisorId !== supervisorId) {
       const projectSnap = appData.projectId ? await db.collection('projects').doc(appData.projectId).get() : null;
       if (projectSnap?.data()?.secondarySupervisorId !== supervisorId) {
-        return res.status(403).json({ message: 'Forbidden.' });
+        return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
       }
     }
 
@@ -755,8 +756,8 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
     if (!['applied', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed'].includes(appSnap.data()?.status)) {
       return res.status(409).json({
         message: appSnap.data()?.autoClosedReason === 'accepted_elsewhere'
-          ? 'This student has already been accepted into another project.'
-          : 'This application has already been decided.',
+          ? L(req, 'This student has already been accepted into another project.', 'הסטודנט/ית כבר התקבל/ה לפרויקט אחר.')
+          : L(req, 'This application has already been decided.', 'כבר התקבלה החלטה בנוגע לבקשה זו.'),
       });
     }
 
@@ -838,9 +839,9 @@ export const handleApplicationDecision = async (req: AuthenticatedRequest, res: 
       // were still 'applied'/'meeting_requested') and both approvals reached
       // enrollStudentInProject's transaction before either's auto-close ran
       // — only the first commit wins, the second lands here instead.
-      return res.status(409).json({ message: 'This student has already been accepted into another project.' });
+      return res.status(409).json({ message: L(req, 'This student has already been accepted into another project.', 'הסטודנט/ית כבר התקבל/ה לפרויקט אחר.') });
     }
-    return res.status(500).json({ message: 'Failed to process application decision.' });
+    return res.status(500).json({ message: L(req, 'Failed to process application decision.', 'עיבוד ההחלטה על הבקשה נכשל.') });
   }
 };
 
@@ -860,27 +861,27 @@ export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) =
   const id = req.params.id as string;
   const { slots } = req.body;
 
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!id) return res.status(400).json({ message: 'Missing application id.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!id) return res.status(400).json({ message: L(req, 'Missing application id.', 'חסר מזהה בקשה.') });
   if (!Array.isArray(slots) || slots.length === 0) {
-    return res.status(400).json({ message: 'At least one candidate meeting time is required.' });
+    return res.status(400).json({ message: L(req, 'At least one candidate meeting time is required.', 'יש להזין לפחות מועד פגישה אפשרי אחד.') });
   }
   if (slots.length > MAX_MEETING_SLOTS) {
-    return res.status(400).json({ message: `At most ${MAX_MEETING_SLOTS} candidate times.` });
+    return res.status(400).json({ message: L(req, `At most ${MAX_MEETING_SLOTS} candidate times.`, `ניתן להזין עד ${MAX_MEETING_SLOTS} מועדים אפשריים.`) });
   }
   const now = Date.now();
   const parsedSlots: string[] = [];
   for (const raw of slots) {
     const t = new Date(raw).getTime();
-    if (typeof raw !== 'string' || Number.isNaN(t)) return res.status(400).json({ message: `Invalid date/time: ${raw}` });
-    if (t <= now) return res.status(400).json({ message: 'Proposed times must be in the future.' });
+    if (typeof raw !== 'string' || Number.isNaN(t)) return res.status(400).json({ message: L(req, `Invalid date/time: ${raw}`, `תאריך/שעה לא תקינים: ${raw}`) });
+    if (t <= now) return res.status(400).json({ message: L(req, 'Proposed times must be in the future.', 'המועדים המוצעים חייבים להיות בעתיד.') });
     parsedSlots.push(new Date(raw).toISOString());
   }
 
   try {
     const applicationRef = db.collection('applications').doc(id);
     const appSnap = await applicationRef.get();
-    if (!appSnap.exists) return res.status(404).json({ message: 'Application not found.' });
+    if (!appSnap.exists) return res.status(404).json({ message: L(req, 'Application not found.', 'הבקשה לא נמצאה.') });
 
     const appData = appSnap.data()!;
     // Same ownership model as handleApplicationDecision above (primary or
@@ -888,7 +889,7 @@ export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) =
     if (appData.supervisorId !== supervisorId) {
       const projectSnap = appData.projectId ? await db.collection('projects').doc(appData.projectId).get() : null;
       if (projectSnap?.data()?.secondarySupervisorId !== supervisorId) {
-        return res.status(403).json({ message: 'Forbidden.' });
+        return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
       }
     }
     // Re-proposing is allowed from 'meeting_proposed' (e.g. the student
@@ -903,7 +904,7 @@ export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) =
     // a supervisor who already saw it on their calendar is a bigger
     // surprise than one stale invite they can delete themselves.
     if (!['applied', 'meeting_proposed', 'meeting_confirmed'].includes(appData.status)) {
-      return res.status(409).json({ message: 'A meeting can only be proposed while this application is still pending.' });
+      return res.status(409).json({ message: L(req, 'A meeting can only be proposed while this application is still pending.', 'ניתן להציע פגישה רק כאשר הבקשה עדיין ממתינה להחלטה.') });
     }
 
     const projectId = appData.projectId;
@@ -944,7 +945,7 @@ export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true, meetingSlots: parsedSlots });
   } catch (error) {
     console.error('proposeMeeting error:', error);
-    return res.status(500).json({ message: 'Failed to propose meeting times.' });
+    return res.status(500).json({ message: L(req, 'Failed to propose meeting times.', 'הצעת מועדי הפגישה נכשלה.') });
   }
 };
 
@@ -956,16 +957,16 @@ export const proposeMeeting = async (req: AuthenticatedRequest, res: Response) =
 
 export const getCalendarStatus = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   const connected = isCalendarConfigured() ? await isCalendarConnected(supervisorId) : false;
   return res.status(200).json({ configured: isCalendarConfigured(), connected });
 };
 
 export const getCalendarConnectUrl = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   if (!isCalendarConfigured()) {
-    return res.status(503).json({ message: 'Google Calendar is not configured on this server yet.' });
+    return res.status(503).json({ message: L(req, 'Google Calendar is not configured on this server yet.', 'יומן Google עדיין לא הוגדר בשרת זה.') });
   }
   // ?platform=mobile from the app's own connect call — see mobile/app/
   // supervisor/dashboard.tsx's connectCalendar — so handleCalendarCallback
@@ -976,7 +977,7 @@ export const getCalendarConnectUrl = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ url: getCalendarAuthUrl(supervisorId, platform) });
   } catch (error) {
     console.error('getCalendarConnectUrl error:', error);
-    return res.status(500).json({ message: 'Failed to build the Google Calendar connect link.' });
+    return res.status(500).json({ message: L(req, 'Failed to build the Google Calendar connect link.', 'יצירת קישור החיבור ליומן Google נכשלה.') });
   }
 };
 
@@ -1014,13 +1015,13 @@ export const handleCalendarCallback = async (req: AuthenticatedRequest, res: Res
 
 export const disconnectCalendarHandler = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   try {
     await disconnectCalendar(supervisorId);
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('disconnectCalendarHandler error:', error);
-    return res.status(500).json({ message: 'Failed to disconnect Google Calendar.' });
+    return res.status(500).json({ message: L(req, 'Failed to disconnect Google Calendar.', 'ניתוק יומן Google נכשל.') });
   }
 };
 
@@ -1063,9 +1064,9 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
   // avoids adding a THIRD divergent value instead of resolving the existing one.
   if (updateData.maxStudents !== undefined) updateData.NumberOfStudents = updateData.maxStudents;
 
-  if (!requesterId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requesterId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   if (!projectId || typeof projectId !== 'string')
-    return res.status(400).json({ message: 'Invalid projectId.' });
+    return res.status(400).json({ message: L(req, 'Invalid projectId.', 'מזהה פרויקט לא תקין.') });
 
   // createSupervisorProject refuses an empty title outright; this endpoint
   // had no equivalent guard, so submitting the edit form with a title field
@@ -1073,15 +1074,15 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
   // already-enrolled project's title — the exact "Project column shows
   // blank" report from the Students Report tab.
   if (updateData.titleHe !== undefined && !String(updateData.titleHe).trim())
-    return res.status(400).json({ message: 'Project title (Hebrew) cannot be empty.' });
+    return res.status(400).json({ message: L(req, 'Project title (Hebrew) cannot be empty.', 'כותרת הפרויקט (בעברית) לא יכולה להיות ריקה.') });
   if (updateData.titleEn !== undefined && !String(updateData.titleEn).trim())
-    return res.status(400).json({ message: 'Project title (English) cannot be empty.' });
+    return res.status(400).json({ message: L(req, 'Project title (English) cannot be empty.', 'כותרת הפרויקט (באנגלית) לא יכולה להיות ריקה.') });
 
   try {
     const projectRef  = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
 
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const projectData = projectSnap.data() ?? {};
     // Co-supervisors were previously locked out of editing their own
     // jointly-owned project — this check only ever recognized supervisorId.
@@ -1093,7 +1094,7 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
       processType: projectData.projectType || undefined,
     });
     if (!isOwner && !inCoordinatorScope)
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
 
     await projectRef.update({ ...updateData, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
@@ -1133,14 +1134,14 @@ export const updateSupervisorProject = async (req: AuthenticatedRequest, res: Re
     return res.status(200).json({ success: true, message: 'Project updated successfully.' });
   } catch (error: any) {
     console.error('updateSupervisorProject Error:', error);
-    return res.status(500).json({ message: 'Failed to update project.' });
+    return res.status(500).json({ message: L(req, 'Failed to update project.', 'עדכון הפרויקט נכשל.') });
   }
 };
 
 // ─── GET /api/supervisor/examiner-recommendations ────────────────────────────
 export const getSupervisorExaminerRecommendations = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
 
   try {
     const snap = await db.collection('examinerRecommendations')
@@ -1151,7 +1152,7 @@ export const getSupervisorExaminerRecommendations = async (req: AuthenticatedReq
     return res.status(200).json({ recommendations });
   } catch (error: any) {
     console.error('getSupervisorExaminerRecommendations error:', error);
-    return res.status(500).json({ message: 'Failed to load examiner recommendations.' });
+    return res.status(500).json({ message: L(req, 'Failed to load examiner recommendations.', 'טעינת המלצות הבוחנים נכשלה.') });
   }
 };
 
@@ -1161,15 +1162,15 @@ export const getSupervisorExaminerRecommendations = async (req: AuthenticatedReq
 // See mobile/components/modals/RecommendedExaminerModal.tsx for the exact shape.
 export const createExaminerRecommendation = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
 
   const { projectId, projectTitleHe, projectTitleEn, recommendedExaminers } = req.body;
 
   if (!projectId || typeof projectId !== 'string') {
-    return res.status(400).json({ message: 'Missing projectId.' });
+    return res.status(400).json({ message: L(req, 'Missing projectId.', 'חסר מזהה פרויקט.') });
   }
   if (!Array.isArray(recommendedExaminers) || recommendedExaminers.length === 0) {
-    return res.status(400).json({ message: 'At least one recommended examiner is required.' });
+    return res.status(400).json({ message: L(req, 'At least one recommended examiner is required.', 'יש להזין לפחות בוחן מומלץ אחד.') });
   }
 
   try {
@@ -1177,9 +1178,9 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
       db.collection('projects').doc(projectId).get(),
       db.collection('users').doc(supervisorId).get(),
     ]);
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     if (projectSnap.data()?.supervisorId !== supervisorId && projectSnap.data()?.secondarySupervisorId !== supervisorId) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
 
     const facultyId     = projectSnap.data()?.facultyId ?? req.user?.facultyId ?? '';
@@ -1201,7 +1202,7 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
     return res.status(201).json({ success: true, id: recRef.id });
   } catch (error: any) {
     console.error('createExaminerRecommendation error:', error);
-    return res.status(500).json({ message: 'Failed to submit examiner recommendation.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit examiner recommendation.', 'שליחת המלצת הבוחן נכשלה.') });
   }
 };
 
@@ -1218,20 +1219,20 @@ export const createExaminerRecommendation = async (req: AuthenticatedRequest, re
 export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response) => {
   const supervisorId = req.user?.uid;
   const { id: milestoneId } = req.params;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
     if (data.staffRecordMode !== 'upload_or_form') {
-      return res.status(400).json({ message: 'This milestone does not have a staff record configured.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not have a staff record configured.', 'לאבן דרך זו לא הוגדר רישום סגל.') });
     }
     if (data.supervisorId !== supervisorId && data.secondarySupervisorId !== supervisorId) {
-      return res.status(403).json({ message: "Only this project's supervisor may submit a staff record." });
+      return res.status(403).json({ message: L(req, "Only this project's supervisor may submit a staff record.", 'רק המנחה של פרויקט זה רשאי/ת להגיש רישום סגל.') });
     }
 
     const files = ((req as any).files as Express.Multer.File[]) ?? [];
@@ -1253,10 +1254,10 @@ export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response
       try {
         formData = typeof req.body?.formData === 'string' ? JSON.parse(req.body.formData) : req.body?.formData;
       } catch {
-        return res.status(400).json({ message: 'Invalid formData.' });
+        return res.status(400).json({ message: L(req, 'Invalid formData.', 'נתוני הטופס לא תקינים.') });
       }
       if (!formData || typeof formData !== 'object') {
-        return res.status(400).json({ message: 'Either a file or formData is required.' });
+        return res.status(400).json({ message: L(req, 'Either a file or formData is required.', 'יש לצרף קובץ או למלא את הטופס.') });
       }
       const fields: FormFieldSpec[] = data.staffFormFields ?? [];
       // Locked fields (autoFill) are never typed by the supervisor — only the
@@ -1265,7 +1266,7 @@ export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response
       // milestoneController.ts's submitMilestone does for studentFormFields.
       const missing = fields.filter((f) => f.required && !f.locked && (formData[f.key] === undefined || formData[f.key] === null || formData[f.key] === ''));
       if (missing.length > 0) {
-        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+        return res.status(400).json({ message: L(req, `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}`, `חסרים שדות חובה: ${missing.map((f) => f.labelEn).join(', ')}`) });
       }
       await milestoneRef.update({
         staffRecord: { mode: 'form', formData, submittedBy: supervisorId, submittedAt: admin.firestore.FieldValue.serverTimestamp() },
@@ -1291,7 +1292,7 @@ export const submitStaffRecord = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('submitStaffRecord error:', error);
-    return res.status(500).json({ message: 'Failed to submit staff record.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit staff record.', 'שליחת רישום הסגל נכשלה.') });
   }
 };
 
@@ -1308,32 +1309,32 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
   const supervisorId = req.user?.uid;
   const { id: milestoneId } = req.params;
   const { decision, grade, reason } = req.body;
-  if (!supervisorId) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   if (decision !== 'approve' && decision !== 'override') {
-    return res.status(400).json({ message: 'decision must be "approve" or "override".' });
+    return res.status(400).json({ message: L(req, 'decision must be "approve" or "override".', 'על ההחלטה להיות "approve" או "override".') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
     if (data.type !== 'defense' || !data.finalGradeComponents) {
-      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי התלת-מדדי.') });
     }
     if (data.supervisorId !== supervisorId) {
-      return res.status(403).json({ message: "Only this project's supervisor may decide on this milestone's final grade." });
+      return res.status(403).json({ message: L(req, "Only this project's supervisor may decide on this milestone's final grade.", 'רק המנחה של פרויקט זה רשאי/ת להכריע בציון הסופי של אבן דרך זו.') });
     }
     if (data.autoCalculatedFinalGrade == null) {
-      return res.status(400).json({ message: 'The automatic grade has not been computed yet — every evaluation must be submitted first.' });
+      return res.status(400).json({ message: L(req, 'The automatic grade has not been computed yet — every evaluation must be submitted first.', 'הציון האוטומטי עדיין לא חושב — יש להגיש קודם את כל ההערכות.') });
     }
     if (data.gradeApproved) {
-      return res.status(409).json({ message: 'This grade has already been finalized.' });
+      return res.status(409).json({ message: L(req, 'This grade has already been finalized.', 'ציון זה כבר סוכם סופית.') });
     }
     if (data.gradeOverride?.status === 'pending') {
-      return res.status(409).json({ message: 'A grade override is already pending coordinator review.' });
+      return res.status(409).json({ message: L(req, 'A grade override is already pending coordinator review.', 'שינוי ציון כבר ממתין לבדיקת הרכז/ת.') });
     }
 
     // Both branches below now land on the coordinator's queue rather than
@@ -1353,10 +1354,10 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
     } else {
       const parsedGrade = Number(grade);
       if (!Number.isFinite(parsedGrade) || parsedGrade < 0 || parsedGrade > 100) {
-        return res.status(400).json({ message: 'grade must be a number between 0 and 100.' });
+        return res.status(400).json({ message: L(req, 'grade must be a number between 0 and 100.', 'הציון חייב להיות מספר בין 0 ל-100.') });
       }
       if (typeof reason !== 'string' || !reason.trim()) {
-        return res.status(400).json({ message: 'A reason is required when changing the automatically calculated grade.' });
+        return res.status(400).json({ message: L(req, 'A reason is required when changing the automatically calculated grade.', 'יש לציין נימוק בעת שינוי הציון המחושב אוטומטית.') });
       }
       proposedGrade = parsedGrade;
       reasonTrimmed = reason.trim();
@@ -1404,10 +1405,10 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_APPROVED') {
-        return res.status(409).json({ message: 'This grade has already been finalized.' });
+        return res.status(409).json({ message: L(req, 'This grade has already been finalized.', 'ציון זה כבר סוכם סופית.') });
       }
       if (err?.message === 'ALREADY_PENDING') {
-        return res.status(409).json({ message: 'A grade override is already pending coordinator review.' });
+        return res.status(409).json({ message: L(req, 'A grade override is already pending coordinator review.', 'שינוי ציון כבר ממתין לבדיקת הרכז/ת.') });
       }
       throw err;
     }
@@ -1483,6 +1484,6 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, status: 'pending_coordinator_review' });
   } catch (error: any) {
     console.error('decideFinalGrade error:', error);
-    return res.status(500).json({ message: 'Failed to record final-grade decision.' });
+    return res.status(500).json({ message: L(req, 'Failed to record final-grade decision.', 'שמירת ההחלטה על הציון הסופי נכשלה.') });
   }
 };

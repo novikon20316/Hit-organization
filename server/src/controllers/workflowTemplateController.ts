@@ -33,6 +33,7 @@ import { previewRetroactiveImpact, applyTemplateRetroactively } from '../service
 import { majorsForFaculty } from '../config/majors.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, ResourceScope } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const PROCESS_TYPES: ProcessType[] = ['msc_thesis', 'msc_project', 'bsc_project'];
 // grad_school_head added — previously could only approve master's templates,
@@ -435,7 +436,7 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
 // (facultyId+major) tuples, never anything outside them ("keep a
 // separation between degrees").
 export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const requestedFacultyId = (req.query.facultyId as string | undefined) ?? undefined;
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? undefined;
@@ -452,16 +453,16 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
       return res.status(200).json({ facultyId: scope.facultyId, major: scope.major, templates });
     } catch (error: any) {
       console.error('getWorkflowTemplates error:', error);
-      return res.status(500).json({ message: 'Failed to load workflow templates.' });
+      return res.status(500).json({ message: L(req, 'Failed to load workflow templates.', 'טעינת תבניות התהליך נכשלה.') });
     }
   }
 
   const isCrossFaculty = hasAnyRole(req.user, GRAD_SCHOOL_APPROVER_ROLES);
   const facultyId = isCrossFaculty ? (requestedFacultyId ?? req.user?.facultyId) : req.user?.facultyId;
 
-  if (!facultyId) return res.status(400).json({ message: 'facultyId could not be resolved.' });
+  if (!facultyId) return res.status(400).json({ message: L(req, 'facultyId could not be resolved.', 'לא ניתן לאתר את מזהה הפקולטה.') });
   if (!isCrossFaculty && requestedFacultyId && requestedFacultyId !== req.user?.facultyId) {
-    return res.status(403).json({ message: 'You may only view templates for your own faculty.' });
+    return res.status(403).json({ message: L(req, 'You may only view templates for your own faculty.', 'ניתן לצפות בתבניות של הפקולטה שלך בלבד.') });
   }
 
   try {
@@ -469,7 +470,7 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ facultyId, major: requestedMajor ?? null, templates });
   } catch (error: any) {
     console.error('getWorkflowTemplates error:', error);
-    return res.status(500).json({ message: 'Failed to load workflow templates.' });
+    return res.status(500).json({ message: L(req, 'Failed to load workflow templates.', 'טעינת תבניות התהליך נכשלה.') });
   }
 };
 
@@ -482,10 +483,10 @@ export const getWorkflowTemplates = async (req: AuthenticatedRequest, res: Respo
 // coordinatorScopes server-side, same as getWorkflowTemplates above.
 export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, PROPOSER_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'You do not have permission to propose workflow templates.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to propose workflow templates.', 'אין לך הרשאה להציע תבניות תהליך.') });
   }
 
   let facultyId: string | undefined;
@@ -496,8 +497,8 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     if (!scope) {
       return res.status(403).json({
         message: (effectiveCoordinatorScopes(req.user)).length === 0
-          ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
-          : 'You may only propose templates for a subject assigned to you.',
+          ? L(req, 'No subject has been assigned to your account yet — ask your system_admin to assign one.', 'לא הוקצה לך עדיין נושא — יש לבקש ממנהל המערכת להקצות נושא.')
+          : L(req, 'You may only propose templates for a subject assigned to you.', 'ניתן להציע תבניות רק עבור נושא שהוקצה לך.'),
       });
     }
     facultyId = scope.facultyId;
@@ -509,31 +510,31 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     if (!facultyId || facultyId === 'all') {
       return res.status(400).json({
         message: CROSS_FACULTY_PROPOSER_ROLES.includes(role)
-          ? 'A specific facultyId is required — please choose which faculty this template applies to.'
-          : 'facultyId could not be resolved.',
+          ? L(req, 'A specific facultyId is required — please choose which faculty this template applies to.', 'יש לבחור פקולטה מסוימת שעבורה תחול התבנית.')
+          : L(req, 'facultyId could not be resolved.', 'לא ניתן לאתר את מזהה הפקולטה.'),
       });
     }
     if (major && !majorsForFaculty(facultyId).includes(major)) {
-      return res.status(400).json({ message: `Invalid major "${major}" for faculty "${facultyId}".` });
+      return res.status(400).json({ message: L(req, `Invalid major "${major}" for faculty "${facultyId}".`, `החוג "${major}" אינו תקין עבור הפקולטה "${facultyId}".`) });
     }
   }
 
   const { processType, note, applyMode } = req.body;
   if (!PROCESS_TYPES.includes(processType)) {
-    return res.status(400).json({ message: `Invalid processType: ${processType}` });
+    return res.status(400).json({ message: L(req, `Invalid processType: ${processType}`, `סוג התהליך אינו תקין: ${processType}`) });
   }
   if (applyMode !== 'now' && applyMode !== 'from_now_on') {
-    return res.status(400).json({ message: 'applyMode must be "now" or "from_now_on".' });
+    return res.status(400).json({ message: L(req, 'applyMode must be "now" or "from_now_on".', 'applyMode חייב להיות "now" או "from_now_on".') });
   }
 
   const milestones = validateMilestones(req.body.milestones);
   if (!milestones) {
-    return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).' });
+    return res.status(400).json({ message: L(req, 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).', 'אבני דרך לא תקינות — לכל אבן דרך צריך type, nameHe, nameEn, order, וגם dueDaysFromStart או (dateMode "fixed" + fixedDate תקין).') });
   }
 
   const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
   if (!defaultRouting.ok) {
-    return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).' });
+    return res.status(400).json({ message: L(req, 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).', 'שרשרת defaultRouting לא תקינה — לכל שלב צריך id ייחודי, role תקין, action ("grade"/"approve"/"notify"), ו-rejectTo ("student" או מזהה שלב אחר).') });
   }
   // Who signs off on examiner invitations before they go out — any
   // ChainRole, or 'none' to skip the second tier entirely. Valid for every
@@ -543,7 +544,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   let examinerSignoffRole: ChainRole | 'none' | undefined;
   if (req.body.examinerSignoffRole !== undefined) {
     if (req.body.examinerSignoffRole !== 'none' && !SIGNOFF_ROLES.includes(req.body.examinerSignoffRole)) {
-      return res.status(400).json({ message: `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}` });
+      return res.status(400).json({ message: L(req, `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}`, `תפקיד אישור הבוחנים אינו תקין: ${req.body.examinerSignoffRole}`) });
     }
     examinerSignoffRole = req.body.examinerSignoffRole;
   }
@@ -553,7 +554,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   let finalGradeSignoffRole: ChainRole | undefined;
   if (req.body.finalGradeSignoffRole !== undefined) {
     if (!SIGNOFF_ROLES.includes(req.body.finalGradeSignoffRole)) {
-      return res.status(400).json({ message: `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}` });
+      return res.status(400).json({ message: L(req, `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}`, `תפקיד אישור הציון הסופי אינו תקין: ${req.body.finalGradeSignoffRole}`) });
     }
     finalGradeSignoffRole = req.body.finalGradeSignoffRole;
   }
@@ -562,14 +563,14 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
   if (req.body.firstStepMode !== undefined) {
     if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
-      return res.status(400).json({ message: `Invalid firstStepMode: ${req.body.firstStepMode}` });
+      return res.status(400).json({ message: L(req, `Invalid firstStepMode: ${req.body.firstStepMode}`, `firstStepMode אינו תקין: ${req.body.firstStepMode}`) });
     }
     firstStepMode = req.body.firstStepMode;
   }
   let supervisorSelectionRequiresApproval: boolean | undefined;
   if (req.body.supervisorSelectionRequiresApproval !== undefined) {
     if (typeof req.body.supervisorSelectionRequiresApproval !== 'boolean') {
-      return res.status(400).json({ message: 'supervisorSelectionRequiresApproval must be a boolean.' });
+      return res.status(400).json({ message: L(req, 'supervisorSelectionRequiresApproval must be a boolean.', 'supervisorSelectionRequiresApproval חייב להיות ערך בוליאני.') });
     }
     supervisorSelectionRequiresApproval = req.body.supervisorSelectionRequiresApproval;
   }
@@ -586,7 +587,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval' });
   } catch (error: any) {
     console.error('createWorkflowTemplateProposal error:', error);
-    return res.status(500).json({ message: 'Failed to propose workflow template.' });
+    return res.status(500).json({ message: L(req, 'Failed to propose workflow template.', 'הצעת תבנית התהליך נכשלה.') });
   }
 };
 
@@ -600,66 +601,66 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
 // (unlike delete/approve/reject on this same doc).
 export const updateWorkflowTemplateProposalController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, PROPOSER_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'You do not have permission to edit workflow template proposals.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to edit workflow template proposals.', 'אין לך הרשאה לערוך הצעות לתבניות תהליך.') });
   }
 
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing template id.', 'חסר מזהה תבנית.') });
 
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     const data = snap.data()!;
 
     if (role === 'administrative_secretary') {
       const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
-      if (!scope) return res.status(403).json({ message: 'You may only edit proposals for a subject assigned to you.' });
+      if (!scope) return res.status(403).json({ message: L(req, 'You may only edit proposals for a subject assigned to you.', 'ניתן לערוך הצעות רק עבור נושא שהוקצה לך.') });
     } else if (!CROSS_FACULTY_PROPOSER_ROLES.includes(role) && data.facultyId !== req.user?.facultyId) {
-      return res.status(403).json({ message: 'You may only edit proposals for your own faculty.' });
+      return res.status(403).json({ message: L(req, 'You may only edit proposals for your own faculty.', 'ניתן לערוך הצעות רק עבור הפקולטה שלך.') });
     }
 
     const { note, applyMode } = req.body;
     if (applyMode !== 'now' && applyMode !== 'from_now_on') {
-      return res.status(400).json({ message: 'applyMode must be "now" or "from_now_on".' });
+      return res.status(400).json({ message: L(req, 'applyMode must be "now" or "from_now_on".', 'applyMode חייב להיות "now" או "from_now_on".') });
     }
 
     const milestones = validateMilestones(req.body.milestones);
     if (!milestones) {
-      return res.status(400).json({ message: 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).' });
+      return res.status(400).json({ message: L(req, 'Invalid milestones — each needs type, nameHe, nameEn, order, and either dueDaysFromStart or (dateMode "fixed" + a valid fixedDate).', 'אבני דרך לא תקינות — לכל אבן דרך צריך type, nameHe, nameEn, order, וגם dueDaysFromStart או (dateMode "fixed" + fixedDate תקין).') });
     }
 
     const defaultRouting = validateOptionalRouting(req.body.defaultRouting);
     if (!defaultRouting.ok) {
-      return res.status(400).json({ message: 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).' });
+      return res.status(400).json({ message: L(req, 'Invalid defaultRouting chain — each stage needs a unique id, a valid role, action ("grade"/"approve"/"notify"), and a rejectTo ("student" or another stage\'s id).', 'שרשרת defaultRouting לא תקינה — לכל שלב צריך id ייחודי, role תקין, action ("grade"/"approve"/"notify"), ו-rejectTo ("student" או מזהה שלב אחר).') });
     }
     let examinerSignoffRole: ChainRole | 'none' | undefined;
     if (req.body.examinerSignoffRole !== undefined) {
       if (req.body.examinerSignoffRole !== 'none' && !SIGNOFF_ROLES.includes(req.body.examinerSignoffRole)) {
-        return res.status(400).json({ message: `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}` });
+        return res.status(400).json({ message: L(req, `Invalid examinerSignoffRole: ${req.body.examinerSignoffRole}`, `תפקיד אישור הבוחנים אינו תקין: ${req.body.examinerSignoffRole}`) });
       }
       examinerSignoffRole = req.body.examinerSignoffRole;
     }
     let finalGradeSignoffRole: ChainRole | undefined;
     if (req.body.finalGradeSignoffRole !== undefined) {
       if (!SIGNOFF_ROLES.includes(req.body.finalGradeSignoffRole)) {
-        return res.status(400).json({ message: `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}` });
+        return res.status(400).json({ message: L(req, `Invalid finalGradeSignoffRole: ${req.body.finalGradeSignoffRole}`, `תפקיד אישור הציון הסופי אינו תקין: ${req.body.finalGradeSignoffRole}`) });
       }
       finalGradeSignoffRole = req.body.finalGradeSignoffRole;
     }
     let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
     if (req.body.firstStepMode !== undefined) {
       if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
-        return res.status(400).json({ message: `Invalid firstStepMode: ${req.body.firstStepMode}` });
+        return res.status(400).json({ message: L(req, `Invalid firstStepMode: ${req.body.firstStepMode}`, `firstStepMode אינו תקין: ${req.body.firstStepMode}`) });
       }
       firstStepMode = req.body.firstStepMode;
     }
     let supervisorSelectionRequiresApproval: boolean | undefined;
     if (req.body.supervisorSelectionRequiresApproval !== undefined) {
       if (typeof req.body.supervisorSelectionRequiresApproval !== 'boolean') {
-        return res.status(400).json({ message: 'supervisorSelectionRequiresApproval must be a boolean.' });
+        return res.status(400).json({ message: L(req, 'supervisorSelectionRequiresApproval must be a boolean.', 'supervisorSelectionRequiresApproval חייב להיות ערך בוליאני.') });
       }
       supervisorSelectionRequiresApproval = req.body.supervisorSelectionRequiresApproval;
     }
@@ -688,29 +689,29 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
     return res.status(200).json({ success: true, message: 'Proposal updated.' });
   } catch (error: any) {
     console.error('updateWorkflowTemplateProposalController error:', error);
-    return res.status(500).json({ message: 'Failed to update the workflow template proposal.' });
+    return res.status(500).json({ message: L(req, 'Failed to update the workflow template proposal.', 'עדכון הצעת תבנית התהליך נכשל.') });
   }
 };
 
 // ─── POST /api/workflow-templates/:id/approve ─────────────────────────────────
 export const approveWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing template id.', 'חסר מזהה תבנית.') });
 
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
     if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
-          ? 'Only the grad school head can approve this process type.'
-          : 'Only the faculty admin/coordinator can approve this process type.',
+          ? L(req, 'Only the grad school head can approve this process type.', 'רק ראש בית הספר ללימודי מוסמכים יכול לאשר סוג תהליך זה.')
+          : L(req, 'Only the faculty admin/coordinator can approve this process type.', 'רק מנהל הפקולטה/רכז הפקולטה יכול לאשר סוג תהליך זה.'),
       });
     }
     // administrative_secretary may only act within her own assigned
@@ -718,7 +719,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     // approve/reject/delete, not just proposing/viewing.
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
-      if (!scope) return res.status(403).json({ message: 'You may only approve templates for a subject assigned to you.' });
+      if (!scope) return res.status(403).json({ message: L(req, 'You may only approve templates for a subject assigned to you.', 'ניתן לאשר תבניות רק עבור נושא שהוקצה לך.') });
     }
 
     const updated = await approveWorkflowTemplate(id, uid);
@@ -756,7 +757,7 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
     });
   } catch (error: any) {
     console.error('approveWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: 'Failed to approve workflow template.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve workflow template.', 'אישור תבנית התהליך נכשל.') });
   }
 };
 
@@ -764,11 +765,11 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
 // Read-only — no mutation. Used both when the proposer picks "now"
 // (informational) and again right before the approver confirms.
 export const getRetroactivePreviewController = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const processType = req.query.processType as ProcessType;
   if (!PROCESS_TYPES.includes(processType)) {
-    return res.status(400).json({ message: `Invalid processType: ${processType}` });
+    return res.status(400).json({ message: L(req, `Invalid processType: ${processType}`, `סוג התהליך אינו תקין: ${processType}`) });
   }
   const requestedMajor = req.query.major === 'all' ? null : (req.query.major as string | undefined) ?? null;
   const requestedFacultyId = req.query.facultyId as string | undefined;
@@ -779,7 +780,7 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
 
   if (hasAnyRole(req.user, ['administrative_secretary'])) {
     const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: requestedFacultyId, major: requestedMajor });
-    if (!scope) return res.status(403).json({ message: 'You may only preview a subject assigned to you.' });
+    if (!scope) return res.status(403).json({ message: L(req, 'You may only preview a subject assigned to you.', 'ניתן לצפות בתצוגה המקדימה רק עבור נושא שהוקצה לך.') });
     facultyId = scope.facultyId;
     major = scope.major;
   } else if (isCrossFaculty) {
@@ -790,12 +791,12 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
     // another faculty must never be trusted, same fix as
     // createWorkflowTemplateProposal/getWorkflowTemplates already enforce.
     if (requestedFacultyId && requestedFacultyId !== req.user?.facultyId) {
-      return res.status(403).json({ message: 'You may only preview a subject for your own faculty.' });
+      return res.status(403).json({ message: L(req, 'You may only preview a subject for your own faculty.', 'ניתן לצפות בתצוגה המקדימה רק עבור הפקולטה שלך.') });
     }
     facultyId = req.user?.facultyId;
   }
   if (!facultyId || facultyId === 'all') {
-    return res.status(400).json({ message: 'A specific facultyId is required.' });
+    return res.status(400).json({ message: L(req, 'A specific facultyId is required.', 'יש לבחור פקולטה מסוימת.') });
   }
 
   try {
@@ -803,7 +804,7 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
     return res.status(200).json(preview);
   } catch (error: any) {
     console.error('getRetroactivePreviewController error:', error);
-    return res.status(500).json({ message: 'Failed to compute the retroactive-impact preview.' });
+    return res.status(500).json({ message: L(req, 'Failed to compute the retroactive-impact preview.', 'חישוב תצוגת ההשפעה הרטרואקטיבית נכשל.') });
   }
 };
 
@@ -836,19 +837,19 @@ export const getRetroactivePreviewController = async (req: AuthenticatedRequest,
 // the target's in-progress projects isn't implied by "reuse this template").
 export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, PROPOSER_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'You do not have permission to duplicate workflow templates.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to duplicate workflow templates.', 'אין לך הרשאה לשכפל תבניות תהליך.') });
   }
 
   const processType = req.body.processType;
   if (!PROCESS_TYPES.includes(processType)) {
-    return res.status(400).json({ message: `Invalid processType: ${processType}` });
+    return res.status(400).json({ message: L(req, `Invalid processType: ${processType}`, `סוג התהליך אינו תקין: ${processType}`) });
   }
   const sourceFacultyId = req.body.sourceFacultyId;
   if (typeof sourceFacultyId !== 'string' || majorsForFaculty(sourceFacultyId).length === 0) {
-    return res.status(400).json({ message: 'A valid sourceFacultyId is required.' });
+    return res.status(400).json({ message: L(req, 'A valid sourceFacultyId is required.', 'יש לציין פקולטת מקור תקינה.') });
   }
   const sourceMajor: string | null = req.body.sourceMajor ? req.body.sourceMajor : null;
 
@@ -859,8 +860,8 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
     if (!scope) {
       return res.status(403).json({
         message: (effectiveCoordinatorScopes(req.user)).length === 0
-          ? 'No subject has been assigned to your account yet — ask your system_admin to assign one.'
-          : 'You may only duplicate into a subject assigned to you.',
+          ? L(req, 'No subject has been assigned to your account yet — ask your system_admin to assign one.', 'לא הוקצה לך עדיין נושא — יש לבקש ממנהל המערכת להקצות נושא.')
+          : L(req, 'You may only duplicate into a subject assigned to you.', 'ניתן לשכפל רק לתוך נושא שהוקצה לך.'),
       });
     }
     targetFacultyId = scope.facultyId;
@@ -868,7 +869,7 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
   } else if (GRAD_SCHOOL_APPROVER_ROLES.includes(role)) {
     targetFacultyId = req.body.targetFacultyId ?? req.user?.facultyId;
     if (!targetFacultyId || majorsForFaculty(targetFacultyId).length === 0) {
-      return res.status(400).json({ message: 'A valid targetFacultyId is required.' });
+      return res.status(400).json({ message: L(req, 'A valid targetFacultyId is required.', 'יש לציין פקולטת יעד תקינה.') });
     }
     targetMajor = req.body.targetMajor ? req.body.targetMajor : null;
   } else {
@@ -879,21 +880,21 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
     // only ever write INTO the one faculty they actually manage.
     targetFacultyId = req.user?.facultyId!;
     if (!targetFacultyId || targetFacultyId === 'all') {
-      return res.status(400).json({ message: 'facultyId could not be resolved.' });
+      return res.status(400).json({ message: L(req, 'facultyId could not be resolved.', 'לא ניתן לאתר את מזהה הפקולטה.') });
     }
     targetMajor = req.body.targetMajor ? req.body.targetMajor : null;
   }
   if (targetMajor && !majorsForFaculty(targetFacultyId).includes(targetMajor)) {
-    return res.status(400).json({ message: `Invalid major "${targetMajor}" for faculty "${targetFacultyId}".` });
+    return res.status(400).json({ message: L(req, `Invalid major "${targetMajor}" for faculty "${targetFacultyId}".`, `החוג "${targetMajor}" אינו תקין עבור הפקולטה "${targetFacultyId}".`) });
   }
   if (targetFacultyId === sourceFacultyId && targetMajor === sourceMajor) {
-    return res.status(400).json({ message: 'Choose a different faculty or major to duplicate into — this is the same subject the template already belongs to.' });
+    return res.status(400).json({ message: L(req, 'Choose a different faculty or major to duplicate into — this is the same subject the template already belongs to.', 'יש לבחור פקולטה או חוג אחרים לשכפול — זה אותו נושא שאליו התבנית כבר משתייכת.') });
   }
 
   try {
     const source = await findApprovedTemplateId(sourceFacultyId, processType, sourceMajor);
     if (!source) {
-      return res.status(404).json({ message: 'No approved template found for that faculty/major/process type.' });
+      return res.status(404).json({ message: L(req, 'No approved template found for that faculty/major/process type.', 'לא נמצאה תבנית מאושרת עבור הפקולטה/חוג/סוג התהליך שצוינו.') });
     }
 
     // A 'committee' routing stage's committeeId (if set) names a SPECIFIC
@@ -942,7 +943,7 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
     return res.status(201).json({ success: true, id: result.id, status: 'pending_approval', facultyId: targetFacultyId, major: targetMajor });
   } catch (error: any) {
     console.error('duplicateWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: 'Failed to duplicate workflow template.' });
+    return res.status(500).json({ message: L(req, 'Failed to duplicate workflow template.', 'שכפול תבנית התהליך נכשל.') });
   }
 };
 
@@ -953,27 +954,27 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
 // template.
 export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing template id.', 'חסר מזהה תבנית.') });
 
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
     if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
-          ? 'Only the grad school head can delete this process type\'s templates.'
-          : 'Only the faculty admin/coordinator can delete this process type\'s templates.',
+          ? L(req, 'Only the grad school head can delete this process type\'s templates.', 'רק ראש בית הספר ללימודי מוסמכים יכול למחוק תבניות מסוג תהליך זה.')
+          : L(req, 'Only the faculty admin/coordinator can delete this process type\'s templates.', 'רק מנהל הפקולטה/רכז הפקולטה יכול למחוק תבניות מסוג תהליך זה.'),
       });
     }
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
-      if (!scope) return res.status(403).json({ message: 'You may only delete templates for a subject assigned to you.' });
+      if (!scope) return res.status(403).json({ message: L(req, 'You may only delete templates for a subject assigned to you.', 'ניתן למחוק תבניות רק עבור נושא שהוקצה לך.') });
     }
 
     await deleteWorkflowTemplate(id);
@@ -990,7 +991,7 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
     return res.status(200).json({ success: true, message: 'Workflow template deleted.' });
   } catch (error: any) {
     console.error('deleteWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: 'Failed to delete workflow template.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete workflow template.', 'מחיקת תבנית התהליך נכשלה.') });
   }
 };
 
@@ -998,31 +999,31 @@ export const deleteWorkflowTemplateController = async (req: AuthenticatedRequest
 // Body: { reason: string }
 export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id } = req.params;
   const { reason } = req.body;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing template id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing template id.', 'חסר מזהה תבנית.') });
   if (!reason || typeof reason !== 'string') {
-    return res.status(400).json({ message: 'A rejection reason is required.' });
+    return res.status(400).json({ message: L(req, 'A rejection reason is required.', 'יש לציין נימוק לדחייה.') });
   }
 
   try {
     const snap = await db.collection('workflowTemplates').doc(id).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Template not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     const data = snap.data()!;
     const processType = data.processType as ProcessType;
 
     if (!canApprove(processType, req.user) && !hasActionGrant(req.user, 'approve_templates', templateResourceScope({ facultyId: data.facultyId, major: data.major, processType }))) {
       return res.status(403).json({
         message: isMastersProcess(processType)
-          ? 'Only the grad school head can reject this process type.'
-          : 'Only the faculty admin/coordinator can reject this process type.',
+          ? L(req, 'Only the grad school head can reject this process type.', 'רק ראש בית הספר ללימודי מוסמכים יכול לדחות סוג תהליך זה.')
+          : L(req, 'Only the faculty admin/coordinator can reject this process type.', 'רק מנהל הפקולטה/רכז הפקולטה יכול לדחות סוג תהליך זה.'),
       });
     }
     if (hasAnyRole(req.user, ['administrative_secretary'])) {
       const scope = resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null });
-      if (!scope) return res.status(403).json({ message: 'You may only reject templates for a subject assigned to you.' });
+      if (!scope) return res.status(403).json({ message: L(req, 'You may only reject templates for a subject assigned to you.', 'ניתן לדחות תבניות רק עבור נושא שהוקצה לך.') });
     }
 
     await rejectWorkflowTemplate(id, uid, reason);
@@ -1041,6 +1042,6 @@ export const rejectWorkflowTemplateController = async (req: AuthenticatedRequest
     return res.status(200).json({ success: true, message: 'Workflow template rejected.' });
   } catch (error: any) {
     console.error('rejectWorkflowTemplateController error:', error);
-    return res.status(500).json({ message: 'Failed to reject workflow template.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject workflow template.', 'דחיית תבנית התהליך נכשלה.') });
   }
 };

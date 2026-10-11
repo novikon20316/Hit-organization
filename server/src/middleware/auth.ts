@@ -7,6 +7,7 @@ import { auth, db } from '../config/firebase.js';
 import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
 import { resolvePlatform, readMaintenanceStatus } from '../services/maintenanceStatus.js';
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
+import { L } from '../utils/localize.js';
 
 // Routes an account with a forced temp-password change must still be able to
 // reach — everything else 403s until they change it. This is the real gate:
@@ -118,12 +119,12 @@ export const verifyToken = async (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or malformed authorization token.' });
+    return res.status(401).json({ error: L(req, 'Missing or malformed authorization token.', 'אסימון ההזדהות חסר או שגוי.') });
   }
 
   const rawToken = authHeader.split('Bearer ')[1];
   if (!rawToken) {
-    return res.status(401).json({ error: 'Empty Bearer token.' });
+    return res.status(401).json({ error: L(req, 'Empty Bearer token.', 'אסימון ההזדהות ריק.') });
   }
 
   let decodedToken;
@@ -131,7 +132,7 @@ export const verifyToken = async (
     decodedToken = await auth.verifyIdToken(rawToken);
   } catch (error: any) {
     console.error('Token verification error:', error);
-    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
+    return res.status(403).json({ error: L(req, 'Invalid or expired authentication token.', 'אסימון ההזדהות אינו תקין או שפג תוקפו.') });
   }
 
   const uid = decodedToken.uid;
@@ -140,13 +141,13 @@ export const verifyToken = async (
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) {
       console.error(`❌ User ${uid} not found in Firestore.`);
-      return res.status(404).json({ error: 'User not found in Firestore.' });
+      return res.status(404).json({ error: L(req, 'User not found in Firestore.', 'המשתמש לא נמצא.') });
     }
 
 
     const userData = userDoc.data();
     if (!userData?.isActive) {
-      return res.status(403).json({ error: 'Account has been disabled.' });
+      return res.status(403).json({ error: L(req, 'Account has been disabled.', 'החשבון הושבת.') });
     }
 
     const requestPath = req.originalUrl.split('?')[0] ?? req.originalUrl;
@@ -200,10 +201,10 @@ export const verifyToken = async (
   } catch (error: any) {
     if (isQuotaExceededError(error)) {
       console.error('Firestore quota exceeded while resolving user for verifyToken:', error);
-      return res.status(503).json({ error: 'SERVICE_QUOTA_EXCEEDED', message: 'The database is temporarily unavailable due to a quota limit. Please try again later.' });
+      return res.status(503).json({ error: 'SERVICE_QUOTA_EXCEEDED', message: L(req, 'The database is temporarily unavailable due to a quota limit. Please try again later.', 'מסד הנתונים אינו זמין כעת עקב מגבלת מכסה. יש לנסות שוב מאוחר יותר.') });
     }
     console.error('User lookup error in verifyToken:', error);
-    return res.status(500).json({ error: 'Failed to resolve authenticated user.' });
+    return res.status(500).json({ error: L(req, 'Failed to resolve authenticated user.', 'פענוח פרטי המשתמש המחובר נכשל.') });
   }
 };
 
@@ -249,12 +250,12 @@ export const verifyTokenOnly = async (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or malformed authorization token.' });
+    return res.status(401).json({ error: L(req, 'Missing or malformed authorization token.', 'אסימון ההזדהות חסר או שגוי.') });
   }
 
   const rawToken = authHeader.split('Bearer ')[1];
   if (!rawToken) {
-    return res.status(401).json({ error: 'Empty Bearer token.' });
+    return res.status(401).json({ error: L(req, 'Empty Bearer token.', 'אסימון ההזדהות ריק.') });
   }
 
   try {
@@ -278,7 +279,7 @@ export const verifyTokenOnly = async (
     return next();
   } catch (error: any) {
     console.error('Token verification error:', error);
-    return res.status(403).json({ error: 'Invalid or expired authentication token.' });
+    return res.status(403).json({ error: L(req, 'Invalid or expired authentication token.', 'אסימון ההזדהות אינו תקין או שפג תוקפו.') });
   }
 };
 

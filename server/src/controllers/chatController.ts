@@ -7,6 +7,7 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from "../middleware/auth.js";
 import { logProjectRecordEntry } from "../services/projectRecords.js";
+import { L } from '../utils/localize.js';
 
 // Chat has no projectId of its own (see this file's own header context) —
 // resolves one for the project record feature by finding whichever of the
@@ -202,7 +203,7 @@ export const handleChatImageUploadError: import('express').ErrorRequestHandler =
     return res.status(400).json({ message: err.message });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ message: 'Image too large — the limit is 10MB.' });
+    return res.status(400).json({ message: L(_req, 'Image too large — the limit is 10MB.', 'התמונה גדולה מהמותר — המגבלה היא 10MB.') });
   }
   return next(err);
 };
@@ -210,7 +211,7 @@ export const handleChatImageUploadError: import('express').ErrorRequestHandler =
 // POST /api/chats/upload-image
 export const uploadChatImage = async (req: AuthenticatedRequest, res: Response) => {
   const file = (req as any).file as Express.Multer.File | undefined;
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const base64 = file.buffer.toString('base64');
@@ -222,7 +223,7 @@ export const uploadChatImage = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ url: result.secure_url });
   } catch (uploadError) {
     console.error('uploadChatImage error:', uploadError);
-    return res.status(502).json({ message: 'Image upload failed. Please try again in a few minutes.' });
+    return res.status(502).json({ message: L(req, 'Image upload failed. Please try again in a few minutes.', 'העלאת התמונה נכשלה. נסה/י שוב בעוד מספר דקות.') });
   }
 };
 
@@ -234,10 +235,10 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
 
   if(!chatId || typeof chatId !== 'string'){
     return res.status(401).json({
-        message: "Error... Wrong ChatId"
+        message: L(req, "Error... Wrong ChatId", "שגיאה: מזהה שיחה שגוי.")
     })
   }
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
 
   // CRITICAL FIX: neither field was validated at all before this — a
   // non-string `text` (or any other malformed body) was written to
@@ -250,18 +251,18 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
   let previewText: string;
   if (type === 'image') {
     if (typeof imageUrl !== 'string' || !CHAT_IMAGE_URL_RE.test(imageUrl)) {
-      return res.status(400).json({ message: 'A valid image URL is required.' });
+      return res.status(400).json({ message: L(req, 'A valid image URL is required.', 'נדרשת כתובת URL תקינה לתמונה.') });
     }
     if (text !== undefined && text !== null && (typeof text !== 'string' || text.length > MAX_CAPTION_LENGTH)) {
-      return res.status(400).json({ message: `Caption must be a string under ${MAX_CAPTION_LENGTH} characters.` });
+      return res.status(400).json({ message: L(req, `Caption must be a string under ${MAX_CAPTION_LENGTH} characters.`, `הכיתוב חייב להיות מחרוזת באורך של עד ${MAX_CAPTION_LENGTH} תווים.`) });
     }
     previewText = '📷 Photo';
   } else {
     if (typeof text !== 'string' || text.trim().length === 0) {
-      return res.status(400).json({ message: 'Message text is required.' });
+      return res.status(400).json({ message: L(req, 'Message text is required.', 'נדרש טקסט הודעה.') });
     }
     if (text.length > MAX_TEXT_LENGTH) {
-      return res.status(400).json({ message: `Message is too long (max ${MAX_TEXT_LENGTH} characters).` });
+      return res.status(400).json({ message: L(req, `Message is too long (max ${MAX_TEXT_LENGTH} characters).`, `ההודעה ארוכה מהמותר (מקסימום ${MAX_TEXT_LENGTH} תווים).`) });
     }
     previewText = text;
   }
@@ -272,11 +273,11 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     // notified about) any other two users' private chat by guessing chatId.
     const chatRef  = db.collection('chats').doc(chatId);
     const chatSnap = await chatRef.get();
-    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+    if (!chatSnap.exists) return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
 
     const participants: string[] = chatSnap.data()?.participants || [];
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
 
     const recipientIdForBlockCheck = participants.find((id) => id !== uid);
@@ -291,7 +292,7 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       const senderBlockedRecipient: string[] = senderSnap.data()?.blockedUserIds ?? [];
       const recipientBlockedSender: string[] = recipientSnap.data()?.blockedUserIds ?? [];
       if (senderBlockedRecipient.includes(recipientIdForBlockCheck) || recipientBlockedSender.includes(uid)) {
-        return res.status(403).json({ message: 'This conversation is unavailable.' });
+        return res.status(403).json({ message: L(req, 'This conversation is unavailable.', 'שיחה זו אינה זמינה.') });
       }
     }
 
@@ -372,7 +373,7 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Failed to process message notification cascade:', error);
-    return res.status(500).json({ message: 'Failed to safely commit text dispatch sequence' });
+    return res.status(500).json({ message: L(req, 'Failed to safely commit text dispatch sequence', 'אירעה שגיאה בשליחת ההודעה.') });
   }
 };
 
@@ -388,21 +389,21 @@ export const reportChat = async (req: AuthenticatedRequest, res: Response) => {
   const { chatId } = req.params;
   const { reason } = req.body;
 
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Missing chatId.' });
+    return res.status(400).json({ message: L(req, 'Missing chatId.', 'חסר מזהה שיחה.') });
   }
   if (reason !== undefined && (typeof reason !== 'string' || reason.length > MAX_REPORT_REASON_LENGTH)) {
-    return res.status(400).json({ message: `Reason must be a string under ${MAX_REPORT_REASON_LENGTH} characters.` });
+    return res.status(400).json({ message: L(req, `Reason must be a string under ${MAX_REPORT_REASON_LENGTH} characters.`, `הסיבה חייבת להיות מחרוזת באורך של עד ${MAX_REPORT_REASON_LENGTH} תווים.`) });
   }
 
   try {
     const chatSnap = await db.collection('chats').doc(chatId).get();
-    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+    if (!chatSnap.exists) return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
 
     const participants: string[] = chatSnap.data()?.participants || [];
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
     const reportedUserId = participants.find((id) => id !== uid) ?? null;
 
@@ -441,7 +442,7 @@ export const reportChat = async (req: AuthenticatedRequest, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('reportChat error:', error);
-    return res.status(500).json({ message: 'Failed to submit report.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit report.', 'שליחת הדיווח נכשלה.') });
   }
 };
 
@@ -451,21 +452,21 @@ export const reportChat = async (req: AuthenticatedRequest, res: Response) => {
 export const blockChatPartner = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { chatId } = req.params;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Missing chatId.' });
+    return res.status(400).json({ message: L(req, 'Missing chatId.', 'חסר מזהה שיחה.') });
   }
 
   try {
     const chatSnap = await db.collection('chats').doc(chatId).get();
-    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+    if (!chatSnap.exists) return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
 
     const participants: string[] = chatSnap.data()?.participants || [];
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
     const otherUserId = participants.find((id) => id !== uid);
-    if (!otherUserId) return res.status(400).json({ message: 'No other participant to block.' });
+    if (!otherUserId) return res.status(400).json({ message: L(req, 'No other participant to block.', 'אין משתמש נוסף לחסימה.') });
 
     await db.collection('users').doc(uid).update({
       blockedUserIds: admin.firestore.FieldValue.arrayUnion(otherUserId),
@@ -473,7 +474,7 @@ export const blockChatPartner = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('blockChatPartner error:', error);
-    return res.status(500).json({ message: 'Failed to block user.' });
+    return res.status(500).json({ message: L(req, 'Failed to block user.', 'חסימת המשתמש נכשלה.') });
   }
 };
 
@@ -484,21 +485,21 @@ export const blockChatPartner = async (req: AuthenticatedRequest, res: Response)
 export const unblockChatPartner = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { chatId } = req.params;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Missing chatId.' });
+    return res.status(400).json({ message: L(req, 'Missing chatId.', 'חסר מזהה שיחה.') });
   }
 
   try {
     const chatSnap = await db.collection('chats').doc(chatId).get();
-    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+    if (!chatSnap.exists) return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
 
     const participants: string[] = chatSnap.data()?.participants || [];
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
     const otherUserId = participants.find((id) => id !== uid);
-    if (!otherUserId) return res.status(400).json({ message: 'No other participant to unblock.' });
+    if (!otherUserId) return res.status(400).json({ message: L(req, 'No other participant to unblock.', 'אין משתמש נוסף לביטול חסימה.') });
 
     await db.collection('users').doc(uid).update({
       blockedUserIds: admin.firestore.FieldValue.arrayRemove(otherUserId),
@@ -506,7 +507,7 @@ export const unblockChatPartner = async (req: AuthenticatedRequest, res: Respons
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('unblockChatPartner error:', error);
-    return res.status(500).json({ message: 'Failed to unblock user.' });
+    return res.status(500).json({ message: L(req, 'Failed to unblock user.', 'ביטול חסימת המשתמש נכשל.') });
   }
 };
 
@@ -535,7 +536,7 @@ export const markChatNotificationsAsRead = async (req: Request, res: Response) =
     return res.status(200).json({ success: true, updatedCount: snapshot.size });
   } catch (error) {
     console.error('Error clearing unread chat notifications:', error);
-    return res.status(500).json({ message: 'Failed to update notification states' });
+    return res.status(500).json({ message: L(req, 'Failed to update notification states', 'עדכון מצב ההתראות נכשל.') });
   }
 };
 
@@ -549,7 +550,7 @@ export const sendBroadcastNotification = async (req: Request, res: Response) => 
   const db = admin.firestore();
 
   if (!title?.trim() || !message?.trim()) {
-    return res.status(400).json({ message: 'Missing title or message validation block' });
+    return res.status(400).json({ message: L(req, 'Missing title or message validation block', 'חסרה כותרת או תוכן הודעה.') });
   }
 
   try {
@@ -559,7 +560,7 @@ export const sendBroadcastNotification = async (req: Request, res: Response) => 
     const myFaculty = meData.facultyId;
 
     if (!myRoles.has('system_admin') && !myRoles.has('faculty_admin')) {
-      return res.status(403).json({ message: 'Action restricted to authorized administrative users only' });
+      return res.status(403).json({ message: L(req, 'Action restricted to authorized administrative users only', 'הפעולה מוגבלת למשתמשי ניהול מורשים בלבד.') });
     }
 
     let recipientIds: string[] = [];
@@ -601,7 +602,7 @@ export const sendBroadcastNotification = async (req: Request, res: Response) => 
     return res.status(200).json({ success: true, count: recipientIds.length });
   } catch (error) {
     console.error('Failure compiling system data broadcast pipeline:', error);
-    return res.status(500).json({ message: 'Failed to safely commit global broad message cascade' });
+    return res.status(500).json({ message: L(req, 'Failed to safely commit global broad message cascade', 'שליחת ההודעה הכללית נכשלה.') });
   }
 };
 
@@ -613,9 +614,9 @@ export const findOrCreateDirectChat = async (req: Request, res: Response) => {
   const uid = (req as any).user?.uid;
   const { recipientId } = req.body;
 
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   if (!recipientId) {
-    return res.status(400).json({ message: 'Missing target participant allocation key' });
+    return res.status(400).json({ message: L(req, 'Missing target participant allocation key', 'חסר מזהה נמען.') });
   }
 
   try {
@@ -624,7 +625,7 @@ export const findOrCreateDirectChat = async (req: Request, res: Response) => {
     // user by uid regardless of role/faculty/application relationship.
     const eligible = await getEligiblePartnerIds(uid);
     if (eligible !== 'all' && !eligible.has(recipientId)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
 
     // Audit check: Check if an active direct channel footprint already links these two users
@@ -653,7 +654,7 @@ export const findOrCreateDirectChat = async (req: Request, res: Response) => {
     return res.status(201).json({ chatId: newChatRef.id });
   } catch (error) {
     console.error('Error creating direct chat link channel:', error);
-    return res.status(500).json({ message: 'Could not resolve chat initialization schema' });
+    return res.status(500).json({ message: L(req, 'Could not resolve chat initialization schema', 'פתיחת השיחה נכשלה.') });
   }
 };
 
@@ -669,7 +670,7 @@ export const getChatCandidates = async (req: Request, res: Response) => {
   try {
     const meSnap = await db.collection('users').doc(uid).get();
     if (!meSnap.exists) {
-      return res.status(404).json({ message: 'Current user profiling missing' });
+      return res.status(404).json({ message: L(req, 'Current user profiling missing', 'פרופיל המשתמש הנוכחי לא נמצא.') });
     }
 
     const me = meSnap.data() || {};
@@ -763,7 +764,7 @@ export const getChatCandidates = async (req: Request, res: Response) => {
     return res.status(200).json({ myRole, candidates });
   } catch (error) {
     console.error('Error fetching chat candidates:', error);
-    return res.status(500).json({ message: 'Internal server lookup failure' });
+    return res.status(500).json({ message: L(req, 'Internal server lookup failure', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -777,17 +778,17 @@ export const getChatMeta = async (req: AuthenticatedRequest, res: Response) => {
   const { chatId } = req.params;
 
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Invalid chatId.' });
+    return res.status(400).json({ message: L(req, 'Invalid chatId.', 'מזהה שיחה לא תקין.') });
   }
   else if (!uid || typeof uid !== 'string') {
-    return res.status(400).json({ message: 'Invalid uid.' });
+    return res.status(400).json({ message: L(req, 'Invalid uid.', 'מזהה משתמש לא תקין.') });
   }
 
   try {
     const chatSnap = await db.collection('chats').doc(chatId).get();
 
     if (!chatSnap.exists) {
-      return res.status(404).json({ message: 'Chat not found.' });
+      return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
     }
 
     const chatData   = chatSnap.data() || {};
@@ -795,7 +796,7 @@ export const getChatMeta = async (req: AuthenticatedRequest, res: Response) => {
 
     // Confirm the requesting user is actually a participant
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Access denied: not a participant.' });
+      return res.status(403).json({ message: L(req, 'Access denied: not a participant.', 'הגישה נדחתה: אינך חלק מהשיחה.') });
     }
 
     // Fetch profiles for every participant in parallel
@@ -825,7 +826,7 @@ export const getChatMeta = async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (error) {
     console.error('getChatMeta error:', error);
-    return res.status(500).json({ message: 'Failed to load chat metadata.' });
+    return res.status(500).json({ message: L(req, 'Failed to load chat metadata.', 'טעינת פרטי השיחה נכשלה.') });
   }
 };
 
@@ -839,7 +840,7 @@ export const deleteChat = async (req: Request, res: Response) => {
   const { chatId } = req.params;
 
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Invalid chatId.' });
+    return res.status(400).json({ message: L(req, 'Invalid chatId.', 'מזהה שיחה לא תקין.') });
   }
 
   try {
@@ -847,12 +848,12 @@ export const deleteChat = async (req: Request, res: Response) => {
     const chatSnap = await chatRef.get();
 
     if (!chatSnap.exists) {
-      return res.status(404).json({ message: 'Chat not found.' });
+      return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
     }
 
     const participants: string[] = chatSnap.data()?.participants ?? [];
     if (!participants.includes(uid)) {
-      return res.status(403).json({ message: 'Access denied: not a participant.' });
+      return res.status(403).json({ message: L(req, 'Access denied: not a participant.', 'הגישה נדחתה: אינך חלק מהשיחה.') });
     }
 
     // 1. Delete all sub-collection messages
@@ -874,7 +875,7 @@ export const deleteChat = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, message: 'Chat deleted.' });
   } catch (error) {
     console.error('deleteChat error:', error);
-    return res.status(500).json({ message: 'Failed to delete chat.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete chat.', 'מחיקת השיחה נכשלה.') });
   }
 };
 
@@ -888,7 +889,7 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
   const uid = req.user?.uid;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   }
 
   try {
@@ -957,7 +958,7 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ chats: chatList, unreadTotal });
   } catch (error) {
     console.error('getChatDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load chat dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load chat dashboard.', 'טעינת לוח השיחות נכשלה.') });
   }
 };
 
@@ -986,7 +987,7 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
   const since      = req.query.since;
 
   if (!chatId || typeof chatId !== 'string') {
-    return res.status(400).json({ message: 'Invalid chatId.' });
+    return res.status(400).json({ message: L(req, 'Invalid chatId.', 'מזהה שיחה לא תקין.') });
   }
 
   try {
@@ -994,12 +995,12 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
     const chatSnap = await db.collection('chats').doc(chatId).get();
 
     if (!chatSnap.exists) {
-      return res.status(404).json({ message: 'Chat not found.' });
+      return res.status(404).json({ message: L(req, 'Chat not found.', 'השיחה לא נמצאה.') });
     }
 
     const participants: string[] = chatSnap.data()?.participants ?? [];
     if (!participants.includes(uid!)) {
-      return res.status(403).json({ message: 'Access denied: not a participant.' });
+      return res.status(403).json({ message: L(req, 'Access denied: not a participant.', 'הגישה נדחתה: אינך חלק מהשיחה.') });
     }
 
     let messagesQuery: FirebaseFirestore.Query = db
@@ -1050,6 +1051,6 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json(messages);
   } catch (error) {
     console.error('getChatMessages error:', error);
-    return res.status(500).json({ message: 'Failed to load messages.' });
+    return res.status(500).json({ message: L(req, 'Failed to load messages.', 'טעינת ההודעות נכשלה.') });
   }
 };

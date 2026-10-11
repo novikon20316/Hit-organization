@@ -9,6 +9,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/auth.js';
 import { listPendingExceptionalActions, decideExceptionalAction } from '../services/exceptionalActions.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const APPROVER_ROLES = ['program_head', 'faculty_admin', 'grad_school_head', 'system_admin'];
 
@@ -39,31 +40,31 @@ function approverEffectiveFacultyIds(req: AuthenticatedRequest): string[] | 'all
 }
 
 export const getPendingExceptionalActions = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasApproverAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasApproverAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
 
   try {
     const requests = await listPendingExceptionalActions(approverEffectiveFacultyIds(req));
     return res.status(200).json({ requests });
   } catch (error: any) {
-    return res.status(500).json({ message: 'Failed to load pending exceptional actions.' });
+    return res.status(500).json({ message: L(req, 'Failed to load pending exceptional actions.', 'טעינת הבקשות החריגות הממתינות נכשלה.') });
   }
 };
 
 export const decideExceptionalActionRequest = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { decision, reason } = req.body;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasApproverAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing request id.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasApproverAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing request id.', 'חסר מזהה בקשה.') });
   if (decision !== 'approved' && decision !== 'rejected') {
-    return res.status(400).json({ message: 'decision must be "approved" or "rejected".' });
+    return res.status(400).json({ message: L(req, 'decision must be "approved" or "rejected".', 'ההחלטה חייבת להיות "approved" או "rejected".') });
   }
 
   try {
     const request = await decideExceptionalAction(id, decision, req.user.uid, req.user.role, reason, approverEffectiveFacultyIds(req));
     return res.status(200).json({ success: true, request });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to decide on this request.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to decide on this request.', 'ההחלטה על בקשה זו נכשלה.') });
   }
 };

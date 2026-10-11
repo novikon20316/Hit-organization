@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 // Mirrors web/lib/roles.ts's PERMISSION_MAP view_all_grades — notably
 // narrower than projectController.ts/studentController.ts's project-view
@@ -40,14 +41,14 @@ function serializeTimestamp(value: any): string | null {
 export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { projectId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!projectId || typeof projectId !== 'string') {
-    return res.status(400).json({ message: 'Invalid projectId' });
+    return res.status(400).json({ message: L(req, 'Invalid projectId', 'מזהה פרויקט לא תקין') });
   }
 
   try {
     const projectSnap = await db.collection('projects').doc(projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found', 'הפרויקט לא נמצא') });
     const project = projectSnap.data()!;
 
     const isOwnProject =
@@ -58,7 +59,7 @@ export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Res
       hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
     if (!isOwnProject && !hasAnyRole(requester, FULL_ACCESS_ROLES) && !hasCoordinatorScopeAccess) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     const milestonesSnap = await db.collection('milestones')
@@ -141,6 +142,6 @@ export const getProjectGradeHistory = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ milestones });
   } catch (error) {
     console.error('getProjectGradeHistory error:', error);
-    return res.status(500).json({ message: 'Failed to load grade history' });
+    return res.status(500).json({ message: L(req, 'Failed to load grade history', 'טעינת היסטוריית הציונים נכשלה') });
   }
 };

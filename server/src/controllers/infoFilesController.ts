@@ -9,6 +9,7 @@ import { VALID_MAJORS } from '../config/majors.js';
 import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -107,19 +108,19 @@ export const uploadInfoFileMiddleware: RequestHandler = upload.single('file') as
 // Admin/coordinator uploads a file + title; stored on Cloudinary, metadata in Firestore.
 export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
-  if (!uploaderId || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uploaderId || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, INFO_FILE_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
     const file = (req as any).file as Express.Multer.File | undefined;
     const { titleHe, titleEn } = req.body ?? {};
 
-    if (!file) return res.status(400).json({ message: 'No file provided.' });
+    if (!file) return res.status(400).json({ message: L(req, 'No file provided.', 'לא צורף קובץ.') });
     if (!titleHe?.trim() && !titleEn?.trim()) {
-      return res.status(400).json({ message: 'A title (Hebrew or English) is required.' });
+      return res.status(400).json({ message: L(req, 'A title (Hebrew or English) is required.', 'יש להזין כותרת (בעברית או באנגלית).') });
     }
 
     let projectIds: string[];
@@ -159,12 +160,12 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       degreeTypes = [];
       trackTypes = [];
       if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uploaderId, projectIds))) {
-        return res.status(403).json({ message: 'You may only attach files to your own projects.' });
+        return res.status(403).json({ message: L(req, 'You may only attach files to your own projects.', 'ניתן לצרף קבצים רק לפרויקטים שלך.') });
       }
     } else if (role === 'supervisor') {
       // Supervisors have no faculty-wide authority — they must always target
       // specific project(s).
-      return res.status(400).json({ message: 'Select at least one of your projects to attach this file to.' });
+      return res.status(400).json({ message: L(req, 'Select at least one of your projects to attach this file to.', 'יש לבחור לפחות אחד מהפרויקטים שלך לצירוף קובץ זה.') });
     } else if (role === 'coordinator') {
       // SECURITY FIX: a single-faculty coordinator had no scope check at all
       // here — she could set facultyIds to another faculty entirely, or
@@ -173,7 +174,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       // facing endpoint in this codebase confining her to her own faculty.
       const ownFacultyId = req.user.facultyId;
       if (facultyIds.length === 0 || facultyIds.some((f) => f !== ownFacultyId)) {
-        return res.status(403).json({ message: 'A coordinator may only scope a file to their own faculty.' });
+        return res.status(403).json({ message: L(req, 'A coordinator may only scope a file to their own faculty.', 'רכז יכול להגביל קובץ רק לפקולטה שלו.') });
       }
     }
 
@@ -206,7 +207,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
     return res.status(201).json({ success: true, id: docRef.id, fileUrl: result.secure_url });
   } catch (error: any) {
     console.error('uploadInfoFile error:', error);
-    return res.status(500).json({ message: 'Failed to upload file.' });
+    return res.status(500).json({ message: L(req, 'Failed to upload file.', 'העלאת הקובץ נכשלה.') });
   }
 };
 
@@ -216,22 +217,22 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
 // scope aren't editable here; retargeting means delete + re-upload.
 export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, INFO_FILE_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid file id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid file id.', 'מזהה קובץ לא תקין.') });
 
   try {
     const ref = db.collection('infoFiles').doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'File not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'File not found.', 'הקובץ לא נמצא.') });
     const data = snap.data()!;
 
     if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uid, data.projectIds ?? []))) {
-      return res.status(403).json({ message: 'You may only edit files attached to your own projects.' });
+      return res.status(403).json({ message: L(req, 'You may only edit files attached to your own projects.', 'ניתן לערוך קבצים המצורפים רק לפרויקטים שלך.') });
     }
 
     const update: Record<string, unknown> = {};
@@ -251,14 +252,14 @@ export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) =
     }
 
     if (Object.keys(update).length === 0) {
-      return res.status(400).json({ message: 'Nothing to update — provide a replacement file and/or isVisible.' });
+      return res.status(400).json({ message: L(req, 'Nothing to update — provide a replacement file and/or isVisible.', 'אין מה לעדכן — יש לצרף קובץ חלופי ו/או את isVisible.') });
     }
 
     await ref.update(update);
     return res.status(200).json({ success: true, message: 'File updated.' });
   } catch (error: any) {
     console.error('updateInfoFile error:', error);
-    return res.status(500).json({ message: 'Failed to update file.' });
+    return res.status(500).json({ message: L(req, 'Failed to update file.', 'עדכון הקובץ נכשל.') });
   }
 };
 
@@ -375,7 +376,7 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
     return res.status(200).json({ files });
   } catch (error: any) {
     console.error('getInfoFiles error:', error);
-    return res.status(500).json({ message: 'Failed to load info files.' });
+    return res.status(500).json({ message: L(req, 'Failed to load info files.', 'טעינת קבצי המידע נכשלה.') });
   }
 };
 
@@ -383,25 +384,25 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
 export const deleteInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
   const { id } = req.params;
-  if (!uploaderId || !req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uploaderId || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const role = matchedRole(req.user, INFO_FILE_ROLES);
   if (!role) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid file id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid file id.', 'מזהה קובץ לא תקין.') });
   try {
     const ref = db.collection('infoFiles').doc(id);
     if (role === 'supervisor') {
       const snap = await ref.get();
-      if (!snap.exists) return res.status(404).json({ message: 'File not found.' });
+      if (!snap.exists) return res.status(404).json({ message: L(req, 'File not found.', 'הקובץ לא נמצא.') });
       if (!(await verifySupervisorOwnsProjects(uploaderId, snap.data()!.projectIds ?? []))) {
-        return res.status(403).json({ message: 'You may only delete files attached to your own projects.' });
+        return res.status(403).json({ message: L(req, 'You may only delete files attached to your own projects.', 'ניתן למחוק קבצים המצורפים רק לפרויקטים שלך.') });
       }
     }
     await ref.delete();
     return res.status(200).json({ success: true, message: 'File deleted.' });
   } catch (error: any) {
     console.error('deleteInfoFile error:', error);
-    return res.status(500).json({ message: 'Failed to delete file.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete file.', 'מחיקת הקובץ נכשלה.') });
   }
 };

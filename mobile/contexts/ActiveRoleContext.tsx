@@ -10,6 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import * as SecureStore from 'expo-secure-store';
 import type { AppRole } from '@/components/i18n';
 import { highestRankedRole, isValidRole } from '@/firebase/roles';
+import { setCurrentLang } from '@/src/api/currentLang';
 
 function activeRoleStorageKey(uid: string): string {
   return `active_role_${uid.replace(/[^\w.-]/g, '_')}`;
@@ -92,7 +93,7 @@ export function ActiveRoleProvider({ children }: { children: ReactNode }) {
     setUid(newUid);
     setRoles(newRoles);
     setFacultyId(newFacultyId ?? '');
-    if (newLanguage) setLanguage(newLanguage);
+    if (newLanguage) { setLanguage(newLanguage); setCurrentLang(newLanguage); }
     setHasSeenOnboardingTour(!!newHasSeenOnboardingTour);
     setSeenFieldGuides(newSeenFieldGuides ?? []);
   }, []);

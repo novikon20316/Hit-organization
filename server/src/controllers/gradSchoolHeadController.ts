@@ -29,6 +29,7 @@ import { hasActionGrant, resolveStaffForScope, effectiveFacultyIds } from '../se
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 import { deriveProcessType, resolveFinalGradeSignoffRole } from '../services/workflowTemplates.js';
+import { L } from '../utils/localize.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
@@ -47,14 +48,14 @@ const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
 
 export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, GRAD_SCHOOL_HEAD_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this dashboard.', 'אין לך הרשאה לצפות בלוח הבקרה הזה.') });
   }
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
+    if (!userSnap.exists) return res.status(404).json({ message: L(req, 'User record not found.', 'רשומת המשתמש לא נמצאה.') });
     const userData = userSnap.data()!;
 
     // Own faculty plus any extras granted via gradSchoolHeadFacultyIds (see
@@ -315,7 +316,7 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
     });
   } catch (error: any) {
     console.error('getGradSchoolHeadDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load grad school head dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load grad school head dashboard.', 'טעינת לוח הבקרה של ראש בית הספר ללימודי מוסמכים נכשלה.') });
   }
 };
 
@@ -343,31 +344,31 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
  */
 export const decideGradeOverride = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id: milestoneId } = req.params;
   const { decision } = req.body;
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   }
   if (decision !== 'approve_override' && decision !== 'keep_auto') {
-    return res.status(400).json({ message: 'decision must be "approve_override" or "keep_auto".' });
+    return res.status(400).json({ message: L(req, 'decision must be "approve_override" or "keep_auto".', 'ההחלטה חייבת להיות "approve_override" או "keep_auto".') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
 
     if (milestone.type !== 'defense' || !milestone.finalGradeComponents) {
-      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי התלת-מרכיבי.') });
     }
     if (milestone.gradeOverride?.status !== 'pending') {
-      return res.status(400).json({ message: 'No grade override is pending for this milestone.' });
+      return res.status(400).json({ message: L(req, 'No grade override is pending for this milestone.', 'אין שינוי ציון ממתין לאבן דרך זו.') });
     }
     if (milestone.gradeApproved) {
-      return res.status(400).json({ message: 'This grade has already been finalized.' });
+      return res.status(400).json({ message: L(req, 'This grade has already been finalized.', 'הציון כבר אושר באופן סופי.') });
     }
 
     // Same configurable sign-off gating as approveFinalGrade above.
@@ -380,7 +381,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
       const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
       if (!uids.includes(uid)) {
-        return res.status(403).json({ message: 'You do not have permission to decide on this grade override.' });
+        return res.status(403).json({ message: L(req, 'You do not have permission to decide on this grade override.', 'אין לך הרשאה להכריע בשינוי ציון זה.') });
       }
     }
 
@@ -411,7 +412,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_APPROVED') {
-        return res.status(400).json({ message: 'This grade has already been finalized.' });
+        return res.status(400).json({ message: L(req, 'This grade has already been finalized.', 'הציון כבר אושר באופן סופי.') });
       }
       throw err;
     }
@@ -456,34 +457,34 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
     return res.status(200).json({ success: true, finalGrade });
   } catch (error: any) {
     console.error('decideGradeOverride error:', error);
-    return res.status(500).json({ message: 'Failed to decide on the grade override.' });
+    return res.status(500).json({ message: L(req, 'Failed to decide on the grade override.', 'ההחלטה על שינוי הציון נכשלה.') });
   }
 };
 
 export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id: milestoneId } = req.params;
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
 
     const milestone = milestoneSnap.data()!;
 
     if (milestone.type !== 'defense') {
-      return res.status(400).json({ message: 'Only defense/final-grade milestones can be approved here.' });
+      return res.status(400).json({ message: L(req, 'Only defense/final-grade milestones can be approved here.', 'ניתן לאשר כאן רק אבני דרך של הגנה/ציון סופי.') });
     }
     if (milestone.finalGrade == null) {
-      return res.status(400).json({ message: 'No final grade has been computed for this milestone yet.' });
+      return res.status(400).json({ message: L(req, 'No final grade has been computed for this milestone yet.', 'עדיין לא חושב ציון סופי לאבן דרך זו.') });
     }
     if (milestone.gradeApproved) {
-      return res.status(400).json({ message: 'This grade has already been approved.' });
+      return res.status(400).json({ message: L(req, 'This grade has already been approved.', 'הציון כבר אושר.') });
     }
 
     // Who's required to sign off here is configurable per template (see
@@ -500,7 +501,7 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
       const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
       if (!uids.includes(uid)) {
-        return res.status(403).json({ message: 'You do not have permission to approve grades.' });
+        return res.status(403).json({ message: L(req, 'You do not have permission to approve grades.', 'אין לך הרשאה לאשר ציונים.') });
       }
     }
 
@@ -527,7 +528,7 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_APPROVED') {
-        return res.status(400).json({ message: 'This grade has already been approved.' });
+        return res.status(400).json({ message: L(req, 'This grade has already been approved.', 'הציון כבר אושר.') });
       }
       throw err;
     }
@@ -584,7 +585,7 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ success: true, message: 'Final grade approved and transferred to Michlol.' });
   } catch (error: any) {
     console.error('approveFinalGrade error:', error);
-    return res.status(500).json({ message: 'Failed to approve final grade.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve final grade.', 'אישור הציון הסופי נכשל.') });
   }
 };
 
@@ -600,26 +601,26 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
  */
 export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id: milestoneId } = req.params;
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   }
   const { reason } = req.body;
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to unlock an approved grade.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to unlock an approved grade.', 'יש לציין סיבה לפתיחת ציון מאושר.') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
 
     const milestone = milestoneSnap.data()!;
 
     if (!milestone.gradeApproved) {
-      return res.status(400).json({ message: 'This grade is not currently approved.' });
+      return res.status(400).json({ message: L(req, 'This grade is not currently approved.', 'ציון זה אינו מאושר כעת.') });
     }
 
     // Same generalized authorization as approveFinalGrade — see its comment.
@@ -632,7 +633,7 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
       const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
       if (!uids.includes(uid)) {
-        return res.status(403).json({ message: 'You do not have permission to unlock this grade.' });
+        return res.status(403).json({ message: L(req, 'You do not have permission to unlock this grade.', 'אין לך הרשאה לפתוח ציון זה.') });
       }
     }
 
@@ -681,7 +682,7 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true, message: 'Grade unlocked for correction.' });
   } catch (error: any) {
     console.error('revertFinalGradeApproval error:', error);
-    return res.status(500).json({ message: 'Failed to unlock grade.' });
+    return res.status(500).json({ message: L(req, 'Failed to unlock grade.', 'פתיחת הציון נכשלה.') });
   }
 };
 
@@ -699,32 +700,32 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
  */
 export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { id: milestoneId } = req.params;
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   }
   const { reason } = req.body;
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to reject a computed grade.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to reject a computed grade.', 'יש לציין סיבה לדחיית ציון מחושב.') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
 
     const milestone = milestoneSnap.data()!;
 
     if (milestone.type !== 'defense') {
-      return res.status(400).json({ message: 'Only defense/final-grade milestones can be rejected here.' });
+      return res.status(400).json({ message: L(req, 'Only defense/final-grade milestones can be rejected here.', 'ניתן לדחות כאן רק אבני דרך של הגנה/ציון סופי.') });
     }
     if (milestone.finalGrade == null) {
-      return res.status(400).json({ message: 'No final grade has been computed for this milestone yet.' });
+      return res.status(400).json({ message: L(req, 'No final grade has been computed for this milestone yet.', 'עדיין לא חושב ציון סופי לאבן דרך זו.') });
     }
     if (milestone.gradeApproved) {
-      return res.status(400).json({ message: 'This grade has already been approved — unlock it instead of rejecting.' });
+      return res.status(400).json({ message: L(req, 'This grade has already been approved — unlock it instead of rejecting.', 'הציון כבר אושר — יש לפתוח אותו במקום לדחות אותו.') });
     }
 
     // Same generalized authorization as approveFinalGrade — see its comment.
@@ -737,7 +738,7 @@ export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response)
       const projectSupervisorIds = [project.supervisorId].filter(Boolean);
       const uids = await resolveStaffForScope(signoffRole, scope, projectSupervisorIds);
       if (!uids.includes(uid)) {
-        return res.status(403).json({ message: 'You do not have permission to reject this grade.' });
+        return res.status(403).json({ message: L(req, 'You do not have permission to reject this grade.', 'אין לך הרשאה לדחות ציון זה.') });
       }
     }
 
@@ -796,7 +797,7 @@ export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, message: 'Grade rejected — sent back for re-grading.' });
   } catch (error: any) {
     console.error('rejectFinalGrade error:', error);
-    return res.status(500).json({ message: 'Failed to reject grade.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject grade.', 'דחיית הציון נכשלה.') });
   }
 };
 
@@ -812,23 +813,23 @@ export const rejectFinalGrade = async (req: AuthenticatedRequest, res: Response)
  */
 export const approveExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const { id } = req.params;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing recommendation id.', 'חסר מזהה המלצה.') });
 
   try {
     const recRef = db.collection('examinerRecommendations').doc(id);
     const recSnap = await recRef.get();
-    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    if (!recSnap.exists) return res.status(404).json({ message: L(req, 'Recommendation not found.', 'ההמלצה לא נמצאה.') });
     const rec = recSnap.data()!;
 
     if (rec.status !== 'coordinator_approved') {
-      return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${rec.status}).` });
+      return res.status(400).json({ message: L(req, `This recommendation is not awaiting sign-off (status: ${rec.status}).`, `המלצה זו אינה ממתינה לאישור חתימה (סטטוס: ${rec.status}).`) });
     }
 
     const projectId = rec.projectId;
     const projectSnap = await db.collection('projects').doc(projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const project = projectSnap.data()!;
 
     // The role required here is whatever was snapshotted onto this
@@ -844,7 +845,7 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
     const resource = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
     const uids = await resolveStaffForScope(rec.signoffRole ?? 'grad_school_head', resource, [project.supervisorId].filter(Boolean));
     if (!uids.includes(uid)) {
-      return res.status(403).json({ message: 'You do not have permission to approve this examiner list.' });
+      return res.status(403).json({ message: L(req, 'You do not have permission to approve this examiner list.', 'אין לך הרשאה לאשר את רשימת הבוחנים.') });
     }
 
     const studentSnaps = await Promise.all(
@@ -866,7 +867,8 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_DECIDED') {
-        return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${(await recRef.get()).data()?.status}).` });
+        const currentStatus = (await recRef.get()).data()?.status;
+        return res.status(400).json({ message: L(req, `This recommendation is not awaiting sign-off (status: ${currentStatus}).`, `המלצה זו אינה ממתינה לאישור חתימה (סטטוס: ${currentStatus}).`) });
       }
       throw err;
     }
@@ -923,7 +925,7 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
     });
   } catch (error: any) {
     console.error('approveExaminerRecommendationFinal error:', error);
-    return res.status(500).json({ message: 'Failed to approve examiner list.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve examiner list.', 'אישור רשימת הבוחנים נכשל.') });
   }
 };
 
@@ -935,26 +937,26 @@ export const approveExaminerRecommendationFinal = async (req: AuthenticatedReque
  */
 export const rejectExaminerRecommendationFinal = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const { id } = req.params;
   const { reason } = req.body;
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing recommendation id.', 'חסר מזהה המלצה.') });
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to reject an examiner list.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to reject an examiner list.', 'יש לציין סיבה לדחיית רשימת הבוחנים.') });
   }
 
   try {
     const recRef = db.collection('examinerRecommendations').doc(id);
     const recSnap = await recRef.get();
-    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    if (!recSnap.exists) return res.status(404).json({ message: L(req, 'Recommendation not found.', 'ההמלצה לא נמצאה.') });
     const rec = recSnap.data()!;
 
     if (rec.status !== 'coordinator_approved') {
-      return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${rec.status}).` });
+      return res.status(400).json({ message: L(req, `This recommendation is not awaiting sign-off (status: ${rec.status}).`, `המלצה זו אינה ממתינה לאישור חתימה (סטטוס: ${rec.status}).`) });
     }
 
     const projectSnap = await db.collection('projects').doc(rec.projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const project = projectSnap.data()!;
 
     // Same role check as approveExaminerRecommendationFinal — see its
@@ -962,7 +964,7 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
     const resource = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
     const uids = await resolveStaffForScope(rec.signoffRole ?? 'grad_school_head', resource, [project.supervisorId].filter(Boolean));
     if (!uids.includes(uid)) {
-      return res.status(403).json({ message: 'You do not have permission to reject this examiner list.' });
+      return res.status(403).json({ message: L(req, 'You do not have permission to reject this examiner list.', 'אין לך הרשאה לדחות את רשימת הבוחנים.') });
     }
 
     // Transaction, not a plain update(): a reject racing in against a
@@ -982,7 +984,8 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_DECIDED') {
-        return res.status(400).json({ message: `This recommendation is not awaiting sign-off (status: ${(await recRef.get()).data()?.status}).` });
+        const currentStatus = (await recRef.get()).data()?.status;
+        return res.status(400).json({ message: L(req, `This recommendation is not awaiting sign-off (status: ${currentStatus}).`, `המלצה זו אינה ממתינה לאישור חתימה (סטטוס: ${currentStatus}).`) });
       }
       throw err;
     }
@@ -1000,6 +1003,6 @@ export const rejectExaminerRecommendationFinal = async (req: AuthenticatedReques
     return res.status(200).json({ success: true, message: 'Examiner list rejected.' });
   } catch (error: any) {
     console.error('rejectExaminerRecommendationFinal error:', error);
-    return res.status(500).json({ message: 'Failed to reject examiner list.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject examiner list.', 'דחיית רשימת הבוחנים נכשלה.') });
   }
 };

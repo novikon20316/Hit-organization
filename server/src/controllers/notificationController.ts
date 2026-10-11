@@ -4,6 +4,7 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
 import { softError } from '../middleware/auth.js';
 import { screensForRole } from '../services/notificationTargets.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -35,7 +36,7 @@ function matchesRoleFilter(targetScreen: unknown, role: string | undefined): boo
 export const getNotificationInboxSummary = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ message: 'Unauthorized access: Missing token context.' });
+    if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized access: Missing token context.', 'הגישה לא מורשית: חסר הקשר אימות (טוקן).') });
 
     const role = resolveRoleFilter(req);
     const snapshot = await db.collection('notifications')
@@ -70,14 +71,14 @@ const NOTIFICATION_DISPATCH_ROLES = [
 export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user || !hasAnyRole(req.user, NOTIFICATION_DISPATCH_ROLES)) {
-      return res.status(403).json({ error: 'Access denied.' });
+      return res.status(403).json({ error: L(req, 'Access denied.', 'הגישה נדחתה.') });
     }
 
     const { recipientUid, title, body, data } = req.body;
 
     // Missing fields is a caller mistake → keep 400
     if (!recipientUid || !title || !body) {
-      return res.status(400).json({ error: 'Missing notification dispatch telemetry.' });
+      return res.status(400).json({ error: L(req, 'Missing notification dispatch telemetry.', 'חסרים נתוני שליחת ההתראה.') });
     }
 
     const notifRef = db.collection('notifications').doc();
@@ -137,7 +138,7 @@ export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res
 export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized user credentials' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized user credentials', 'פרטי משתמש לא מורשים') });
 
     const role = resolveRoleFilter(req);
     const snapshot = await db.collection('notifications')
@@ -177,7 +178,7 @@ export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Re
 export const markAllNotificationsAsRead = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized user context.' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized user context.', 'הקשר משתמש לא מורשה.') });
 
     const unreadSnap = await db.collection('notifications')
       .where('recipientId', '==', uid)
@@ -213,16 +214,16 @@ export const markAllNotificationsAsRead = async (req: AuthenticatedRequest, res:
 export const markNotificationsReadForScreens = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
-    if (!uid) return res.status(401).json({ error: 'Unauthorized user context.' });
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized user context.', 'הקשר משתמש לא מורשה.') });
 
     const { targetScreens } = req.body;
     if (!Array.isArray(targetScreens) || targetScreens.length === 0 || targetScreens.some((s) => typeof s !== 'string')) {
-      return res.status(400).json({ error: 'targetScreens must be a non-empty array of strings.' });
+      return res.status(400).json({ error: L(req, 'targetScreens must be a non-empty array of strings.', 'targetScreens חייב להיות מערך לא ריק של מחרוזות.') });
     }
     // Firestore 'in' caps at 10 values — every tab maps to at most a
     // couple of targetScreen keys today, so this is generous headroom.
     if (targetScreens.length > 10) {
-      return res.status(400).json({ error: 'targetScreens accepts at most 10 values.' });
+      return res.status(400).json({ error: L(req, 'targetScreens accepts at most 10 values.', 'targetScreens מקבל לכל היותר 10 ערכים.') });
     }
 
     const unreadSnap = await db.collection('notifications')
@@ -259,7 +260,7 @@ export const markNotificationRead = async (req: AuthenticatedRequest, res: Respo
   const { notificationId } = req.params;
 
   if (!notificationId || typeof notificationId !== 'string') {
-    return res.status(400).json({ message: 'Invalid notificationId.' });
+    return res.status(400).json({ message: L(req, 'Invalid notificationId.', 'מזהה התראה לא תקין.') });
   }
 
   try {
@@ -267,11 +268,11 @@ export const markNotificationRead = async (req: AuthenticatedRequest, res: Respo
     const notifSnap = await notifRef.get();
 
     if (!notifSnap.exists) {
-      return res.status(404).json({ message: 'Notification not found.' });
+      return res.status(404).json({ message: L(req, 'Notification not found.', 'ההתראה לא נמצאה.') });
     }
 
     if (notifSnap.data()?.recipientId !== uid) {
-      return res.status(403).json({ message: 'Access denied.' });
+      return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
     }
 
     await notifRef.update({ isRead: true, readAt: new Date().toISOString() });
@@ -287,7 +288,7 @@ export const markNotificationRead = async (req: AuthenticatedRequest, res: Respo
  */
 export const getNotificationBadgeCount = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
 
   try {
     const role = resolveRoleFilter(req);

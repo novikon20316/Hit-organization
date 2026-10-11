@@ -2,24 +2,25 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { resolveMyPendingSignoffs } from '../services/pendingSignoffs.js';
+import { L } from '../utils/localize.js';
 
 
 export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => {
     const { id } = req.params;
     if (!id || typeof id !== 'string') {
-        return res.status(400).json({ error: 'Invalid staff ID' });
+        return res.status(400).json({ error: L(req, 'Invalid staff ID', 'מזהה הצוות אינו תקין.') });
     }
     // Every mobile call site passes the signed-in user's own uid — this endpoint
     // was previously trusting the TARGET doc's stored role instead of the
     // caller's identity, letting any authenticated user view another staff
     // member's (or coordinator's whole-faculty) pending-milestone deadlines.
     if (req.user?.uid !== id) {
-        return res.status(403).json({ error: 'Forbidden.' });
+        return res.status(403).json({ error: L(req, 'Forbidden.', 'הפעולה אסורה.') });
     }
     try {
         const staffDoc = await db.collection('users').doc(id).get();
         if (!staffDoc.exists) {
-            return res.status(404).json({ error: 'Staff member not found' });
+            return res.status(404).json({ error: L(req, 'Staff member not found', 'איש הצוות לא נמצא.') });
         }
         const staffData = staffDoc.data();
         // Combine the singular `role` field with the `roles` array — not every
@@ -34,7 +35,7 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
         const hasAccess = userRoles.some(role => ['supervisor', 'coordinator', 'faculty_admin'].includes(role));
 
         if (!hasAccess) {
-            return res.status(403).json({ error: 'Access denied: Not a supervisor, coordinator, or faculty_admin' });
+            return res.status(403).json({ error: L(req, 'Access denied: Not a supervisor, coordinator, or faculty_admin', 'הגישה נדחתה: יש להיות מנחה, רכז פקולטה או מנהל פקולטה.') });
         }
         let deadlinesSnapshot;
         const isFacultyAdminOrCoordinator = userRoles.some(role => ['faculty_admin', 'coordinator'].includes(role));
@@ -73,7 +74,7 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
         return res.status(200).json({ deadlines });
     } catch (error: any) {
         console.error('Error fetching deadlines:', error);
-        return res.status(500).json({ error: 'Failed to load deadlines.' });
+        return res.status(500).json({ error: L(req, 'Failed to load deadlines.', 'טעינת מועדי ההגשה נכשלה.') });
     }
 }
 
@@ -84,12 +85,12 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
  * services/pendingSignoffs.ts. Always "my own"; no route params.
  */
 export const getMyPendingSignoffs = async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+    if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
     try {
         const items = await resolveMyPendingSignoffs(req.user);
         return res.status(200).json({ items });
     } catch (error: any) {
         console.error('getMyPendingSignoffs error:', error);
-        return res.status(500).json({ message: 'Failed to load pending sign-offs.' });
+        return res.status(500).json({ message: L(req, 'Failed to load pending sign-offs.', 'טעינת האישורים הממתינים נכשלה.') });
     }
 };

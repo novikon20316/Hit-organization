@@ -20,6 +20,7 @@ import {
 } from '../services/examinerFinancial.js';
 import { MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
+import { L } from '../utils/localize.js';
 
 const ALLOWED_MIME_TYPES = new Set(MILESTONE_FILE_TYPES.flatMap((t) => t.mimeTypes));
 
@@ -45,7 +46,7 @@ export const onboardingUploadMiddleware: RequestHandler = upload.single('file') 
 
 export const handleOnboardingUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof UnsupportedFileTypeError) {
-    return res.status(400).json({ message: `Unsupported file type: ${err.fileName}.` });
+    return res.status(400).json({ message: L(_req, `Unsupported file type: ${err.fileName}.`, `סוג הקובץ אינו נתמך: ${err.fileName}.`) });
   }
   next(err);
 };
@@ -64,11 +65,11 @@ async function loadFreshToken(token: string): Promise<{ ref: FirebaseFirestore.D
  */
 export const getOnboardingStatus = async (req: Request, res: Response) => {
   const { token } = req.params;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון.') });
 
   try {
     const loaded = await loadFreshToken(token);
-    if (!loaded) return res.status(403).json({ message: 'Please verify your access code first.' });
+    if (!loaded) return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     const { doc } = loaded;
     const email = doc.examinerEmail as string;
 
@@ -87,7 +88,7 @@ export const getOnboardingStatus = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('getOnboardingStatus error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית') });
   }
 };
 
@@ -98,14 +99,14 @@ export const getOnboardingStatus = async (req: Request, res: Response) => {
 export const submitExaminerIdentity = async (req: Request, res: Response) => {
   const { token } = req.params;
   const { role, title, institution } = req.body ?? {};
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון.') });
   if (!role?.trim() || !title?.trim() || !institution?.trim()) {
-    return res.status(400).json({ message: 'role, title, and institution are all required.' });
+    return res.status(400).json({ message: L(req, 'role, title, and institution are all required.', 'יש לציין תפקיד, תואר ומוסד.') });
   }
 
   try {
     const loaded = await loadFreshToken(token);
-    if (!loaded) return res.status(403).json({ message: 'Please verify your access code first.' });
+    if (!loaded) return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     const { doc } = loaded;
 
     await upsertExaminerIdentity(doc.examinerEmail, {
@@ -117,7 +118,7 @@ export const submitExaminerIdentity = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('submitExaminerIdentity error:', error);
-    return res.status(500).json({ message: 'Failed to save your details.' });
+    return res.status(500).json({ message: L(req, 'Failed to save your details.', 'שמירת הפרטים שלך נכשלה.') });
   }
 };
 
@@ -129,14 +130,14 @@ export const submitExaminerIdentity = async (req: Request, res: Response) => {
 export const submitExaminerBankDetails = async (req: Request, res: Response) => {
   const { token } = req.params;
   const { bankName, branch, accountNumber, accountHolderName } = req.body ?? {};
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון.') });
   if (!bankName?.trim() || !branch?.trim() || !accountNumber?.trim() || !accountHolderName?.trim()) {
-    return res.status(400).json({ message: 'All bank detail fields are required.' });
+    return res.status(400).json({ message: L(req, 'All bank detail fields are required.', 'יש למלא את כל שדות פרטי הבנק.') });
   }
 
   try {
     const loaded = await loadFreshToken(token);
-    if (!loaded) return res.status(403).json({ message: 'Please verify your access code first.' });
+    if (!loaded) return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     const { doc } = loaded;
 
     await createExaminerBankAccount(doc.examinerEmail, {
@@ -151,7 +152,7 @@ export const submitExaminerBankDetails = async (req: Request, res: Response) => 
       return res.status(409).json({ message: error.message });
     }
     console.error('submitExaminerBankDetails error:', error);
-    return res.status(500).json({ message: 'Failed to save bank details.' });
+    return res.status(500).json({ message: L(req, 'Failed to save bank details.', 'שמירת פרטי הבנק נכשלה.') });
   }
 };
 
@@ -162,12 +163,12 @@ export const submitExaminerBankDetails = async (req: Request, res: Response) => 
 export const submitExaminerTaxDocument = async (req: Request, res: Response) => {
   const { token } = req.params;
   const file = (req as Request & { file?: Express.Multer.File }).file;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון.') });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const loaded = await loadFreshToken(token);
-    if (!loaded) return res.status(403).json({ message: 'Please verify your access code first.' });
+    if (!loaded) return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     const { doc } = loaded;
 
     await createExaminerTaxDocument(doc.examinerEmail, {
@@ -181,7 +182,7 @@ export const submitExaminerTaxDocument = async (req: Request, res: Response) => 
       return res.status(409).json({ message: error.message });
     }
     console.error('submitExaminerTaxDocument error:', error);
-    return res.status(502).json({ message: 'Failed to upload the document.' });
+    return res.status(502).json({ message: L(req, 'Failed to upload the document.', 'העלאת המסמך נכשלה.') });
   }
 };
 
@@ -194,15 +195,15 @@ export const submitExaminerTaxDocument = async (req: Request, res: Response) => 
 export const submitExaminerEvaluationDocument = async (req: Request, res: Response) => {
   const { token } = req.params;
   const file = (req as Request & { file?: Express.Multer.File }).file;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון.') });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const loaded = await loadFreshToken(token);
-    if (!loaded) return res.status(403).json({ message: 'Please verify your access code first.' });
+    if (!loaded) return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     const { ref, doc } = loaded;
     if (doc.opinion) {
-      return res.status(409).json({ message: 'An online evaluation has already been submitted for this defense.' });
+      return res.status(409).json({ message: L(req, 'An online evaluation has already been submitted for this defense.', 'חוות דעת מקוונת כבר הוגשה עבור הגנה זו.') });
     }
 
     // Atomically claim this token before uploading — a double-submit (two
@@ -223,10 +224,10 @@ export const submitExaminerEvaluationDocument = async (req: Request, res: Respon
       });
     } catch (err: any) {
       if (err?.message === 'OPINION_ALREADY_SUBMITTED') {
-        return res.status(409).json({ message: 'An online evaluation has already been submitted for this defense.' });
+        return res.status(409).json({ message: L(req, 'An online evaluation has already been submitted for this defense.', 'חוות דעת מקוונת כבר הוגשה עבור הגנה זו.') });
       }
       if (err?.message === 'DOCUMENT_ALREADY_SUBMITTED') {
-        return res.status(409).json({ message: 'An evaluation document has already been submitted for this defense.' });
+        return res.status(409).json({ message: L(req, 'An evaluation document has already been submitted for this defense.', 'מסמך חוות דעת כבר הוגש עבור הגנה זו.') });
       }
       throw err;
     }
@@ -251,6 +252,6 @@ export const submitExaminerEvaluationDocument = async (req: Request, res: Respon
     }
   } catch (error: any) {
     console.error('submitExaminerEvaluationDocument error:', error);
-    return res.status(502).json({ message: 'Failed to upload the document.' });
+    return res.status(502).json({ message: L(req, 'Failed to upload the document.', 'העלאת המסמך נכשלה.') });
   }
 };

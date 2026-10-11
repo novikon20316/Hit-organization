@@ -21,6 +21,7 @@ import {
   restoreProjectRecordEntry as restoreEntryData,
 } from '../services/projectRecords.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { L } from '../utils/localize.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -133,14 +134,14 @@ function projectWithinScope(scope: RecordScope, project: { facultyId?: string | 
 export const getProjectRecord = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { projectId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!isValidDocId(projectId)) {
-    return res.status(400).json({ message: 'Invalid projectId' });
+    return res.status(400).json({ message: L(req, 'Invalid projectId', 'מזהה פרויקט לא תקין') });
   }
 
   try {
     const projectSnap = await db.collection('projects').doc(projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found', 'הפרויקט לא נמצא') });
     const project = projectSnap.data()!;
 
     const isOwnProject =
@@ -153,7 +154,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
         projectWithinScope(callerRecordScope(requester), project));
 
     if (!isOwnProject && !hasStaffScopeAccess) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     const entriesSnap = await db.collection('projectRecordEntries')
@@ -221,7 +222,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
     });
   } catch (error) {
     console.error('getProjectRecord error:', error);
-    return res.status(500).json({ message: 'Failed to load project record' });
+    return res.status(500).json({ message: L(req, 'Failed to load project record', 'טעינת רשומת הפרויקט נכשלה') });
   }
 };
 
@@ -246,7 +247,7 @@ function summarizeProject(doc: FirebaseFirestore.QueryDocumentSnapshot) {
  */
 export const getMyProjectRecords = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   try {
     const [asSupervisor, asSecondary] = await Promise.all([
@@ -263,7 +264,7 @@ export const getMyProjectRecords = async (req: AuthenticatedRequest, res: Respon
     return res.status(200).json({ projects });
   } catch (error) {
     console.error('getMyProjectRecords error:', error);
-    return res.status(500).json({ message: 'Failed to load your project records' });
+    return res.status(500).json({ message: L(req, 'Failed to load your project records', 'טעינת רשומות הפרויקטים שלך נכשלה') });
   }
 };
 
@@ -302,9 +303,9 @@ function supervisorInScope(user: Record<string, unknown>, scope: RecordScope): b
  */
 export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
@@ -362,7 +363,7 @@ export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ supervisors });
   } catch (error) {
     console.error('getScopedSupervisors error:', error);
-    return res.status(500).json({ message: 'Failed to load supervisors' });
+    return res.status(500).json({ message: L(req, 'Failed to load supervisors', 'טעינת רשימת המנחים נכשלה') });
   }
 };
 
@@ -375,20 +376,20 @@ export const getScopedSupervisors = async (req: AuthenticatedRequest, res: Respo
 export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { supervisorId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   if (!isValidDocId(supervisorId)) {
-    return res.status(400).json({ message: 'Invalid supervisorId' });
+    return res.status(400).json({ message: L(req, 'Invalid supervisorId', 'מזהה מנחה לא תקין') });
   }
 
   try {
     const scope = callerRecordScope(requester);
     const supervisorSnap = await db.collection('users').doc(supervisorId).get();
-    if (!supervisorSnap.exists) return res.status(404).json({ message: 'Supervisor not found' });
+    if (!supervisorSnap.exists) return res.status(404).json({ message: L(req, 'Supervisor not found', 'המנחה לא נמצא') });
     if (!supervisorInScope({ id: supervisorSnap.id, ...supervisorSnap.data() }, scope)) {
-      return res.status(403).json({ message: 'This supervisor is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This supervisor is outside your assigned scope.', 'מנחה זה מחוץ לתחום האחריות שהוקצה לך.') });
     }
 
     const [asSupervisor, asSecondary] = await Promise.all([
@@ -412,7 +413,7 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
     return res.status(200).json({ projects });
   } catch (error) {
     console.error('getSupervisorProjectRecords error:', error);
-    return res.status(500).json({ message: 'Failed to load this supervisor\'s project records' });
+    return res.status(500).json({ message: L(req, 'Failed to load this supervisor\'s project records', 'טעינת רשומות הפרויקטים של מנחה זה נכשלה') });
   }
 };
 
@@ -425,9 +426,9 @@ export const getSupervisorProjectRecords = async (req: AuthenticatedRequest, res
  */
 export const getFacultyTaxonomyForRecords = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
 
   const faculties = Object.entries(MAJORS_BY_FACULTY).map(([facultyId, majors]) => ({ facultyId, majors }));
@@ -452,25 +453,25 @@ export const getFacultyTaxonomyForRecords = async (req: AuthenticatedRequest, re
 export const editProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { entryId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   if (!isValidDocId(entryId)) {
-    return res.status(400).json({ message: 'Invalid entryId' });
+    return res.status(400).json({ message: L(req, 'Invalid entryId', 'מזהה רשומה לא תקין') });
   }
   const { data, reason } = req.body ?? {};
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return res.status(400).json({ message: 'data must be an object.' });
+    return res.status(400).json({ message: L(req, 'data must be an object.', 'data חייב להיות אובייקט.') });
   }
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to edit a record entry.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to edit a record entry.', 'יש לציין נימוק לעריכת רשומה.') });
   }
 
   try {
     const ref = db.collection('projectRecordEntries').doc(entryId);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Record entry not found.', 'הרשומה לא נמצאה.') });
     const before = snap.data()!;
 
     await editEntryData({
@@ -494,7 +495,7 @@ export const editProjectRecordEntry = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('editProjectRecordEntry error:', error);
-    return res.status(500).json({ message: 'Failed to edit record entry.' });
+    return res.status(500).json({ message: L(req, 'Failed to edit record entry.', 'עריכת הרשומה נכשלה.') });
   }
 };
 
@@ -505,24 +506,24 @@ export const editProjectRecordEntry = async (req: AuthenticatedRequest, res: Res
 export const deleteProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { entryId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   if (!isValidDocId(entryId)) {
-    return res.status(400).json({ message: 'Invalid entryId' });
+    return res.status(400).json({ message: L(req, 'Invalid entryId', 'מזהה רשומה לא תקין') });
   }
   const { reason } = req.body ?? {};
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to delete a record entry.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to delete a record entry.', 'יש לציין נימוק למחיקת רשומה.') });
   }
 
   try {
     const ref = db.collection('projectRecordEntries').doc(entryId);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Record entry not found.', 'הרשומה לא נמצאה.') });
     if (snap.data()!.deleted === true) {
-      return res.status(409).json({ message: 'This entry is already deleted.' });
+      return res.status(409).json({ message: L(req, 'This entry is already deleted.', 'רשומה זו נמחקה כבר.') });
     }
 
     await deleteEntryData({
@@ -545,7 +546,7 @@ export const deleteProjectRecordEntry = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('deleteProjectRecordEntry error:', error);
-    return res.status(500).json({ message: 'Failed to delete record entry.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete record entry.', 'מחיקת הרשומה נכשלה.') });
   }
 };
 
@@ -555,20 +556,20 @@ export const deleteProjectRecordEntry = async (req: AuthenticatedRequest, res: R
 export const restoreProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { entryId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   if (!isValidDocId(entryId)) {
-    return res.status(400).json({ message: 'Invalid entryId' });
+    return res.status(400).json({ message: L(req, 'Invalid entryId', 'מזהה רשומה לא תקין') });
   }
 
   try {
     const ref = db.collection('projectRecordEntries').doc(entryId);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Record entry not found.', 'הרשומה לא נמצאה.') });
     if (snap.data()!.deleted !== true) {
-      return res.status(409).json({ message: 'This entry is not deleted.' });
+      return res.status(409).json({ message: L(req, 'This entry is not deleted.', 'רשומה זו אינה מחוקה.') });
     }
 
     await restoreEntryData(entryId);
@@ -586,7 +587,7 @@ export const restoreProjectRecordEntry = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('restoreProjectRecordEntry error:', error);
-    return res.status(500).json({ message: 'Failed to restore record entry.' });
+    return res.status(500).json({ message: L(req, 'Failed to restore record entry.', 'שחזור הרשומה נכשל.') });
   }
 };
 
@@ -602,25 +603,25 @@ export const restoreProjectRecordEntry = async (req: AuthenticatedRequest, res: 
 export const updateProjectRecordNumber = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
   const { projectId } = req.params;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(requester, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   if (!isValidDocId(projectId)) {
-    return res.status(400).json({ message: 'Invalid projectId' });
+    return res.status(400).json({ message: L(req, 'Invalid projectId', 'מזהה פרויקט לא תקין') });
   }
   const { recordNumber, reason } = req.body ?? {};
   if (!recordNumber || typeof recordNumber !== 'string' || !recordNumber.trim() || recordNumber.trim().length > 64) {
-    return res.status(400).json({ message: 'recordNumber must be a non-empty string (max 64 characters).' });
+    return res.status(400).json({ message: L(req, 'recordNumber must be a non-empty string (max 64 characters).', 'recordNumber חייב להיות מחרוזת לא ריקה (עד 64 תווים).') });
   }
   if (!reason || typeof reason !== 'string' || !reason.trim()) {
-    return res.status(400).json({ message: 'A reason is required to change a record number.' });
+    return res.status(400).json({ message: L(req, 'A reason is required to change a record number.', 'יש לציין נימוק לשינוי מספר רשומה.') });
   }
 
   try {
     const ref = db.collection('projects').doc(projectId);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const before = snap.data()!.recordNumber ?? null;
     const next = recordNumber.trim();
 
@@ -639,6 +640,6 @@ export const updateProjectRecordNumber = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true, recordNumber: next });
   } catch (error) {
     console.error('updateProjectRecordNumber error:', error);
-    return res.status(500).json({ message: 'Failed to update record number.' });
+    return res.status(500).json({ message: L(req, 'Failed to update record number.', 'עדכון מספר הרשומה נכשל.') });
   }
 };

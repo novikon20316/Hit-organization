@@ -16,6 +16,7 @@ import {
   StudentTrackError,
 } from '../services/studentTrack.js';
 import { isValidDocId } from '../services/idValidation.js';
+import { L } from '../utils/localize.js';
 
 // Mirrors PROJECT_COORDINATOR_DASHBOARD_ROLES in projectCoordinatorController.ts
 // plus 'coordinator' — the plain faculty coordinator role is who the business
@@ -29,9 +30,9 @@ import { isValidDocId } from '../services/idValidation.js';
 const THESIS_ELIGIBILITY_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'system_admin'];
 
 export const chooseTrack = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (req.user.role !== 'student') {
-    return res.status(403).json({ message: 'Only a student may choose their own track.' });
+    return res.status(403).json({ message: L(req, 'Only a student may choose their own track.', 'רק סטודנט יכול לבחור את המסלול שלו.') });
   }
   const { track } = req.body;
 
@@ -42,33 +43,33 @@ export const chooseTrack = async (req: AuthenticatedRequest, res: Response) => {
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : 'Failed to set track.';
+    const message = error instanceof Error ? error.message : L(req, 'Failed to set track.', 'קביעת המסלול נכשלה.');
     return res.status(400).json({ message });
   }
 };
 
 export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(req.user, THESIS_ELIGIBILITY_ROLES)) {
-    return res.status(403).json({ message: 'Forbidden.' });
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
   }
   const { studentId } = req.params;
   const { eligible, reason } = req.body;
   if (typeof eligible !== 'boolean') {
-    return res.status(400).json({ message: 'eligible must be a boolean.' });
+    return res.status(400).json({ message: L(req, 'eligible must be a boolean.', 'eligible חייב להיות ערך בוליאני.') });
   }
   if (!isValidDocId(studentId)) {
-    return res.status(400).json({ message: 'Invalid studentId.' });
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
   }
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
     if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
-      return res.status(404).json({ message: 'Student not found.' });
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
     }
     const studentData = studentSnap.data()!;
     if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
-      return res.status(403).json({ message: 'This student is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This student is outside your assigned scope.', 'סטודנט זה אינו בתחום האחריות שהוקצה לך.') });
     }
 
     await setThesisEligibility(studentId, eligible, reason, req.user.uid, req.user.role);
@@ -77,7 +78,7 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : 'Failed to set thesis eligibility.';
+    const message = error instanceof Error ? error.message : L(req, 'Failed to set thesis eligibility.', 'קביעת הזכאות לתזה נכשלה.');
     return res.status(400).json({ message });
   }
 };
@@ -86,27 +87,27 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
 // an average is just another way to reach the same decision, not a
 // separately-authorized action.
 export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(req.user, THESIS_ELIGIBILITY_ROLES)) {
-    return res.status(403).json({ message: 'Forbidden.' });
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
   }
   const { studentId } = req.params;
   const { average } = req.body;
   if (typeof average !== 'number') {
-    return res.status(400).json({ message: 'average must be a number.' });
+    return res.status(400).json({ message: L(req, 'average must be a number.', 'average חייב להיות מספר.') });
   }
   if (!isValidDocId(studentId)) {
-    return res.status(400).json({ message: 'Invalid studentId.' });
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
   }
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
     if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
-      return res.status(404).json({ message: 'Student not found.' });
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
     }
     const studentData = studentSnap.data()!;
     if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
-      return res.status(403).json({ message: 'This student is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This student is outside your assigned scope.', 'סטודנט זה אינו בתחום האחריות שהוקצה לך.') });
     }
 
     await setThesisEligibilityFromAverage(studentId, average, req.user.uid, req.user.role);
@@ -118,20 +119,20 @@ export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Re
     if (error instanceof StudentTrackError) {
       return res.status(error.status).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn, code: error.code });
     }
-    const message = error instanceof Error ? error.message : 'Failed to set thesis average.';
+    const message = error instanceof Error ? error.message : L(req, 'Failed to set thesis average.', 'קביעת הממוצע לתזה נכשלה.');
     return res.status(400).json({ message });
   }
 };
 
 export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'system_admin only.' });
+    return res.status(403).json({ message: L(req, 'system_admin only.', 'מנהל מערכת בלבד.') });
   }
   const { id: studentId } = req.params;
   const { track, trackLocked, thesisEligible } = req.body;
   if (!isValidDocId(studentId)) {
-    return res.status(400).json({ message: 'Invalid studentId.' });
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
   }
 
   try {
@@ -145,7 +146,7 @@ export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Respo
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : 'Failed to override track.';
+    const message = error instanceof Error ? error.message : L(req, 'Failed to override track.', 'שינוי המסלול בכפייה נכשל.');
     return res.status(400).json({ message });
   }
 };

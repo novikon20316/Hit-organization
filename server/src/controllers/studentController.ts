@@ -11,6 +11,7 @@ import { computeProjectFinalGrade } from '../services/gradeEngine.js';
 import { isGradeReleasedToStudent } from '../services/milestoneVisibility.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
+import { L } from '../utils/localize.js';
 
 // Mirrors web/lib/roles.ts's PERMISSION_MAP: view_all_projects (cross-faculty,
 // no ownership needed) vs. view_faculty_projects (same-faculty only) vs.
@@ -36,7 +37,7 @@ const THESIS_TEMPLATE_URL =
 const THESIS_TEMPLATE_FILENAME = 'HIT_Masters_Template.dotx';
 
 export const getThesisTemplate = async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
   return res.status(200).json({
     url: THESIS_TEMPLATE_URL,
     fileName: THESIS_TEMPLATE_FILENAME,
@@ -47,14 +48,14 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
   try {
     const { id } = req.params;
     const requester = req.user;
-    if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+    if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
     if (typeof id !== 'string' || !id) {
-        return res.status(400).json({ message: 'Invalid or missing projectId' });
+        return res.status(400).json({ message: L(req, 'Invalid or missing projectId', 'מזהה פרויקט לא תקין או חסר') });
     }
     const projectDoc = await db.collection('projects').doc(id).get();
 
     if (!projectDoc.exists) {
-      return res.status(404).json({ error: 'Project not found' });
+      return res.status(404).json({ error: L(req, 'Project not found', 'הפרויקט לא נמצא') });
     }
 
     const data = projectDoc.data();
@@ -72,7 +73,7 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: data?.facultyId ?? '', major: data?.major || undefined });
     if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     // Weighted final grade across every milestone, by the project's own
@@ -138,7 +139,7 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     });
   } catch (error: any) {
     console.error('Error fetching student project:', error);
-    return res.status(500).json({ error: 'Failed to load project data.' });
+    return res.status(500).json({ error: L(req, 'Failed to load project data.', 'טעינת נתוני הפרויקט נכשלה.') });
   }
 };
 
@@ -151,7 +152,7 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
 // (msc_thesis vs msc_project) ambiguity handling.
 export const getFirstStepMode = async (req: AuthenticatedRequest, res: Response) => {
   const studentId = req.user?.uid;
-  if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!studentId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
@@ -169,7 +170,7 @@ export const getFirstStepMode = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json(resolved);
   } catch (error: any) {
     console.error('getFirstStepMode error:', error);
-    return res.status(500).json({ message: 'Failed to resolve first-step mode.' });
+    return res.status(500).json({ message: L(req, 'Failed to resolve first-step mode.', 'קביעת שלב הפתיחה נכשלה.') });
   }
 };
 
@@ -182,7 +183,7 @@ export const getFirstStepMode = async (req: AuthenticatedRequest, res: Response)
 // re-enforces as the real access-control boundary.
 export const getBrowseSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   const studentId = req.user?.uid;
-  if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!studentId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
@@ -190,7 +191,7 @@ export const getBrowseSupervisors = async (req: AuthenticatedRequest, res: Respo
     const facultyId = studentData.facultyId;
     const degreeType = studentData.degreeType;
     if (!facultyId || !degreeType) {
-      return res.status(400).json({ message: 'Your profile is missing a faculty or degree type.' });
+      return res.status(400).json({ message: L(req, 'Your profile is missing a faculty or degree type.', 'בפרופיל שלך חסרה פקולטה או סוג תואר.') });
     }
 
     const projectsSnap = await db.collection('projects')
@@ -254,7 +255,7 @@ export const getBrowseSupervisors = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ supervisors: Object.values(bySupervisor) });
   } catch (error: any) {
     console.error('getBrowseSupervisors error:', error);
-    return res.status(500).json({ message: 'Failed to load supervisors.' });
+    return res.status(500).json({ message: L(req, 'Failed to load supervisors.', 'טעינת רשימת המנחים נכשלה.') });
   }
 };
 
@@ -267,10 +268,10 @@ export const getBrowseSupervisors = async (req: AuthenticatedRequest, res: Respo
 // faculty/degree that requires it.
 export const joinProjectDirect = async (req: AuthenticatedRequest, res: Response) => {
   const studentId = req.user?.uid;
-  if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!studentId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
   const { projectId } = req.body;
   if (!projectId || typeof projectId !== 'string') {
-    return res.status(400).json({ message: 'projectId is required.' });
+    return res.status(400).json({ message: L(req, 'projectId is required.', 'שדה projectId נדרש.') });
   }
 
   try {
@@ -278,39 +279,39 @@ export const joinProjectDirect = async (req: AuthenticatedRequest, res: Response
       db.collection('projects').doc(projectId).get(),
       db.collection('users').doc(studentId).get(),
     ]);
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
 
     const projectData = projectSnap.data()!;
     const studentData = studentSnap.data() ?? {};
 
     if (studentData.hasActiveProject) {
-      return res.status(400).json({ message: 'You already have an active project.' });
+      return res.status(400).json({ message: L(req, 'You already have an active project.', 'יש לך כבר פרויקט פעיל.') });
     }
 
     const degreeType = studentData.degreeType;
     if (degreeType !== 'bachelors' && degreeType !== 'masters') {
-      return res.status(400).json({ message: 'Your profile is missing a valid degree type.' });
+      return res.status(400).json({ message: L(req, 'Your profile is missing a valid degree type.', 'בפרופיל שלך חסר סוג תואר תקין.') });
     }
 
     const mode = await resolveFirstStepMode(studentData.facultyId ?? projectData.facultyId, degreeType, studentData.major ?? null);
     if (mode.firstStepMode !== 'choose_supervisor' || mode.supervisorSelectionRequiresApproval) {
-      return res.status(403).json({ message: 'Direct enrollment is not enabled for your faculty/degree — please apply instead.' });
+      return res.status(403).json({ message: L(req, 'Direct enrollment is not enabled for your faculty/degree — please apply instead.', 'רישום ישיר אינו מופעל לפקולטה/תואר שלך — יש להגיש בקשה במקום זאת.') });
     }
 
     if (projectData.isArchived || (projectData.status && projectData.status !== 'active')) {
-      return res.status(400).json({ message: 'This project is no longer accepting students.' });
+      return res.status(400).json({ message: L(req, 'This project is no longer accepting students.', 'פרויקט זה אינו מקבל יותר סטודנטים.') });
     }
     if (projectData.major && studentData.major !== projectData.major) {
-      return res.status(403).json({ message: 'This project is not open to your major.' });
+      return res.status(403).json({ message: L(req, 'This project is not open to your major.', 'פרויקט זה אינו פתוח לחוג שלך.') });
     }
     const projectDegreeTypes: string[] = projectData.degreeTypes ?? (projectData.degreeType ? [projectData.degreeType] : []);
     if (projectDegreeTypes.length > 0 && !projectDegreeTypes.includes(degreeType)) {
-      return res.status(403).json({ message: 'This project is not open to your degree type.' });
+      return res.status(403).json({ message: L(req, 'This project is not open to your degree type.', 'פרויקט זה אינו פתוח לסוג התואר שלך.') });
     }
     const capacity = projectData.maxStudents ?? projectData.NumberOfStudents ?? 1;
     const enrolledCount = (projectData.enrolledStudentIds ?? []).length;
     if (enrolledCount >= capacity) {
-      return res.status(400).json({ message: 'This project has already reached its student capacity.' });
+      return res.status(400).json({ message: L(req, 'This project has already reached its student capacity.', 'פרויקט זה הגיע כבר למכסת הסטודנטים המקסימלית.') });
     }
 
     try {
@@ -325,7 +326,7 @@ export const joinProjectDirect = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ success: true, message: 'Enrolled successfully.' });
   } catch (error: any) {
     console.error('joinProjectDirect error:', error);
-    return res.status(500).json({ message: 'Failed to join project.' });
+    return res.status(500).json({ message: L(req, 'Failed to join project.', 'ההצטרפות לפרויקט נכשלה.') });
   }
 };
 

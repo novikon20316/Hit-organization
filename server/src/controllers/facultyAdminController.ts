@@ -5,6 +5,7 @@ import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { VALID_ROLES } from '../services/userImportExport.js';
 import { hasActionGrant, withinCoordinatorScope, effectiveFacultyIds, facultyIdMatches, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES } from '../config/permissionScopes.js';
+import { L } from '../utils/localize.js';
 
 const FACULTY_ADMIN_ROLES = ['faculty_admin', 'system_admin'];
 
@@ -25,14 +26,14 @@ function delegateFacultyField(user: AuthenticatedRequest['user']): RoleFacultyFi
 
 export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
 
   try {
     const adminSnap = await db.collection('users').doc(uid).get();
     const adminData = adminSnap.data();
     const isFacultyAdmin = adminData?.role === 'faculty_admin' || (adminData?.roles ?? []).includes('faculty_admin');
     if (!adminSnap.exists || !isFacultyAdmin) {
-      return res.status(403).json({ message: 'Access denied: Administration rights required' });
+      return res.status(403).json({ message: L(req, 'Access denied: Administration rights required', 'הגישה נדחתה: נדרשות הרשאות ניהול.') });
     }
 
     const adminFacultyId = adminData?.facultyId;
@@ -91,33 +92,33 @@ export const getAdminDashboardData = async (req: AuthenticatedRequest, res: Resp
 
   } catch (error) {
     console.error('Admin aggregation failed:', error);
-    return res.status(500).json({ message: 'Internal operational compilation failure.' });
+    return res.status(500).json({ message: L(req, 'Internal operational compilation failure.', 'כשל פנימי בעיבוד הנתונים.') });
   }
 };
 
 export const updateUserPermissions = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, FACULTY_ADMIN_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: faculty_admin or system_admin only.', 'הגישה נדחתה: מנהל פקולטה או מנהל מערכת בלבד.') });
   }
 
   const { userId } = req.params;
   const { role, facultyId } = req.body;
 
   if (typeof userId !== 'string' || !userId || !role || !facultyId) {
-    return res.status(400).json({ message: 'Malformed update request items' });
+    return res.status(400).json({ message: L(req, 'Malformed update request items', 'פרטי בקשת העדכון שגויים.') });
   }
   if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ message: `Invalid role: ${role}` });
+    return res.status(400).json({ message: L(req, `Invalid role: ${role}`, `תפקיד לא תקין: ${role}`) });
   }
 
   const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
   if (!isSystemAdmin && ADMIN_TIER_ROLES.includes(role)) {
-    return res.status(403).json({ message: 'faculty_admin cannot grant an admin-tier role.' });
+    return res.status(403).json({ message: L(req, 'faculty_admin cannot grant an admin-tier role.', 'מנהל פקולטה אינו יכול להעניק תפקיד בדרגת ניהול מערכת.') });
   }
 
   try {
     const targetSnap = await db.collection('users').doc(userId).get();
-    if (!targetSnap.exists) return res.status(404).json({ message: 'User not found.' });
+    if (!targetSnap.exists) return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
     const target = targetSnap.data()!;
 
     // Previously unscoped entirely — a faculty_admin could edit any user in
@@ -126,7 +127,7 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
     // edit_users grant covers both the user's current AND requested scope.
     if (!isSystemAdmin) {
       if (ADMIN_TIER_ROLES.includes(target.role)) {
-        return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
+        return res.status(403).json({ message: L(req, 'Cannot modify an admin-tier account.', 'לא ניתן לערוך חשבון בדרגת ניהול מערכת.') });
       }
       const currentScope = { facultyId: target.facultyId, major: target.major };
       const newScope = { facultyId, major: target.major };
@@ -135,7 +136,7 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
         facultyIdMatches(req.user, facultyId, 'facultyAdminFacultyIds');
       const delegateGranted = hasActionGrant(req.user, 'edit_users', currentScope) && hasActionGrant(req.user, 'edit_users', newScope);
       if (!withinOwnFaculty && !delegateGranted) {
-        return res.status(403).json({ message: 'Cannot modify a user outside your assigned scope.' });
+        return res.status(403).json({ message: L(req, 'Cannot modify a user outside your assigned scope.', 'לא ניתן לערוך משתמש מעבר לתחום הסמכות שהוקצה לך.') });
       }
     }
 
@@ -146,13 +147,13 @@ export const updateUserPermissions = async (req: AuthenticatedRequest, res: Resp
     });
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to complete configuration edits' });
+    return res.status(500).json({ message: L(req, 'Failed to complete configuration edits', 'השלמת שינויי ההגדרות נכשלה.') });
   }
 };
 
 export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, FACULTY_ADMIN_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: faculty_admin or system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: faculty_admin or system_admin only.', 'הגישה נדחתה: מנהל פקולטה או מנהל מערכת בלבד.') });
   }
 
   const { projectId } = req.params;
@@ -162,7 +163,7 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
   const { studentId, track } = req.body;
 
   if (typeof projectId !== 'string' || !projectId || !studentId) {
-    return res.status(400).json({ message: 'Invalid target identifier arguments' });
+    return res.status(400).json({ message: L(req, 'Invalid target identifier arguments', 'פרטי המזהה שהוזנו אינם תקינים.') });
   }
 
   try {
@@ -183,7 +184,7 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
     // student into a project belonging to a different faculty.
     const enrollScope = { facultyId: pData.facultyId, major: pData.major, degreeLevel: pData.degreeType, processType: pData.projectType };
     if (!withinCoordinatorScope(req.user, enrollScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', enrollScope)) {
-      return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This project is outside your assigned scope.', 'פרויקט זה מעבר לתחום הסמכות שהוקצה לך.') });
     }
 
     try {
@@ -198,7 +199,7 @@ export const enrollStudentToProject = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ message: 'Enrollment pipeline execution failure.' });
+    return res.status(500).json({ message: L(req, 'Enrollment pipeline execution failure.', 'תהליך הרישום לפרויקט נכשל.') });
   }
 };
 
@@ -216,18 +217,18 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
   const isSystemAdmin = hasRole('system_admin');
   const isDelegateAdmin = DELEGATE_ADMIN_ROLES.some(hasRole);
   if (!isSystemAdmin && !isDelegateAdmin) {
-    return res.status(403).json({ message: 'Access denied: faculty_admin, program_head, grad_school_head, or system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: faculty_admin, program_head, grad_school_head, or system_admin only.', 'הגישה נדחתה: מנהל פקולטה, ראש תוכנית, ראש בית ספר לתארים מתקדמים או מנהל מערכת בלבד.') });
   }
 
   const { userId } = req.params;
   const { isActive } = req.body;
 
   if (typeof userId !== 'string' || !userId) {
-    return res.status(400).json({ message: 'Invalid or missing userId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing userId.', 'מזהה משתמש חסר או לא תקין.') });
   }
 
   if (typeof isActive !== 'boolean') {
-    return res.status(400).json({ message: 'isActive must be a boolean value.' });
+    return res.status(400).json({ message: L(req, 'isActive must be a boolean value.', 'isActive חייב להיות ערך בוליאני.') });
   }
 
   try {
@@ -235,7 +236,7 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
     const userSnap = await userRef.get();
 
     if (!userSnap.exists) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
     }
     const target = userSnap.data();
 
@@ -246,14 +247,14 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
       // added to isAuthorized below — anyone at all, since the old check
       // only ever compared facultyId for the literal 'faculty_admin' role).
       if (ADMIN_TIER_ROLES.includes(target?.role)) {
-        return res.status(403).json({ message: 'Cannot modify an admin-tier account.' });
+        return res.status(403).json({ message: L(req, 'Cannot modify an admin-tier account.', 'לא ניתן לערוך חשבון בדרגת ניהול מערכת.') });
       }
       // Each delegate role is confined to its own faculty plus any extras
       // granted for that specific role (see delegateFacultyField) —
       // grad_school_head is no longer unconditionally cross-faculty.
       const field = delegateFacultyField(req.user);
       if (!field || typeof target?.facultyId !== 'string' || !facultyIdMatches(req.user!, target.facultyId, field)) {
-        return res.status(403).json({ message: 'Cannot modify a user outside your faculty.' });
+        return res.status(403).json({ message: L(req, 'Cannot modify a user outside your faculty.', 'לא ניתן לערוך משתמש שאינו מהפקולטה שלך.') });
       }
     }
 
@@ -268,7 +269,7 @@ export const toggleUserActive = async (req: AuthenticatedRequest, res: Response)
     });
   } catch (error: any) {
     console.error('toggleUserActive error:', error);
-    return res.status(500).json({ message: 'Failed to toggle user active status.' });
+    return res.status(500).json({ message: L(req, 'Failed to toggle user active status.', 'עדכון סטטוס הפעילות של המשתמש נכשל.') });
   }
 };
 
@@ -286,7 +287,7 @@ export const listManagedStaff = async (req: AuthenticatedRequest, res: Response)
   const isSystemAdmin = hasRole('system_admin');
   const isDelegateAdmin = DELEGATE_ADMIN_ROLES.some(hasRole);
   if (!isSystemAdmin && !isDelegateAdmin) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
@@ -309,6 +310,6 @@ export const listManagedStaff = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, staff });
   } catch (error: any) {
     console.error('listManagedStaff error:', error);
-    return res.status(500).json({ message: 'Failed to load staff list.' });
+    return res.status(500).json({ message: L(req, 'Failed to load staff list.', 'טעינת רשימת הסגל נכשלה.') });
   }
 };

@@ -15,6 +15,7 @@ import { computeGradingComponentsScore } from '../services/milestoneRouting.js';
 import type { GradingComponentSpec } from '../services/workflowTemplates.js';
 import { maybeFinalizeAutoCalculatedGrade } from './projectController.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { L } from '../utils/localize.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -27,12 +28,12 @@ const TZ = 'Asia/Jerusalem';
  */
 export const requestOtp = async (req: Request, res: Response) => {
   const { token } = req.params;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
 
   try {
     const { sent } = await requestExaminerOtp(token);
     if (!sent) {
-      return res.status(502).json({ message: 'Failed to send the verification code. Please try again.' });
+      return res.status(502).json({ message: L(req, 'Failed to send the verification code. Please try again.', 'שליחת קוד האימות נכשלה. נסה/י שוב.') });
     }
     return res.status(200).json({ success: true });
   } catch (error: any) {
@@ -40,7 +41,7 @@ export const requestOtp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: error.message });
     }
     console.error('requestOtp error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -51,13 +52,13 @@ export const requestOtp = async (req: Request, res: Response) => {
 export const verifyOtp = async (req: Request, res: Response) => {
   const { token } = req.params;
   const { code } = req.body;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
-  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Missing code.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
+  if (!code || typeof code !== 'string') return res.status(400).json({ message: L(req, 'Missing code.', 'חסר קוד אימות.') });
 
   try {
     const result = await verifyExaminerOtp(token, code);
     if (!result.verified) {
-      return res.status(400).json({ message: result.reason || 'Verification failed.' });
+      return res.status(400).json({ message: result.reason || L(req, 'Verification failed.', 'האימות נכשל.') });
     }
     await logAuditEvent({
       userId: token,
@@ -69,7 +70,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('verifyOtp error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -79,11 +80,11 @@ export const verifyOtp = async (req: Request, res: Response) => {
  */
 export const getDefenseDateStatus = async (req: Request, res: Response) => {
   const { token } = req.params;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
 
   try {
     const tokenSnap = await db.collection('examinerTokens').doc(token).get();
-    if (!tokenSnap.exists) return res.status(404).json({ message: 'Invalid or unknown token.' });
+    if (!tokenSnap.exists) return res.status(404).json({ message: L(req, 'Invalid or unknown token.', 'אסימון לא תקין או לא מוכר.') });
     const tokenDoc = tokenSnap.data()!;
     // MEDIUM FIX: otpVerified was only ever enforced by firestore.rules'
     // `allow get` on this same doc — but that rule only gates direct client
@@ -93,11 +94,11 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
     // scanner, browser history sync, etc.) could check status without ever
     // proving control of the examiner's inbox — defeating the OTP step.
     if (!isOtpSessionFresh(tokenDoc)) {
-      return res.status(403).json({ message: 'Please verify your access code first.' });
+      return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     }
 
     const milestoneSnap = await db.collection('milestones').doc(tokenDoc.milestoneId).get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Associated milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Associated milestone not found.', 'אבן הדרך המשויכת לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
 
     const dateMatching = milestone.dateMatching;
@@ -129,7 +130,7 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('getDefenseDateStatus error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -140,17 +141,17 @@ export const getDefenseDateStatus = async (req: Request, res: Response) => {
 export const submitExternalDefenseDates = async (req: Request, res: Response) => {
   const { token } = req.params;
   const { candidateDates } = req.body;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
 
   try {
     const tokenSnap = await db.collection('examinerTokens').doc(token).get();
-    if (!tokenSnap.exists) return res.status(404).json({ message: 'Invalid or unknown token.' });
+    if (!tokenSnap.exists) return res.status(404).json({ message: L(req, 'Invalid or unknown token.', 'אסימון לא תקין או לא מוכר.') });
     const tokenDoc = tokenSnap.data()!;
     // MEDIUM FIX: same OTP gap as getDefenseDateStatus above — this Express
     // endpoint bypasses firestore.rules entirely via the Admin SDK, so it
     // must re-check otpVerified itself rather than relying on the rule.
     if (!isOtpSessionFresh(tokenDoc)) {
-      return res.status(403).json({ message: 'Please verify your access code first.' });
+      return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     }
 
     const examinerKey = examinerKeyOf({ type: 'external', ref: token });
@@ -166,7 +167,7 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitExternalDefenseDates error:', error);
-    return res.status(400).json({ message: error.message || 'Failed to submit candidate dates.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.') });
   }
 };
 
@@ -193,24 +194,24 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
 export const submitExternalExaminerEvaluation = async (req: Request, res: Response) => {
   const { token } = req.params;
   const { kind, scores, comment } = req.body;
-  if (!token || typeof token !== 'string') return res.status(400).json({ message: 'Missing token.' });
-  if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: 'kind must be "project" or "defense".' });
+  if (!token || typeof token !== 'string') return res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
+  if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: L(req, 'kind must be "project" or "defense".', 'הערך של kind חייב להיות "project" או "defense".') });
 
   try {
     const tokenRef = db.collection('examinerTokens').doc(token);
     const tokenSnap = await tokenRef.get();
-    if (!tokenSnap.exists) return res.status(404).json({ message: 'Invalid or unknown token.' });
+    if (!tokenSnap.exists) return res.status(404).json({ message: L(req, 'Invalid or unknown token.', 'אסימון לא תקין או לא מוכר.') });
     const tokenDoc = tokenSnap.data()!;
     // Same OTP re-check every other Express endpoint in this controller does
     // — this bypasses firestore.rules entirely via the Admin SDK.
     if (!isOtpSessionFresh(tokenDoc)) {
-      return res.status(403).json({ message: 'Please verify your access code first.' });
+      return res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
     }
     if (tokenDoc.facultyId !== 'data_science' || !tokenDoc.finalGradeComponents) {
-      return res.status(400).json({ message: 'This token does not use the digitized examiner evaluation form.' });
+      return res.status(400).json({ message: L(req, 'This token does not use the digitized examiner evaluation form.', 'אסימון זה אינו משתמש בטופס ההערכה הדיגיטלי של הבוחן.') });
     }
     if (!tokenDoc.milestoneId) {
-      return res.status(400).json({ message: 'This token has no associated milestone.' });
+      return res.status(400).json({ message: L(req, 'This token has no associated milestone.', 'לאסימון זה אין אבן דרך משויכת.') });
     }
 
     // CRITICAL FIX: identical gate to projectController.ts's
@@ -225,18 +226,18 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     // date, and never updated afterward.
     const milestoneRef = db.collection('milestones').doc(tokenDoc.milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Associated milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Associated milestone not found.', 'אבן הדרך המשויכת לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
     if (!milestone.dueDate) {
-      return res.status(403).json({ message: 'Evaluation opens once a defense date has been agreed and set.' });
+      return res.status(403).json({ message: L(req, 'Evaluation opens once a defense date has been agreed and set.', 'ההערכה תיפתח לאחר שתיאום תאריך ההגנה יושלם.') });
     }
     const defenseDay = dayjs(milestone.dueDate.toDate()).tz(TZ).startOf('day');
     if (dayjs().tz(TZ).isBefore(defenseDay)) {
-      return res.status(403).json({ message: `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).` });
+      return res.status(403).json({ message: L(req, `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).`, `ההערכה תיפתח בתאריך ההגנה שנקבע (${defenseDay.format('DD/MM/YYYY')}).`) });
     }
 
     if (kind === 'project' && !comment?.trim()) {
-      return res.status(400).json({ message: 'A written comment is required.' });
+      return res.status(400).json({ message: L(req, 'A written comment is required.', 'נדרשת הערה כתובה.') });
     }
 
     const rubric: GradingComponentSpec[] = kind === 'project'
@@ -247,7 +248,7 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     try {
       computed = computeGradingComponentsScore(rubric, scores ?? {});
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
+      return res.status(400).json({ message: err.message || L(req, 'Invalid evaluation scores.', 'ציוני ההערכה אינם תקינים.') });
     }
 
     const evaluationResult = {
@@ -308,17 +309,17 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     return res.status(200).json({ success: true, total: computed.total });
   } catch (error: any) {
     console.error('submitExternalExaminerEvaluation error:', error);
-    return res.status(500).json({ message: 'Failed to submit evaluation.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit evaluation.', 'שליחת ההערכה נכשלה.') });
   }
 };
 
 export const getDefenseAccessStatus = async (req: Request, res: Response) => {
   const { grantCode } = req.params;
-  if (!grantCode || typeof grantCode !== 'string') return res.status(400).json({ message: 'Missing grant code.' });
+  if (!grantCode || typeof grantCode !== 'string') return res.status(400).json({ message: L(req, 'Missing grant code.', 'חסר קוד הרשאה.') });
 
   try {
     const grantSnap = await db.collection('defenseAccessGrants').doc(grantCode).get();
-    if (!grantSnap.exists) return res.status(404).json({ message: 'Invalid or unknown access grant.' });
+    if (!grantSnap.exists) return res.status(404).json({ message: L(req, 'Invalid or unknown access grant.', 'הרשאת הגישה אינה תקינה או לא מוכרת.') });
     const grant = grantSnap.data()!;
 
     const now = dayjs();
@@ -380,6 +381,6 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('getDefenseAccessStatus error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };

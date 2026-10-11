@@ -7,6 +7,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { changeProjectTrack, TrackChangeError, type ProjectTrack } from '../services/trackChange.js';
+import { L } from '../utils/localize.js';
 
 // Matches CLOCK_PAUSE_ROLES in clockPauseController.ts — this backlog item
 // explicitly names coordinator/program-head as the initiators.
@@ -20,12 +21,12 @@ export const changeTrack = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
   const { newTrack, reason } = req.body;
 
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   if (!hasAnyRole(req.user, TRACK_CHANGE_ROLES)) {
-    return res.status(403).json({ message: 'Forbidden.' });
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
   }
-  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Missing projectId.' });
-  if (!isValidTrack(newTrack)) return res.status(400).json({ message: 'newTrack must be "thesis" or "project".' });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Missing projectId.', 'חסר מזהה פרויקט.') });
+  if (!isValidTrack(newTrack)) return res.status(400).json({ message: L(req, 'newTrack must be "thesis" or "project".', 'השדה newTrack חייב להיות "thesis" או "project".') });
 
   try {
     const result = await changeProjectTrack(projectId, newTrack, req.user.uid, req.user.role, reason);
@@ -34,7 +35,7 @@ export const changeTrack = async (req: AuthenticatedRequest, res: Response) => {
     if (error instanceof TrackChangeError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : 'Failed to change track.';
+    const message = error instanceof Error ? error.message : L(req, 'Failed to change track.', 'שינוי מסלול הפרויקט נכשל.');
     return res.status(400).json({ message });
   }
 };

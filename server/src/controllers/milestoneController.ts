@@ -19,6 +19,7 @@ import { notifyUser } from '../services/notify.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { getUserRoles, matchedRole } from '../middleware/auth.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -64,17 +65,21 @@ export const uploadMiddleware: RequestHandler = upload.array('files') as unknown
 // to index.ts's generic, English-only, unlocalized 500 handler.
 export const handleUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof UnsupportedFileTypeError) {
+    const messageHe = `סוג קובץ לא נתמך: ${err.fileName}. סוגים מותרים: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`;
+    const messageEn = `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`;
     return res.status(400).json({
-      message: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
-      messageHe: `סוג קובץ לא נתמך: ${err.fileName}. סוגים מותרים: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
-      messageEn: `Unsupported file type: ${err.fileName}. Allowed: PDF, Word, PowerPoint, ZIP, PNG, JPEG.`,
+      message: L(_req, messageEn, messageHe),
+      messageHe,
+      messageEn,
     });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
+    const messageHe = 'הקובץ גדול מדי — המגבלה היא 20MB.';
+    const messageEn = 'File too large — the limit is 20MB.';
     return res.status(400).json({
-      message: 'File too large — the limit is 20MB.',
-      messageHe: 'הקובץ גדול מדי — המגבלה היא 20MB.',
-      messageEn: 'File too large — the limit is 20MB.',
+      message: L(_req, messageEn, messageHe),
+      messageHe,
+      messageEn,
     });
   }
   return next(err);
@@ -87,9 +92,9 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
   const studentId = req.user?.uid;
 
   if (!milestoneId || typeof milestoneId !== 'string')
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
   if (!studentId)
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   try {
     // ✅ Fields come from req.body (multer parses form fields)
@@ -103,14 +108,14 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     const milestoneSnap = await milestoneRef.get();
 
     if (!milestoneSnap.exists)
-      return res.status(404).json({ message: 'Milestone not found.' });
+      return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
 
     const milestoneData = milestoneSnap.data()!;
 
     // Make sure the student owns this milestone
     const studentIds: string[] = milestoneData.studentIds ?? [];
     if (!studentIds.includes(studentId))
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
 
     // Team milestone (more than one owner — see projectEnrollment.ts) — once
     // any teammate has submitted, lock the rest out until it's rejected
@@ -118,10 +123,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // approved and the next milestone opens. A solo milestone keeps today's
     // behavior (a student may resubmit anytime before grading).
     if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
+      const messageHe = 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.';
+      const messageEn = 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.';
       return res.status(409).json({
-        message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
-        messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
-        messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        message: L(req, messageEn, messageHe),
+        messageHe,
+        messageEn,
       });
     }
 
@@ -139,10 +146,10 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       try {
         studentFormData = typeof req.body?.formData === 'string' ? JSON.parse(req.body.formData) : req.body?.formData;
       } catch {
-        return res.status(400).json({ message: 'Invalid formData.' });
+        return res.status(400).json({ message: L(req, 'Invalid formData.', 'formData אינו תקין.') });
       }
       if (!studentFormData || typeof studentFormData !== 'object') {
-        return res.status(400).json({ message: 'formData is required for this milestone.' });
+        return res.status(400).json({ message: L(req, 'formData is required for this milestone.', 'יש למלא formData עבור אבן דרך זו.') });
       }
       // Locked fields (autoFill) are never typed by the student — only the
       // freely-editable fields are checked for "required and present".
@@ -150,7 +157,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         (f) => f.required && !f.locked && (studentFormData![f.key] === undefined || studentFormData![f.key] === null || studentFormData![f.key] === '')
       );
       if (missing.length > 0) {
-        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+        return res.status(400).json({ message: L(req, `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}`, `שדות חובה חסרים: ${missing.map((f) => f.labelHe).join(', ')}`) });
       }
     }
 
@@ -160,15 +167,14 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     // actually required a file). Doesn't apply to a structured-form
     // milestone, whose own field validation just ran above.
     if (!isStructuredFormMilestone && !submissionRequirementMet(milestoneData.submissionRequirement, files.length > 0, note.trim().length > 0)) {
-      const req = milestoneData.submissionRequirement;
-      const messageEn = 'This milestone requires ' + (req === 'both' ? 'a file and a comment.' : `a ${req}.`);
-      const messageHe = 'אבן דרך זו דורשת ' + (req === 'both' ? 'קובץ והערה.' : req === 'file' ? 'קובץ.' : 'הערה.');
+      const requirement = milestoneData.submissionRequirement;
+      const messageEn = 'This milestone requires ' + (requirement === 'both' ? 'a file and a comment.' : `a ${requirement}.`);
+      const messageHe = 'אבן דרך זו דורשת ' + (requirement === 'both' ? 'קובץ והערה.' : requirement === 'file' ? 'קובץ.' : 'הערה.');
       // messageHe/messageEn let the client (which knows the student's own
       // language preference — the server has no per-user language field to
       // read, see contexts/LanguageContext.tsx) show this in the right
-      // language; `message` stays the English fallback for any caller that
-      // predates these fields.
-      return res.status(400).json({ message: messageEn, messageHe, messageEn });
+      // language; `message` is now resolved via req.lang too (see L()).
+      return res.status(400).json({ message: L(req, messageEn, messageHe), messageHe, messageEn });
     }
 
     // A milestone with allowedFileTypes recorded (see workflowTemplateController.ts's
@@ -184,10 +190,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       const allowedLabelsEn = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelEn).filter(Boolean).join(', ');
       const allowedLabelsHe = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelHe).filter(Boolean).join(', ');
       const rejectedName = fixMulterFilenameEncoding(rejectedFile.originalname);
+      const messageHe = `אבן דרך זו מקבלת רק: ${allowedLabelsHe}. "${rejectedName}" אינו אחד מהם.`;
+      const messageEn = `This milestone only accepts: ${allowedLabelsEn}. "${rejectedName}" is not one of them.`;
       return res.status(400).json({
-        message: `This milestone only accepts: ${allowedLabelsEn}. "${rejectedName}" is not one of them.`,
-        messageHe: `אבן דרך זו מקבלת רק: ${allowedLabelsHe}. "${rejectedName}" אינו אחד מהם.`,
-        messageEn: `This milestone only accepts: ${allowedLabelsEn}. "${rejectedName}" is not one of them.`,
+        message: L(req, messageEn, messageHe),
+        messageHe,
+        messageEn,
       });
     }
 
@@ -215,12 +223,15 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       .filter(d => resolveMilestoneOrder(d.data()) < thisOrder)
       .every(d => d.data().status === 'coordinator_approved' || d.data().status === 'completed');
 
-    if (!allPrevCompleted)
+    if (!allPrevCompleted) {
+      const messageHe = 'יש להשלים את אבני הדרך הקודמות לפני הגשת אבן דרך זו.';
+      const messageEn = 'Previous milestones must be completed before submitting this one.';
       return res.status(400).json({
-        message: 'Previous milestones must be completed before submitting this one.',
-        messageHe: 'יש להשלים את אבני הדרך הקודמות לפני הגשת אבן דרך זו.',
-        messageEn: 'Previous milestones must be completed before submitting this one.',
+        message: L(req, messageEn, messageHe),
+        messageHe,
+        messageEn,
       });
+    }
 
     // ── Upload files to Cloudinary ──────────────────────────────────────────
     const fileUrls: string[] = [];
@@ -256,10 +267,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // not something wrong with their submission. Logged in full for
       // debugging; the student gets a clean, bilingual, actionable message.
       console.error('submitMilestone file upload error:', uploadError);
+      const messageHe = 'העלאת הקובץ נכשלה. נא לנסות שוב בעוד מספר דקות.';
+      const messageEn = 'File upload failed. Please try again in a few minutes.';
       return res.status(502).json({
-        message: 'File upload failed. Please try again in a few minutes.',
-        messageHe: 'העלאת הקובץ נכשלה. נא לנסות שוב בעוד מספר דקות.',
-        messageEn: 'File upload failed. Please try again in a few minutes.',
+        message: L(req, messageEn, messageHe),
+        messageHe,
+        messageEn,
       });
     }
 
@@ -314,10 +327,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       });
     } catch (err: any) {
       if (err?.message === 'TEAMMATE_ALREADY_SUBMITTED') {
+        const messageHe = 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.';
+        const messageEn = 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.';
         return res.status(409).json({
-          message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
-          messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
-          messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+          message: L(req, messageEn, messageHe),
+          messageHe,
+          messageEn,
         });
       }
       throw err;
@@ -524,7 +539,7 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true, message: 'Milestone submitted successfully.' });
   } catch (error: any) {
     console.error('submitMilestone error:', error);
-    return res.status(500).json({ message: 'Failed to submit milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit milestone.', 'הגשת אבן הדרך נכשלה.') });
   }
 };
 
@@ -560,18 +575,18 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
   const roles = req.user?.roles ?? [];
 
   if (!id || typeof id !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
   }
 
   const isCoordinatorTier = !!role && (UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)));
   const isSupervisor = role === 'supervisor' || roles.includes('supervisor');
   if (!isCoordinatorTier && !isSupervisor) {
-    return res.status(403).json({ message: 'You do not have permission to update this milestone.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to update this milestone.', 'אין לך הרשאה לעדכן אבן דרך זו.') });
   }
 
   const updateScope = await resolveMilestoneScope(id);
   if (!updateScope) {
-    return res.status(404).json({ message: 'Milestone not found.' });
+    return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   }
 
   // A supervisor may only ever touch their OWN advisee's milestone — this is
@@ -587,10 +602,10 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
 
   if (!isOwnAdvisee) {
     if (!isCoordinatorTier) {
-      return res.status(403).json({ message: 'Only this milestone\'s own supervisor, or a coordinator-tier role within scope, may update it.' });
+      return res.status(403).json({ message: L(req, 'Only this milestone\'s own supervisor, or a coordinator-tier role within scope, may update it.', 'רק המנחה של אבן דרך זו, או בעל תפקיד בדרגת רכז בתחום הסמכות, יכול לעדכן אותה.') });
     }
     if (!withinCoordinatorScope(req.user, updateScope) && !hasActionGrant(req.user, 'approve_milestones', updateScope)) {
-      return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
     }
   }
 
@@ -607,18 +622,18 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
 
   const { dueDate, reason } = req.body;
   if (!dueDate) {
-    return res.status(400).json({ message: 'Missing dueDate.' });
+    return res.status(400).json({ message: L(req, 'Missing dueDate.', 'חסר תאריך יעד.') });
   }
 
   const parsedDate = new Date(dueDate);
   if (isNaN(parsedDate.getTime())) {
-    return res.status(400).json({ message: 'Invalid dueDate.' });
+    return res.status(400).json({ message: L(req, 'Invalid dueDate.', 'תאריך היעד אינו תקין.') });
   }
 
   try {
     if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(actingRole)) {
       if (typeof reason !== 'string' || !reason.trim()) {
-        return res.status(400).json({ message: 'A documented reason is required to request this exceptional action.' });
+        return res.status(400).json({ message: L(req, 'A documented reason is required to request this exceptional action.', 'יש לתעד נימוק לפעולה חריגה זו.') });
       }
       const request = await requestExceptionalAction({
         type: 'deadline_override',
@@ -640,7 +655,7 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('updateMilestoneByCoordinator error:', error);
-    return res.status(500).json({ message: 'Failed to update milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to update milestone.', 'עדכון אבן הדרך נכשל.') });
   }
 };
 
@@ -656,19 +671,19 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   const roles = req.user?.roles ?? [];
 
   if (!role || !(UPDATE_MILESTONE_ROLES.includes(role) || roles.some((r) => UPDATE_MILESTONE_ROLES.includes(r)))) {
-    return res.status(403).json({ message: 'You do not have permission to bulk-update milestones.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to bulk-update milestones.', 'אין לך הרשאה לעדכן אבני דרך בצובר.') });
   }
 
   const { projectIds, milestoneType, dueDate, reason } = req.body;
   if (!Array.isArray(projectIds) || projectIds.length === 0) {
-    return res.status(400).json({ message: 'projectIds must be a non-empty array.' });
+    return res.status(400).json({ message: L(req, 'projectIds must be a non-empty array.', 'projectIds חייב להיות מערך לא ריק.') });
   }
   if (!dueDate) {
-    return res.status(400).json({ message: 'Missing dueDate.' });
+    return res.status(400).json({ message: L(req, 'Missing dueDate.', 'חסר תאריך יעד.') });
   }
   const parsedDate = new Date(dueDate);
   if (isNaN(parsedDate.getTime())) {
-    return res.status(400).json({ message: 'Invalid dueDate.' });
+    return res.status(400).json({ message: L(req, 'Invalid dueDate.', 'תאריך היעד אינו תקין.') });
   }
 
   // CRITICAL FIX: this endpoint used to check only the caller's ROLE, never
@@ -688,16 +703,16 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   const scopes = await Promise.all(projectIds.map((id) => resolveProjectScope(typeof id === 'string' ? id : null)));
   for (let i = 0; i < scopes.length; i++) {
     const scope = scopes[i];
-    if (!scope) return res.status(404).json({ message: `Project not found: ${projectIds[i]}` });
+    if (!scope) return res.status(404).json({ message: L(req, `Project not found: ${projectIds[i]}`, `הפרויקט לא נמצא: ${projectIds[i]}`) });
     if (!withinCoordinatorScope(req.user, scope) && !hasActionGrant(req.user, 'approve_milestones', scope)) {
-      return res.status(403).json({ message: `Project outside your assigned scope: ${projectIds[i]}` });
+      return res.status(403).json({ message: L(req, `Project outside your assigned scope: ${projectIds[i]}`, `הפרויקט מחוץ לתחום האחריות שהוקצה לך: ${projectIds[i]}`) });
     }
   }
 
   try {
     if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(role)) {
       if (typeof reason !== 'string' || !reason.trim()) {
-        return res.status(400).json({ message: 'A documented reason is required to request this exceptional action.' });
+        return res.status(400).json({ message: L(req, 'A documented reason is required to request this exceptional action.', 'יש לתעד נימוק לפעולה חריגה זו.') });
       }
       // Faculty is resolved per-project at approval time by the underlying
       // apply function; the request itself is scoped by the requester's own
@@ -736,14 +751,14 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
     if (error.message === 'No matching milestones found.') {
       return res.status(404).json({ message: error.message });
     }
-    return res.status(500).json({ message: 'Failed to bulk-update milestones.' });
+    return res.status(500).json({ message: L(req, 'Failed to bulk-update milestones.', 'עדכון אבני הדרך בצובר נכשל.') });
   }
 };
 
 // GET /api/milestones  — fetch milestones by query params
 export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Response) => {
   const requester = req.user;
-  if (!requester) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!requester) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   // 🔑 FIX: Look for projectId in EITHER the query string OR the URL path params!
   const projectId = req.query.projectId || req.params.projectId;
@@ -827,7 +842,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     // access level" — that access level is exactly what M4 found and fixed).
     examinerUid = requester.uid;
   } else if (!requesterRoles.includes('system_admin')) {
-    return res.status(403).json({ error: 'Access denied.' });
+    return res.status(403).json({ error: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   // system_admin may query broadly/unscoped by design.
 
@@ -889,7 +904,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ milestones });
   } catch (e: any) {
     console.error("Milestone Controller Query Error: ", e);
-    return res.status(500).json({ error: 'Failed to load milestones.' });
+    return res.status(500).json({ error: L(req, 'Failed to load milestones.', 'טעינת אבני הדרך נכשלה.') });
   }
 };
 

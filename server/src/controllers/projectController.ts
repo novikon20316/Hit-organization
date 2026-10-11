@@ -3,6 +3,7 @@
 
 import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { L } from '../utils/localize.js';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import dayjs from 'dayjs';
@@ -59,12 +60,12 @@ const STAFF_ROLES = [
 export const getStudentProject = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const requester = req.user;
-  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid projectId' });
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid projectId', 'מזהה הפרויקט אינו תקין.') });
 
   try {
     const snap = await db.collection('projects').doc(id).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Project not found' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Project not found', 'הפרויקט לא נמצא.') });
 
     const project = snap.data()!;
     const isOwnProject =
@@ -81,12 +82,12 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
       hasAnyRole(requester, ['administrative_secretary']) &&
       withinCoordinatorScope(requester, { facultyId: project.facultyId ?? '', major: project.major || undefined });
     if (!isOwnProject && !hasFullAccess && !hasFacultyAccess && !hasCoordinatorScopeAccess) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     return res.status(200).json({ id: snap.id, ...project });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to load project' });
+    return res.status(500).json({ message: L(req, 'Failed to load project', 'טעינת הפרויקט נכשלה.') });
   }
 };
 
@@ -121,7 +122,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     try {
       criteria = JSON.parse(req.body.criteria);
     } catch {
-      return res.status(400).json({ message: 'Invalid criteria payload' });
+      return res.status(400).json({ message: L(req, 'Invalid criteria payload', 'מבנה קריטריוני הציון אינו תקין.') });
     }
   } else {
     criteria = req.body.criteria;
@@ -138,10 +139,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   const finalScore = givenScore !== undefined && givenScore !== null ? givenScore : grade;
 
   if (finalScore === undefined || finalScore === null) {
-    return res.status(400).json({ message: 'Missing givenScore' });
+    return res.status(400).json({ message: L(req, 'Missing givenScore', 'חסר ציון שהוזן.') });
   }
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId', 'מזהה אבן הדרך אינו תקין.') });
   }
   // A generous sanity ceiling, not the real bound — most rubrics sum to 100,
   // but a gradingComponents rubric can legitimately sum higher (e.g. the
@@ -152,13 +153,13 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
   // for the legacy positional branch (no rubric) at the bottom of this
   // function, which trusts givenScore directly.
   if (Number.isNaN(Number(finalScore)) || Number(finalScore) < 0 || Number(finalScore) > 1000) {
-    return res.status(400).json({ message: 'Grade must be a valid non-negative number.' });
+    return res.status(400).json({ message: L(req, 'Grade must be a valid non-negative number.', 'הציון חייב להיות מספר תקין שאינו שלילי.') });
   }
 
   try {
     const milestoneRef  = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found', 'אבן הדרך לא נמצאה.') });
 
     const data        = milestoneSnap.data() || {};
     const supervisorId= data.supervisorId;
@@ -199,7 +200,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     // unlock first (see revertFinalGradeApproval), which resets this flag.
     if (data.gradeApproved) {
       return res.status(409).json({
-        message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+        message: L(req, 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.', 'הציון כבר אושר על ידי ראש בית הספר ללימודים מתקדמים ולא ניתן לערוך אותו ישירות. יש לבקש מראש בית הספר לשחרר אותו לתיקון.'),
       });
     }
 
@@ -213,7 +214,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const currentStageIndex: number = data.currentStageIndex ?? 0;
       const stage = routing[currentStageIndex];
       if (!stage || stage.action !== 'grade') {
-        return res.status(400).json({ message: 'This milestone is not currently awaiting a grade submission.' });
+        return res.status(400).json({ message: L(req, 'This milestone is not currently awaiting a grade submission.', 'אבן דרך זו אינה ממתינה כעת להגשת ציון.') });
       }
 
       // See workflowTemplates.ts's preGradeSignoffs doc comment — independent
@@ -228,7 +229,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
         if (preGradeSignoffs.examinerOne && !data.examinerOneSignoff) missing.push('examiner #1 sign-off');
         if (missing.length > 0) {
           return res.status(400).json({
-            message: `Awaiting ${missing.join(' and ')} before this milestone can be graded.`,
+            message: L(req, `Awaiting ${missing.join(' and ')} before this milestone can be graded.`, 'לא ניתן לדרג אבן דרך זו לפני קבלת החלטת יו"ר הוועדה וחתימת הבוחן הראשי.'),
             messageHe: 'לא ניתן לדרג אבן דרך זו לפני קבלת החלטת יו"ר הוועדה וחתימת הבוחן הראשי.',
             messageEn: `Awaiting ${missing.join(' and ')} before this milestone can be graded.`,
           });
@@ -241,7 +242,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // widening to include one is a separate, later enhancement.
       const projectSupervisorIds = [data.supervisorId].filter(Boolean);
       const authorized = await authorizeStageActor(req.user, stage, resource, projectSupervisorIds, examinerIds);
-      if (!authorized) return res.status(403).json({ message: 'Not authorized to grade this milestone at its current stage.' });
+      if (!authorized) return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone at its current stage.', 'אין הרשאה לדרג אבן דרך זו בשלב הנוכחי שלה.') });
 
       // A research_proposal milestone's supervisor stage must not be graded
       // on autopilot — the supervisor has to actively confirm they read the
@@ -250,7 +251,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // reports, defense, examiner panels, ...) is unaffected.
       if (data.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
         return res.status(400).json({
-          message: 'Please confirm you have read the proposal thoroughly before submitting your grade.',
+          message: L(req, 'Please confirm you have read the proposal thoroughly before submitting your grade.', 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת הציון.'),
           messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת הציון.',
           messageEn: 'Please confirm you have read the proposal thoroughly before submitting your grade.',
         });
@@ -498,7 +499,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       const isSupervisor = uid === supervisorId;
       const isExaminer    = examinerIds.includes(uid);
       if (!isSupervisor && !isExaminer) {
-        return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+        return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone', 'אין הרשאה לדרג אבן דרך זו.') });
       }
       const gradeFileUrls = await getGradeFileUrls();
 
@@ -506,7 +507,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // — the reason is what the "update grade" UI surfaces to the student
       // and what the (separately built) project record will show later.
       if (isSupervisor && data.supervisorScore != null && !reason?.trim()) {
-        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+        return res.status(400).json({ message: L(req, 'A reason is required when updating an existing grade.', 'יש לציין סיבה בעת עדכון ציון קיים.') });
       }
 
       // Same server-side rubric computation as the chain-driven branch above
@@ -663,14 +664,14 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     // apply to a milestone that has no supervisor stage.
     if (isIdentityKeyedExaminerOnly(data)) {
       if (!examinerIds.includes(uid)) {
-        return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+        return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone', 'אין הרשאה לדרג אבן דרך זו.') });
       }
 
       // Same "reason required to overwrite" guard as the identity-keyed
       // defense branch above.
       const existingScore = data.examinerScores?.[uid]?.score ?? null;
       if (existingScore != null && !reason?.trim()) {
-        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+        return res.status(400).json({ message: L(req, 'A reason is required when updating an existing grade.', 'יש לציין סיבה בעת עדכון ציון קיים.') });
       }
 
       let scoreValue: number;
@@ -782,7 +783,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // Same "reason required to overwrite" guard as the identity-keyed
       // defense branch above — see its comment.
       if (data.supervisorScore != null && !reason?.trim()) {
-        return res.status(400).json({ message: 'A reason is required when updating an existing grade.' });
+        return res.status(400).json({ message: L(req, 'A reason is required when updating an existing grade.', 'יש לציין סיבה בעת עדכון ציון קיים.') });
       }
       graderRole = 'supervisor';
       scoreField = 'supervisorScore';
@@ -804,7 +805,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       updatePayload.examiner2Score    = Number(givenScore);
       updatePayload.examiner2Comments = comments?.trim() ?? '';
     } else {
-      return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+      return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone', 'אין הרשאה לדרג אבן דרך זו.') });
     }
     const previousScore = data[scoreField] ?? null;
 
@@ -919,7 +920,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     });
   } catch (error) {
     console.error('submitMilestoneGrade error:', error);
-    return res.status(500).json({ message: 'Failed to submit grade' });
+    return res.status(500).json({ message: L(req, 'Failed to submit grade', 'שליחת הציון נכשלה.') });
   }
 };
 
@@ -1019,23 +1020,23 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
   // JSON.parse there; a plain JSON body (no file) keeps working as-is.
   const scores = typeof req.body.scores === 'string' ? JSON.parse(req.body.scores) : req.body.scores;
   const comment = req.body.comment;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
     if (data.type !== 'defense' || !data.finalGradeComponents) {
-      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי מבוסס שלושת המחוונים.') });
     }
     if (data.supervisorId !== uid) {
-      return res.status(403).json({ message: "Only this project's supervisor may submit this evaluation." });
+      return res.status(403).json({ message: L(req, "Only this project's supervisor may submit this evaluation.", 'רק המנחה של פרויקט זה רשאי/ת להגיש הערכה זו.') });
     }
     if (data.gradeApproved) {
-      return res.status(409).json({ message: 'This grade has already been finalized.' });
+      return res.status(409).json({ message: L(req, 'This grade has already been finalized.', 'הציון הזה כבר הפך לסופי.') });
     }
 
     const rubric: GradingComponentSpec[] = data.finalGradeComponents.supervisorEvaluation.components;
@@ -1083,7 +1084,7 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
     return res.status(200).json({ success: true, total: computed.total });
   } catch (error: any) {
     console.error('submitSupervisorEvaluation error:', error);
-    return res.status(500).json({ message: 'Failed to submit evaluation.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit evaluation.', 'שליחת ההערכה נכשלה.') });
   }
 };
 
@@ -1101,25 +1102,25 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
   // the rubric — FormData fields arrive as strings, so `scores` needs
   // JSON.parse there; a plain JSON body (no file) keeps working as-is.
   const scores = typeof req.body.scores === 'string' ? JSON.parse(req.body.scores) : req.body.scores;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
-  if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: 'kind must be "project" or "defense".' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
+  if (kind !== 'project' && kind !== 'defense') return res.status(400).json({ message: L(req, 'kind must be "project" or "defense".', 'הסוג חייב להיות "project" או "defense".') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
     if (data.type !== 'defense' || !data.finalGradeComponents) {
-      return res.status(400).json({ message: 'This milestone does not use the three-rubric final-grade workflow.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי מבוסס שלושת המחוונים.') });
     }
     const examinerIds: string[] = data.examinerIds ?? [];
     if (!examinerIds.includes(uid)) {
-      return res.status(403).json({ message: 'Only an examiner assigned to this defense may submit this evaluation.' });
+      return res.status(403).json({ message: L(req, 'Only an examiner assigned to this defense may submit this evaluation.', 'רק בוחן/ת שהוקצה/ה להגנה זו רשאי/ת להגיש הערכה זו.') });
     }
     if (data.gradeApproved) {
-      return res.status(409).json({ message: 'This grade has already been finalized.' });
+      return res.status(409).json({ message: L(req, 'This grade has already been finalized.', 'הציון הזה כבר הפך לסופי.') });
     }
 
     // CRITICAL FIX: no examiner (internal or external — see the identical
@@ -1133,11 +1134,11 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     // only from that calendar day onward (Asia/Jerusalem), not the moment
     // it's scheduled for some future date.
     if (!data.dueDate) {
-      return res.status(403).json({ message: 'Evaluation opens once a defense date has been agreed and set.' });
+      return res.status(403).json({ message: L(req, 'Evaluation opens once a defense date has been agreed and set.', 'ההערכה תיפתח רק לאחר שנקבע מועד הגנה.') });
     }
     const defenseDay = dayjs(data.dueDate.toDate()).tz(TZ).startOf('day');
     if (dayjs().tz(TZ).isBefore(defenseDay)) {
-      return res.status(403).json({ message: `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).` });
+      return res.status(403).json({ message: L(req, `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).`, `ההערכה תיפתח במועד ההגנה שנקבע (${defenseDay.format('DD/MM/YYYY')}).`) });
     }
 
     // Project_examiner.docx (data_science's digitized paper form) makes
@@ -1145,7 +1146,7 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     // examiner comment, which stays optional — see ExaminerEvaluationModal.tsx's
     // matching client-side check.
     if (data.facultyId === 'data_science' && kind === 'project' && !comment?.trim()) {
-      return res.status(400).json({ message: 'A written comment is required.' });
+      return res.status(400).json({ message: L(req, 'A written comment is required.', 'יש לכתוב הערה מילולית.') });
     }
 
     const rubric: GradingComponentSpec[] = kind === 'project'
@@ -1195,7 +1196,7 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true, total: computed.total });
   } catch (error: any) {
     console.error('submitExaminerEvaluation error:', error);
-    return res.status(500).json({ message: 'Failed to submit evaluation.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit evaluation.', 'שליחת ההערכה נכשלה.') });
   }
 };
 
@@ -1212,26 +1213,26 @@ export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: 
   const uid = req.user?.uid;
   const { milestoneId } = req.params;
   const { answers } = req.body as { answers?: Record<string, { value?: unknown; comment?: string }> };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: 'Invalid milestoneId.' });
-  if (!answers || typeof answers !== 'object') return res.status(400).json({ message: 'Invalid answers.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
+  if (!answers || typeof answers !== 'object') return res.status(400).json({ message: L(req, 'Invalid answers.', 'התשובות אינן תקינות.') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
     const fields: FormFieldSpec[] = data.examinerFormFields ?? [];
     if (fields.length === 0) {
-      return res.status(400).json({ message: 'This milestone does not use the examiner form-answers workflow.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not use the examiner form-answers workflow.', 'אבן דרך זו אינה משתמשת בתהליך טופס תשובות הבוחן.') });
     }
     const examinerIds: string[] = data.examinerIds ?? [];
     if (!examinerIds.includes(uid)) {
-      return res.status(403).json({ message: 'Only an examiner assigned to this milestone may submit this form.' });
+      return res.status(403).json({ message: L(req, 'Only an examiner assigned to this milestone may submit this form.', 'רק בוחן/ת שהוקצה/ה לאבן דרך זו רשאי/ת להגיש טופס זה.') });
     }
     if (data.gradeApproved) {
-      return res.status(409).json({ message: 'This evaluation has already been finalized.' });
+      return res.status(409).json({ message: L(req, 'This evaluation has already been finalized.', 'ההערכה הזו כבר הפכה לסופית.') });
     }
 
     // Server-side re-validation of every field's answer, driven by its own
@@ -1246,23 +1247,23 @@ export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: 
       const value = raw?.value;
       if (f.type === 'yesno') {
         if (value !== 'yes' && value !== 'no') {
-          return res.status(400).json({ message: `A yes/no answer is required for "${f.labelEn}".` });
+          return res.status(400).json({ message: L(req, `A yes/no answer is required for "${f.labelEn}".`, `יש לבחור תשובת כן/לא עבור "${f.labelEn}".`) });
         }
         const comment = (raw?.comment ?? '').toString().trim();
         if (f.commentRequiredOn === value && !comment) {
-          return res.status(400).json({ message: `A comment is required for "${f.labelEn}".` });
+          return res.status(400).json({ message: L(req, `A comment is required for "${f.labelEn}".`, `יש להוסיף הערה עבור "${f.labelEn}".`) });
         }
         cleanAnswers[f.key] = comment ? { value, comment } : { value };
       } else if (f.type === 'table') {
         const rows = Array.isArray(value) ? value : [];
         if (f.required && rows.length === 0) {
-          return res.status(400).json({ message: `At least one row is required for "${f.labelEn}".` });
+          return res.status(400).json({ message: L(req, `At least one row is required for "${f.labelEn}".`, `יש להוסיף שורה אחת לפחות עבור "${f.labelEn}".`) });
         }
         cleanAnswers[f.key] = { value: rows };
       } else {
         const strValue = value === undefined || value === null ? '' : String(value).trim();
         if (f.required && !strValue) {
-          return res.status(400).json({ message: `An answer is required for "${f.labelEn}".` });
+          return res.status(400).json({ message: L(req, `An answer is required for "${f.labelEn}".`, `יש למלא תשובה עבור "${f.labelEn}".`) });
         }
         cleanAnswers[f.key] = { value: strValue };
       }
@@ -1320,7 +1321,7 @@ export const submitExaminerFormAnswers = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true, status: responseStatus, isFinalized });
   } catch (error: any) {
     console.error('submitExaminerFormAnswers error:', error);
-    return res.status(500).json({ message: 'Failed to submit examiner form.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit examiner form.', 'שליחת טופס הבוחן נכשלה.') });
   }
 };
 
@@ -1335,22 +1336,22 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
   const { milestoneId } = req.params;
   const { studentId, score, comments } = req.body;
 
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId', 'מזהה אבן הדרך אינו תקין.') });
   }
   if (!studentId || typeof studentId !== 'string') {
-    return res.status(400).json({ message: 'Invalid studentId' });
+    return res.status(400).json({ message: L(req, 'Invalid studentId', 'מזהה הסטודנט אינו תקין.') });
   }
   const numericScore = Number(score);
   if (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100) {
-    return res.status(400).json({ message: 'score must be a number between 0 and 100' });
+    return res.status(400).json({ message: L(req, 'score must be a number between 0 and 100', 'הציון חייב להיות מספר בין 0 ל-100.') });
   }
 
   try {
     const milestoneRef  = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found', 'אבן הדרך לא נמצאה.') });
 
     const data: any = milestoneSnap.data() ?? {};
     const examinerIds: string[] = data.examinerIds ?? [];
@@ -1358,18 +1359,18 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
 
     const isGrader = uid === data.supervisorId || examinerIds.includes(uid);
     if (!isGrader) {
-      return res.status(403).json({ message: 'Not authorized to grade this milestone' });
+      return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone', 'אין הרשאה לדרג אבן דרך זו.') });
     }
     // Same lock as submitMilestoneGrade — an individual component can't be
     // adjusted post-approval without an authorized unlock either, since it
     // feeds directly into finalGradeByStudent.
     if (data.gradeApproved) {
       return res.status(409).json({
-        message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+        message: L(req, 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.', 'הציון כבר אושר על ידי ראש בית הספר ללימודים מתקדמים ולא ניתן לערוך אותו ישירות. יש לבקש מראש בית הספר לשחרר אותו לתיקון.'),
       });
     }
     if (!studentIds.includes(studentId)) {
-      return res.status(400).json({ message: 'studentId is not part of this milestone' });
+      return res.status(400).json({ message: L(req, 'studentId is not part of this milestone', 'מזהה הסטודנט אינו חלק מאבן דרך זו.') });
     }
 
     // Transaction, not a plain update(): finalGradeByStudent is a derived
@@ -1411,7 +1412,7 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
     } catch (err: any) {
       if (err?.message === 'ALREADY_APPROVED') {
         return res.status(409).json({
-          message: 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.',
+          message: L(req, 'This grade has already been approved by the grad school head and cannot be edited directly. Ask the grad school head to unlock it for correction first.', 'הציון כבר אושר על ידי ראש בית הספר ללימודים מתקדמים ולא ניתן לערוך אותו ישירות. יש לבקש מראש בית הספר לשחרר אותו לתיקון.'),
         });
       }
       throw err;
@@ -1437,7 +1438,7 @@ export const submitIndividualGrade = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('submitIndividualGrade error:', error);
-    return res.status(500).json({ message: 'Failed to submit individual grade' });
+    return res.status(500).json({ message: L(req, 'Failed to submit individual grade', 'שליחת הציון האישי נכשלה.') });
   }
 };
 
@@ -1447,20 +1448,20 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
   const { fileUrls, submissionNote, formData } = req.body;
   const studentId = req.user?.uid;
 
-  if (!studentId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!studentId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid milestoneId' });
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId', 'מזהה אבן הדרך אינו תקין.') });
   }
 
   try {
     const milestoneRef  = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found', 'אבן הדרך לא נמצאה.') });
 
     const milestoneData = milestoneSnap.data() ?? {};
     const studentIds: string[] = milestoneData.studentIds ?? [];
     if (!studentIds.includes(studentId)) {
-      return res.status(403).json({ message: 'Forbidden.' });
+      return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
     }
 
     // Team milestone — same lock as the web submit route
@@ -1468,7 +1469,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     // submitted, block the rest until it's rejected or fully approved.
     if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
       return res.status(409).json({
-        message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),
         messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
         messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
       });
@@ -1485,21 +1486,23 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
 
     if (isStructuredFormMilestone) {
       if (!formData || typeof formData !== 'object') {
-        return res.status(400).json({ message: 'formData is required for this milestone.' });
+        return res.status(400).json({ message: L(req, 'formData is required for this milestone.', 'יש למלא את נתוני הטופס עבור אבן דרך זו.') });
       }
       studentFormData = formData;
       const missing = studentFormFieldsSpec.filter(
         (f) => f.required && !f.locked && (studentFormData![f.key] === undefined || studentFormData![f.key] === null || studentFormData![f.key] === '')
       );
       if (missing.length > 0) {
-        return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+        return res.status(400).json({ message: L(req, `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}`, `שדות חובה חסרים: ${missing.map((f) => f.labelEn).join(', ')}`) });
       }
     } else {
       const hasFile = Array.isArray(fileUrls) && fileUrls.length > 0;
       const hasComment = typeof submissionNote === 'string' && submissionNote.trim().length > 0;
       if (!submissionRequirementMet(milestoneData.submissionRequirement, hasFile, hasComment)) {
-        return res.status(400).json({ message: 'This milestone requires ' +
-          (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`) });
+        return res.status(400).json({ message: L(req,
+          'This milestone requires ' + (milestoneData.submissionRequirement === 'both' ? 'a file and a comment.' : `a ${milestoneData.submissionRequirement}.`),
+          'אבן דרך זו מחייבת ' + (milestoneData.submissionRequirement === 'both' ? 'קובץ והערה.' : `${milestoneData.submissionRequirement === 'comment' ? 'הערה' : 'קובץ'}.`)
+        ) });
       }
 
       // Same allowedFileTypes restriction as milestoneController.ts's
@@ -1514,7 +1517,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
           const allowedLabelsEn = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelEn).filter(Boolean).join(', ');
           const allowedLabelsHe = (allowedFileTypes ?? []).map((k) => MILESTONE_FILE_TYPES.find((t) => t.key === k)?.labelHe).filter(Boolean).join(', ');
           return res.status(400).json({
-            message: `This milestone only accepts: ${allowedLabelsEn}.`,
+            message: L(req, `This milestone only accepts: ${allowedLabelsEn}.`, `אבן דרך זו מקבלת רק: ${allowedLabelsHe}.`),
             messageHe: `אבן דרך זו מקבלת רק: ${allowedLabelsHe}.`,
             messageEn: `This milestone only accepts: ${allowedLabelsEn}.`,
           });
@@ -1568,7 +1571,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     } catch (err: any) {
       if (err?.message === 'TEAMMATE_ALREADY_SUBMITTED') {
         return res.status(409).json({
-          message: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+          message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),
           messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
           messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
         });
@@ -1766,7 +1769,7 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: 'Milestone submission failed' });
+    return res.status(500).json({ message: L(req, 'Milestone submission failed', 'הגשת אבן הדרך נכשלה.') });
   }
 };
 
@@ -1845,7 +1848,7 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('Error fetching projects list:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -1857,7 +1860,7 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
   // Verify coordinator/admin roles
   if (!hasAnyRole(req.user, ACTIVE_PROJECTS_ROLES)) {
-    return res.status(403).json({ message: 'Unauthorized access' });
+    return res.status(403).json({ message: L(req, 'Unauthorized access', 'גישה לא מורשית.') });
   }
 
   try {
@@ -2034,6 +2037,6 @@ export const getActiveProjects = async(req: AuthenticatedRequest, res: Response)
 
   } catch (error: any) {
     console.error('Error fetching projects list:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };

@@ -136,6 +136,16 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   // services/maintenanceStatus.ts) for every authenticated request, not
   // just the one-time login-time check in useMaintenanceCheck.ts.
   finalHeaders.set('X-Client-Platform', 'web');
+  // Lets the server localize error/response text to whatever language the
+  // user currently has the UI in — same localStorage key
+  // contexts/LanguageContext.tsx reads/writes, read directly here since this
+  // is a plain module, not a component. Defaults to 'he' like that context
+  // does, so a value outside {'he','en'} (or SSR, where window is undefined)
+  // doesn't send a bogus header.
+  if (typeof window !== 'undefined') {
+    const storedLang = window.localStorage.getItem('hit-web-lang');
+    finalHeaders.set('X-Lang', storedLang === 'en' ? 'en' : 'he');
+  }
   if (!raw && body !== undefined) {
     finalHeaders.set('Content-Type', 'application/json; charset=utf-8');
   }

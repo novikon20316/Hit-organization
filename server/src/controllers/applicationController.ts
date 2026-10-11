@@ -11,6 +11,7 @@ import { notifyUser } from '../services/notify.js'
 import { enrollStudentInProject } from '../services/projectEnrollment.js'
 import { resolveEffectiveTrack } from '../config/studentTrack.js'
 import { createMeetingEvent, isCalendarConnected } from '../services/googleCalendarService.js'
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -42,7 +43,7 @@ export const handleUploadDocumentError: import('express').ErrorRequestHandler = 
     return res.status(400).json({ message: err.message });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ message: 'File too large — the limit is 10MB.' });
+    return res.status(400).json({ message: L(_req, 'File too large — the limit is 10MB.', 'הקובץ גדול מהמותר — הגבלת הגודל היא 10MB.') });
   }
   return next(err);
 };
@@ -57,7 +58,7 @@ export const handleUploadDocumentError: import('express').ErrorRequestHandler = 
 // is unaffected — only who's allowed to trigger an upload changed.
 export const uploadApplicationDocument = async (req: AuthenticatedRequest, res: Response) => {
   const file = (req as any).file as Express.Multer.File | undefined;
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const base64 = file.buffer.toString('base64');
@@ -73,7 +74,7 @@ export const uploadApplicationDocument = async (req: AuthenticatedRequest, res: 
     // misconfigured/rotated Cloudinary credential shouldn't reach the
     // student as a raw SDK error.
     console.error('uploadApplicationDocument error:', uploadError);
-    return res.status(502).json({ message: 'File upload failed. Please try again in a few minutes.' });
+    return res.status(502).json({ message: L(req, 'File upload failed. Please try again in a few minutes.', 'העלאת הקובץ נכשלה. נסה/י שוב בעוד מספר דקות.') });
   }
 };
 
@@ -138,7 +139,7 @@ const isPdfUrl = (url: unknown): url is string => typeof url === 'string' && url
 
 export const getLastUploadedFiles = async (req: AuthenticatedRequest, res: Response) => {
   const studentId = req.user?.uid;
-  if (!studentId) return res.status(401).json({ message: 'Unauthorized' });
+  if (!studentId) return res.status(401).json({ message: L(req, 'Unauthorized', 'אין הרשאה.') });
   try {
     const snap = await db.collection('applications').where('studentId', '==', studentId).get();
     if (snap.empty) return res.status(200).json({ transcriptUrl: '', cvUrl: '' });
@@ -159,7 +160,7 @@ export const getLastUploadedFiles = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ transcriptUrl, cvUrl });
   } catch (error) {
     console.error('getLastUploadedFiles error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
 
@@ -167,15 +168,15 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
     const studentId = req.user?.uid;
     if(!studentId){
         return res.status(500).json({
-            message: "didnt figure who the uid is for"
+            message: L(req, "didnt figure who the uid is for", "לא ניתן לזהות את המשתמש.")
         })
     }
     try{
         const studentDoc = await db.collection('users').doc(studentId).get();
-        
+
         // 2. Correctly check if the document exists in Firestore
         if (!studentDoc.exists) {
-            return res.status(404).json({ message: "User document not found." });
+            return res.status(404).json({ message: L(req, "User document not found.", "מסמך המשתמש לא נמצא.") });
         }
         
         // 3. Extract the data and the degree field
@@ -207,7 +208,7 @@ export const pendingApplication = async(req:AuthenticatedRequest,res:Response) =
     
     }catch(error){
         console.error('Failed to return the data for pendingApplication:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 }
 
@@ -216,10 +217,10 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
     const studentId = req.user?.uid;
 
     if (!studentId) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+        return res.status(401).json({ success: false, message: L(req, 'Unauthorized', 'אין הרשאה.') });
     }
     if (!projectId || typeof projectId !== 'string') {
-        return res.status(400).json({ success: false, message: 'projectId is required' });
+        return res.status(400).json({ success: false, message: L(req, 'projectId is required', 'יש לציין מזהה פרויקט.') });
     }
     // Client-side pickers already restrict to .pdf, but that's only ever a
     // UI convenience — this endpoint is reachable directly with any URL, so
@@ -228,7 +229,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
     // gets stored and only surfaces later as an unreadable file during AI
     // screening.
     if (!isPdfUrl(transcriptUrl) || !isPdfUrl(cvUrl)) {
-        return res.status(400).json({ success: false, message: 'Transcript and CV must be PDF files.' });
+        return res.status(400).json({ success: false, message: L(req, 'Transcript and CV must be PDF files.', 'הגיליון הרשמי וקורות החיים חייבים להיות בקובצי PDF.') });
     }
     try {
         // ✅ Fetch student + project in parallel (was only fetching project before)
@@ -238,7 +239,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         ]);
 
         if (!projectSnap.exists) {
-        return res.status(404).json({ success: false, message: 'Project not found.' });
+        return res.status(404).json({ success: false, message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
         }
 
         const projectData = projectSnap.data() ?? {};
@@ -252,7 +253,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         // reach this endpoint directly with any projectId. No major on the
         // project means open to every major, unchanged from today.
         if (projectData.major && studentData.major !== projectData.major) {
-        return res.status(403).json({ success: false, message: 'This project is not open to your major.' });
+        return res.status(403).json({ success: false, message: L(req, 'This project is not open to your major.', 'פרויקט זה אינו פתוח לתחום הלימודים שלך.') });
         }
 
         // The query/UI filter a student browses through already narrows by
@@ -262,20 +263,20 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         // against pre-migration projects that only ever had the single
         // scalar degreeType/projectType field, no arrays yet.
         if (projectData.status && projectData.status !== 'active') {
-        return res.status(400).json({ success: false, message: 'This project is no longer accepting applications.' });
+        return res.status(400).json({ success: false, message: L(req, 'This project is no longer accepting applications.', 'פרויקט זה אינו מקבל בקשות הצטרפות יותר.') });
         }
 
         const capacity = projectData.maxStudents ?? projectData.NumberOfStudents ?? 1;
         const enrolledCount = (projectData.enrolledStudentIds ?? []).length;
         if (enrolledCount >= capacity) {
-        return res.status(400).json({ success: false, message: 'This project has already reached its student capacity.' });
+        return res.status(400).json({ success: false, message: L(req, 'This project has already reached its student capacity.', 'פרויקט זה הגיע למספר הסטודנטים המרבי שלו.') });
         }
 
         const projectDegreeTypes: string[] = projectData.degreeTypes ?? (projectData.degreeType ? [projectData.degreeType] : []);
         const projectProjectTypes: string[] = projectData.projectTypes ?? (projectData.projectType ? [projectData.projectType] : []);
 
         if (projectDegreeTypes.length > 0 && !projectDegreeTypes.includes(studentData.degreeType)) {
-        return res.status(403).json({ success: false, message: 'This project is not open to your degree type.' });
+        return res.status(403).json({ success: false, message: L(req, 'This project is not open to your degree type.', 'פרויקט זה אינו פתוח לתואר שלך.') });
         }
 
         // A student's thesis/project track is fixed (see config/studentTrack.ts)
@@ -283,7 +284,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         // any projectId, same reasoning as the major/degree checks above.
         const effectiveTrack = resolveEffectiveTrack(studentData);
         if (projectProjectTypes.length > 0 && !projectProjectTypes.includes(effectiveTrack)) {
-        return res.status(403).json({ success: false, message: 'This project is not open to your track.' });
+        return res.status(403).json({ success: false, message: L(req, 'This project is not open to your track.', 'פרויקט זה אינו פתוח למסלול שלך.') });
         }
 
         // Only a project open to more than one track actually requires the
@@ -293,13 +294,13 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         // of projectProjectTypes when this project offers more than one).
         if (projectProjectTypes.length > 1) {
         if (!selectedProjectType) {
-            return res.status(400).json({ success: false, message: 'This project offers more than one track — please choose one when applying.' });
+            return res.status(400).json({ success: false, message: L(req, 'This project offers more than one track — please choose one when applying.', 'פרויקט זה מציע יותר ממסלול אחד — יש לבחור מסלול בעת ההגשה.') });
         }
         if (!projectProjectTypes.includes(selectedProjectType)) {
-            return res.status(400).json({ success: false, message: 'Invalid track selection for this project.' });
+            return res.status(400).json({ success: false, message: L(req, 'Invalid track selection for this project.', 'בחירת המסלול אינה תקינה עבור פרויקט זה.') });
         }
         if (selectedProjectType !== effectiveTrack) {
-            return res.status(403).json({ success: false, message: 'You are not eligible to apply under this track.' });
+            return res.status(403).json({ success: false, message: L(req, 'You are not eligible to apply under this track.', 'אינך זכאי/ת להגיש בקשה במסלול זה.') });
         }
         }
 
@@ -310,7 +311,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         .get();
 
         if (!existing.empty) {
-        return res.status(409).json({ success: false, message: 'You already applied to this project.' });
+        return res.status(409).json({ success: false, message: L(req, 'You already applied to this project.', 'כבר הגשת בקשה לפרויקט זה.') });
         }
 
         const newApplicationRef = db.collection('applications').doc();
@@ -422,7 +423,7 @@ export const applyApplication = async(req:AuthenticatedRequest,res:Response) =>{
         return res.status(201).json({ success: true, message: 'Application submitted successfully.' });
     } catch (error) {
         console.error('applyApplication error:', error);
-        return res.status(500).json({ message: 'Internal server error' });
+        return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 };
 
@@ -432,13 +433,13 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
     if(!student){
         return res.status(404).json({
             success:false,
-            message: "User is not aauthorized to do that"
+            message: L(req, "User is not aauthorized to do that", "המשתמש אינו מורשה לבצע פעולה זו.")
         })
     }
     if(!id || typeof id !== 'string'){
         return res.status(500).json({
             success:false,
-            message:"Id is not good"
+            message: L(req, "Id is not good", "המזהה שסופק אינו תקין.")
         })
     }
     try{
@@ -446,7 +447,7 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
         const applySnap = await applyRef.get();
 
         if (!applySnap.exists) {
-            return res.status(404).json({ message: 'Target application record not found.' });
+            return res.status(404).json({ message: L(req, 'Target application record not found.', 'רשומת הבקשה המבוקשת לא נמצאה.') });
         }
 
         const applicationData = applySnap.data();
@@ -455,7 +456,7 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
         if (applicationData?.studentId !== student) {
             return res.status(403).json({
                 success: false,
-                message: "Forbidden: You are not authorized to withdraw another student's application."
+                message: L(req, "Forbidden: You are not authorized to withdraw another student's application.", "אין הרשאה: אינך יכול/ה למשוך בקשה של סטודנט אחר.")
             });
         }
         await applyRef.delete();
@@ -466,7 +467,7 @@ export const withdrawApplication = async(req:AuthenticatedRequest,res:Response) 
         });
     }catch(error){
         console.error('Failed to withdraw student from application:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 }
 
@@ -485,19 +486,19 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
     const { decision } = req.body;
     const studentId = req.user?.uid;
 
-    if (!studentId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!studentId) return res.status(401).json({ success: false, message: L(req, 'Unauthorized', 'אין הרשאה.') });
     if (decision !== 'yes' && decision !== 'no') {
-        return res.status(400).json({ success: false, message: "decision must be 'yes' or 'no'." });
+        return res.status(400).json({ success: false, message: L(req, "decision must be 'yes' or 'no'.", "יש לבחור החלטה של 'כן' או 'לא'.") });
     }
     if (!id || typeof id !== 'string') {
-        return res.status(400).json({ success: false, message: 'A valid application id is required.' });
+        return res.status(400).json({ success: false, message: L(req, 'A valid application id is required.', 'יש לציין מזהה בקשה תקין.') });
     }
 
     try {
         const applicationRef = db.collection('applications').doc(id);
         const appSnap = await applicationRef.get();
 
-        if (!appSnap.exists) return res.status(404).json({ success: false, message: 'Application not found.' });
+        if (!appSnap.exists) return res.status(404).json({ success: false, message: L(req, 'Application not found.', 'הבקשה לא נמצאה.') });
 
         const appData = appSnap.data() ?? {};
 
@@ -505,12 +506,12 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
         if (appData.studentId !== studentId) {
             return res.status(403).json({
                 success: false,
-                message: "Forbidden: you are not authorized to decide on another student's application.",
+                message: L(req, "Forbidden: you are not authorized to decide on another student's application.", "אין הרשאה: אינך יכול/ה להכריע בבקשה של סטודנט אחר."),
             });
         }
 
         if (appData.status !== 'awaiting_student_confirmation') {
-            return res.status(409).json({ success: false, message: 'This application is not awaiting your confirmation.' });
+            return res.status(409).json({ success: false, message: L(req, 'This application is not awaiting your confirmation.', 'בקשה זו אינה מחכה לאישורך.') });
         }
 
         const { projectId, supervisorId, facultyId, projectTitleHe, projectTitleEn, studentName, degreeType, selectedProjectType } = appData;
@@ -523,7 +524,7 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
                 await enrollStudentInProject(projectId, studentId, supervisorId, facultyId ?? '', track);
             } catch (enrollError: any) {
                 if (enrollError?.message === 'Student already has an active project.') {
-                    return res.status(409).json({ success: false, message: 'You already have an active project.' });
+                    return res.status(409).json({ success: false, message: L(req, 'You already have an active project.', 'יש לך כבר פרויקט פעיל.') });
                 }
                 if (enrollError?.message === 'This project has already reached its student capacity.') {
                     return res.status(409).json({ success: false, message: enrollError.message });
@@ -562,7 +563,7 @@ export const confirmApplicationStart = async (req: AuthenticatedRequest, res: Re
         return res.status(200).json({ success: true });
     } catch (error) {
         console.error('confirmApplicationStart error:', error);
-        return res.status(500).json({ message: 'Internal server error' });
+        return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 };
 
@@ -580,32 +581,32 @@ export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Respons
     const { selectedSlot } = req.body;
     const studentId = req.user?.uid;
 
-    if (!studentId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!studentId) return res.status(401).json({ success: false, message: L(req, 'Unauthorized', 'אין הרשאה.') });
     if (!id || typeof id !== 'string') {
-        return res.status(400).json({ success: false, message: 'A valid application id is required.' });
+        return res.status(400).json({ success: false, message: L(req, 'A valid application id is required.', 'יש לציין מזהה בקשה תקין.') });
     }
     if (!selectedSlot || typeof selectedSlot !== 'string') {
-        return res.status(400).json({ success: false, message: 'selectedSlot is required.' });
+        return res.status(400).json({ success: false, message: L(req, 'selectedSlot is required.', 'יש לבחור מועד.') });
     }
 
     try {
         const applicationRef = db.collection('applications').doc(id);
         const appSnap = await applicationRef.get();
-        if (!appSnap.exists) return res.status(404).json({ success: false, message: 'Application not found.' });
+        if (!appSnap.exists) return res.status(404).json({ success: false, message: L(req, 'Application not found.', 'הבקשה לא נמצאה.') });
 
         const appData = appSnap.data()!;
         if (appData.studentId !== studentId) {
             return res.status(403).json({
                 success: false,
-                message: "Forbidden: you are not authorized to decide on another student's application.",
+                message: L(req, "Forbidden: you are not authorized to decide on another student's application.", "אין הרשאה: אינך יכול/ה להכריע בבקשה של סטודנט אחר."),
             });
         }
         if (appData.status !== 'meeting_proposed') {
-            return res.status(409).json({ success: false, message: 'This application has no pending meeting proposal.' });
+            return res.status(409).json({ success: false, message: L(req, 'This application has no pending meeting proposal.', 'לבקשה זו אין הצעת פגישה בהמתנה.') });
         }
         const meetingSlots: string[] = appData.meetingSlots ?? [];
         if (!meetingSlots.includes(selectedSlot)) {
-            return res.status(400).json({ success: false, message: 'That time was not one of the proposed slots.' });
+            return res.status(400).json({ success: false, message: L(req, 'That time was not one of the proposed slots.', 'המועד שנבחר אינו אחד מהמועדים שהוצעו.') });
         }
 
         const { projectId, supervisorId, projectTitleHe, projectTitleEn, studentName, studentEmail } = appData;
@@ -630,7 +631,7 @@ export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Respons
             });
         } catch (err: any) {
             if (err?.message === 'ALREADY_DECIDED') {
-                return res.status(409).json({ success: false, message: 'This application has no pending meeting proposal.' });
+                return res.status(409).json({ success: false, message: L(req, 'This application has no pending meeting proposal.', 'לבקשה זו אין הצעת פגישה בהמתנה.') });
             }
             throw err;
         }
@@ -701,6 +702,6 @@ export const confirmMeetingSlot = async (req: AuthenticatedRequest, res: Respons
         return res.status(200).json({ success: true, meetingDate: selectedSlot, calendarLink });
     } catch (error) {
         console.error('confirmMeetingSlot error:', error);
-        return res.status(500).json({ message: 'Internal server error' });
+        return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 };

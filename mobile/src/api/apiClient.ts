@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { auth, appCheck } from '../firebase/firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { reportClientError } from './errorReporting';
+import { getCurrentLang } from './currentLang';
 
 function getBaseUrl(): string {
   // Always hit the deployed server (value baked in via app.json extra) —
@@ -65,6 +66,10 @@ class ApiClient {
         // maintenance flag on every request — separate from web's (see
         // server/src/services/maintenanceStatus.ts).
         config.headers['X-Client-Platform'] = 'mobile';
+        // Lets the server localize error/response text — mobile has no
+        // separate language toggle of its own, so this mirrors the account's
+        // stored language field (see src/api/currentLang.ts).
+        config.headers['X-Lang'] = getCurrentLang();
         return config;
       },
       (error) => Promise.reject(error)

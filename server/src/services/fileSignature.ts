@@ -11,6 +11,7 @@
 // uploadMiddleware/handleUploadError in each route that accepts a file.
 
 import type { Request, Response, NextFunction } from 'express';
+import { L } from '../utils/localize.js';
 
 interface Signature {
   bytes: number[];
@@ -61,7 +62,7 @@ export function verifyFileSignatures(req: Request, res: Response, next: NextFunc
   for (const file of files) {
     if (!matchesFileSignature(file.buffer, file.mimetype)) {
       return res.status(400).json({
-        message: `File content doesn't match its declared type: ${file.originalname}`,
+        message: L(req, `File content doesn't match its declared type: ${file.originalname}`, `תוכן הקובץ אינו תואם לסוג המוצהר: ${file.originalname}`),
         messageHe: `תוכן הקובץ אינו תואם לסוג המוצהר: ${file.originalname}`,
         messageEn: `File content doesn't match its declared type: ${file.originalname}`,
       });

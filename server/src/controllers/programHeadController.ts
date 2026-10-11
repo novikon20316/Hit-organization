@@ -13,22 +13,23 @@ import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { computeMilestoneProgress, trackTypeOf, urgencyFromAge, MilestoneDoc } from '../services/studentProgress.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const PROGRAM_HEAD_ROLES = ['program_head', 'system_admin'];
 
 export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, PROGRAM_HEAD_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this dashboard.', 'אין לך הרשאה לצפות בלוח הבקרה הזה.') });
   }
 
   const facultyId = req.user.facultyId;
-  if (!facultyId) return res.status(400).json({ message: 'No facultyId assigned.' });
+  if (!facultyId) return res.status(400).json({ message: L(req, 'No facultyId assigned.', 'לא הוקצה מזהה פקולטה.') });
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
+    if (!userSnap.exists) return res.status(404).json({ message: L(req, 'User record not found.', 'רשומת המשתמש לא נמצאה.') });
     const userData = userSnap.data()!;
 
     // Own faculty plus any extras granted via programHeadFacultyIds (see
@@ -177,6 +178,6 @@ export const getProgramHeadDashboard = async (req: AuthenticatedRequest, res: Re
     });
   } catch (error: any) {
     console.error('getProgramHeadDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load program head dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load program head dashboard.', 'טעינת לוח הבקרה של ראש התוכנית נכשלה.') });
   }
 };

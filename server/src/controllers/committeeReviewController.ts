@@ -25,6 +25,7 @@ import type { ChainStage } from '../services/workflowTemplates.js';
 import { resolveCommitteeForProject, applyCommitteeSubstitutions, type CommitteeDoc } from './committeeController.js';
 import { isDecisionRelayEnabled, resolveDecisionRecipientCandidates, createRelayTask, type DecisionRecipientCandidate } from '../services/decisionRelay.js';
 import type { ResourceScope } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 interface CommitteeVote {
   memberId: string;
@@ -187,13 +188,13 @@ async function loadProjectForMilestone(milestone: FirebaseFirestore.DocumentData
 export const getCommitteeDecisionRecipients = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const resolved = await loadMilestoneAndCommittee(milestoneId);
   if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
   const { milestone, committee } = resolved;
   if (committee.chairmanId !== uid) {
-    return res.status(403).json({ message: 'Only this committee\'s chairman may view decision recipients.' });
+    return res.status(403).json({ message: L(req, 'Only this committee\'s chairman may view decision recipients.', 'רק יו"ר הוועדה רשאי לצפות בנמענים האפשריים להחלטה.') });
   }
 
   const project = await loadProjectForMilestone(milestone);
@@ -214,7 +215,7 @@ export const getCommitteeDecisionRecipients = async (req: AuthenticatedRequest, 
 export const getCommitteeReview = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const resolved = await loadMilestoneAndCommittee(milestoneId);
   if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
@@ -222,7 +223,7 @@ export const getCommitteeReview = async (req: AuthenticatedRequest, res: Respons
 
   const isSystemAdmin = req.user?.role === 'system_admin' || (req.user?.roles ?? []).includes('system_admin');
   if (!committee.memberIds.includes(uid) && !isSystemAdmin) {
-    return res.status(403).json({ message: 'You are not a member of this committee.' });
+    return res.status(403).json({ message: L(req, 'You are not a member of this committee.', 'אינך חבר/ה בוועדה זו.') });
   }
 
   const memberSnaps = await Promise.all(committee.memberIds.map((id) => db.collection('users').doc(id).get()));
@@ -248,18 +249,18 @@ export const submitCommitteeVote = async (req: AuthenticatedRequest, res: Respon
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
   const { vote, comment } = req.body ?? {};
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (vote !== 'approve' && vote !== 'reject') {
-    return res.status(400).json({ message: 'vote must be "approve" or "reject".' });
+    return res.status(400).json({ message: L(req, 'vote must be "approve" or "reject".', 'ההצבעה חייבת להיות "approve" או "reject".') });
   }
   if (vote === 'reject' && !(typeof comment === 'string' && comment.trim())) {
-    return res.status(400).json({ message: 'A comment explaining the rejection is required.' });
+    return res.status(400).json({ message: L(req, 'A comment explaining the rejection is required.', 'יש לצרף הערה המנמקת את הדחייה.') });
   }
 
   const resolved = await loadMilestoneAndCommittee(milestoneId);
   if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
   const { committee } = resolved;
-  if (!committee.memberIds.includes(uid)) return res.status(403).json({ message: 'You are not a member of this committee.' });
+  if (!committee.memberIds.includes(uid)) return res.status(403).json({ message: L(req, 'You are not a member of this committee.', 'אינך חבר/ה בוועדה זו.') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -297,7 +298,7 @@ export const submitCommitteeVote = async (req: AuthenticatedRequest, res: Respon
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('submitCommitteeVote error:', error);
-    return res.status(500).json({ message: 'Failed to record your vote.' });
+    return res.status(500).json({ message: L(req, 'Failed to record your vote.', 'שמירת ההצבעה שלך נכשלה.') });
   }
 };
 
@@ -314,19 +315,19 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
   const { decision, comment, recipientId } = req.body ?? {};
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (decision !== 'approve' && decision !== 'reject') {
-    return res.status(400).json({ message: 'decision must be "approve" or "reject".' });
+    return res.status(400).json({ message: L(req, 'decision must be "approve" or "reject".', 'ההחלטה חייבת להיות "approve" או "reject".') });
   }
   if (decision === 'reject' && !(typeof comment === 'string' && comment.trim())) {
-    return res.status(400).json({ message: 'A comment explaining the rejection is required.' });
+    return res.status(400).json({ message: L(req, 'A comment explaining the rejection is required.', 'יש לצרף הערה המנמקת את הדחייה.') });
   }
 
   const resolved = await loadMilestoneAndCommittee(milestoneId);
   if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
   const { milestone, stage, committee } = resolved;
   if (committee.chairmanId !== uid) {
-    return res.status(403).json({ message: 'Only this committee\'s chairman may finalize a decision.' });
+    return res.status(403).json({ message: L(req, 'Only this committee\'s chairman may finalize a decision.', 'רק יו"ר הוועדה רשאי לקבוע את ההחלטה הסופית.') });
   }
 
   // CS-enabled-only: the chairman may hand this decision to someone other
@@ -343,7 +344,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
     const candidates = await resolveDecisionRecipientCandidates(project, resource);
     const match = candidates.find((c) => c.id === recipientId);
     if (!match) {
-      return res.status(400).json({ message: 'That recipient is not a valid candidate for this project.' });
+      return res.status(400).json({ message: L(req, 'That recipient is not a valid candidate for this project.', 'הנמען שנבחר אינו מועמד תקין לפרויקט זה.') });
     }
     effectiveRecipient = match;
   }
@@ -357,7 +358,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   const castVoterIds = new Set((milestone.committeeVotes ?? []).map((v: CommitteeVote) => v.memberId));
   const missingVoterIds = requiredVoterIds.filter((id) => !castVoterIds.has(id));
   if (missingVoterIds.length > 0) {
-    return res.status(400).json({ message: 'Every other committee member must cast their vote before you can finalize a decision.' });
+    return res.status(400).json({ message: L(req, 'Every other committee member must cast their vote before you can finalize a decision.', 'על כל שאר חברי הוועדה להצביע לפני שניתן לקבוע את ההחלטה הסופית.') });
   }
 
   const routing: ChainStage[] = milestone.routing;
@@ -508,7 +509,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
     return res.status(200).json({ success: true, message: finalized ? 'Milestone approved.' : decision === 'approve' ? 'Advanced to the next stage.' : 'Milestone rejected.' });
   } catch (error: any) {
     console.error('submitCommitteeDecision error:', error);
-    return res.status(500).json({ message: 'Failed to record the committee decision.' });
+    return res.status(500).json({ message: L(req, 'Failed to record the committee decision.', 'שמירת החלטת הוועדה נכשלה.') });
   }
 };
 
@@ -519,7 +520,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
  *  shouldn't mean a submission is undiscoverable). */
 export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   try {
     const committeesSnap = await db.collection('committees').where('memberIds', 'array-contains', uid).get();
     const committeeIds = committeesSnap.docs.map((d) => d.id);
@@ -551,6 +552,6 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
     return res.status(200).json({ reviews });
   } catch (error: any) {
     console.error('getMyPendingCommitteeReviews error:', error);
-    return res.status(500).json({ message: 'Failed to load your pending committee reviews.' });
+    return res.status(500).json({ message: L(req, 'Failed to load your pending committee reviews.', 'טעינת בדיקות הוועדה הממתינות שלך נכשלה.') });
   }
 };

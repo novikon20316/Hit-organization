@@ -5,6 +5,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getAcademicCalendar, updateAcademicCalendar } from '../services/academicCalendar.js';
+import { L } from '../utils/localize.js';
 
 function isSystemAdmin(req: AuthenticatedRequest): boolean {
   const role = req.user?.role;
@@ -15,14 +16,14 @@ function isSystemAdmin(req: AuthenticatedRequest): boolean {
 // GET /api/admin/academic-calendar
 export const getAcademicCalendarConfig = async (req: AuthenticatedRequest, res: Response) => {
   if (!isSystemAdmin(req)) {
-    return res.status(403).json({ message: 'system_admin only.' });
+    return res.status(403).json({ message: L(req, 'system_admin only.', 'מנהל מערכת בלבד.') });
   }
   try {
     const calendar = await getAcademicCalendar();
     return res.status(200).json(calendar);
   } catch (error: any) {
     console.error('getAcademicCalendarConfig error:', error);
-    return res.status(500).json({ message: 'Failed to load academic calendar.' });
+    return res.status(500).json({ message: L(req, 'Failed to load academic calendar.', 'טעינת לוח השנה האקדמי נכשלה.') });
   }
 };
 
@@ -30,13 +31,13 @@ export const getAcademicCalendarConfig = async (req: AuthenticatedRequest, res: 
 // Body: any subset of { fallSemesterStartMonth, fallSemesterStartDay, springSemesterStartMonth, springSemesterStartDay }
 export const updateAcademicCalendarConfig = async (req: AuthenticatedRequest, res: Response) => {
   if (!isSystemAdmin(req)) {
-    return res.status(403).json({ message: 'system_admin only.' });
+    return res.status(403).json({ message: L(req, 'system_admin only.', 'מנהל מערכת בלבד.') });
   }
   try {
     const updated = await updateAcademicCalendar(req.body ?? {}, req.user!.uid);
     return res.status(200).json(updated);
   } catch (error: any) {
     console.error('updateAcademicCalendarConfig error:', error);
-    return res.status(400).json({ message: error.message || 'Failed to update academic calendar.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to update academic calendar.', 'עדכון לוח השנה האקדמי נכשל.') });
   }
 };

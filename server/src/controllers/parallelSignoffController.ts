@@ -17,6 +17,7 @@ import { notifyUser } from '../services/notify.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { resolveCommitteeForProject } from './committeeController.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const SIGNOFF_STATUS_STAFF_ROLES = [
   'coordinator', 'faculty_admin', 'program_head', 'administrative_secretary',
@@ -35,33 +36,33 @@ export const submitCommitteeChairDecision = async (req: AuthenticatedRequest, re
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
   const { decision, reason } = req.body ?? {};
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   if (decision !== 'continue' && decision !== 'not_continue') {
-    return res.status(400).json({ message: 'decision must be "continue" or "not_continue".' });
+    return res.status(400).json({ message: L(req, 'decision must be "continue" or "not_continue".', 'ההחלטה חייבת להיות "continue" או "not_continue".') });
   }
   if (!(typeof reason === 'string' && reason.trim())) {
-    return res.status(400).json({ message: 'A reason is required.' });
+    return res.status(400).json({ message: L(req, 'A reason is required.', 'יש לציין סיבה.') });
   }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
 
     if (!milestone.preGradeSignoffs?.committee) {
-      return res.status(400).json({ message: 'This milestone does not require a committee chair decision.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not require a committee chair decision.', 'אבן דרך זו אינה מחייבת החלטת יו"ר ועדה.') });
     }
     if (milestone.committeeChairDecision) {
-      return res.status(409).json({ message: 'A decision has already been recorded for this submission.' });
+      return res.status(409).json({ message: L(req, 'A decision has already been recorded for this submission.', 'החלטה כבר נרשמה עבור הגשה זו.') });
     }
 
     const projectSnap = milestone.projectId ? await db.collection('projects').doc(milestone.projectId).get() : null;
     const project = projectSnap?.exists ? projectSnap.data()! : null;
     const committee = project ? await resolveCommitteeForProject(project) : null;
-    if (!committee) return res.status(400).json({ message: 'No committee is configured for this project yet.' });
+    if (!committee) return res.status(400).json({ message: L(req, 'No committee is configured for this project yet.', 'לא הוגדרה ועדה לפרויקט זה עדיין.') });
     if (committee.chairmanId !== uid) {
-      return res.status(403).json({ message: "Only this committee's chairman may record this decision." });
+      return res.status(403).json({ message: L(req, "Only this committee's chairman may record this decision.", 'רק יו"ר הוועדה רשאי/ת לרשום החלטה זו.') });
     }
 
     // Transaction, not a plain get()-then-update(): a double-click or client
@@ -82,7 +83,7 @@ export const submitCommitteeChairDecision = async (req: AuthenticatedRequest, re
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_DECIDED') {
-        return res.status(409).json({ message: 'A decision has already been recorded for this submission.' });
+        return res.status(409).json({ message: L(req, 'A decision has already been recorded for this submission.', 'החלטה כבר נרשמה עבור הגשה זו.') });
       }
       throw err;
     }
@@ -119,7 +120,7 @@ export const submitCommitteeChairDecision = async (req: AuthenticatedRequest, re
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('submitCommitteeChairDecision error:', error);
-    return res.status(500).json({ message: 'Failed to record the committee chair decision.' });
+    return res.status(500).json({ message: L(req, 'Failed to record the committee chair decision.', 'רישום החלטת יו"ר הוועדה נכשל.') });
   }
 };
 
@@ -133,26 +134,26 @@ export const submitCommitteeChairDecision = async (req: AuthenticatedRequest, re
 export const submitExaminerOneSignoff = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
     const milestoneSnap = await milestoneRef.get();
-    if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
 
     if (!milestone.preGradeSignoffs?.examinerOne) {
-      return res.status(400).json({ message: 'This milestone does not require an examiner #1 sign-off.' });
+      return res.status(400).json({ message: L(req, 'This milestone does not require an examiner #1 sign-off.', 'אבן דרך זו אינה מחייבת חתימת בוחן #1.') });
     }
     if (milestone.examinerOneSignoff) {
-      return res.status(409).json({ message: 'This has already been signed off for this submission.' });
+      return res.status(409).json({ message: L(req, 'This has already been signed off for this submission.', 'הגשה זו כבר נחתמה.') });
     }
     const examinerOneId: string | undefined = (milestone.examinerIds ?? [])[0];
     if (!examinerOneId) {
-      return res.status(400).json({ message: 'No examiner has been assigned to this project yet.' });
+      return res.status(400).json({ message: L(req, 'No examiner has been assigned to this project yet.', 'לא הוקצה בוחן לפרויקט זה עדיין.') });
     }
     if (examinerOneId !== uid) {
-      return res.status(403).json({ message: 'Only this project\'s examiner #1 may record this sign-off.' });
+      return res.status(403).json({ message: L(req, 'Only this project\'s examiner #1 may record this sign-off.', 'רק בוחן #1 של פרויקט זה רשאי/ת לרשום חתימה זו.') });
     }
 
     // Transaction, not a plain get()-then-update(): a double-click or client
@@ -173,7 +174,7 @@ export const submitExaminerOneSignoff = async (req: AuthenticatedRequest, res: R
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_SIGNED') {
-        return res.status(409).json({ message: 'This has already been signed off for this submission.' });
+        return res.status(409).json({ message: L(req, 'This has already been signed off for this submission.', 'הגשה זו כבר נחתמה.') });
       }
       throw err;
     }
@@ -209,7 +210,7 @@ export const submitExaminerOneSignoff = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('submitExaminerOneSignoff error:', error);
-    return res.status(500).json({ message: 'Failed to record the examiner sign-off.' });
+    return res.status(500).json({ message: L(req, 'Failed to record the examiner sign-off.', 'רישום חתימת הבוחן נכשל.') });
   }
 };
 
@@ -226,7 +227,7 @@ export const submitExaminerOneSignoff = async (req: AuthenticatedRequest, res: R
  *  mechanisms never collide on the same milestone). */
 export const getMyPendingChairDecisions = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   try {
     const chairedSnap = await db.collection('committees').where('chairmanId', '==', uid).get();
     const chairedIds = chairedSnap.docs.map((d) => d.id);
@@ -264,7 +265,7 @@ export const getMyPendingChairDecisions = async (req: AuthenticatedRequest, res:
     return res.status(200).json({ reviews });
   } catch (error: any) {
     console.error('getMyPendingChairDecisions error:', error);
-    return res.status(500).json({ message: 'Failed to load your pending decisions.' });
+    return res.status(500).json({ message: L(req, 'Failed to load your pending decisions.', 'טעינת ההחלטות הממתינות שלך נכשלה.') });
   }
 };
 
@@ -279,10 +280,10 @@ export const getMyPendingChairDecisions = async (req: AuthenticatedRequest, res:
 export const getParallelSignoffStatus = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id: milestoneId } = req.params as { id: string };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   try {
     const snap = await db.collection('milestones').doc(milestoneId).get();
-    if (!snap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const m = snap.data()!;
 
     // SECURITY FIX: this endpoint previously had no authorization check at
@@ -310,7 +311,7 @@ export const getParallelSignoffStatus = async (req: AuthenticatedRequest, res: R
       }
     }
     if (!isRelatedParty && !isAuthorizedStaff) {
-      return res.status(403).json({ message: 'You do not have access to this milestone.' });
+      return res.status(403).json({ message: L(req, 'You do not have access to this milestone.', 'אין לך גישה לאבן דרך זו.') });
     }
 
     return res.status(200).json({
@@ -321,6 +322,6 @@ export const getParallelSignoffStatus = async (req: AuthenticatedRequest, res: R
     });
   } catch (error: any) {
     console.error('getParallelSignoffStatus error:', error);
-    return res.status(500).json({ message: 'Failed to load sign-off status.' });
+    return res.status(500).json({ message: L(req, 'Failed to load sign-off status.', 'טעינת סטטוס החתימה נכשלה.') });
   }
 };

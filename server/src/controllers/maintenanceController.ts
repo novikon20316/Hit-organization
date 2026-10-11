@@ -6,6 +6,7 @@ import {
   setMaintenanceStatus,
   clearMaintenanceStatus,
 } from '../services/maintenanceStatus.js';
+import { L } from '../utils/localize.js';
 
 // ─── GET /api/system/maintenance-status?platform=web|mobile ─────────────────
 // Requires auth (verifyToken) — called right after login/2FA once the
@@ -40,14 +41,14 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
       } = req.body;
       const uid = req.user?.uid;
 
-      if(!uid) return res.status(401).json({ message: 'Unauthorized' });
+      if(!uid) return res.status(401).json({ message: L(req, 'Unauthorized', 'גישה לא מורשית.') });
       if (!hasAnyRole(req.user, ['system_admin'])) {
-        return res.status(403).json({ message: 'Access denied: system_admin only.' });
+        return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
       }
 
-      if (!title?.trim())        return res.status(400).json({ message: 'title is required' });
-      if (!shutdownAt)           return res.status(400).json({ message: 'shutdownAt is required' });
-      if (!maintenanceDurMs)     return res.status(400).json({ message: 'maintenanceDurMs is required' });
+      if (!title?.trim())        return res.status(400).json({ message: L(req, 'title is required', 'יש להזין כותרת.') });
+      if (!shutdownAt)           return res.status(400).json({ message: L(req, 'shutdownAt is required', 'יש להזין את מועד הכיבוי (shutdownAt).') });
+      if (!maintenanceDurMs)     return res.status(400).json({ message: L(req, 'maintenanceDurMs is required', 'יש להזין את משך תקופת התחזוקה (maintenanceDurMs).') });
 
       const platform = resolvePlatform(req.body.platform);
       const shutdownTs = new Date(shutdownAt);
@@ -69,7 +70,7 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
       return res.json({ ok: true, platform });
     } catch (err) {
       console.error('POST /admin/system/maintenance error:', err);
-      return res.status(500).json({ message: 'Internal server error' });
+      return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 };
 
@@ -79,7 +80,7 @@ export const updateMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
 // (body.platform, same default as above).
 export const deleteMaintenanceStatus = async (req: AuthenticatedRequest, res: Response) => {
     if (!hasAnyRole(req.user, ['system_admin'])) {
-      return res.status(403).json({ message: 'Access denied: system_admin only.' });
+      return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
     }
     try {
       const platform = resolvePlatform(req.body?.platform);
@@ -87,6 +88,6 @@ export const deleteMaintenanceStatus = async (req: AuthenticatedRequest, res: Re
       return res.json({ ok: true, platform });
     } catch (err) {
       console.error('DELETE /admin/system/maintenance error:', err);
-      return res.status(500).json({ message: 'Internal server error' });
+      return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
     }
 };

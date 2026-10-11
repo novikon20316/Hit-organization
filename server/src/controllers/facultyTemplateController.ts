@@ -18,6 +18,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -33,7 +34,7 @@ export const getFacultyTemplateDashboard = async (req: AuthenticatedRequest, res
   const uid = req.user?.uid;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
 
   // facultyId can come from the query string (manager screen) or fall back to
@@ -45,13 +46,13 @@ export const getFacultyTemplateDashboard = async (req: AuthenticatedRequest, res
     if (!facultyId) {
       const userSnap = await db.collection('users').doc(uid).get();
       if (!userSnap.exists) {
-        return res.status(404).json({ message: 'User not found.' });
+        return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
       }
       facultyId = userSnap.data()?.facultyId;
     }
 
     if (!facultyId) {
-      return res.status(400).json({ message: 'facultyId could not be resolved.' });
+      return res.status(400).json({ message: L(req, 'facultyId could not be resolved.', 'לא ניתן לזהות את מזהה הפקולטה.') });
     }
 
     const snap = await db.collection('facultyTemplates')
@@ -78,7 +79,7 @@ export const getFacultyTemplateDashboard = async (req: AuthenticatedRequest, res
     });
   } catch (error: any) {
     console.error('getFacultyTemplateDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load faculty template dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load faculty template dashboard.', 'טעינת לוח התבניות של הפקולטה נכשלה.') });
   }
 };
 
@@ -95,7 +96,7 @@ export const createFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
   const uid = req.user?.uid;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
 
   const {
@@ -107,7 +108,7 @@ export const createFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
 
   if (!titleHe || !titleEn || !degree || !type) {
     return res.status(400).json({
-      message: 'Missing required fields: titleHe, titleEn, degree, type.',
+      message: L(req, 'Missing required fields: titleHe, titleEn, degree, type.', 'שדות חובה חסרים: כותרת בעברית, כותרת באנגלית, תואר וסוג.'),
     });
   }
 
@@ -115,7 +116,7 @@ export const createFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     // Resolve caller's role and faculty
     const userSnap = await db.collection('users').doc(uid).get();
     if (!userSnap.exists) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
     }
 
     const userData = userSnap.data()!;
@@ -180,7 +181,7 @@ export const createFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     });
   } catch (error: any) {
     console.error('createFacultyTemplate error:', error);
-    return res.status(500).json({ message: 'Failed to create faculty template.' });
+    return res.status(500).json({ message: L(req, 'Failed to create faculty template.', 'יצירת תבנית הפקולטה נכשלה.') });
   }
 };
 
@@ -197,10 +198,10 @@ export const updateFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
   const { templateId } = req.params;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!templateId || typeof templateId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing templateId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing templateId.', 'מזהה תבנית חסר או לא תקין.') });
   }
 
   const {
@@ -214,7 +215,7 @@ export const updateFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     const templateSnap = await templateRef.get();
 
     if (!templateSnap.exists) {
-      return res.status(404).json({ message: 'Template not found.' });
+      return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     }
 
     const templateData = templateSnap.data()!;
@@ -226,7 +227,7 @@ export const updateFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     const isCreator = templateData.createdBy === uid;
 
     if (!isAdmin && !isCreator) {
-      return res.status(403).json({ message: 'Forbidden: you can only edit your own templates.' });
+      return res.status(403).json({ message: L(req, 'Forbidden: you can only edit your own templates.', 'אין הרשאה: ניתן לערוך רק תבניות שיצרת בעצמך.') });
     }
 
     // Build update payload — only include fields that were actually sent
@@ -246,7 +247,7 @@ export const updateFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ success: true, message: 'Template updated.' });
   } catch (error: any) {
     console.error('updateFacultyTemplate error:', error);
-    return res.status(500).json({ message: 'Failed to update template.' });
+    return res.status(500).json({ message: L(req, 'Failed to update template.', 'עדכון התבנית נכשל.') });
   }
 };
 
@@ -262,10 +263,10 @@ export const deleteFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
   const { templateId } = req.params;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!templateId || typeof templateId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing templateId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing templateId.', 'מזהה תבנית חסר או לא תקין.') });
   }
 
   try {
@@ -273,7 +274,7 @@ export const deleteFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     const templateSnap = await templateRef.get();
 
     if (!templateSnap.exists) {
-      return res.status(404).json({ message: 'Template not found.' });
+      return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
     }
 
     const templateData = templateSnap.data()!;
@@ -284,7 +285,7 @@ export const deleteFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     const isCreator = templateData.createdBy === uid;
 
     if (!isAdmin && !isCreator) {
-      return res.status(403).json({ message: 'Forbidden: you can only delete your own templates.' });
+      return res.status(403).json({ message: L(req, 'Forbidden: you can only delete your own templates.', 'אין הרשאה: ניתן למחוק רק תבניות שיצרת בעצמך.') });
     }
 
     await templateRef.delete();
@@ -292,7 +293,7 @@ export const deleteFacultyTemplate = async (req: AuthenticatedRequest, res: Resp
     return res.status(200).json({ success: true, message: 'Template deleted.' });
   } catch (error: any) {
     console.error('deleteFacultyTemplate error:', error);
-    return res.status(500).json({ message: 'Failed to delete template.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete template.', 'מחיקת התבנית נכשלה.') });
   }
 };
 
@@ -311,10 +312,10 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
   const { note } = req.body;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!templateId || typeof templateId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing templateId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing templateId.', 'מזהה תבנית חסר או לא תקין.') });
   }
 
   try {
@@ -327,14 +328,14 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
     const callerRole: string = userData.role ?? '';
 
     if (!['faculty_admin', 'system_admin', 'program_head', 'grad_school_head'].includes(callerRole)) {
-      return res.status(403).json({ message: 'Forbidden: only faculty admins can approve proposals.' });
+      return res.status(403).json({ message: L(req, 'Forbidden: only faculty admins can approve proposals.', 'אין הרשאה: רק מנהלי פקולטה יכולים לאשר הצעות.') });
     }
 
     const templateRef = db.collection('facultyTemplates').doc(templateId);
     const templateSnap = await templateRef.get();
 
     if (!templateSnap.exists) {
-      return res.status(404).json({ message: 'Template proposal not found.' });
+      return res.status(404).json({ message: L(req, 'Template proposal not found.', 'הצעת התבנית לא נמצאה.') });
     }
 
     const templateData = templateSnap.data()!;
@@ -347,12 +348,12 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
     if (callerRole === 'program_head' || callerRole === 'grad_school_head') {
       const facultyIds = effectiveFacultyIds(userData, callerRole === 'program_head' ? 'programHeadFacultyIds' : 'gradSchoolHeadFacultyIds');
       if (facultyIds !== 'all' && !facultyIds.includes(templateData.facultyId)) {
-        return res.status(403).json({ message: 'This template is outside your assigned faculty.' });
+        return res.status(403).json({ message: L(req, 'This template is outside your assigned faculty.', 'תבנית זו אינה בתחום הפקולטה שהוקצתה לך.') });
       }
     }
 
     if (templateData.status !== 'pending') {
-      return res.status(400).json({ message: `Proposal is already "${templateData.status}".` });
+      return res.status(400).json({ message: L(req, `Proposal is already "${templateData.status}".`, `ההצעה כבר במצב "${templateData.status}".`) });
     }
 
     const batch = db.batch();
@@ -400,7 +401,7 @@ export const approveTemplateProposal = async (req: AuthenticatedRequest, res: Re
     return res.status(200).json({ success: true, message: 'Proposal approved.' });
   } catch (error: any) {
     console.error('approveTemplateProposal error:', error);
-    return res.status(500).json({ message: 'Failed to approve template proposal.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve template proposal.', 'אישור הצעת התבנית נכשל.') });
   }
 };
 
@@ -419,13 +420,13 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
   const { reason } = req.body;
 
   if (!uid) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!templateId || typeof templateId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing templateId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing templateId.', 'מזהה תבנית חסר או לא תקין.') });
   }
   if (!reason || typeof reason !== 'string') {
-    return res.status(400).json({ message: 'A rejection reason is required.' });
+    return res.status(400).json({ message: L(req, 'A rejection reason is required.', 'יש לציין סיבת דחייה.') });
   }
 
   try {
@@ -434,14 +435,14 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
     const callerRole: string = userData.role ?? '';
 
     if (!['faculty_admin', 'system_admin', 'program_head', 'grad_school_head'].includes(callerRole)) {
-      return res.status(403).json({ message: 'Forbidden: only faculty admins can reject proposals.' });
+      return res.status(403).json({ message: L(req, 'Forbidden: only faculty admins can reject proposals.', 'אין הרשאה: רק מנהלי פקולטה יכולים לדחות הצעות.') });
     }
 
     const templateRef = db.collection('facultyTemplates').doc(templateId);
     const templateSnap = await templateRef.get();
 
     if (!templateSnap.exists) {
-      return res.status(404).json({ message: 'Template proposal not found.' });
+      return res.status(404).json({ message: L(req, 'Template proposal not found.', 'הצעת התבנית לא נמצאה.') });
     }
 
     const templateData = templateSnap.data()!;
@@ -451,12 +452,12 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
     if (callerRole === 'program_head' || callerRole === 'grad_school_head') {
       const facultyIds = effectiveFacultyIds(userData, callerRole === 'program_head' ? 'programHeadFacultyIds' : 'gradSchoolHeadFacultyIds');
       if (facultyIds !== 'all' && !facultyIds.includes(templateData.facultyId)) {
-        return res.status(403).json({ message: 'This template is outside your assigned faculty.' });
+        return res.status(403).json({ message: L(req, 'This template is outside your assigned faculty.', 'תבנית זו אינה בתחום הפקולטה שהוקצתה לך.') });
       }
     }
 
     if (templateData.status !== 'pending') {
-      return res.status(400).json({ message: `Proposal is already "${templateData.status}".` });
+      return res.status(400).json({ message: L(req, `Proposal is already "${templateData.status}".`, `ההצעה כבר במצב "${templateData.status}".`) });
     }
 
     const batch = db.batch();
@@ -504,6 +505,6 @@ export const rejectTemplateProposal = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, message: 'Proposal rejected.' });
   } catch (error: any) {
     console.error('rejectTemplateProposal error:', error);
-    return res.status(500).json({ message: 'Failed to reject template proposal.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject template proposal.', 'דחיית הצעת התבנית נכשלה.') });
   }
 };

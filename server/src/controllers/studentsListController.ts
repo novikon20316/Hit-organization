@@ -19,6 +19,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { isStudentWithinStaffScope } from '../services/scopeAuthorization.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -38,7 +39,7 @@ export const listStudentsForScope = async (req: AuthenticatedRequest, res: Respo
   const user = req.user;
   const isAllowed = hasRole(user, 'system_admin') || hasRole(user, 'faculty_admin') || hasRole(user, 'grad_school_head') || hasRole(user, 'administrative_secretary');
   if (!user || !isAllowed) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
@@ -68,6 +69,6 @@ export const listStudentsForScope = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ success: true, students });
   } catch (error: any) {
     console.error('listStudentsForScope error:', error);
-    return res.status(500).json({ message: 'Failed to load students list.' });
+    return res.status(500).json({ message: L(req, 'Failed to load students list.', 'טעינת רשימת הסטודנטים נכשלה.') });
   }
 };

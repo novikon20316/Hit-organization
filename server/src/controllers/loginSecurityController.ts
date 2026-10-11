@@ -6,6 +6,7 @@
 // same trust model as examinerAccessController.ts.
 import { Request, Response } from 'express';
 import { reportFailedLogin, getIncidentSummary, resolveIncident } from '../services/loginSecurity.js';
+import { L } from '../utils/localize.js';
 
 // This is the one public, unauthenticated endpoint in the app that takes raw
 // email/password in the body, so it's the natural place for defense-in-depth
@@ -51,7 +52,7 @@ function isWellFormedCredential(email: unknown, password: unknown): email is str
 export const reportFailedLoginAttempt = async (req: Request, res: Response) => {
   const { email, password } = req.body ?? {};
   if (!isWellFormedCredential(email, password)) {
-    return res.status(400).json({ message: 'email and password are required.' });
+    return res.status(400).json({ message: L(req, 'email and password are required.', 'יש להזין אימייל וסיסמה.') });
   }
 
   try {
@@ -59,7 +60,7 @@ export const reportFailedLoginAttempt = async (req: Request, res: Response) => {
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('reportFailedLoginAttempt error:', error);
-    return res.status(500).json({ message: 'Failed to process login report.' });
+    return res.status(500).json({ message: L(req, 'Failed to process login report.', 'עיבוד דיווח הכניסה הכושלת נכשל.') });
   }
 };
 
@@ -69,15 +70,15 @@ export const reportFailedLoginAttempt = async (req: Request, res: Response) => {
  */
 export const getLoginSecurityIncident = async (req: Request, res: Response) => {
   const { code } = req.params;
-  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Invalid code.' });
+  if (!code || typeof code !== 'string') return res.status(400).json({ message: L(req, 'Invalid code.', 'קוד לא תקין.') });
 
   try {
     const summary = await getIncidentSummary(code);
-    if (!summary) return res.status(404).json({ message: 'Incident not found.' });
+    if (!summary) return res.status(404).json({ message: L(req, 'Incident not found.', 'האירוע לא נמצא.') });
     return res.status(200).json(summary);
   } catch (error: any) {
     console.error('getLoginSecurityIncident error:', error);
-    return res.status(500).json({ message: 'Failed to load incident.' });
+    return res.status(500).json({ message: L(req, 'Failed to load incident.', 'טעינת האירוע נכשלה.') });
   }
 };
 
@@ -88,9 +89,9 @@ export const getLoginSecurityIncident = async (req: Request, res: Response) => {
 export const confirmLoginSecurityIncident = async (req: Request, res: Response) => {
   const { code } = req.params;
   const { decision } = req.body ?? {};
-  if (!code || typeof code !== 'string') return res.status(400).json({ message: 'Invalid code.' });
+  if (!code || typeof code !== 'string') return res.status(400).json({ message: L(req, 'Invalid code.', 'קוד לא תקין.') });
   if (decision !== 'owner' && decision !== 'attacker') {
-    return res.status(400).json({ message: "decision must be 'owner' or 'attacker'." });
+    return res.status(400).json({ message: L(req, "decision must be 'owner' or 'attacker'.", "decision חייב להיות 'owner' או 'attacker'.") });
   }
 
   try {
@@ -102,6 +103,6 @@ export const confirmLoginSecurityIncident = async (req: Request, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('confirmLoginSecurityIncident error:', error);
-    return res.status(500).json({ message: 'Failed to resolve incident.' });
+    return res.status(500).json({ message: L(req, 'Failed to resolve incident.', 'פתרון האירוע נכשל.') });
   }
 };

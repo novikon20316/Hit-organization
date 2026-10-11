@@ -11,6 +11,7 @@ import admin from 'firebase-admin';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getStudentStatusConfig, updateStudentStatusConfig } from '../services/studentStatuses.js';
 import { isValidDocId } from '../services/idValidation.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -28,13 +29,13 @@ function isFacultyAdmin(req: AuthenticatedRequest): boolean {
 
 // GET /api/student-statuses — any authenticated user (labels are shown
 // wherever a student's status is displayed, not just to whoever can edit it).
-export const getStudentStatusOptions = async (_req: AuthenticatedRequest, res: Response) => {
+export const getStudentStatusOptions = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const config = await getStudentStatusConfig();
     return res.status(200).json(config);
   } catch (error: any) {
     console.error('getStudentStatusOptions error:', error);
-    return res.status(500).json({ message: 'Failed to load student status options.' });
+    return res.status(500).json({ message: L(req, 'Failed to load student status options.', 'טעינת אפשרויות סטטוס הסטודנט נכשלה.') });
   }
 };
 
@@ -43,14 +44,14 @@ export const getStudentStatusOptions = async (_req: AuthenticatedRequest, res: R
 // per axis, matching academicCalendarController's partial-update convention).
 export const updateStudentStatusOptions = async (req: AuthenticatedRequest, res: Response) => {
   if (!isSystemAdmin(req)) {
-    return res.status(403).json({ message: 'system_admin only.' });
+    return res.status(403).json({ message: L(req, 'system_admin only.', 'מנהל מערכת בלבד.') });
   }
   try {
     const updated = await updateStudentStatusConfig(req.body ?? {}, req.user!.uid);
     return res.status(200).json(updated);
   } catch (error: any) {
     console.error('updateStudentStatusOptions error:', error);
-    return res.status(400).json({ message: error.message || 'Failed to update student status options.' });
+    return res.status(400).json({ message: error.message || L(req, 'Failed to update student status options.', 'עדכון אפשרויות סטטוס הסטודנט נכשל.') });
   }
 };
 
@@ -62,21 +63,21 @@ export const updateStudentStatusOptions = async (req: AuthenticatedRequest, res:
 export const setStudentStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id: studentId } = req.params;
   if (!isValidDocId(studentId)) {
-    return res.status(400).json({ message: 'Invalid student id.' });
+    return res.status(400).json({ message: L(req, 'Invalid student id.', 'מזהה סטודנט לא תקין.') });
   }
   if (!isSystemAdmin(req) && !isFacultyAdmin(req)) {
-    return res.status(403).json({ message: 'Access denied: system_admin or faculty_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin or faculty_admin only.', 'הגישה נדחתה: מנהל מערכת או מנהל פקולטה בלבד.') });
   }
 
   try {
     const studentSnap = await db.collection('users').doc(studentId).get();
-    if (!studentSnap.exists) return res.status(404).json({ message: 'Student not found.' });
+    if (!studentSnap.exists) return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
     const student = studentSnap.data()!;
     if (student.role !== 'student') {
-      return res.status(400).json({ message: 'This endpoint only sets status on student accounts.' });
+      return res.status(400).json({ message: L(req, 'This endpoint only sets status on student accounts.', 'נקודת קצה זו קובעת סטטוס רק עבור חשבונות סטודנטים.') });
     }
     if (!isSystemAdmin(req) && student.facultyId !== req.user!.facultyId) {
-      return res.status(403).json({ message: "Access denied: outside your faculty." });
+      return res.status(403).json({ message: L(req, 'Access denied: outside your faculty.', 'הגישה נדחתה: מחוץ לפקולטה שלך.') });
     }
 
     const { primaryStatus, secondaryStatus } = req.body ?? {};
@@ -87,24 +88,24 @@ export const setStudentStatus = async (req: AuthenticatedRequest, res: Response)
     const update: Record<string, unknown> = {};
     if (primaryStatus !== undefined) {
       if (primaryStatus !== null && !primaryKeys.has(primaryStatus)) {
-        return res.status(400).json({ message: `Invalid primaryStatus: "${primaryStatus}"` });
+        return res.status(400).json({ message: L(req, `Invalid primaryStatus: "${primaryStatus}"`, `primaryStatus לא תקין: "${primaryStatus}"`) });
       }
       update.primaryStatus = primaryStatus === null ? admin.firestore.FieldValue.delete() : primaryStatus;
     }
     if (secondaryStatus !== undefined) {
       if (secondaryStatus !== null && !secondaryKeys.has(secondaryStatus)) {
-        return res.status(400).json({ message: `Invalid secondaryStatus: "${secondaryStatus}"` });
+        return res.status(400).json({ message: L(req, `Invalid secondaryStatus: "${secondaryStatus}"`, `secondaryStatus לא תקין: "${secondaryStatus}"`) });
       }
       update.secondaryStatus = secondaryStatus === null ? admin.firestore.FieldValue.delete() : secondaryStatus;
     }
     if (Object.keys(update).length === 0) {
-      return res.status(400).json({ message: 'Nothing to update — provide primaryStatus and/or secondaryStatus.' });
+      return res.status(400).json({ message: L(req, 'Nothing to update — provide primaryStatus and/or secondaryStatus.', 'אין מה לעדכן — יש לציין primaryStatus ו/או secondaryStatus.') });
     }
 
     await db.collection('users').doc(studentId).update(update);
-    return res.status(200).json({ success: true, message: 'Status updated.' });
+    return res.status(200).json({ success: true, message: L(req, 'Status updated.', 'הסטטוס עודכן.') });
   } catch (error: any) {
     console.error('setStudentStatus error:', error);
-    return res.status(500).json({ message: 'Failed to update student status.' });
+    return res.status(500).json({ message: L(req, 'Failed to update student status.', 'עדכון סטטוס הסטודנט נכשל.') });
   }
 };

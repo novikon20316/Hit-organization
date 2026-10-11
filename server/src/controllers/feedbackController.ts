@@ -11,6 +11,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { classifyFeedback } from '../services/feedbackService.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -18,14 +19,14 @@ const db = admin.firestore();
 export const submitFeedback = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const role = req.user?.role;
-  if (!uid || !role) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid || !role) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
   if (role === 'system_admin') {
-    return res.status(403).json({ message: 'system_admin reviews feedback in the admin panel instead of sending it.' });
+    return res.status(403).json({ message: L(req, 'system_admin reviews feedback in the admin panel instead of sending it.', 'מנהל מערכת סוקר משוב בפאנל הניהול ולא שולח אותו.') });
   }
 
   const { text } = req.body;
   if (!text || typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ message: 'Missing feedback text.' });
+    return res.status(400).json({ message: L(req, 'Missing feedback text.', 'חסר תוכן המשוב.') });
   }
   const trimmed = text.trim().slice(0, 2000);
 
@@ -76,7 +77,7 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ success: true, classification, erased: false });
   } catch (error: any) {
     console.error('submitFeedback error:', error);
-    return res.status(500).json({ message: 'Failed to submit feedback.' });
+    return res.status(500).json({ message: L(req, 'Failed to submit feedback.', 'שליחת המשוב נכשלה.') });
   }
 };
 
@@ -84,7 +85,7 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
 // erased, so anything returned here is either pending classification or real)
 export const getMyFeedback = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
 
   try {
     // Sorted in memory rather than via Firestore orderBy — an equality filter
@@ -110,14 +111,14 @@ export const getMyFeedback = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(200).json({ messages });
   } catch (error: any) {
     console.error('getMyFeedback error:', error);
-    return res.status(500).json({ message: 'Failed to load feedback.' });
+    return res.status(500).json({ message: L(req, 'Failed to load feedback.', 'טעינת המשוב נכשלה.') });
   }
 };
 
 // GET /api/feedback/admin?status=open|resolved — system_admin only
 export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response) => {
   if (!hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
@@ -150,24 +151,24 @@ export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ messages });
   } catch (error: any) {
     console.error('getAdminFeedback error:', error);
-    return res.status(500).json({ message: 'Failed to load feedback.' });
+    return res.status(500).json({ message: L(req, 'Failed to load feedback.', 'טעינת המשוב נכשלה.') });
   }
 };
 
 // PATCH /api/feedback/admin/:id/resolve — system_admin only
 export const resolveFeedback = async (req: AuthenticatedRequest, res: Response) => {
   if (!hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   const { id } = req.params;
   if (!id || typeof id !== 'string') {
-    return res.status(400).json({ message: 'Invalid feedback id.' });
+    return res.status(400).json({ message: L(req, 'Invalid feedback id.', 'מזהה משוב לא תקין.') });
   }
 
   try {
     const ref = db.collection('feedbackMessages').doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Feedback not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Feedback not found.', 'המשוב לא נמצא.') });
 
     await ref.update({
       status: 'resolved',
@@ -178,6 +179,6 @@ export const resolveFeedback = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('resolveFeedback error:', error);
-    return res.status(500).json({ message: 'Failed to resolve feedback.' });
+    return res.status(500).json({ message: L(req, 'Failed to resolve feedback.', 'סימון המשוב כטופל נכשל.') });
   }
 };

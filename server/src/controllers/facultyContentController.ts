@@ -12,6 +12,7 @@ import admin from 'firebase-admin';
 import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { VALID_MAJORS } from '../config/majors.js';
+import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
 
@@ -45,22 +46,22 @@ function parseScopeArray(raw: unknown, validValues: Set<string>, label: string):
 // ─── POST /api/admin/faculty-content, /api/coordinator/faculty-content ───────
 export const createFacultyContent = async (req: AuthenticatedRequest, res: Response) => {
   const posterId = req.user?.uid;
-  if (!posterId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!posterId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, FACULTY_CONTENT_ROLES)) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
     const { type, titleHe, titleEn, bodyHe, bodyEn } = req.body ?? {};
 
     if (!VALID_CONTENT_TYPES.has(type)) {
-      return res.status(400).json({ message: `type must be one of: ${[...VALID_CONTENT_TYPES].join(', ')}` });
+      return res.status(400).json({ message: L(req, `type must be one of: ${[...VALID_CONTENT_TYPES].join(', ')}`, `type חייב להיות אחד מהערכים: ${[...VALID_CONTENT_TYPES].join(', ')}`) });
     }
     if (!titleHe?.trim() && !titleEn?.trim()) {
-      return res.status(400).json({ message: 'A title (Hebrew or English) is required.' });
+      return res.status(400).json({ message: L(req, 'A title (Hebrew or English) is required.', 'יש להזין כותרת (בעברית או באנגלית).') });
     }
     if (!bodyHe?.trim() && !bodyEn?.trim()) {
-      return res.status(400).json({ message: 'Body text (Hebrew or English) is required.' });
+      return res.status(400).json({ message: L(req, 'Body text (Hebrew or English) is required.', 'יש להזין תוכן (בעברית או באנגלית).') });
     }
 
     let facultyIds: string[], majors: string[], degreeTypes: string[];
@@ -89,7 +90,7 @@ export const createFacultyContent = async (req: AuthenticatedRequest, res: Respo
     return res.status(201).json({ success: true, id: docRef.id });
   } catch (error: any) {
     console.error('createFacultyContent error:', error);
-    return res.status(500).json({ message: 'Failed to post content.' });
+    return res.status(500).json({ message: L(req, 'Failed to post content.', 'פרסום התוכן נכשל.') });
   }
 };
 
@@ -131,7 +132,7 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json({ items });
   } catch (error: any) {
     console.error('getFacultyContent error:', error);
-    return res.status(500).json({ message: 'Failed to load faculty content.' });
+    return res.status(500).json({ message: L(req, 'Failed to load faculty content.', 'טעינת תוכן הפקולטה נכשלה.') });
   }
 };
 
@@ -144,19 +145,19 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
 export const dismissFacultyContent = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id } = req.params;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid content id.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid content id.', 'מזהה התוכן אינו תקין.') });
 
   try {
     const ref = db.collection('facultyContent').doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Content not found.' });
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Content not found.', 'התוכן לא נמצא.') });
 
     await ref.update({ dismissedBy: admin.firestore.FieldValue.arrayUnion(uid) });
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('dismissFacultyContent error:', error);
-    return res.status(500).json({ message: 'Failed to dismiss content.' });
+    return res.status(500).json({ message: L(req, 'Failed to dismiss content.', 'הסתרת התוכן נכשלה.') });
   }
 };
 
@@ -164,16 +165,16 @@ export const dismissFacultyContent = async (req: AuthenticatedRequest, res: Resp
 export const deleteFacultyContent = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id } = req.params;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, FACULTY_CONTENT_ROLES)) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Invalid content id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid content id.', 'מזהה התוכן אינו תקין.') });
   try {
     await db.collection('facultyContent').doc(id).delete();
     return res.status(200).json({ success: true, message: 'Content deleted.' });
   } catch (error: any) {
     console.error('deleteFacultyContent error:', error);
-    return res.status(500).json({ message: 'Failed to delete content.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete content.', 'מחיקת התוכן נכשלה.') });
   }
 };

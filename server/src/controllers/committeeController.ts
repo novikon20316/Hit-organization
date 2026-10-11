@@ -29,6 +29,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { findCommitteeConflictsForScopes } from '../services/committeeConflicts.js';
+import { L } from '../utils/localize.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
 export type CommitteeDegreeLevel = 'bachelors' | 'masters';
@@ -70,10 +71,10 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
   const { facultyId } = req.query;
   if (!isSystemAdmin(req)) {
     if (!hasAnyRole(req.user, TEMPLATE_AUTHOR_ROLES)) {
-      return res.status(403).json({ message: 'Access denied.' });
+      return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
     }
     if (typeof facultyId !== 'string' || !facultyId) {
-      return res.status(400).json({ message: 'facultyId is required.' });
+      return res.status(400).json({ message: L(req, 'facultyId is required.', 'שדה הפקולטה נדרש.') });
     }
     // administrative_secretary (also in TEMPLATE_AUTHOR_ROLES) is provisioned
     // with facultyId 'all' (see CROSS_FACULTY_ROLES in userController.ts) —
@@ -89,7 +90,7 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
     const ownsFaculty =
       (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId) ||
       (!!req.user?.facultyId && req.user.facultyId !== 'all' && req.user.facultyId === facultyId);
-    if (!ownsFaculty) return res.status(403).json({ message: 'Access denied for this faculty.' });
+    if (!ownsFaculty) return res.status(403).json({ message: L(req, 'Access denied for this faculty.', 'הגישה לפקולטה זו נדחתה.') });
   }
   try {
     let query: FirebaseFirestore.Query = db.collection('committees');
@@ -99,7 +100,7 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
     return res.status(200).json({ committees });
   } catch (error: any) {
     console.error('listCommittees error:', error);
-    return res.status(500).json({ message: 'Failed to load committees.' });
+    return res.status(500).json({ message: L(req, 'Failed to load committees.', 'טעינת הוועדות נכשלה.') });
   }
 };
 
@@ -108,14 +109,14 @@ export const listCommittees = async (req: AuthenticatedRequest, res: Response) =
  *  system_admin picked, not necessarily a program_head account. */
 export const getMyCommittees = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
   try {
     const snap = await db.collection('committees').where('memberIds', 'array-contains', uid).get();
     const committees = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     return res.status(200).json({ committees });
   } catch (error: any) {
     console.error('getMyCommittees error:', error);
-    return res.status(500).json({ message: 'Failed to load your committees.' });
+    return res.status(500).json({ message: L(req, 'Failed to load your committees.', 'טעינת הוועדות שלך נכשלה.') });
   }
 };
 
@@ -135,7 +136,7 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
     typeof facultyId === 'string' && !!facultyId &&
     (req.user?.coordinatorScopes ?? []).some((s) => s.facultyId === facultyId);
   if (!isSystemAdmin(req) && !isScopedSecretary && !(await isAnyCommitteeChairman(req.user?.uid))) {
-    return res.status(403).json({ message: 'Access denied: system_admin, a scoped administrative coordinator, or a committee chairman only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin, a scoped administrative coordinator, or a committee chairman only.', 'הגישה נדחתה: מנהל מערכת, רכז אדמיניסטרטיבי מוסמך בתחום, או יושב ראש ועדה בלבד.') });
   }
   try {
     const queries = [db.collection('users').where('facultyId', '==', 'all').get()];
@@ -158,7 +159,7 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
     return res.status(200).json({ members: [...byId.values()] });
   } catch (error: any) {
     console.error('listEligibleCommitteeMembers error:', error);
-    return res.status(500).json({ message: 'Failed to load candidate members.' });
+    return res.status(500).json({ message: L(req, 'Failed to load candidate members.', 'טעינת רשימת המועמדים נכשלה.') });
   }
 };
 
@@ -200,13 +201,13 @@ async function isAnyCommitteeChairman(uid: string | undefined): Promise<boolean>
  *  rather than erroring, since "fix a misconfigured committee" is exactly
  *  the system_admin use case this exists for. */
 export const createCommittee = async (req: AuthenticatedRequest, res: Response) => {
-  if (!isSystemAdmin(req)) return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  if (!isSystemAdmin(req)) return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   const { facultyId, major, degreeLevel, type, chairmanId, memberIds } = req.body ?? {};
   if (!facultyId || !major || (degreeLevel !== 'bachelors' && degreeLevel !== 'masters') || (type !== 'thesis' && type !== 'final_project')) {
-    return res.status(400).json({ message: 'facultyId, major, degreeLevel (bachelors|masters), and type (thesis|final_project) are required.' });
+    return res.status(400).json({ message: L(req, 'facultyId, major, degreeLevel (bachelors|masters), and type (thesis|final_project) are required.', 'יש לציין פקולטה, חוג, רמת תואר (bachelors|masters) וסוג (thesis|final_project).') });
   }
   if (degreeLevel === 'bachelors' && type !== 'final_project') {
-    return res.status(400).json({ message: "Bachelor's committees have no thesis track — type must be final_project." });
+    return res.status(400).json({ message: L(req, "Bachelor's committees have no thesis track — type must be final_project.", 'לוועדות תואר ראשון אין מסלול תזה — הסוג חייב להיות final_project.') });
   }
   const members: string[] = Array.isArray(memberIds) ? memberIds.filter((m) => typeof m === 'string') : [];
   if (chairmanId && !members.includes(chairmanId)) members.push(chairmanId);
@@ -225,7 +226,7 @@ export const createCommittee = async (req: AuthenticatedRequest, res: Response) 
     return res.status(200).json({ success: true, id });
   } catch (error: any) {
     console.error('createCommittee error:', error);
-    return res.status(500).json({ message: 'Failed to create committee.' });
+    return res.status(500).json({ message: L(req, 'Failed to create committee.', 'יצירת הוועדה נכשלה.') });
   }
 };
 
@@ -237,8 +238,8 @@ export const createCommittee = async (req: AuthenticatedRequest, res: Response) 
 export const updateCommittee = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   const { id } = req.params as { id: string };
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!id) return res.status(400).json({ message: 'Invalid committee id.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
+  if (!id) return res.status(400).json({ message: L(req, 'Invalid committee id.', 'מזהה ועדה לא תקין.') });
 
   try {
     const ref = db.collection('committees').doc(id);
@@ -281,16 +282,16 @@ export const updateCommittee = async (req: AuthenticatedRequest, res: Response) 
         transaction.update(ref, update);
       });
     } catch (err: any) {
-      if (err?.message === 'NOT_FOUND') return res.status(404).json({ message: 'Committee not found.' });
-      if (err?.message === 'FORBIDDEN') return res.status(403).json({ message: 'Only this committee\'s chairman or a system_admin may edit it.' });
-      if (err?.message === 'CHAIRMAN_NOT_MEMBER') return res.status(400).json({ message: 'The chairman must already be a committee member.' });
+      if (err?.message === 'NOT_FOUND') return res.status(404).json({ message: L(req, 'Committee not found.', 'הוועדה לא נמצאה.') });
+      if (err?.message === 'FORBIDDEN') return res.status(403).json({ message: L(req, 'Only this committee\'s chairman or a system_admin may edit it.', 'רק יושב ראש הוועדה או מנהל מערכת יכולים לערוך אותה.') });
+      if (err?.message === 'CHAIRMAN_NOT_MEMBER') return res.status(400).json({ message: L(req, 'The chairman must already be a committee member.', 'היושב ראש חייב להיות כבר חבר בוועדה.') });
       throw err;
     }
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updateCommittee error:', error);
-    return res.status(500).json({ message: 'Failed to update committee.' });
+    return res.status(500).json({ message: L(req, 'Failed to update committee.', 'עדכון הוועדה נכשל.') });
   }
 };
 
@@ -359,14 +360,14 @@ export function applyCommitteeSubstitutions(
  *  services/committeeConflicts.ts. */
 export const getCommitteeConflicts = async (req: AuthenticatedRequest, res: Response) => {
   if (!hasAnyRole(req.user, ['administrative_secretary'])) {
-    return res.status(403).json({ message: 'Access denied: administrative coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: administrative coordinator only.', 'הגישה נדחתה: רכז אדמיניסטרטיבי בלבד.') });
   }
   try {
     const conflicts = await findCommitteeConflictsForScopes(req.user?.coordinatorScopes ?? []);
     return res.status(200).json({ conflicts });
   } catch (error: any) {
     console.error('getCommitteeConflicts error:', error);
-    return res.status(500).json({ message: 'Failed to load committee conflicts.' });
+    return res.status(500).json({ message: L(req, 'Failed to load committee conflicts.', 'טעינת ניגודי העניינים בוועדות נכשלה.') });
   }
 };
 
@@ -380,53 +381,53 @@ export const getCommitteeConflicts = async (req: AuthenticatedRequest, res: Resp
  *  facultyId/major must be one she's assigned to); system_admin unrestricted. */
 export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
   const { projectId } = req.params as { projectId: string };
   const { originalUserId, replacementUserId } = req.body ?? {};
-  if (!projectId) return res.status(400).json({ message: 'Invalid projectId.' });
+  if (!projectId) return res.status(400).json({ message: L(req, 'Invalid projectId.', 'מזהה פרויקט לא תקין.') });
   if (typeof originalUserId !== 'string' || !originalUserId) {
-    return res.status(400).json({ message: 'originalUserId is required.' });
+    return res.status(400).json({ message: L(req, 'originalUserId is required.', 'שדה originalUserId נדרש.') });
   }
   if (typeof replacementUserId !== 'string' || !replacementUserId) {
-    return res.status(400).json({ message: 'replacementUserId is required.' });
+    return res.status(400).json({ message: L(req, 'replacementUserId is required.', 'שדה replacementUserId נדרש.') });
   }
   if (originalUserId === replacementUserId) {
-    return res.status(400).json({ message: 'The replacement must be a different person.' });
+    return res.status(400).json({ message: L(req, 'The replacement must be a different person.', 'המחליף/ה חייב/ת להיות אדם אחר.') });
   }
 
   try {
     const projectRef = db.collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const project = projectSnap.data()!;
 
     if (!isSystemAdmin(req)) {
       if (!hasAnyRole(req.user, ['administrative_secretary'])) {
-        return res.status(403).json({ message: 'Access denied: administrative coordinator only.' });
+        return res.status(403).json({ message: L(req, 'Access denied: administrative coordinator only.', 'הגישה נדחתה: רכז אדמיניסטרטיבי בלבד.') });
       }
       const inScope = (req.user?.coordinatorScopes ?? []).some(
         (s) => s.facultyId === project.facultyId && (!s.major || s.major === project.major)
       );
-      if (!inScope) return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+      if (!inScope) return res.status(403).json({ message: L(req, 'This project is outside your assigned scope.', 'פרויקט זה מחוץ לתחום שהוקצה לך.') });
     }
 
     // The replacement can't be the very thing being fixed — someone who's
     // ALSO one of this project's supervisors would just recreate the same
     // conflict under a different name.
     if (replacementUserId === project.supervisorId || replacementUserId === project.secondarySupervisorId) {
-      return res.status(400).json({ message: "The replacement can't be this project's own supervisor." });
+      return res.status(400).json({ message: L(req, "The replacement can't be this project's own supervisor.", 'המחליף/ה לא יכול/ה להיות המנחה של הפרויקט עצמו.') });
     }
 
     const committee = await resolveCommitteeForProject(project);
-    if (!committee) return res.status(400).json({ message: 'No committee is configured for this project yet.' });
+    if (!committee) return res.status(400).json({ message: L(req, 'No committee is configured for this project yet.', 'לא הוגדרה ועדה לפרויקט זה עדיין.') });
     const isCurrentMember = committee.chairmanId === originalUserId || committee.memberIds.includes(originalUserId);
     if (!isCurrentMember) {
-      return res.status(400).json({ message: 'That person is not currently on this project\'s committee.' });
+      return res.status(400).json({ message: L(req, 'That person is not currently on this project\'s committee.', 'אדם זה אינו חבר בוועדת הפרויקט כעת.') });
     }
 
     const replacementSnap = await db.collection('users').doc(replacementUserId).get();
     if (!replacementSnap.exists || replacementSnap.data()?.role === 'student') {
-      return res.status(400).json({ message: 'Invalid replacement — must be an existing staff account.' });
+      return res.status(400).json({ message: L(req, 'Invalid replacement — must be an existing staff account.', 'מחליף לא תקין — יש לבחור חשבון צוות קיים.') });
     }
 
     await projectRef.set(
@@ -437,6 +438,6 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('substituteCommitteeMember error:', error);
-    return res.status(500).json({ message: 'Failed to substitute the committee member.' });
+    return res.status(500).json({ message: L(req, 'Failed to substitute the committee member.', 'החלפת חבר הוועדה נכשלה.') });
   }
 };

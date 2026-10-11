@@ -12,6 +12,7 @@ import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { db } from '../config/firebase.js';
 import { withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import { getExaminerIdentity, getExaminerBankAccount, getExaminerTaxDocument, resolveExaminerDocumentUrl } from '../services/examinerFinancial.js';
+import { L } from '../utils/localize.js';
 
 /**
  * GET /api/admin/external-examiners
@@ -20,7 +21,7 @@ export const getExternalExaminers = async (req: AuthenticatedRequest, res: Respo
   const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
   const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
   if (!isSystemAdmin && !isAdminCoordinator) {
-    return res.status(403).json({ message: 'Access denied.' });
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
 
   try {
@@ -87,6 +88,6 @@ export const getExternalExaminers = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ examiners: rows });
   } catch (error: any) {
     console.error('getExternalExaminers error:', error);
-    return res.status(500).json({ message: 'Failed to load external examiners.' });
+    return res.status(500).json({ message: L(req, 'Failed to load external examiners.', 'טעינת רשימת הבוחנים החיצוניים נכשלה.') });
   }
 };

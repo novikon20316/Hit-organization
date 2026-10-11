@@ -12,6 +12,7 @@ import {
   isValidErrorReportKind,
   isValidErrorReportPlatform,
 } from '../services/errorReports.js';
+import { L } from '../utils/localize.js';
 
 // Caps well above anything a real error message/stack needs, while keeping
 // a malformed/malicious payload from writing an oversized Firestore doc.
@@ -38,11 +39,11 @@ export const reportClientError = async (req: AuthenticatedRequest, res: Response
     const { kind, platform, message, stack, route } = req.body ?? {};
 
     if (!isValidErrorReportKind(kind) || !isValidErrorReportPlatform(platform)) {
-      return res.status(400).json({ ok: false, error: 'Invalid kind/platform.' });
+      return res.status(400).json({ ok: false, error: L(req, 'Invalid kind/platform.', 'kind/platform לא תקינים.') });
     }
     const cleanMessage = truncate(message, MAX_MESSAGE_LEN);
     if (!cleanMessage) {
-      return res.status(400).json({ ok: false, error: 'message is required.' });
+      return res.status(400).json({ ok: false, error: L(req, 'message is required.', 'שדה message נדרש.') });
     }
 
     let userId: string | null = null;
@@ -82,20 +83,20 @@ export const reportClientError = async (req: AuthenticatedRequest, res: Response
 // re-alerts on) the same fingerprint if it recurs.
 export const resolveErrorReportHandler = async (req: AuthenticatedRequest, res: Response) => {
   if (!hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized', 'לא מורשה') });
 
   const { id } = req.params as { id: string };
-  if (!id) return res.status(400).json({ message: 'id is required' });
+  if (!id) return res.status(400).json({ message: L(req, 'id is required', 'שדה id נדרש') });
 
   try {
     const result = await resolveErrorReport(id, uid);
-    if (!result.ok) return res.status(404).json({ message: 'Not found' });
+    if (!result.ok) return res.status(404).json({ message: L(req, 'Not found', 'לא נמצא') });
     return res.json({ ok: true });
   } catch (err) {
     console.error('PATCH /api/admin/system/error-reports/:id/resolve error:', err);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית') });
   }
 };

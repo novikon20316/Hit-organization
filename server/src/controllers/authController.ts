@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { reportBiometricExhausted } from '../services/loginSecurity.js';
+import { L } from '../utils/localize.js';
 
 const RECOVERY_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -26,7 +27,7 @@ function totpRef(uid: string) {
 // Step 1: Generate secret + QR code for the student
 export const setup2FA = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user; // from your verifyToken middleware
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   try {
     // 2FA is already active — resetting it must go through the email-verified
@@ -35,7 +36,7 @@ export const setup2FA = async (req: AuthenticatedRequest, res: Response) => {
     // in their own authenticator without proving anything else.
     const existingDoc = await db.collection('users').doc(user.uid).get();
     if (existingDoc.data()?.totp_enabled) {
-      return res.status(403).json({ error: '2FA is already enabled. Use account recovery to reset it.' });
+      return res.status(403).json({ error: L(req, '2FA is already enabled. Use account recovery to reset it.', 'האימות הדו-שלבי כבר מופעל. יש להשתמש בשחזור חשבון כדי לאפס אותו.') });
     }
 
     const secret = speakeasy.generateSecret({
@@ -48,13 +49,13 @@ export const setup2FA = async (req: AuthenticatedRequest, res: Response) => {
     await totpRef(user.uid).set({ secretTemp: secret.base32 }, { merge: true });
 
     const otpauthUrl = secret.otpauth_url;
-    if (!otpauthUrl) return res.status(500).json({ error: 'Failed to generate secret.' });
+    if (!otpauthUrl) return res.status(500).json({ error: L(req, 'Failed to generate secret.', 'יצירת הקוד הסודי נכשלה.') });
 
     const qrCode = await QRCode.toDataURL(otpauthUrl);
     res.json({ qrCode, secret: secret.base32, otpauthUrl: otpauthUrl });
   } catch (error: any) {
     console.error('setup2FA error:', error);
-    res.status(500).json({ error: 'Failed to set up 2FA.' });
+    res.status(500).json({ error: L(req, 'Failed to set up 2FA.', 'הגדרת האימות הדו-שלבי נכשלה.') });
   }
 };
 
@@ -62,7 +63,7 @@ export const setup2FA = async (req: AuthenticatedRequest, res: Response) => {
 export const verify2FA = async (req: AuthenticatedRequest, res: Response) => {
   const { token } = req.body;
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   try {
     const totpDoc = await totpRef(user.uid).get();
@@ -75,7 +76,7 @@ export const verify2FA = async (req: AuthenticatedRequest, res: Response) => {
       window: 1,
     });
 
-    if (!verified) return res.status(400).json({ error: 'Invalid code. Try again.' });
+    if (!verified) return res.status(400).json({ error: L(req, 'Invalid code. Try again.', 'קוד שגוי. נסה/נסי שוב.') });
 
     await Promise.all([
       db.collection('users').doc(user.uid).update({ totp_enabled: true }),
@@ -85,14 +86,14 @@ export const verify2FA = async (req: AuthenticatedRequest, res: Response) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('verify2FA error:', error);
-    res.status(500).json({ error: 'Failed to verify 2FA code.' });
+    res.status(500).json({ error: L(req, 'Failed to verify 2FA code.', 'אימות קוד האימות הדו-שלבי נכשל.') });
   }
 };
 
 // Step 3: During login — validate the 6-digit code
 export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' }); // ← fix 1: guard
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') }); // ← fix 1: guard
 
   const { token } = req.body; // ← fix 2: remove uid from here, use middleware
 
@@ -100,7 +101,7 @@ export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
     const userDoc = await db.collection('users').doc(user.uid).get(); // ← fix 3: uid from middleware
     const { totp_enabled } = userDoc.data()!;
 
-    if (!totp_enabled) return res.status(400).json({ error: '2FA not set up.' });
+    if (!totp_enabled) return res.status(400).json({ error: L(req, '2FA not set up.', 'האימות הדו-שלבי לא הוגדר.') });
 
     const totpDoc = await totpRef(user.uid).get();
     const { secret: totp_secret } = totpDoc.data() ?? {};
@@ -112,7 +113,7 @@ export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
       window: 1,
     });
 
-    if (!verified) return res.status(401).json({ error: 'Invalid 2FA code.' });
+    if (!verified) return res.status(401).json({ error: L(req, 'Invalid 2FA code.', 'קוד אימות דו-שלבי שגוי.') });
 
     // ✅ fix 4: save today's verification so _layout.tsx can skip 2FA for rest of day
     await db.collection('users').doc(user.uid).update({
@@ -122,7 +123,7 @@ export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('login2FA error:', error);
-    res.status(500).json({ error: 'Failed to verify 2FA code.' });
+    res.status(500).json({ error: L(req, 'Failed to verify 2FA code.', 'אימות קוד האימות הדו-שלבי נכשל.') });
   }
 };
 
@@ -141,14 +142,14 @@ export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
 // Step R1: email a 6-digit recovery code to the account's own address
 export const requestTotpRecoveryCode = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
-  if (!user.email) return res.status(400).json({ error: 'No email on file for this account.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!user.email) return res.status(400).json({ error: L(req, 'No email on file for this account.', 'לא קיימת כתובת אימייל רשומה לחשבון זה.') });
 
   try {
     const userDoc  = await db.collection('users').doc(user.uid).get();
     const userData = userDoc.data();
     if (!userData?.totp_enabled) {
-      return res.status(400).json({ error: '2FA is not set up on this account.' });
+      return res.status(400).json({ error: L(req, '2FA is not set up on this account.', 'האימות הדו-שלבי לא הוגדר בחשבון זה.') });
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -168,18 +169,18 @@ export const requestTotpRecoveryCode = async (req: AuthenticatedRequest, res: Re
     res.json({ success: true, message: 'Recovery code sent to your email.' });
   } catch (error: any) {
     console.error('requestTotpRecoveryCode error:', error);
-    res.status(500).json({ error: 'Failed to send recovery code.' });
+    res.status(500).json({ error: L(req, 'Failed to send recovery code.', 'שליחת קוד השחזור נכשלה.') });
   }
 };
 
 // Step R2: verify that emailed code, then hand back a brand-new QR to enroll
 export const verifyTotpRecoveryCode = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { code } = req.body;
   if (!code || typeof code !== 'string') {
-    return res.status(400).json({ error: 'Recovery code is required.' });
+    return res.status(400).json({ error: L(req, 'Recovery code is required.', 'יש להזין קוד שחזור.') });
   }
 
   try {
@@ -189,13 +190,13 @@ export const verifyTotpRecoveryCode = async (req: AuthenticatedRequest, res: Res
     const storedExpiry = totpData?.recoveryExpires as Timestamp | undefined;
 
     if (!storedHash || !storedExpiry) {
-      return res.status(400).json({ error: 'No recovery code was requested. Please request a new one.' });
+      return res.status(400).json({ error: L(req, 'No recovery code was requested. Please request a new one.', 'לא התבקש קוד שחזור. יש לבקש קוד חדש.') });
     }
     if (Date.now() > storedExpiry.toMillis()) {
-      return res.status(400).json({ error: 'This recovery code has expired. Please request a new one.' });
+      return res.status(400).json({ error: L(req, 'This recovery code has expired. Please request a new one.', 'קוד השחזור הזה פג תוקף. יש לבקש קוד חדש.') });
     }
     if (hashRecoveryCode(code) !== storedHash) {
-      return res.status(400).json({ error: 'Invalid recovery code.' });
+      return res.status(400).json({ error: L(req, 'Invalid recovery code.', 'קוד שחזור שגוי.') });
     }
 
     // Code confirmed — clear it (single use) and issue a fresh TOTP secret,
@@ -212,13 +213,13 @@ export const verifyTotpRecoveryCode = async (req: AuthenticatedRequest, res: Res
     }, { merge: true });
 
     const otpauthUrl = secret.otpauth_url;
-    if (!otpauthUrl) return res.status(500).json({ error: 'Failed to generate secret.' });
+    if (!otpauthUrl) return res.status(500).json({ error: L(req, 'Failed to generate secret.', 'יצירת הקוד הסודי נכשלה.') });
 
     const qrCode = await QRCode.toDataURL(otpauthUrl);
     res.json({ qrCode, secret: secret.base32, otpauthUrl });
   } catch (error: any) {
     console.error('verifyTotpRecoveryCode error:', error);
-    res.status(500).json({ error: 'Failed to verify recovery code.' });
+    res.status(500).json({ error: L(req, 'Failed to verify recovery code.', 'אימות קוד השחזור נכשל.') });
   }
 };
 
@@ -245,8 +246,8 @@ function biometricSetupRef(uid: string) {
 
 export const requestBiometricSetupCode = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
-  if (!user.email) return res.status(400).json({ error: 'No email on file for this account.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!user.email) return res.status(400).json({ error: L(req, 'No email on file for this account.', 'לא קיימת כתובת אימייל רשומה לחשבון זה.') });
 
   try {
     const userDoc  = await db.collection('users').doc(user.uid).get();
@@ -269,17 +270,17 @@ export const requestBiometricSetupCode = async (req: AuthenticatedRequest, res: 
     res.json({ success: true, message: 'Verification code sent to your email.' });
   } catch (error: any) {
     console.error('requestBiometricSetupCode error:', error);
-    res.status(500).json({ error: 'Failed to send verification code.' });
+    res.status(500).json({ error: L(req, 'Failed to send verification code.', 'שליחת קוד האימות נכשלה.') });
   }
 };
 
 export const verifyBiometricSetupCode = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   const { code } = req.body;
   if (!code || typeof code !== 'string') {
-    return res.status(400).json({ error: 'Verification code is required.' });
+    return res.status(400).json({ error: L(req, 'Verification code is required.', 'יש להזין קוד אימות.') });
   }
 
   try {
@@ -289,13 +290,13 @@ export const verifyBiometricSetupCode = async (req: AuthenticatedRequest, res: R
     const storedExpiry = setupData?.expiresAt as Timestamp | undefined;
 
     if (!storedHash || !storedExpiry) {
-      return res.status(400).json({ error: 'No verification code was requested. Please request a new one.' });
+      return res.status(400).json({ error: L(req, 'No verification code was requested. Please request a new one.', 'לא התבקש קוד אימות. יש לבקש קוד חדש.') });
     }
     if (Date.now() > storedExpiry.toMillis()) {
-      return res.status(400).json({ error: 'This code has expired. Please request a new one.' });
+      return res.status(400).json({ error: L(req, 'This code has expired. Please request a new one.', 'הקוד הזה פג תוקף. יש לבקש קוד חדש.') });
     }
     if (hashRecoveryCode(code) !== storedHash) {
-      return res.status(400).json({ error: 'Invalid code.' });
+      return res.status(400).json({ error: L(req, 'Invalid code.', 'קוד שגוי.') });
     }
 
     // Single use — clear it regardless of what the client does next with
@@ -308,7 +309,7 @@ export const verifyBiometricSetupCode = async (req: AuthenticatedRequest, res: R
     res.json({ success: true });
   } catch (error: any) {
     console.error('verifyBiometricSetupCode error:', error);
-    res.status(500).json({ error: 'Failed to verify code.' });
+    res.status(500).json({ error: L(req, 'Failed to verify code.', 'אימות הקוד נכשל.') });
   }
 };
 
@@ -323,14 +324,14 @@ export const verifyBiometricSetupCode = async (req: AuthenticatedRequest, res: R
  */
 export const reportBiometricExhaustedAttempt = async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+  if (!user) return res.status(401).json({ error: L(req, 'Unauthorized.', 'אין הרשאה.') });
 
   try {
     const result = await reportBiometricExhausted(user.uid, req.ip ?? '');
     res.json(result);
   } catch (error: any) {
     console.error('reportBiometricExhaustedAttempt error:', error);
-    res.status(500).json({ error: 'Failed to report biometric failure.' });
+    res.status(500).json({ error: L(req, 'Failed to report biometric failure.', 'דיווח כשל האימות הביומטרי נכשל.') });
   }
 };
 

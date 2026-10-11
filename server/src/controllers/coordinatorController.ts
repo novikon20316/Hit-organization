@@ -19,6 +19,7 @@ import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { resolveCommitteeForProject } from './committeeController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
+import { L } from '../utils/localize.js';
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -89,14 +90,14 @@ const LEGACY_MILESTONE_APPROVAL_ROLES = ['coordinator', 'system_admin'];
  */
 export const assignExaminers = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
 
   const { projectId } = req.params;
   const { examiners, examinerIds, milestoneId, studentIds, lang, weights } = req.body;
 
   if (typeof projectId !== 'string' || !projectId) {
-    return res.status(400).json({ message: 'Invalid or missing projectId' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing projectId', 'מזהה הפרויקט לא תקין או חסר') });
   }
 
   const examinerInputs: ExaminerAssignmentInput[] = Array.isArray(examiners)
@@ -106,7 +107,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       : [];
 
   if (examinerInputs.length === 0) {
-    return res.status(400).json({ message: 'Invalid examiner list' });
+    return res.status(400).json({ message: L(req, 'Invalid examiner list', 'רשימת הבוחנים אינה תקינה') });
   }
 
   try {
@@ -114,13 +115,13 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     const projectSnap = await projectRef.get();
 
     if (!projectSnap.exists) {
-      return res.status(404).json({ message: 'Project not found' });
+      return res.status(404).json({ message: L(req, 'Project not found', 'הפרויקט לא נמצא') });
     }
     const project = projectSnap.data()!;
 
     const assignScope = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
     if (!withinCoordinatorScope(req.user, assignScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', assignScope)) {
-      return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This project is outside your assigned scope.', 'הפרויקט הזה מחוץ לתחום האחריות שהוקצה לך.') });
     }
 
     let thesisUrl = '';
@@ -135,7 +136,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
       // overwriting B's gradeWeights and leaking B's fileUrls[0] into the
       // assignment email sent to A's newly-invited examiner.
       if (milestoneSnap.exists && milestoneSnap.data()?.projectId !== projectId) {
-        return res.status(400).json({ message: 'milestoneId does not belong to this project.' });
+        return res.status(400).json({ message: L(req, 'milestoneId does not belong to this project.', 'מזהה אבן הדרך אינו משויך לפרויקט זה.') });
       }
       thesisUrl = milestoneSnap.data()?.fileUrls?.[0] ?? '';
 
@@ -169,14 +170,14 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
         const supervisorWeight = Number(weights.supervisorWeight);
         const examinerWeight = Number(weights.examinerWeight ?? weights.examiner1Weight ?? weights.examiner2Weight);
         if (![supervisorWeight, examinerWeight].every((w) => Number.isFinite(w) && w >= 0)) {
-          return res.status(400).json({ message: 'Invalid grade weights.' });
+          return res.status(400).json({ message: L(req, 'Invalid grade weights.', 'משקלי הציון אינם תקינים.') });
         }
         // Panel size is configurable per faculty/degree (see
         // workflowTemplates.ts's examinerCount) — total examiner allocation
         // is examinerInputs.length * examinerWeight either way, since every
         // examiner slot shares the same weight (see IdentityGradeWeights).
         if (Math.abs(supervisorWeight + examinerInputs.length * examinerWeight - 1) > 0.01) {
-          return res.status(400).json({ message: 'Grade weights must sum to 100%.' });
+          return res.status(400).json({ message: L(req, 'Grade weights must sum to 100%.', 'סכום משקלי הציון צריך להיות 100%.') });
         }
         try {
           const defenseRef = await findDefenseMilestoneRef(projectId);
@@ -274,7 +275,7 @@ export const assignExaminers = async (req: AuthenticatedRequest, res: Response) 
     });
   } catch (error) {
     console.error('Assignment failed:', error);
-    res.status(500).json({ message: 'Failed to assign examiners' });
+    res.status(500).json({ message: L(req, 'Failed to assign examiners', 'מינוי הבוחנים נכשל') });
   }
 };
 
@@ -288,10 +289,10 @@ export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRe
   // (including a student) could reach this. Bring it in line with its
   // sibling coordinator endpoints.
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
   if (!req.user.facultyId && req.user.coordinatorScopes.length === 0) {
-    return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
+    return res.status(400).json({ message: L(req, 'Coordinator has no facultyId assigned.', 'לרכז לא הוקצתה פקולטה.') });
   }
 
   try {
@@ -328,7 +329,7 @@ export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRe
     return res.status(200).json({ recommendations });
   } catch (error: any) {
     console.error('getCoordinatorExaminerRecommendations error:', error);
-    return res.status(500).json({ message: 'Failed to load examiner recommendations.' });
+    return res.status(500).json({ message: L(req, 'Failed to load examiner recommendations.', 'טעינת המלצות הבוחנים נכשלה.') });
   }
 };
 
@@ -341,30 +342,30 @@ export const getCoordinatorExaminerRecommendations = async (req: AuthenticatedRe
 export const approveExaminerRecommendation = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
-  if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!coordinatorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, EXAMINER_RECOMMENDATION_APPROVAL_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing recommendation id.', 'חסר מזהה המלצה.') });
 
   try {
     const recRef  = db.collection('examinerRecommendations').doc(id);
     const recSnap = await recRef.get();
-    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    if (!recSnap.exists) return res.status(404).json({ message: L(req, 'Recommendation not found.', 'ההמלצה לא נמצאה.') });
 
     const rec = recSnap.data()!;
     if (rec.status !== 'pending') {
-      return res.status(400).json({ message: `Recommendation already ${rec.status}.` });
+      return res.status(400).json({ message: L(req, `Recommendation already ${rec.status}.`, `ההמלצה כבר טופלה (סטטוס: ${rec.status}).`) });
     }
 
     const projectId  = rec.projectId;
     const projectSnap = await db.collection('projects').doc(projectId).get();
-    if (!projectSnap.exists) return res.status(404).json({ message: 'Project not found.' });
+    if (!projectSnap.exists) return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
     const project = projectSnap.data()!;
 
     const approveScope = { facultyId: project.facultyId, major: project.major, degreeLevel: project.degreeType, processType: project.projectType };
     if (!withinCoordinatorScope(req.user, approveScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', approveScope)) {
-      return res.status(403).json({ message: 'This recommendation is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This recommendation is outside your assigned scope.', 'ההמלצה הזו מחוץ לתחום האחריות שהוקצה לך.') });
     }
 
     const studentSnaps = await Promise.all(
@@ -398,7 +399,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
         });
       } catch (err: any) {
         if (err?.message === 'ALREADY_DECIDED') {
-          return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+          return res.status(400).json({ message: L(req, `Recommendation already ${(await recRef.get()).data()?.status}.`, `ההמלצה כבר טופלה (סטטוס: ${(await recRef.get()).data()?.status}).`) });
         }
         throw err;
       }
@@ -432,7 +433,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_DECIDED') {
-        return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+        return res.status(400).json({ message: L(req, `Recommendation already ${(await recRef.get()).data()?.status}.`, `ההמלצה כבר טופלה (סטטוס: ${(await recRef.get()).data()?.status}).`) });
       }
       throw err;
     }
@@ -479,7 +480,7 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
     }
   } catch (error: any) {
     console.error('approveExaminerRecommendation error:', error);
-    return res.status(500).json({ message: 'Failed to approve recommendation.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve recommendation.', 'אישור ההמלצה נכשל.') });
   }
 };
 
@@ -491,21 +492,21 @@ export const approveExaminerRecommendation = async (req: AuthenticatedRequest, r
 export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const coordinatorId = req.user?.uid;
-  if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!coordinatorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, EXAMINER_RECOMMENDATION_APPROVAL_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
-  if (!id || typeof id !== 'string') return res.status(400).json({ message: 'Missing recommendation id.' });
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing recommendation id.', 'חסר מזהה המלצה.') });
 
   try {
     const recRef  = db.collection('examinerRecommendations').doc(id);
     const recSnap = await recRef.get();
-    if (!recSnap.exists) return res.status(404).json({ message: 'Recommendation not found.' });
+    if (!recSnap.exists) return res.status(404).json({ message: L(req, 'Recommendation not found.', 'ההמלצה לא נמצאה.') });
     const rec = recSnap.data()!;
 
     const rejectScope = (await resolveProjectScope(rec.projectId)) ?? { facultyId: rec.facultyId ?? '' };
     if (!withinCoordinatorScope(req.user, rejectScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', rejectScope)) {
-      return res.status(403).json({ message: 'This recommendation is outside your assigned scope.' });
+      return res.status(403).json({ message: L(req, 'This recommendation is outside your assigned scope.', 'ההמלצה הזו מחוץ לתחום האחריות שהוקצה לך.') });
     }
 
     // Transaction, not a plain update(): unlike its approveExaminerRecommendation
@@ -529,7 +530,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
       });
     } catch (err: any) {
       if (err?.message === 'ALREADY_DECIDED') {
-        return res.status(400).json({ message: `Recommendation already ${(await recRef.get()).data()?.status}.` });
+        return res.status(400).json({ message: L(req, `Recommendation already ${(await recRef.get()).data()?.status}.`, `ההמלצה כבר טופלה (סטטוס: ${(await recRef.get()).data()?.status}).`) });
       }
       throw err;
     }
@@ -537,7 +538,7 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
     return res.status(200).json({ success: true, message: 'Recommendation rejected.' });
   } catch (error: any) {
     console.error('rejectExaminerRecommendation error:', error);
-    return res.status(500).json({ message: 'Failed to reject recommendation.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject recommendation.', 'דחיית ההמלצה נכשלה.') });
   }
 };
 
@@ -553,18 +554,18 @@ export const rejectExaminerRecommendation = async (req: AuthenticatedRequest, re
  */
 export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const coordinatorId = req.user?.uid;
-  if (!coordinatorId) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!coordinatorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
 
   try {
     const coordinatorSnap = await db.collection('users').doc(coordinatorId).get();
-    if (!coordinatorSnap.exists) return res.status(404).json({ message: 'Coordinator user record not found.' });
+    if (!coordinatorSnap.exists) return res.status(404).json({ message: L(req, 'Coordinator user record not found.', 'רשומת המשתמש של הרכז לא נמצאה.') });
 
     const coordinatorData = coordinatorSnap.data();
     const facultyId = coordinatorData?.facultyId;
-    if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
+    if (!facultyId) return res.status(400).json({ message: L(req, 'Coordinator has no facultyId assigned.', 'לרכז לא הוקצתה פקולטה.') });
 
     // BUG FIX: this used to query straight off the account's own facultyId
     // field, which is just the user's "home" faculty (e.g. from a supervisor
@@ -776,7 +777,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
 
   } catch (error: any) {
     console.error('getCoordinatorDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load coordinator dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load coordinator dashboard.', 'טעינת לוח הבקרה של הרכז נכשלה.') });
   }
 };
 
@@ -870,12 +871,12 @@ async function approveChainMilestone(
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
   const stage = routing[currentStageIndex];
   if (!stage || stage.action !== 'approve') {
-    return res.status(400).json({ message: 'This milestone is not currently awaiting an approval.' });
+    return res.status(400).json({ message: L(req, 'This milestone is not currently awaiting an approval.', 'אבן דרך זו אינה ממתינה כעת לאישור.') });
   }
 
   if (milestone.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
     return res.status(400).json({
-      message: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+      message: L(req, 'Please confirm you have read the proposal thoroughly before submitting your decision.', 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.'),
       messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.',
       messageEn: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
     });
@@ -903,7 +904,7 @@ async function approveChainMilestone(
       f.required && !f.locked && (stageFormData?.[f.key] === undefined || stageFormData?.[f.key] === null || stageFormData?.[f.key] === '')
     );
     if (missing.length > 0) {
-      return res.status(400).json({ message: `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}` });
+      return res.status(400).json({ message: L(req, `Missing required field(s): ${missing.map((f) => f.labelEn).join(', ')}`, `שדות חובה חסרים: ${missing.map((f) => f.labelEn).join(', ')}`) });
     }
   }
 
@@ -1280,7 +1281,7 @@ async function approveChainMilestone(
     });
   } catch (error: any) {
     console.error('approveChainMilestone error:', error);
-    return res.status(500).json({ message: 'Failed to approve milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve milestone.', 'אישור אבן הדרך נכשל.') });
   }
 }
 
@@ -1308,7 +1309,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       ? req.body.recommendation
       : undefined;
   if (recommendation === 'approved_conditionally' && !comment) {
-    return res.status(400).json({ message: 'A comment describing the conditions is required for a conditional approval.' });
+    return res.status(400).json({ message: L(req, 'A comment describing the conditions is required for a conditional approval.', 'נדרשת הערה המתארת את התנאים לאישור מותנה.') });
   }
   // The current stage's own form answers (see ChainStage.formFields) — e.g.
   // a supervisor's "courses still needed" text or a coordinator's
@@ -1323,10 +1324,10 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   const confirmedProposalRead = req.body?.confirmedProposalRead === true || req.body?.confirmedProposalRead === 'true';
 
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing milestoneId.', 'מזהה אבן הדרך לא תקין או חסר.') });
   }
   if (!coordinatorId) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
 
   // Optional file(s) the actor attaches alongside their approval — never
@@ -1361,22 +1362,22 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
   // so this bypasses the COORDINATOR_ROLES gate below entirely in favor of
   // authorizeStageActor, which checks the milestone's own configured chain.
   const preSnap = await db.collection('milestones').doc(milestoneId).get();
-  if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+  if (!preSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
     return approveChainMilestone(req, res, milestoneId, preData, coordinatorId, comment, recommendation, stageFormData, getAttachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
 
   const approveMilestoneScope = await resolveMilestoneScope(milestoneId);
   if (!approveMilestoneScope) {
-    return res.status(404).json({ message: 'Milestone not found.' });
+    return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   }
   if (!withinCoordinatorScope(req.user, approveMilestoneScope) && !hasActionGrant(req.user, 'approve_milestones', approveMilestoneScope)) {
-    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+    return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
   }
 
   let previousStatus: string | undefined;
@@ -1490,7 +1491,7 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
     return res.status(200).json({ success: true, message: 'Milestone approved by coordinator.' });
   } catch (error: any) {
     console.error('coordinatorApproveMilestone error:', error);
-    return res.status(500).json({ message: 'Failed to approve milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to approve milestone.', 'אישור אבן הדרך נכשל.') });
   }
 };
 
@@ -1515,12 +1516,12 @@ async function rejectChainMilestone(
   const currentStageIndex: number = milestone.currentStageIndex ?? 0;
   const stage = routing[currentStageIndex];
   if (!stage || stage.action !== 'approve') {
-    return res.status(400).json({ message: 'This milestone is not currently awaiting an approval, so it cannot be rejected here.' });
+    return res.status(400).json({ message: L(req, 'This milestone is not currently awaiting an approval, so it cannot be rejected here.', 'אבן דרך זו אינה ממתינה כעת לאישור, ולכן לא ניתן לדחות אותה כאן.') });
   }
 
   if (milestone.type === 'research_proposal' && stage.role === 'supervisor' && !confirmedProposalRead) {
     return res.status(400).json({
-      message: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
+      message: L(req, 'Please confirm you have read the proposal thoroughly before submitting your decision.', 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.'),
       messageHe: 'יש לאשר שקראת את הצעת המחקר לעומק לפני הגשת ההחלטה.',
       messageEn: 'Please confirm you have read the proposal thoroughly before submitting your decision.',
     });
@@ -1542,7 +1543,7 @@ async function rejectChainMilestone(
     // Should never happen — workflowTemplateController.ts's validateRoutingChain
     // rejects a rejectTo that doesn't resolve to a real stage id at proposal
     // time. Fail closed rather than silently mis-routing if it somehow does.
-    return res.status(400).json({ message: "This stage's configured rejection target no longer exists in the chain." });
+    return res.status(400).json({ message: L(req, "This stage's configured rejection target no longer exists in the chain.", 'יעד הדחייה המוגדר לשלב זה אינו קיים יותר בשרשרת האישורים.') });
   }
 
   const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -1706,7 +1707,7 @@ async function rejectChainMilestone(
     });
   } catch (error: any) {
     console.error('rejectChainMilestone error:', error);
-    return res.status(500).json({ message: 'Failed to reject milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject milestone.', 'דחיית אבן הדרך נכשלה.') });
   }
 }
 
@@ -1726,13 +1727,13 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   const confirmedProposalRead = req.body?.confirmedProposalRead === true || req.body?.confirmedProposalRead === 'true';
 
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing milestoneId.', 'מזהה אבן הדרך לא תקין או חסר.') });
   }
   if (!coordinatorId) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!reason || typeof reason !== 'string') {
-    return res.status(400).json({ message: 'A rejection reason is required.' });
+    return res.status(400).json({ message: L(req, 'A rejection reason is required.', 'נדרשת סיבת דחייה.') });
   }
 
   // Optional file(s) attached alongside the rejection — see
@@ -1754,22 +1755,22 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   };
 
   const preSnap = await db.collection('milestones').doc(milestoneId).get();
-  if (!preSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
+  if (!preSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   const preData = preSnap.data()!;
   if (isChainDriven(preData)) {
     return rejectChainMilestone(req, res, milestoneId, preData, coordinatorId, reason, getAttachmentUrls, confirmedProposalRead);
   }
 
   if (!req.user || !hasAnyRole(req.user, LEGACY_MILESTONE_APPROVAL_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
 
   const rejectMilestoneScope = await resolveMilestoneScope(milestoneId);
   if (!rejectMilestoneScope) {
-    return res.status(404).json({ message: 'Milestone not found.' });
+    return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   }
   if (!withinCoordinatorScope(req.user, rejectMilestoneScope) && !hasActionGrant(req.user, 'approve_milestones', rejectMilestoneScope)) {
-    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+    return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
   }
 
   let previousStatus: string | undefined;
@@ -1862,7 +1863,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
     return res.status(200).json({ success: true, message: 'Milestone rejected.' });
   } catch (error: any) {
     console.error('coordinatorRejectMilestone error:', error);
-    return res.status(500).json({ message: 'Failed to reject milestone.' });
+    return res.status(500).json({ message: L(req, 'Failed to reject milestone.', 'דחיית אבן הדרך נכשלה.') });
   }
 };
 
@@ -1887,34 +1888,34 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
   const coordinatorId = req.user?.uid;
 
   if (!projectId || typeof projectId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing projectId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing projectId.', 'מזהה הפרויקט לא תקין או חסר.') });
   }
   if (!coordinatorId) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to set defense logistics.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to set defense logistics.', 'אין לך הרשאה להגדיר את פרטי ההגנה הלוגיסטיים.') });
   }
   const defenseScope = await resolveProjectScope(projectId);
   if (!defenseScope) {
-    return res.status(404).json({ message: 'Project not found.' });
+    return res.status(404).json({ message: L(req, 'Project not found.', 'הפרויקט לא נמצא.') });
   }
   if (!withinCoordinatorScope(req.user, defenseScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', defenseScope)) {
-    return res.status(403).json({ message: 'This project is outside your assigned scope.' });
+    return res.status(403).json({ message: L(req, 'This project is outside your assigned scope.', 'הפרויקט הזה מחוץ לתחום האחריות שהוקצה לך.') });
   }
   if (!time || !room || !building) {
-    return res.status(400).json({ message: 'time, room, and building are all required.' });
+    return res.status(400).json({ message: L(req, 'time, room, and building are all required.', 'יש לציין שעה, חדר ובניין.') });
   }
   if (!DEFENSE_ALLOWED_BUILDINGS.includes(String(building))) {
     return res.status(400).json({
-      message: 'Building 9 is under construction and unavailable. Please choose a building from 1-8.',
+      message: L(req, 'Building 9 is under construction and unavailable. Please choose a building from 1-8.', 'בניין 9 נמצא בבנייה ואינו זמין. יש לבחור בניין מתוך 1-8.'),
     });
   }
   // Optional — a remote/hybrid defense may add a meeting link alongside the
   // physical room; not required since most defenses stay in-person only.
   if (onlineDefenseLink !== undefined && onlineDefenseLink !== null && onlineDefenseLink !== '') {
     if (typeof onlineDefenseLink !== 'string' || !/^https?:\/\//i.test(onlineDefenseLink)) {
-      return res.status(400).json({ message: 'onlineDefenseLink must be a valid http(s) URL.' });
+      return res.status(400).json({ message: L(req, 'onlineDefenseLink must be a valid http(s) URL.', 'הקישור להגנה המקוונת חייב להיות כתובת URL תקינה (http/https).') });
     }
   }
 
@@ -1925,7 +1926,7 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
       .limit(1)
       .get();
     if (defenseMilestonesSnap.empty) {
-      return res.status(404).json({ message: 'No defense milestone found for this project.' });
+      return res.status(404).json({ message: L(req, 'No defense milestone found for this project.', 'לא נמצאה אבן דרך של הגנה לפרויקט זה.') });
     }
     const defenseMilestoneRef = defenseMilestonesSnap.docs[0]!.ref;
 
@@ -2036,7 +2037,7 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(200).json({ success: true, message: 'Defense logistics saved successfully.' });
   } catch (error: any) {
     console.error('assignDefense error:', error);
-    return res.status(500).json({ message: 'Failed to save defense logistics.' });
+    return res.status(500).json({ message: L(req, 'Failed to save defense logistics.', 'שמירת פרטי ההגנה נכשלה.') });
   }
 };
 
@@ -2053,20 +2054,20 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
   const coordinatorId = req.user?.uid;
 
   if (!milestoneId || typeof milestoneId !== 'string') {
-    return res.status(400).json({ message: 'Invalid or missing milestoneId.' });
+    return res.status(400).json({ message: L(req, 'Invalid or missing milestoneId.', 'מזהה אבן הדרך לא תקין או חסר.') });
   }
   if (!coordinatorId) {
-    return res.status(401).json({ message: 'Unauthorized.' });
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
   if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
   }
   const conflictScope = await resolveMilestoneScope(milestoneId);
   if (!conflictScope) {
-    return res.status(404).json({ message: 'Milestone not found.' });
+    return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
   }
   if (!withinCoordinatorScope(req.user, conflictScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', conflictScope)) {
-    return res.status(403).json({ message: 'This milestone is outside your assigned scope.' });
+    return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
   }
 
   try {
@@ -2077,18 +2078,18 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
 
     if (action === 'replace_examiner') {
       if (!replacedExaminerKey || typeof replacedExaminerKey !== 'string') {
-        return res.status(400).json({ message: 'replacedExaminerKey is required.' });
+        return res.status(400).json({ message: L(req, 'replacedExaminerKey is required.', 'נדרש מזהה הבוחן המוחלף.') });
       }
       if (!newExaminer || typeof newExaminer !== 'object') {
-        return res.status(400).json({ message: 'newExaminer is required.' });
+        return res.status(400).json({ message: L(req, 'newExaminer is required.', 'נדרש בוחן חדש.') });
       }
       await resolveReplaceExaminer(milestoneId, coordinatorId, replacedExaminerKey, newExaminer as ExaminerAssignmentInput);
       return res.status(200).json({ success: true, message: 'Examiner replaced — awaiting new date submission.' });
     }
 
-    return res.status(400).json({ message: "action must be 'keep_examiners' or 'replace_examiner'." });
+    return res.status(400).json({ message: L(req, "action must be 'keep_examiners' or 'replace_examiner'.", "הפעולה חייבת להיות 'keep_examiners' או 'replace_examiner'.") });
   } catch (error: any) {
     console.error('resolveDefenseDateConflict error:', error);
-    return res.status(500).json({ message: 'Failed to resolve date conflict.' });
+    return res.status(500).json({ message: L(req, 'Failed to resolve date conflict.', 'פתרון התנגשות התאריכים נכשל.') });
   }
 };

@@ -23,6 +23,7 @@ import {
   MilestoneDoc,
 } from '../services/studentProgress.js';
 import { examinerScoreFor } from '../services/gradeEngine.js';
+import { L } from '../utils/localize.js';
 
 const SCHOOL_HEAD_ROLES = ['school_head', 'system_admin'];
 
@@ -48,14 +49,14 @@ function majorLabel(major: string): { he: string; en: string } {
 
 export const getSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   if (!req.user || !hasAnyRole(req.user, SCHOOL_HEAD_ROLES)) {
-    return res.status(403).json({ message: 'You do not have permission to view this dashboard.' });
+    return res.status(403).json({ message: L(req, 'You do not have permission to view this dashboard.', 'אין לך הרשאה לצפות בלוח המחוונים הזה.') });
   }
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) return res.status(404).json({ message: 'User record not found.' });
+    if (!userSnap.exists) return res.status(404).json({ message: L(req, 'User record not found.', 'רשומת המשתמש לא נמצאה.') });
     const userData = userSnap.data()!;
 
     const majors = assignedMajors(userData);
@@ -254,6 +255,6 @@ export const getSchoolHeadDashboard = async (req: AuthenticatedRequest, res: Res
     });
   } catch (error: any) {
     console.error('getSchoolHeadDashboard error:', error);
-    return res.status(500).json({ message: 'Failed to load school head dashboard.' });
+    return res.status(500).json({ message: L(req, 'Failed to load school head dashboard.', 'טעינת לוח המחוונים של ראש בית הספר נכשלה.') });
   }
 };

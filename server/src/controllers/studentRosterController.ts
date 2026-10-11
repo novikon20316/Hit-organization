@@ -14,22 +14,23 @@ import {
   createApprovedStudentEntry,
   type RosterDegreeType,
 } from '../services/studentRoster.js';
+import { L } from '../utils/localize.js';
 
 // ─── POST /api/admin/student-roster/import ────────────────────────────────────
 export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
 
   const file = (req as any).file as Express.Multer.File | undefined;
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const summary = await importApprovedStudentsFromBuffer(file.buffer, { uploadedBy: req.user.uid });
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: 'Failed to import student roster.' });
+    return res.status(500).json({ message: L(req, 'Failed to import student roster.', 'ייבוא רשימת הסטודנטים נכשל.') });
   }
 };
 
@@ -39,7 +40,7 @@ export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
 // ever being written to (import) and read internally at signup time.
 export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   try {
     const { facultyId, degreeType, used, q } = req.query as Record<string, string | undefined>;
@@ -55,7 +56,7 @@ export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Res
     return res.status(200).json({ success: true, entries: filtered });
   } catch (error: any) {
     console.error('listStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: 'Failed to load the student roster.' });
+    return res.status(500).json({ message: L(req, 'Failed to load the student roster.', 'טעינת רשימת הסטודנטים נכשלה.') });
   }
 };
 
@@ -64,7 +65,7 @@ export const listStudentRosterAdmin = async (req: AuthenticatedRequest, res: Res
 // import above, for adding one approved student without building a file.
 export const createStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   const { studentId, facultyId, degreeType, fullName, major } = req.body ?? {};
   try {
@@ -72,43 +73,43 @@ export const createStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
     return res.status(201).json({ success: true, entry });
   } catch (error: any) {
     console.error('createStudentRosterAdmin error:', error);
-    return res.status(400).json({ success: false, message: error.message || 'Failed to add the roster entry.' });
+    return res.status(400).json({ success: false, message: error.message || L(req, 'Failed to add the roster entry.', 'הוספת הרשומה לרשימה נכשלה.') });
   }
 };
 
 // ─── PATCH /api/admin/student-roster/:docId ────────────────────────────────────
 export const updateStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   const { docId } = req.params;
   if (!docId || typeof docId !== 'string') {
-    return res.status(400).json({ message: 'Missing docId.' });
+    return res.status(400).json({ message: L(req, 'Missing docId.', 'חסר מזהה רשומה.') });
   }
   try {
     await updateApprovedStudentEntry(docId, req.body ?? {});
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updateStudentRosterAdmin error:', error);
-    return res.status(400).json({ success: false, message: error.message || 'Failed to update the roster entry.' });
+    return res.status(400).json({ success: false, message: error.message || L(req, 'Failed to update the roster entry.', 'עדכון הרשומה ברשימה נכשל.') });
   }
 };
 
 // ─── DELETE /api/admin/student-roster/:docId ───────────────────────────────────
 export const deleteStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
-    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
   }
   const { docId } = req.params;
   if (!docId || typeof docId !== 'string') {
-    return res.status(400).json({ message: 'Missing docId.' });
+    return res.status(400).json({ message: L(req, 'Missing docId.', 'חסר מזהה רשומה.') });
   }
   try {
     await deleteApprovedStudentEntry(docId);
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('deleteStudentRosterAdmin error:', error);
-    return res.status(500).json({ message: 'Failed to delete the roster entry.' });
+    return res.status(500).json({ message: L(req, 'Failed to delete the roster entry.', 'מחיקת הרשומה מהרשימה נכשלה.') });
   }
 };
 
@@ -118,14 +119,14 @@ export const deleteStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
 export const importStudentRosterCoordinator = async (req: AuthenticatedRequest, res: Response) => {
   const isCoordinator = req.user?.role === 'coordinator' || req.user?.roles?.includes('coordinator');
   if (!isCoordinator) {
-    return res.status(403).json({ message: 'Access denied: coordinator only.' });
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז פקולטה בלבד.') });
   }
 
   const facultyId = req.user?.facultyId;
-  if (!facultyId) return res.status(400).json({ message: 'Coordinator has no facultyId assigned.' });
+  if (!facultyId) return res.status(400).json({ message: L(req, 'Coordinator has no facultyId assigned.', 'לרכז הפקולטה לא הוקצתה פקולטה.') });
 
   const file = (req as any).file as Express.Multer.File | undefined;
-  if (!file) return res.status(400).json({ message: 'No file uploaded.' });
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 
   try {
     const summary = await importApprovedStudentsFromBuffer(file.buffer, {
@@ -135,6 +136,6 @@ export const importStudentRosterCoordinator = async (req: AuthenticatedRequest, 
     return res.status(200).json({ success: true, summary });
   } catch (error: any) {
     console.error('importStudentRosterCoordinator error:', error);
-    return res.status(500).json({ message: 'Failed to import student roster.' });
+    return res.status(500).json({ message: L(req, 'Failed to import student roster.', 'ייבוא רשימת הסטודנטים נכשל.') });
   }
 };

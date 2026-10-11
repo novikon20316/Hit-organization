@@ -57,6 +57,7 @@ import { samplePresenceHistory, prunePresenceHistory } from './services/presence
 import { pruneAuditLog } from './services/auditLog.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
+import { resolveLanguage } from './middleware/language.js';
 
 
 dotenv.config()
@@ -134,6 +135,9 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   next(err);
 });
 app.use(express.json({ limit: '10mb' }));
+// Before auth and rate limiting so even a pre-auth error response (401,
+// 429, App Check rejection) can be localized, not just authenticated routes.
+app.use(resolveLanguage);
 app.use('/api', apiLimiter);
 app.use('/api', verifyAppCheck);
 // Any authenticated user (students included) can list info files —

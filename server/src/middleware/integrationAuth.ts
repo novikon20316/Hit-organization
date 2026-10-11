@@ -11,17 +11,18 @@
 
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
+import { L } from '../utils/localize.js';
 
 export function verifyIntegrationKey(req: Request, res: Response, next: NextFunction) {
   const expected = process.env.INTEGRATION_API_KEY;
   if (!expected) {
     console.error('INTEGRATION_API_KEY is not set — refusing all integration requests.');
-    return res.status(503).json({ message: 'Integration is not configured.' });
+    return res.status(503).json({ message: L(req, 'Integration is not configured.', 'האינטגרציה אינה מוגדרת.') });
   }
 
   const provided = req.headers['x-integration-key'];
   if (typeof provided !== 'string' || !provided) {
-    return res.status(401).json({ message: 'Missing integration key.' });
+    return res.status(401).json({ message: L(req, 'Missing integration key.', 'חסר מפתח אינטגרציה.') });
   }
 
   const expectedBuf = Buffer.from(expected);
@@ -31,7 +32,7 @@ export function verifyIntegrationKey(req: Request, res: Response, next: NextFunc
     crypto.timingSafeEqual(expectedBuf, providedBuf);
 
   if (!matches) {
-    return res.status(403).json({ message: 'Invalid integration key.' });
+    return res.status(403).json({ message: L(req, 'Invalid integration key.', 'מפתח אינטגרציה לא תקין.') });
   }
 
   return next();

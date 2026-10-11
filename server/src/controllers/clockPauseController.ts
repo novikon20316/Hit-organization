@@ -8,6 +8,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { pauseProjectClock, resumeProjectClock, getProjectClockPauseState, isValidClockPauseReason } from '../services/clockPause.js';
 import type { ClockPause } from '../services/studentProgress.js';
+import { L } from '../utils/localize.js';
 
 function serializePause(p: ClockPause) {
   return {
@@ -28,9 +29,9 @@ function hasClockPauseAccess(req: AuthenticatedRequest): boolean {
 
 export const getClockPauseState = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Missing projectId.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Missing projectId.', 'חסר מזהה פרויקט.') });
 
   try {
     const state = await getProjectClockPauseState(projectId);
@@ -46,11 +47,11 @@ export const getClockPauseState = async (req: AuthenticatedRequest, res: Respons
 export const pauseClock = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
   const { reason, note } = req.body;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Missing projectId.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Missing projectId.', 'חסר מזהה פרויקט.') });
   if (!isValidClockPauseReason(reason)) {
-    return res.status(400).json({ message: 'reason must be one of reserve_duty, illness, maternity_paternity, other.' });
+    return res.status(400).json({ message: L(req, 'reason must be one of reserve_duty, illness, maternity_paternity, other.', 'הסיבה חייבת להיות אחת מהבאות: reserve_duty, illness, maternity_paternity, other.') });
   }
 
   try {
@@ -63,9 +64,9 @@ export const pauseClock = async (req: AuthenticatedRequest, res: Response) => {
 
 export const resumeClock = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized.' });
-  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: 'Forbidden.' });
-  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: 'Missing projectId.' });
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  if (!hasClockPauseAccess(req)) return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Missing projectId.', 'חסר מזהה פרויקט.') });
 
   try {
     const pause = await resumeProjectClock(projectId, req.user.uid, req.user.role);
