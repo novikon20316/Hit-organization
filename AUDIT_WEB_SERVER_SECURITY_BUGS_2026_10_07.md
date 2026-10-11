@@ -19,12 +19,12 @@ Method: 6 independent research passes (server authorization/IDOR, web dead-end r
 
 ## Critical
 
-### C1 — [x] FIXED (code) / ⚠️ NOT YET DEPLOYED — `mobile/firestore.rules:103` let any signed-in user read every other user's full profile directly via the Firestore SDK
+### C1 — [x] FIXED AND DEPLOYED — `mobile/firestore.rules:103` let any signed-in user read every other user's full profile directly via the Firestore SDK
 `allow read: if isVerifiedSignedIn();` on `/users/{userId}` had no ownership/role/scope check — a full `get()`+`list()` grant over the entire collection (phoneNumber, studentId, email, role, facultyId, coordinatorScopes, etc.) to any verified account, including a student. Not previously documented in any prior audit — likely introduced by commit `627aa19`, which replaced a tighter rule with just an email-verification gate.
 
 **Fix applied:** split into `allow get` (unchanged — every legitimate call site reads one already-known user by id) and `allow list` (now restricted to `isStaffRole(userDoc())`, matching the get/list split pattern already used elsewhere in this same rules file). The two student-side call sites that used a `documentId()`-in-`[...]` list() query for supervisor-name lookups (`web/hooks/useStudentData.ts`, `mobile/hooks/useStudentData.ts`) were converted to individual `getDoc()` calls instead, so they keep working under the new rule. `npx tsc --noEmit` clean in `server/`, `web/`, and `mobile/`.
 
-**⚠️ STILL NEEDS: `firebase deploy --only firestore:rules` — run by you, not automated.** This repo has no deploy pipeline for Firestore rules at all (see H8 below), so this fix does nothing for real users until deployed by hand.
+**Deployed 2026-10-11** via `firebase deploy --only firestore:rules` — rules compiled clean (one pre-existing, unrelated unused-function warning) and are now live on `hit-organization`.
 
 ### C2 — [x] FIXED — `server/src/services/milestoneVisibility.ts`'s grade redaction was incomplete
 `GRADE_BEARING_FIELDS` (the allowlist nulled before a milestone doc reaches the student it belongs to) omitted `supervisorCriteria`, `stageScores`, and `supervisorGradeFileUrls` as flagged — and turned out to also be missing `supervisorComment`, `examiner1Comments`, `examiner2Comments`, `finalGradeByStudent`, and `coordinatorComment`, found by re-deriving the full list of grade-bearing fields directly from every `update.X =`/`updatePayload.X =` write site in `projectController.ts`/`coordinatorController.ts` rather than trusting the original list was complete.
