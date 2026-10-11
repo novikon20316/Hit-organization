@@ -733,50 +733,11 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
     return res.status(200).json(result);
   } catch (error: any) {
     console.error('bulkUpdateMilestoneDueDates error:', error);
-    return res.status(error.message === 'No matching milestones found.' ? 404 : 500).json({ message: error.message || 'Failed to bulk-update milestones.' });
-  }
-};
-
-export const approveMilestone = async (req:AuthenticatedRequest, res:Response) => {
-  const { milestoneId } = req.params;
-  if(!milestoneId || typeof milestoneId !== 'string'){
-    return res.status(500).json({
-      message: "Error milestone ID"
-    })
-  }
-  await db.runTransaction(async (transaction) => {
-    const milestoneRef = db.collection('milestones').doc(milestoneId);
-    const milestoneSnap = await transaction.get(milestoneRef);
-    
-    // 1. Check if the document exists
-    if (!milestoneSnap.exists) {
-      throw new Error("Milestone document does not exist");
+    if (error.message === 'No matching milestones found.') {
+      return res.status(404).json({ message: error.message });
     }
-
-    // 2. Safely extract the data
-    const milestoneData = milestoneSnap.data();
-    
-    // 3. Ensure studentId exists before using it
-    const studentId = milestoneData?.studentId; 
-    if (!studentId) {
-      throw new Error("Milestone is missing a valid studentId");
-    }
-
-    // 4. Proceed with the logic
-    transaction.update(milestoneRef, {
-      status: 'approved',
-      approvedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    
-    const notificationRef = db.collection('notifications').doc();
-    transaction.set(notificationRef, {
-      recipientId: studentId, // Now TypeScript knows this is safe
-      type: 'milestone_approved',
-      // ... content
-    });
-  });
-
-  res.status(200).json({ message: 'Milestone approved' });
+    return res.status(500).json({ message: 'Failed to bulk-update milestones.' });
+  }
 };
 
 // GET /api/milestones  — fetch milestones by query params

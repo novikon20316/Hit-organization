@@ -27,7 +27,7 @@ export const getExaminerOpinions = async (req: AuthenticatedRequest, res: Respon
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
     const milestone = milestoneSnap.data()!;
 
-    const isOwnAdvisee = milestone.supervisorId === req.user.uid;
+    const isOwnAdvisee = milestone.supervisorId === req.user.uid || milestone.secondarySupervisorId === req.user.uid;
     if (!isOwnAdvisee && !hasAnyRole(req.user, COORDINATOR_TIER_ROLES)) {
       return res.status(403).json({ message: 'Forbidden.' });
     }
@@ -75,7 +75,7 @@ export const submitRevisionDecision = async (req: AuthenticatedRequest, res: Res
     if (!milestoneSnap.exists) return res.status(404).json({ message: 'Milestone not found.' });
     const milestone = milestoneSnap.data()!;
 
-    const isOwnAdvisee = milestone.supervisorId === req.user.uid;
+    const isOwnAdvisee = milestone.supervisorId === req.user.uid || milestone.secondarySupervisorId === req.user.uid;
     const isCoordinatorTier = hasAnyRole(req.user, COORDINATOR_TIER_ROLES);
 
     if (!isOwnAdvisee) {

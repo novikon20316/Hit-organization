@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verifyToken } from '../middleware/auth.js';
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
+import { verifyFileSignatures } from '../services/fileSignature.js';
 import {
   getStudentProject,
   submitStudentMilestone,
@@ -19,15 +20,15 @@ router.get('/', verifyToken, getProjects)
 // the supervisor-evaluation route below's identical precedent. Lets a
 // supervisor optionally attach a file (e.g. an annotated copy of the
 // student's submission) alongside the grade via GradeMilestoneModal.
-router.post('/milestones/:milestoneId/grade', verifyToken, uploadMiddleware, handleUploadError, submitMilestoneGrade);
+router.post('/milestones/:milestoneId/grade', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, submitMilestoneGrade);
 router.post('/milestones/:milestoneId/individual-grade', verifyToken, submitIndividualGrade);
 // Three-rubric final-grade workflow (defense milestones with a template-
 // configured finalGradeComponents — see workflowTemplates.ts). uploadMiddleware
 // is a no-op for a plain JSON body (no file attached) — see submitStaffRecord's
 // identical precedent — so this doesn't change behavior for callers that never
 // attach a file.
-router.post('/milestones/:milestoneId/supervisor-evaluation', verifyToken, uploadMiddleware, submitSupervisorEvaluation);
-router.post('/milestones/:milestoneId/examiner-evaluation', verifyToken, uploadMiddleware, submitExaminerEvaluation);
+router.post('/milestones/:milestoneId/supervisor-evaluation', verifyToken, uploadMiddleware, verifyFileSignatures, submitSupervisorEvaluation);
+router.post('/milestones/:milestoneId/examiner-evaluation', verifyToken, uploadMiddleware, verifyFileSignatures, submitExaminerEvaluation);
 // Non-scored examiner Q&A (see workflowTemplates.ts's examinerFormFields) —
 // e.g. the Industrial Engineering & Management "Presentation 1" yes/no form.
 router.post('/milestones/:milestoneId/examiner-form', verifyToken, submitExaminerFormAnswers);

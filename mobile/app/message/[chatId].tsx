@@ -165,6 +165,18 @@ export default function ChatScreen() {
     fetchChatMetadata();
   }, [chatId, currentUser, headerName]);
 
+  // Separate from the name lookup above (which skips the fetch when
+  // headerName already arrived via route params) — block status always
+  // needs a fresh read, so the safety menu can offer "Unblock" instead of
+  // "Block" once the other participant is already blocked.
+  const [isBlocked, setIsBlocked] = useState(false);
+  useEffect(() => {
+    if (!currentUser || !chatId) return;
+    apiClient.get(`/api/chats/${chatId}/meta`)
+      .then((response) => setIsBlocked(!!response.data.isBlockedByMe))
+      .catch(() => {});
+  }, [chatId, currentUser]);
+
   // ── Mark chat notifications as read when opening ───────────────────────────
   useEffect(() => {
     if (!chatId || !currentUser) return;
@@ -253,6 +265,35 @@ export default function ChatScreen() {
     );
   };
 
+  const handleUnblock = () => {
+    Alert.alert(
+      isRtl ? 'ביטול חסימה' : 'Unblock user',
+      isRtl
+        ? `לאחר ביטול החסימה תוכל/י שוב לשלוח ולקבל הודעות מ${headerName ? `-${headerName}` : 'משתמש זה'}.`
+        : `After unblocking, you'll be able to send and receive messages from ${headerName || 'this user'} again.`,
+      [
+        { text: isRtl ? 'ביטול' : 'Cancel', style: 'cancel' },
+        {
+          text: isRtl ? 'בטל חסימה' : 'Unblock',
+          onPress: async () => {
+            setBlocking(true);
+            try {
+              await apiClient.post(`/api/chats/${chatId}/unblock`);
+              setIsBlocked(false);
+            } catch (err) {
+              Alert.alert(
+                isRtl ? 'שגיאה' : 'Error',
+                isRtl ? 'ביטול החסימה נכשל. נסה/י שוב.' : 'Failed to unblock. Please try again.',
+              );
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleSubmitReport = async () => {
     setReportSubmitting(true);
     try {
@@ -279,7 +320,9 @@ export default function ChatScreen() {
       undefined,
       [
         { text: isRtl ? 'דווח על משתמש' : 'Report user', onPress: () => setReportModalVisible(true) },
-        { text: isRtl ? 'חסום משתמש' : 'Block user', style: 'destructive', onPress: handleBlock },
+        isBlocked
+          ? { text: isRtl ? 'בטל חסימת משתמש' : 'Unblock user', onPress: handleUnblock }
+          : { text: isRtl ? 'חסום משתמש' : 'Block user', style: 'destructive', onPress: handleBlock },
         { text: isRtl ? 'ביטול' : 'Cancel', style: 'cancel' },
       ],
     );

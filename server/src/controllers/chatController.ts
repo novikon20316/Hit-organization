@@ -450,6 +450,39 @@ export const blockChatPartner = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
+// POST /api/chats/:chatId/unblock — same chat-scoped resolution as
+// blockChatPartner above. Previously there was no way back at all once a
+// user blocked a chat partner: POST /api/users/block/unblock exist but are
+// never routed, and nothing else clears blockedUserIds.
+export const unblockChatPartner = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  const { chatId } = req.params;
+  if (!uid) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!chatId || typeof chatId !== 'string') {
+    return res.status(400).json({ message: 'Missing chatId.' });
+  }
+
+  try {
+    const chatSnap = await db.collection('chats').doc(chatId).get();
+    if (!chatSnap.exists) return res.status(404).json({ message: 'Chat not found.' });
+
+    const participants: string[] = chatSnap.data()?.participants || [];
+    if (!participants.includes(uid)) {
+      return res.status(403).json({ message: 'Forbidden.' });
+    }
+    const otherUserId = participants.find((id) => id !== uid);
+    if (!otherUserId) return res.status(400).json({ message: 'No other participant to unblock.' });
+
+    await db.collection('users').doc(uid).update({
+      blockedUserIds: admin.firestore.FieldValue.arrayRemove(otherUserId),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('unblockChatPartner error:', error);
+    return res.status(500).json({ message: 'Failed to unblock user.' });
+  }
+};
+
 export const markChatNotificationsAsRead = async (req: Request, res: Response) => {
   const uid = (req as any).user?.uid; // The authenticated recipient clearing their notifications
   const { chatId } = req.params;
@@ -744,12 +777,21 @@ export const getChatMeta = async (req: AuthenticatedRequest, res: Response) => {
       .filter((s) => s.exists)
       .map((s) => parseUserRow(s));
 
+    // Lets the client show "Unblock" instead of "Block" in the safety menu
+    // — previously there was no way to even tell, from the client, whether
+    // the other participant was already blocked.
+    const selfSnap = profileSnaps.find((s) => s.id === uid);
+    const otherId = participants.find((id) => id !== uid);
+    const blockedUserIds: string[] = selfSnap?.data()?.blockedUserIds ?? [];
+    const isBlockedByMe = !!otherId && blockedUserIds.includes(otherId);
+
     return res.status(200).json({
       chatId,
       type:        chatData.type        ?? 'direct',
       lastMessage: chatData.lastMessage ?? '',
       updatedAt:   chatData.updatedAt   ?? null,
       participants: profiles,
+      isBlockedByMe,
     });
   } catch (error) {
     console.error('getChatMeta error:', error);

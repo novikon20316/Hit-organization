@@ -307,18 +307,3 @@ export const getNotificationBadgeCount = async (req: AuthenticatedRequest, res: 
   }
 };
 
-/**
- * PATCH /api/notifications/:notificationId/read  (legacy alias)
- */
-export const ReadMessage = async (req: AuthenticatedRequest, res: Response) => {
-  const { notificationId } = req.params;
-  if (!notificationId || typeof notificationId !== 'string') {
-    return res.status(400).json({ message: 'Error. Wrong notification ID' });
-  }
-  try {
-    await db.collection('notifications').doc(notificationId).update({ isRead: true });
-    return res.status(200).json({ success: true });
-  } catch (e: any) {
-    return softError(res, 'Failed to mark message as read.', e);
-  }
-};

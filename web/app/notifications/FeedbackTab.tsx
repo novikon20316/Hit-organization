@@ -21,6 +21,7 @@ export function FeedbackTab() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchMessages = async () => {
@@ -45,12 +46,14 @@ export function FeedbackTab() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setSending(true);
+    setSendError('');
     setText('');
     try {
       await apiClient.submitFeedback(trimmed);
       await fetchMessages();
     } catch (err) {
       setText(trimmed);
+      setSendError(lang === 'he' ? 'שליחת ההודעה נכשלה' : 'Failed to send the message');
     } finally {
       setSending(false);
     }
@@ -83,6 +86,9 @@ export function FeedbackTab() {
         </div>
       )}
 
+      {sendError && (
+        <p className="mt-2 text-xs text-danger" role="alert">{sendError}</p>
+      )}
       <div className="mt-4 flex gap-2">
         <textarea
           value={text}

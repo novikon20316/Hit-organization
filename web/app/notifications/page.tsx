@@ -231,12 +231,17 @@ export default function NotificationsPage() {
     // when they clicked it.
     const idsToMark = roleNotifications.filter((n) => !n.isRead).map((n) => n.id);
     if (idsToMark.length === 0) return;
-    try {
-      await Promise.all(idsToMark.map((id) => apiClient.markNotificationRead(id)));
-      const idSet = new Set(idsToMark);
-      setNotifications((prev) => prev.map((n) => (idSet.has(n.id) ? { ...n, isRead: true } : n)));
+    // allSettled, not all — one failed call used to reject the whole batch,
+    // leaving the others' already-successful server-side writes unreflected
+    // in local state until the next poll. Each id's own outcome now updates
+    // state independently, and a partial failure still tells the user.
+    const results = await Promise.allSettled(idsToMark.map((id) => apiClient.markNotificationRead(id)));
+    const succeededIds = new Set(idsToMark.filter((_, i) => results[i].status === 'fulfilled'));
+    if (succeededIds.size > 0) {
+      setNotifications((prev) => prev.map((n) => (succeededIds.has(n.id) ? { ...n, isRead: true } : n)));
       refreshBadges();
-    } catch (err) {
+    }
+    if (succeededIds.size < idsToMark.length) {
       setActionError(lang === 'he' ? 'סימון הכל כנקרא נכשל' : 'Failed to mark all as read');
     }
   };

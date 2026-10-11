@@ -46,7 +46,6 @@ import integrationsRoutes from './routes/integrations.js';
 import systemErrorRoutes from './routes/systemErrorRoutes.js';
 import { verifyToken } from './middleware/auth.js';
 import { verifyAppCheck } from './middleware/appCheck.js';
-import { getMilestonesByQuery } from './controllers/milestoneController.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
 import { getFacultyContent, dismissFacultyContent } from './controllers/facultyContentController.js';
 import { getStudentStatusOptions } from './controllers/studentStatusController.js';
@@ -137,7 +136,6 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 app.use(express.json({ limit: '10mb' }));
 app.use('/api', apiLimiter);
 app.use('/api', verifyAppCheck);
-app.get('/api/projects/:projectId/milestones', verifyToken, getMilestonesByQuery);
 // Any authenticated user (students included) can list info files —
 // not scoped under /api/admin or /api/coordinator, which only handle
 // uploading/deleting them.

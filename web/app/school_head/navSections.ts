@@ -89,6 +89,17 @@ export const SCHOOL_HEAD_NAV_SECTIONS: SidebarSection[] = [
         },
         isActive: (pathname) => pathname.startsWith('/school_head/records'),
       },
+      {
+        key: 'committees',
+        icon: '🧑‍⚖️',
+        href: '/committees',
+        label: { he: 'ועדות', en: 'Committees' },
+        description: {
+          he: 'ועדות שאתה חבר/ה בהן, וסקירות הממתינות לך.',
+          en: "Committees you're a member of, and any reviews waiting on you.",
+        },
+        isActive: (pathname) => pathname === '/committees',
+      },
     ],
   },
 ];

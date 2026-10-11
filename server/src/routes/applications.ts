@@ -11,11 +11,12 @@ import {
   handleUploadDocumentError
 } from '../controllers/applicationController.js';
 import {verifyToken } from '../middleware/auth.js';
+import { verifyFileSignatures } from '../services/fileSignature.js';
 
 const router = Router();
 
 router.post('/apply', verifyToken, applyApplication)
-router.post('/upload-document', verifyToken, uploadDocumentMiddleware, handleUploadDocumentError, uploadApplicationDocument)
+router.post('/upload-document', verifyToken, uploadDocumentMiddleware, handleUploadDocumentError, verifyFileSignatures, uploadApplicationDocument)
 router.get('/pending', verifyToken, pendingApplication)
 router.get('/last-uploaded-files', verifyToken, getLastUploadedFiles)
 router.post('/:id/withdraw', verifyToken, withdrawApplication)

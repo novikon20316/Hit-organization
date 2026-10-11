@@ -182,6 +182,72 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
       },
     ],
   },
+  // Every one of these pages' own role guard already lists system_admin
+  // alongside its primary role (useRequireRole doesn't auto-bypass for
+  // system_admin the way hasPermission() does) — previously reachable only
+  // by typing the URL from memory, same gap the pre-existing programHead
+  // entry above already fixed for program_head/dashboard.
+  {
+    title: { he: 'לוחות תפקידים', en: 'Role Dashboards' },
+    items: [
+      {
+        key: 'facultyAdminDashboard',
+        icon: '🏛️',
+        href: '/faculty_admin/dashboard',
+        label: { he: 'לוח מנהל/ת פקולטה', en: 'Faculty Admin Dashboard' },
+        isActive: (pathname) => pathname === '/faculty_admin/dashboard',
+      },
+      {
+        key: 'facultyAdminTemplates',
+        icon: '🧬',
+        href: '/faculty_admin/templates',
+        label: { he: 'תבניות מנהל/ת פקולטה', en: 'Faculty Admin Templates' },
+        isActive: (pathname) => pathname === '/faculty_admin/templates',
+      },
+      {
+        key: 'coordinatorHome',
+        icon: '🧑‍💼',
+        href: '/coordinator/home',
+        label: { he: 'לוח רכז/ת', en: 'Coordinator Dashboard' },
+        isActive: (pathname) => pathname === '/coordinator/home',
+      },
+      {
+        key: 'gradSchoolHeadDashboard',
+        icon: '🎓',
+        href: '/grad_school_head/dashboard',
+        label: { he: 'לוח ראש בית ספר ללימודים מתקדמים', en: 'Grad School Head Dashboard' },
+        isActive: (pathname) => pathname === '/grad_school_head/dashboard',
+      },
+      {
+        key: 'divisionHeadDashboard',
+        icon: '🏢',
+        href: '/division_head/dashboard',
+        label: { he: 'לוח ראש חטיבה', en: 'Division Head Dashboard' },
+        isActive: (pathname) => pathname === '/division_head/dashboard',
+      },
+      {
+        key: 'deanDashboard',
+        icon: '🏫',
+        href: '/dean/dashboard',
+        label: { he: 'לוח דיקן/ית', en: 'Dean Dashboard' },
+        isActive: (pathname) => pathname === '/dean/dashboard',
+      },
+      {
+        key: 'schoolHeadDashboard',
+        icon: '🏫',
+        href: '/school_head/dashboard',
+        label: { he: 'לוח ראש בית ספר', en: 'School Head Dashboard' },
+        isActive: (pathname) => pathname === '/school_head/dashboard',
+      },
+      {
+        key: 'examinerHome',
+        icon: '🧑‍⚖️',
+        href: '/examinor/home',
+        label: { he: 'לוח בוחן/ת פנימי/ת', en: 'Internal Examiner Dashboard' },
+        isActive: (pathname) => pathname === '/examinor/home',
+      },
+    ],
+  },
 ];
 
 export const ADMIN_QUICK_ACTIONS: SidebarSection = {

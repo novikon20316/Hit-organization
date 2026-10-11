@@ -17,6 +17,7 @@ import {
     disconnectCalendarHandler,
 } from '../controllers/supervisorController.js'
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
+import { verifyFileSignatures } from '../services/fileSignature.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -38,14 +39,14 @@ router.get('/calendar/connect', verifyToken, getCalendarConnectUrl)
 router.get('/calendar/callback', handleCalendarCallback)
 router.post('/calendar/disconnect', verifyToken, disconnectCalendarHandler)
 router.post('/projects', verifyToken, createSupervisorProject)
-router.post('/projects/upload-file', verifyToken, uploadMiddleware, handleUploadError, uploadProjectFile)
+router.post('/projects/upload-file', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, uploadProjectFile)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
 // Staff record (research_proposal/progress_report, upload-or-form) and the
 // three-rubric final-grade decision (defense) — see workflowTemplates.ts's
 // staffRecordMode/finalGradeComponents for which faculties these apply to.
-router.post('/milestones/:id/staff-record', verifyToken, uploadMiddleware, submitStaffRecord)
-router.post('/milestones/:id/final-grade-decision', verifyToken, uploadMiddleware, decideFinalGrade)
+router.post('/milestones/:id/staff-record', verifyToken, uploadMiddleware, verifyFileSignatures, submitStaffRecord)
+router.post('/milestones/:id/final-grade-decision', verifyToken, uploadMiddleware, verifyFileSignatures, decideFinalGrade)
 
 
 export default router;

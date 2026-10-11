@@ -12,6 +12,7 @@ import {
 import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revisionDecisionController.js';
 import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision, getCommitteeDecisionRecipients } from '../controllers/committeeReviewController.js';
 import { submitCommitteeChairDecision, submitExaminerOneSignoff, getParallelSignoffStatus } from '../controllers/parallelSignoffController.js';
+import { verifyFileSignatures } from '../services/fileSignature.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -19,7 +20,7 @@ router.get('/', verifyToken, getMilestonesByQuery);
 // GET /api/milestones/:projectId/milestones — fetch milestones for a project (admin view)
 router.get('/:projectId/milestones', verifyToken, getMilestonesByQuery);
 // POST /api/milestones/:milestoneId/submit — student submits a milestone
-router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, handleUploadError, submitMilestone)
+router.post('/:milestoneId/submit', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, submitMilestone)
 // PUT /api/milestones/bulk-due-date — coordinator/faculty_admin/administrative coordinator/system_admin
 // shifts a due date across every milestone matching a set of projects (+ optional type)
 router.put('/bulk-due-date', verifyToken, bulkUpdateMilestoneDueDates)

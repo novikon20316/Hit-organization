@@ -26,6 +26,16 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? 'G-TMNFYG6N67',
 };
 
+// The fallback above is intentional (see file header) — this only makes a
+// silent fallback VISIBLE, so a production env misconfiguration (e.g. the
+// API key gets rotated/restricted and the new one was never set as
+// NEXT_PUBLIC_FIREBASE_API_KEY) shows up in logs instead of the app quietly
+// keeps running on the old, possibly-no-longer-valid baked-in value with no
+// indication anything's wrong.
+if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+  console.warn('NEXT_PUBLIC_FIREBASE_API_KEY is unset — falling back to the baked-in default. Set it explicitly in production.');
+}
+
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);

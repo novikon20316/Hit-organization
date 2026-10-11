@@ -9,6 +9,7 @@
 // will not accept).
 
 import { Router, Request, Response } from 'express';
+import { apiLimiter } from '../middleware/rateLimit.js';
 
 const CONTACT_EMAIL = 'Support2HIT@gmail.com';
 const INSTITUTION_NAME = 'Holon Institute of Technology (HIT)';
@@ -74,7 +75,11 @@ We do not sell your personal data to advertisers or other third parties.</p>
 
 const router = Router();
 
-router.get('/privacy-policy', (_req: Request, res: Response) => {
+// Mounted outside app.use('/api', apiLimiter) in index.ts (this route has no
+// /api prefix, per this file's own header comment), so it was the one route
+// in the whole server with no rate limiting at all. Reusing apiLimiter
+// directly here rather than restructuring the mount order for one route.
+router.get('/privacy-policy', apiLimiter, (_req: Request, res: Response) => {
   res.type('html').send(PRIVACY_POLICY_HTML);
 });
 
