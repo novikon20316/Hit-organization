@@ -62,8 +62,12 @@ Was `mobile/firestore.rules:74`'s `isCrossFaculty()` — flagged in `AUDIT_FULL_
 
 **Fix applied:** added `coordinatorScopeFacultyIds` — a flattened mirror of `coordinatorScopes`' `facultyId` values, written by `adminController.ts`'s `updateUserRoleAdmin` alongside `coordinatorScopes` itself — and extended `sameFaculty()` to check it (also benefits `coordinator`, which shares the same mechanism and had the identical latent gap). Removed her from `isCrossFaculty()` entirely. Ran `backfillCoordinatorScopeFacultyIds.ts --apply` for the 6 existing accounts that already had `coordinatorScopes` set, since this was deployed live and those accounts' Firestore listeners would otherwise have gone empty until their next edit. **Deployed 2026-10-11.**
 
-### H8 — No visible deploy pipeline for `mobile/firestore.rules` — repo can't confirm live rules match what's committed
+### H8 — [x] FIXED, pending one manual IAM step — No visible deploy pipeline for `mobile/firestore.rules` — repo can't confirm live rules match what's committed
 No CI/script in the repo runs `firebase deploy --only firestore:rules`. The rules file has changed in ~25 commits since 2026-09-06, most recently 3 days ago — meaning rule changes (including the C1 fix, once made) may sit undeployed indefinitely unless deployed by hand. **This is the single most important operational gap given C1 above: fixing the rule in the repo does nothing for real users until it's actually deployed.**
+
+**Fix applied:** new Cloud Build trigger `firestore-rules-deploy-on-push` (us-central1, same GitHub connection and service account as the existing `web-deploy-on-push`/`api-deploy-on-push` triggers), scoped via `includedFiles` to `mobile/firestore.rules`, running the new `cloudbuild-firestore-rules.yaml` (`firebase deploy --only firestore:rules`) on every push to master — mirrors the existing web/api auto-deploy pattern exactly.
+
+**Not yet complete:** the trigger's service account (`432175584982-compute@developer.gserviceaccount.com`) currently has `roles/datastore.user` (read/write data) but not `roles/firebaserules.admin` (deploy rules) — the next rules push will fail in Cloud Build until that role is granted. IAM grants aren't something this session can run directly; the exact command was handed to you separately. Once granted, push a trivial no-op change to `mobile/firestore.rules` (or just wait for the next real one) to confirm the trigger succeeds end-to-end.
 
 ---
 
