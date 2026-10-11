@@ -79,6 +79,12 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
           en: "Committee decisions you're responsible for passing on to the student.",
         },
         isActive: (pathname) => pathname === '/relay-tasks',
+        // Only shown once the committee has actually routed a decision to
+        // this user — see NotificationsContext.tsx's live relayTasks
+        // listener. Hidden otherwise, not just empty, so staff who've never
+        // been picked don't see a menu item for a feature that doesn't
+        // apply to them.
+        visible: (_userData, live) => live.hasOpenRelayTasks,
       },
       {
         key: 'records',

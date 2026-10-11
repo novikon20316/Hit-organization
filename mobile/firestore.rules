@@ -665,6 +665,22 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Read-only for the client — the web sidebar listens live on this
+    // (NotificationsContext.tsx) just to decide whether to show/hide the
+    // "Decisions to Relay" menu item for the signed-in user, same idea as
+    // notifications' own live listener above. Both the task doc itself
+    // (services/decisionRelay.ts) and resolving it (relayTaskController.ts)
+    // always go through the server's Admin SDK, which bypasses rules
+    // entirely — no client write path needed.
+    match /relayTasks/{taskId} {
+      allow read: if isSignedIn() && (
+        resource.data.recipientId == request.auth.uid ||
+        role(userDoc()) == 'system_admin'
+      );
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     match /config/{docId} {
       allow read:  if isSignedIn();
       allow write: if isSignedIn() && role(userDoc()) == 'system_admin';

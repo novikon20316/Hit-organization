@@ -22,6 +22,13 @@ interface NotificationsContextValue {
    *  server/src/services/notificationTargets.ts) — how per-tab sidebar
    *  badges (SidebarShell.tsx) know how many "new" items each tab has. */
   unreadByTargetScreen: Record<string, number>;
+  /** Live — true as soon as the signed-in user has at least one open
+   *  (unresolved) relayTasks doc assigned to them, false the moment the
+   *  last one is resolved. Drives whether the "Decisions to Relay" sidebar
+   *  item is shown at all (see navSections.ts's relay_tasks item's `visible`
+   *  gate), not just a badge count — this is a "do you have anything to do
+   *  here" gate, independent of the notification's own read/unread state. */
+  hasOpenRelayTasks: boolean;
   /** Bulk-marks read every unread notification whose targetScreen is one
    *  of `targetScreens` — called once when the user opens a tab that has
    *  a badge, so it clears immediately. */
@@ -33,6 +40,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   unreadCount: 0,
   unreadChats: 0,
   unreadByTargetScreen: {},
+  hasOpenRelayTasks: false,
   markTabSeen: async () => {},
   refresh: async () => {},
 });
@@ -42,7 +50,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
   const [unreadByTargetScreen, setUnreadByTargetScreen] = useState<Record<string, number>>({});
+  const [hasOpenRelayTasks, setHasOpenRelayTasks] = useState(false);
   const unsubUnread = useRef<Unsubscribe | null>(null);
+  const unsubRelayTasks = useRef<Unsubscribe | null>(null);
 
   const cancel = (ref: React.MutableRefObject<Unsubscribe | null>) => {
     if (ref.current) {
@@ -105,6 +115,36 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     return () => cancel(unsubUnread);
   }, [firebaseUser, activeRole]);
 
+  // Live "do I currently owe a relay" flag — checked in the background from
+  // the moment the user is signed in, independent of role (a committee
+  // chairman can route a decision to any staff role, so this isn't scoped
+  // to activeRole the way the bell count above is). Only needs an
+  // existence check, not the ordered/paginated list page.tsx fetches via
+  // the server — see firestore.rules' relayTasks match for why the client
+  // is allowed to read this directly.
+  useEffect(() => {
+    cancel(unsubRelayTasks);
+    if (!firebaseUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the gate on sign-out, mirrors the listener teardown right above
+      setHasOpenRelayTasks(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'relayTasks'),
+      where('recipientId', '==', firebaseUser.uid),
+      where('resolvedAt', '==', null)
+    );
+    unsubRelayTasks.current = onSnapshot(
+      q,
+      (snapshot) => setHasOpenRelayTasks(!snapshot.empty),
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+      }
+    );
+    return () => cancel(unsubRelayTasks);
+  }, [firebaseUser]);
+
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
       await apiClient.markNotificationsRead(targetScreens);
@@ -122,6 +162,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unreadCount: firebaseUser ? unreadCount : 0,
     unreadChats: firebaseUser ? unreadChats : 0,
     unreadByTargetScreen: firebaseUser ? unreadByTargetScreen : {},
+    hasOpenRelayTasks: firebaseUser ? hasOpenRelayTasks : false,
     markTabSeen,
     refresh,
   };

@@ -58,12 +58,15 @@ export interface SidebarNavItem {
   badgeTargetScreens?: string[];
   /** Optional extra gate beyond "this role sees this sidebar at all" — e.g.
    *  a tab scoped to a narrower population than the role itself (see
-   *  lib/permissions.ts's withinCoordinatorScope). Omit for items every
-   *  holder of this role's chrome should see. Takes the signed-in user's
-   *  AuthContext userData; returning false hides the item from the sidebar
-   *  (the destination page must independently guard itself too — hiding the
-   *  link is not an access control). */
-  visible?: (userData: ReturnType<typeof useAuth>['userData']) => boolean;
+   *  lib/permissions.ts's withinCoordinatorScope), or one gated on a live
+   *  flag rather than static profile data (e.g. relay_tasks's `visible`,
+   *  gated on NotificationsContext's hasOpenRelayTasks). Takes the
+   *  signed-in user's AuthContext userData plus a few live, cheap-to-check
+   *  flags from NotificationsContext; returning false hides the item from
+   *  the sidebar (the destination page must independently guard itself too
+   *  — hiding the link is not an access control). Omit for items every
+   *  holder of this role's chrome should see. */
+  visible?: (userData: ReturnType<typeof useAuth>['userData'], live: { hasOpenRelayTasks: boolean }) => boolean;
   /** Fired on click, before the `href` navigation runs — used by the
    *  role-switcher section (see lib/roleChrome.ts) to call setActiveRole so
    *  the destination role's chrome is what actually renders once the
@@ -112,7 +115,7 @@ function SidebarNavSections({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
-  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const { unreadByTargetScreen, hasOpenRelayTasks, markTabSeen } = useNotifications();
   const { userData } = useAuth();
 
   const badgeCountFor = (item: SidebarNavItem) =>
@@ -121,7 +124,7 @@ function SidebarNavSections({
   // Items with a `visible` gate (e.g. a tab scoped narrower than the role
   // itself) are dropped from both the rendered list and the tour/badge
   // bookkeeping below — same visibility rule everywhere, not just the menu.
-  const isVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData);
+  const isVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks });
   const visibleSections = sections.map((s) => ({ ...s, items: s.items.filter(isVisible) })).filter((s) => s.items.length > 0);
   const visibleQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isVisible) } : undefined;
 
@@ -191,6 +194,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   const router = useRouter();
   const { lang, t, toggleLang } = useLanguage();
   const { userData, activeRole, logout } = useAuth();
+  const { hasOpenRelayTasks } = useNotifications();
 
   const handleLogout = async () => {
     await logout();
@@ -236,7 +240,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   // Same visibility gate SidebarNavSections applies to the rendered menu —
   // computed here too so the onboarding tour never walks a first-time user
   // through a tab their scope keeps hidden from them.
-  const isItemVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData);
+  const isItemVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks });
   const tourSections = sections.map((s) => ({ ...s, items: s.items.filter(isItemVisible) })).filter((s) => s.items.length > 0);
   const tourQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isItemVisible) } : undefined;
 
