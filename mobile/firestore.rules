@@ -681,6 +681,21 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Read-only for the client, same reasoning as relayTasks just above —
+    // the web sidebar listens live on this to decide whether to show the
+    // "Committees" menu item at all (only if the signed-in user is actually
+    // on a committee's memberIds; the chairman is always included there too,
+    // see committeeController.ts's createCommittee/updateCommittee). All
+    // writes go through committeeController.ts's own Admin SDK endpoints.
+    match /committees/{committeeId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid in resource.data.get('memberIds', []) ||
+        role(userDoc()) == 'system_admin'
+      );
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     match /config/{docId} {
       allow read:  if isSignedIn();
       allow write: if isSignedIn() && role(userDoc()) == 'system_admin';

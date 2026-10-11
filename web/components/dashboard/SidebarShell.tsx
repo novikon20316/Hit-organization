@@ -66,7 +66,7 @@ export interface SidebarNavItem {
    *  the sidebar (the destination page must independently guard itself too
    *  — hiding the link is not an access control). Omit for items every
    *  holder of this role's chrome should see. */
-  visible?: (userData: ReturnType<typeof useAuth>['userData'], live: { hasOpenRelayTasks: boolean }) => boolean;
+  visible?: (userData: ReturnType<typeof useAuth>['userData'], live: { hasOpenRelayTasks: boolean; isOnAnyCommittee: boolean }) => boolean;
   /** Fired on click, before the `href` navigation runs — used by the
    *  role-switcher section (see lib/roleChrome.ts) to call setActiveRole so
    *  the destination role's chrome is what actually renders once the
@@ -115,7 +115,7 @@ function SidebarNavSections({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
-  const { unreadByTargetScreen, hasOpenRelayTasks, markTabSeen } = useNotifications();
+  const { unreadByTargetScreen, hasOpenRelayTasks, isOnAnyCommittee, markTabSeen } = useNotifications();
   const { userData } = useAuth();
 
   const badgeCountFor = (item: SidebarNavItem) =>
@@ -124,7 +124,7 @@ function SidebarNavSections({
   // Items with a `visible` gate (e.g. a tab scoped narrower than the role
   // itself) are dropped from both the rendered list and the tour/badge
   // bookkeeping below — same visibility rule everywhere, not just the menu.
-  const isVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks });
+  const isVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks, isOnAnyCommittee });
   const visibleSections = sections.map((s) => ({ ...s, items: s.items.filter(isVisible) })).filter((s) => s.items.length > 0);
   const visibleQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isVisible) } : undefined;
 
@@ -194,7 +194,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   const router = useRouter();
   const { lang, t, toggleLang } = useLanguage();
   const { userData, activeRole, logout } = useAuth();
-  const { hasOpenRelayTasks } = useNotifications();
+  const { hasOpenRelayTasks, isOnAnyCommittee } = useNotifications();
 
   const handleLogout = async () => {
     await logout();
@@ -240,7 +240,7 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   // Same visibility gate SidebarNavSections applies to the rendered menu —
   // computed here too so the onboarding tour never walks a first-time user
   // through a tab their scope keeps hidden from them.
-  const isItemVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks });
+  const isItemVisible = (item: SidebarNavItem) => !item.visible || item.visible(userData, { hasOpenRelayTasks, isOnAnyCommittee });
   const tourSections = sections.map((s) => ({ ...s, items: s.items.filter(isItemVisible) })).filter((s) => s.items.length > 0);
   const tourQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isItemVisible) } : undefined;
 
