@@ -2742,8 +2742,56 @@ export const apiClient = {
         actorDisplayName: string | null;
         data: Record<string, unknown> | null;
         timestamp: string | null;
+        /** Only ever present for system_admin — see
+         *  projectRecordsController.ts's getProjectRecord. */
+        edited?: boolean;
+        editHistory?: Array<{
+          previousData: Record<string, unknown> | null;
+          editedBy: string; editedByName: string | null; editedAt: string | null; reason: string;
+        }>;
+        deleted?: boolean;
+        deletedBy?: string | null;
+        deletedByName?: string | null;
+        deletedAt?: string | null;
+        deleteReason?: string | null;
       }>;
+      /** Whether the caller is system_admin — gates the edit/delete/
+       *  restore/renumber controls client-side; server re-checks on every
+       *  mutating call regardless. */
+      canEdit: boolean;
     }>(`/api/project-records/${projectId}`, { method: 'GET' });
+  },
+
+  /** system_admin-only break-glass correction — see
+   *  projectRecordsController.ts's editProjectRecordEntry. A reason is
+   *  mandatory. */
+  async editProjectRecordEntry(entryId: string, data: Record<string, unknown>, reason: string) {
+    return request<{ success: boolean }>(`/api/project-records/entries/${entryId}`, {
+      method: 'PATCH', body: { data, reason },
+    });
+  },
+
+  /** system_admin-only soft-delete — see
+   *  projectRecordsController.ts's deleteProjectRecordEntry. Reversible via
+   *  restoreProjectRecordEntry below. */
+  async deleteProjectRecordEntry(entryId: string, reason: string) {
+    return request<{ success: boolean }>(`/api/project-records/entries/${entryId}`, {
+      method: 'DELETE', body: { reason },
+    });
+  },
+
+  async restoreProjectRecordEntry(entryId: string) {
+    return request<{ success: boolean }>(`/api/project-records/entries/${entryId}/restore`, {
+      method: 'POST',
+    });
+  },
+
+  /** system_admin-only override of a project's permanent record number —
+   *  see projectRecordsController.ts's updateProjectRecordNumber. */
+  async updateProjectRecordNumber(projectId: string, recordNumber: string, reason: string) {
+    return request<{ success: boolean; recordNumber: string }>(`/api/project-records/${projectId}/record-number`, {
+      method: 'PATCH', body: { recordNumber, reason },
+    });
   },
 
   async getMyProjectRecords() {

@@ -15,6 +15,12 @@ import { db } from '../config/firebase.js';
 import { effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { MAJORS_BY_FACULTY } from '../config/majors.js';
 import { isValidDocId } from '../services/idValidation.js';
+import {
+  editProjectRecordEntry as editEntryData,
+  deleteProjectRecordEntry as deleteEntryData,
+  restoreProjectRecordEntry as restoreEntryData,
+} from '../services/projectRecords.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -155,18 +161,43 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
       .orderBy('timestamp', 'asc')
       .get();
 
-    const entries = entriesSnap.docs.map((doc) => {
-      const e = doc.data();
-      return {
-        id: doc.id,
-        type: e.type,
-        actorId: e.actorId,
-        actorRole: e.actorRole,
-        actorDisplayName: e.actorDisplayName ?? null,
-        data: e.data ?? null,
-        timestamp: serializeTimestamp(e.timestamp),
-      };
-    });
+    // Only system_admin can ever see a soft-deleted entry (it's how she
+    // confirms a delete/restore actually took effect) — every other role
+    // gets the entry filtered out entirely, same as if it never existed.
+    const isAdmin = hasAnyRole(requester, ['system_admin']);
+    const entries = entriesSnap.docs
+      .filter((doc) => isAdmin || doc.data().deleted !== true)
+      .map((doc) => {
+        const e = doc.data();
+        return {
+          id: doc.id,
+          type: e.type,
+          actorId: e.actorId,
+          actorRole: e.actorRole,
+          actorDisplayName: e.actorDisplayName ?? null,
+          data: e.data ?? null,
+          timestamp: serializeTimestamp(e.timestamp),
+          // Break-glass correction metadata (see services/projectRecords.ts's
+          // editProjectRecordEntry/deleteProjectRecordEntry) — only ever
+          // meaningful, and only ever sent, to system_admin; every other
+          // viewer gets a plain entry with no trace this field group exists.
+          ...(isAdmin ? {
+            edited: e.edited === true,
+            editHistory: (e.editHistory ?? []).map((h: any) => ({
+              previousData: h.previousData ?? null,
+              editedBy: h.editedBy,
+              editedByName: h.editedByName ?? null,
+              editedAt: serializeTimestamp(h.editedAt),
+              reason: h.reason,
+            })),
+            deleted: e.deleted === true,
+            deletedBy: e.deletedBy ?? null,
+            deletedByName: e.deletedByName ?? null,
+            deletedAt: serializeTimestamp(e.deletedAt),
+            deleteReason: e.deleteReason ?? null,
+          } : {}),
+        };
+      });
 
     return res.status(200).json({
       project: {
@@ -181,6 +212,12 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
         recordNumber: project.recordNumber ?? null,
       },
       entries,
+      // Tells the client whether to render the system_admin-only edit/
+      // delete/restore/renumber controls — cheaper than re-deriving the
+      // role check client-side, and the real enforcement is server-side
+      // regardless (every mutating endpoint below re-checks system_admin
+      // itself).
+      canEdit: isAdmin,
     });
   } catch (error) {
     console.error('getProjectRecord error:', error);
@@ -395,4 +432,213 @@ export const getFacultyTaxonomyForRecords = async (req: AuthenticatedRequest, re
 
   const faculties = Object.entries(MAJORS_BY_FACULTY).map(([facultyId, majors]) => ({ facultyId, majors }));
   return res.status(200).json({ faculties });
+};
+
+// ─── system_admin-only break-glass corrections ──────────────────────────────
+// Every endpoint below is the deliberate exception to this feature's own
+// "permanent, immutable, nobody can edit it" design (see the header comment
+// in services/projectRecords.ts) — reserved for system_admin alone, and
+// every call is logged twice: once in auditLog (who/when/old→new) and once
+// on the entry/project itself (editHistory, deletedAt/deletedBy, so the
+// record still visibly shows it was altered rather than silently rewriting
+// history). A reason is mandatory on every one of these, same convention
+// as every other "overwrite something that already happened" flow in this
+// codebase (e.g. UpdateGradeModal.tsx's grade-change reason).
+
+/**
+ * PATCH /api/project-records/entries/:entryId
+ * Body: { data: object, reason: string }
+ */
+export const editProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
+  const requester = req.user;
+  const { entryId } = req.params;
+  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!hasAnyRole(requester, ['system_admin'])) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+  if (!isValidDocId(entryId)) {
+    return res.status(400).json({ message: 'Invalid entryId' });
+  }
+  const { data, reason } = req.body ?? {};
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return res.status(400).json({ message: 'data must be an object.' });
+  }
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to edit a record entry.' });
+  }
+
+  try {
+    const ref = db.collection('projectRecordEntries').doc(entryId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    const before = snap.data()!;
+
+    await editEntryData({
+      entryId,
+      newData: data,
+      editedBy: requester.uid,
+      editedByName: requester.displayName ?? '',
+      reason: reason.trim(),
+    });
+
+    await logAuditEvent({
+      userId: requester.uid,
+      userRole: requester.role ?? 'system_admin',
+      action: 'project_record_entry_edited',
+      entityType: 'projectRecordEntry',
+      entityId: entryId,
+      oldValue: { data: before.data ?? null },
+      newValue: { data, reason: reason.trim() },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('editProjectRecordEntry error:', error);
+    return res.status(500).json({ message: 'Failed to edit record entry.' });
+  }
+};
+
+/**
+ * DELETE /api/project-records/entries/:entryId
+ * Body: { reason: string }
+ */
+export const deleteProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
+  const requester = req.user;
+  const { entryId } = req.params;
+  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!hasAnyRole(requester, ['system_admin'])) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+  if (!isValidDocId(entryId)) {
+    return res.status(400).json({ message: 'Invalid entryId' });
+  }
+  const { reason } = req.body ?? {};
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to delete a record entry.' });
+  }
+
+  try {
+    const ref = db.collection('projectRecordEntries').doc(entryId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    if (snap.data()!.deleted === true) {
+      return res.status(409).json({ message: 'This entry is already deleted.' });
+    }
+
+    await deleteEntryData({
+      entryId,
+      deletedBy: requester.uid,
+      deletedByName: requester.displayName ?? '',
+      reason: reason.trim(),
+    });
+
+    await logAuditEvent({
+      userId: requester.uid,
+      userRole: requester.role ?? 'system_admin',
+      action: 'project_record_entry_deleted',
+      entityType: 'projectRecordEntry',
+      entityId: entryId,
+      oldValue: null,
+      newValue: { reason: reason.trim() },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('deleteProjectRecordEntry error:', error);
+    return res.status(500).json({ message: 'Failed to delete record entry.' });
+  }
+};
+
+/**
+ * POST /api/project-records/entries/:entryId/restore
+ */
+export const restoreProjectRecordEntry = async (req: AuthenticatedRequest, res: Response) => {
+  const requester = req.user;
+  const { entryId } = req.params;
+  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!hasAnyRole(requester, ['system_admin'])) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+  if (!isValidDocId(entryId)) {
+    return res.status(400).json({ message: 'Invalid entryId' });
+  }
+
+  try {
+    const ref = db.collection('projectRecordEntries').doc(entryId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Record entry not found.' });
+    if (snap.data()!.deleted !== true) {
+      return res.status(409).json({ message: 'This entry is not deleted.' });
+    }
+
+    await restoreEntryData(entryId);
+
+    await logAuditEvent({
+      userId: requester.uid,
+      userRole: requester.role ?? 'system_admin',
+      action: 'project_record_entry_restored',
+      entityType: 'projectRecordEntry',
+      entityId: entryId,
+      oldValue: null,
+      newValue: null,
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('restoreProjectRecordEntry error:', error);
+    return res.status(500).json({ message: 'Failed to restore record entry.' });
+  }
+};
+
+/**
+ * PATCH /api/project-records/:projectId/record-number
+ * Body: { recordNumber: string, reason: string }
+ * system_admin override for a project's own permanent record number (see
+ * services/projectRecordNumber.ts) — e.g. correcting a wrong faculty
+ * assignment or a duplicate. Deliberately does NOT re-validate the new
+ * value against the per-faculty counter/format — an admin override is
+ * exactly the escape hatch for when that automatic scheme got it wrong.
+ */
+export const updateProjectRecordNumber = async (req: AuthenticatedRequest, res: Response) => {
+  const requester = req.user;
+  const { projectId } = req.params;
+  if (!requester) return res.status(401).json({ message: 'Unauthorized.' });
+  if (!hasAnyRole(requester, ['system_admin'])) {
+    return res.status(403).json({ message: 'Access denied: system_admin only.' });
+  }
+  if (!isValidDocId(projectId)) {
+    return res.status(400).json({ message: 'Invalid projectId' });
+  }
+  const { recordNumber, reason } = req.body ?? {};
+  if (!recordNumber || typeof recordNumber !== 'string' || !recordNumber.trim() || recordNumber.trim().length > 64) {
+    return res.status(400).json({ message: 'recordNumber must be a non-empty string (max 64 characters).' });
+  }
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ message: 'A reason is required to change a record number.' });
+  }
+
+  try {
+    const ref = db.collection('projects').doc(projectId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Project not found.' });
+    const before = snap.data()!.recordNumber ?? null;
+    const next = recordNumber.trim();
+
+    await ref.update({ recordNumber: next });
+
+    await logAuditEvent({
+      userId: requester.uid,
+      userRole: requester.role ?? 'system_admin',
+      action: 'project_record_number_changed',
+      entityType: 'project',
+      entityId: projectId,
+      oldValue: { recordNumber: before },
+      newValue: { recordNumber: next, reason: reason.trim() },
+    });
+
+    return res.status(200).json({ success: true, recordNumber: next });
+  } catch (error) {
+    console.error('updateProjectRecordNumber error:', error);
+    return res.status(500).json({ message: 'Failed to update record number.' });
+  }
 };

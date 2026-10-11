@@ -293,8 +293,50 @@ class ApiClient {
       entries: Array<{
         id: string; type: string; actorId: string; actorRole: string;
         actorDisplayName: string | null; data: Record<string, unknown> | null; timestamp: string | null;
+        /** Only ever present for system_admin — see
+         *  projectRecordsController.ts's getProjectRecord. */
+        edited?: boolean;
+        editHistory?: Array<{
+          previousData: Record<string, unknown> | null;
+          editedBy: string; editedByName: string | null; editedAt: string | null; reason: string;
+        }>;
+        deleted?: boolean;
+        deletedBy?: string | null;
+        deletedByName?: string | null;
+        deletedAt?: string | null;
+        deleteReason?: string | null;
       }>;
+      /** Whether the caller is system_admin — gates the edit/delete/
+       *  restore/renumber controls client-side; server re-checks on every
+       *  mutating call regardless. */
+      canEdit: boolean;
     };
+  }
+
+  /** system_admin-only break-glass correction — see
+   *  projectRecordsController.ts's editProjectRecordEntry. A reason is
+   *  mandatory. */
+  async editProjectRecordEntry(entryId: string, data: Record<string, unknown>, reason: string) {
+    const response = await this.api.patch(`/api/project-records/entries/${entryId}`, { data, reason });
+    return response.data as { success: boolean };
+  }
+
+  /** system_admin-only soft-delete — reversible via
+   *  restoreProjectRecordEntry below. */
+  async deleteProjectRecordEntry(entryId: string, reason: string) {
+    const response = await this.api.delete(`/api/project-records/entries/${entryId}`, { data: { reason } });
+    return response.data as { success: boolean };
+  }
+
+  async restoreProjectRecordEntry(entryId: string) {
+    const response = await this.api.post(`/api/project-records/entries/${entryId}/restore`);
+    return response.data as { success: boolean };
+  }
+
+  /** system_admin-only override of a project's permanent record number. */
+  async updateProjectRecordNumber(projectId: string, recordNumber: string, reason: string) {
+    const response = await this.api.patch(`/api/project-records/${projectId}/record-number`, { recordNumber, reason });
+    return response.data as { success: boolean; recordNumber: string };
   }
 
   async getMyProjectRecords() {

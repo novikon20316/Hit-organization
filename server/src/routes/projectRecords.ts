@@ -6,6 +6,10 @@ import {
   getScopedSupervisors,
   getSupervisorProjectRecords,
   getFacultyTaxonomyForRecords,
+  editProjectRecordEntry,
+  deleteProjectRecordEntry,
+  restoreProjectRecordEntry,
+  updateProjectRecordNumber,
 } from '../controllers/projectRecordsController.js';
 
 const router = Router();
@@ -18,6 +22,18 @@ router.get('/supervisors', verifyToken, getScopedSupervisors);
 router.get('/supervisors/:supervisorId/projects', verifyToken, getSupervisorProjectRecords);
 // GET /api/project-records/my-projects
 router.get('/my-projects', verifyToken, getMyProjectRecords);
+
+// system_admin-only break-glass corrections — see projectRecordsController.ts's
+// own header comment on each handler.
+// PATCH /api/project-records/entries/:entryId
+router.patch('/entries/:entryId', verifyToken, editProjectRecordEntry);
+// DELETE /api/project-records/entries/:entryId
+router.delete('/entries/:entryId', verifyToken, deleteProjectRecordEntry);
+// POST /api/project-records/entries/:entryId/restore
+router.post('/entries/:entryId/restore', verifyToken, restoreProjectRecordEntry);
+// PATCH /api/project-records/:projectId/record-number
+router.patch('/:projectId/record-number', verifyToken, updateProjectRecordNumber);
+
 // GET /api/project-records/:projectId
 router.get('/:projectId', verifyToken, getProjectRecord);
 

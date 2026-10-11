@@ -641,9 +641,14 @@ service cloud.firestore {
         get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('secondarySupervisorId', '') == request.auth.uid ||
         request.auth.uid in get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.get('enrolledStudentIds', [])
       );
-      // Immutable by design — not even system_admin may edit or delete an
-      // entry once written. The only writer is the Admin SDK (which bypasses
-      // rules entirely) via logProjectRecordEntry's own .add() call.
+      // No CLIENT write is ever allowed, from any role — every write,
+      // including system_admin's own break-glass edit/delete/restore
+      // (see services/projectRecords.ts's editProjectRecordEntry/
+      // deleteProjectRecordEntry/restoreProjectRecordEntry), goes through
+      // the Admin SDK via an authenticated server endpoint
+      // (projectRecordsController.ts), which bypasses these rules
+      // entirely. A direct Firestore SDK write is never the path, even
+      // for system_admin — only the audited REST endpoint is.
       allow write: if false;
     }
 

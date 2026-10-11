@@ -92,7 +92,17 @@ export type AuditAction =
   | 'examiner_one_signoff_recorded'
   // "Standard supervisor" eligibility per degree category (see
   // adminController.ts's setStandardSupervisorFlag).
-  | 'standard_supervisor_flag_set';
+  | 'standard_supervisor_flag_set'
+  // system_admin-only break-glass corrections to the otherwise-immutable
+  // permanent project record (see services/projectRecords.ts/
+  // projectRecordsController.ts) — every one of these is the exception to
+  // that collection's own "nobody can ever edit this" design, so each is
+  // logged here with the full before/after, on top of the edit's own
+  // in-place trail (editHistory/deletedAt) on the record entry itself.
+  | 'project_record_entry_edited'
+  | 'project_record_entry_deleted'
+  | 'project_record_entry_restored'
+  | 'project_record_number_changed';
 
 export interface AuditLogEntry {
   userId: string;
