@@ -55,20 +55,46 @@ const parseUserRow = (doc: admin.firestore.DocumentSnapshot) => {
   };
 };
 
-// Every role except 'student' — staff can reach any other staff member
-// regardless of faculty/department (see getAllStaffIds below), on top of
-// whatever relationship-specific contacts their role already gets (own
-// students, own-faculty users, etc). Students are deliberately excluded from
-// this list: their eligible partners stay limited to their own supervisor
+// Every role except 'student' — staff can reach any other staff member in
+// the same faculty (see getAllStaffIds below), on top of whatever
+// relationship-specific contacts their role already gets (own students,
+// own-faculty users, etc). Students are deliberately excluded from this
+// list: their eligible partners stay limited to their own supervisor
 // relationship, unchanged from before.
 const STAFF_ROLES = [
   'supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary',
   'program_head', 'internal_examiner', 'faculty_admin', 'grad_school_head', 'system_admin',
 ];
 
-async function getAllStaffIds(excludeUid: string): Promise<Set<string>> {
+// Faculty-scoped: 'all' on either side (institution-wide staff, e.g. some
+// administrative_secretary accounts) or an admin coordinator's
+// coordinatorScopeFacultyIds covering the other side's faculty all count as
+// a match — mirrors staffChatFacultyMatch() in mobile/firestore.rules, which
+// gates the same relationship for direct client writes. Shared by
+// getAllStaffIds and getChatCandidates's staff branch below — those two
+// lists must stay in sync (same reason as the supervisor/student sync note
+// further down): a candidate shown in the "+" picker but excluded here would
+// 403 when actually messaged.
+function staffFacultyMatches(myFaculty: string, myCoordinatorScopeFacultyIds: string[], otherFaculty: string): boolean {
+  return myFaculty === 'all'
+    || myCoordinatorScopeFacultyIds.includes('all')
+    || otherFaculty === 'all'
+    || otherFaculty === myFaculty
+    || myCoordinatorScopeFacultyIds.includes(otherFaculty);
+}
+
+async function getAllStaffIds(
+  excludeUid: string,
+  myFaculty: string,
+  myCoordinatorScopeFacultyIds: string[],
+): Promise<Set<string>> {
   const snap = await db.collection('users').where('role', 'in', STAFF_ROLES).get();
-  return new Set(snap.docs.filter((d) => d.id !== excludeUid).map((d) => d.id));
+  return new Set(
+    snap.docs
+      .filter((d) => d.id !== excludeUid)
+      .filter((d) => staffFacultyMatches(myFaculty, myCoordinatorScopeFacultyIds, d.data().facultyId ?? ''))
+      .map((d) => d.id),
+  );
 }
 
 // Shared eligibility resolver — same relationship rules getChatCandidates uses
@@ -106,9 +132,10 @@ async function getEligiblePartnerIds(uid: string): Promise<Set<string> | 'all'> 
     return ids;
   }
 
-  // Every remaining role is staff: cross-faculty staff contacts, plus
+  // Every remaining role is staff: same-faculty staff contacts, plus
   // whatever relationship-specific contacts this particular role also gets.
-  const ids = await getAllStaffIds(uid);
+  const myCoordinatorScopeFacultyIds = (me.coordinatorScopeFacultyIds as string[] | undefined) ?? [];
+  const ids = await getAllStaffIds(uid, myFaculty, myCoordinatorScopeFacultyIds);
 
   if (myRoles.has('faculty_admin')) {
     const snap = await db.collection('users').where('facultyId', '==', myFaculty).get();
@@ -688,12 +715,15 @@ export const getChatCandidates = async (req: Request, res: Response) => {
         }
       }
     }
-    // --- Every remaining role is staff: see every other staff member
-    // regardless of faculty/department, plus whatever relationship-specific
-    // contacts this particular role also gets. ---
+    // --- Every remaining role is staff: see every other staff member in
+    // the same faculty, plus whatever relationship-specific contacts this
+    // particular role also gets. ---
     else {
+      const myCoordinatorScopeFacultyIds = (me.coordinatorScopeFacultyIds as string[] | undefined) ?? [];
       const staffSnap = await db.collection('users').where('role', 'in', STAFF_ROLES).get();
-      staffSnap.forEach(addDoc);
+      staffSnap.forEach((d) => {
+        if (staffFacultyMatches(myFaculty, myCoordinatorScopeFacultyIds, d.data().facultyId ?? '')) addDoc(d);
+      });
 
       // --- Faculty Admins additionally see everyone (staff or student) in their own faculty ---
       if (myRoles.has('faculty_admin')) {
