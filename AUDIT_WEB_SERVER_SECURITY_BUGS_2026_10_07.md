@@ -67,36 +67,36 @@ No CI/script in the repo runs `firebase deploy --only firestore:rules`. The rule
 
 ## Medium
 
-- **M1 — `/committees` still unreachable via nav for `school_head`** (only reachable via a notification link, not browsable). `web/app/school_head/navSections.ts`.
-- **M2 — Electrical Engineering research-proposal chain (division_head/dean) has no per-division scoping** — confirmed still open (`AUDIT_FULL_2026_09_17.md` Open Item #3). Not exploitable today (one division_head/dean per faculty in seed data), but a real gap the moment that changes.
+- **M1 — [x] FIXED** — `/committees` added to `school_head`'s nav (`web/app/school_head/navSections.ts`).
+- **M2 — Electrical Engineering research-proposal chain (division_head/dean) has no per-division scoping** — confirmed still open (`AUDIT_FULL_2026_09_17.md` Open Item #3). Not exploitable today (one division_head/dean per faculty in seed data), but a real gap the moment that changes. **Needs a decision.**
 - **M3 — `examinerBankAccounts`/`examinerTaxDocuments`/`examinerIdentities` Firestore rules check role only, no faculty scope** — confirmed still open (`AUDIT_FULL_2026_09_17.md` Open Item #2). May be intentional (institution-wide examiner-payment administration) — **needs confirmation, not a blind patch.**
 - **M4 — `internal_examiner` has full-faculty milestone/grade visibility, not scoped to assigned milestones** — confirmed still open, code comment suggests intentional. **Needs confirmation.**
-- **M5 — `chatCreateAllowed()` lets several staff roles (coordinator, administrative_secretary, grad_school_head, system_admin) open a chat with any user system-wide, no faculty check** — new finding, no server-side backstop exists for chat creation (the Firestore rule *is* the only authorization boundary, with nothing else to compare against).
-- **M6 — File-upload type validation relies only on client-declared MIME type, not file content** (`milestoneController.ts`, `applicationController.ts`, `chatController.ts` multer configs) — no magic-byte sniffing. Softened by Cloudinary storage as `raw`/`authenticated`, not served inline — defense-in-depth gap, not immediately exploitable.
-- **M7 — `handleMarkAllRead` (web notifications) uses `Promise.all` with no per-item catch** — one failed call aborts the whole batch, leaving client/server read-state inconsistent until next poll.
-- **M8 — Silent send failures with no error message** — chat message send and feedback send (`web/app/message/[chatId]/page.tsx:121`, `web/app/notifications/FeedbackTab.tsx:44`) only restore the typed text on failure, no visible error.
-- **M9 — Orphaned route `GET /api/projects/:projectId/milestones`** (`index.ts:140`) — both clients migrated off it after it was found to silently ignore the project filter; dead but still registered.
-- **M10 — Orphaned `POST /api/users/block`/`unblock` routes, and no working "unblock" path exists anywhere** — the live block flow uses a different endpoint (`POST /api/chats/:chatId/block`); nothing implements unblock at all. Real UX gap: a user who blocks someone has no way back.
-- **M11 — `system_admin` lacks nav links to 8 role-specific dashboards it's explicitly permitted to view** (faculty_admin, coordinator, grad_school_head, division_head, dean, school_head, internal_examiner dashboards + faculty_admin/templates) — reachable only by typing the URL from memory. `faculty_admin/dashboard` and `coordinator/home` genuinely adapt their content for a system_admin visitor, so this is real lost functionality, not just cosmetic.
+- **M5 — `chatCreateAllowed()` lets several staff roles open a chat with any user system-wide, no faculty check** — left open; unclear whether cross-faculty staff messaging is intentional. **Needs confirmation.**
+- **M6 — [x] FIXED** — added `server/src/services/fileSignature.ts` (magic-byte check against the mimetype multer accepted) wired as a post-upload middleware on all 9 file-upload routes, plus the profile-photo upload the audit didn't name but is the same risk shape.
+- **M7 — [x] FIXED** — `handleMarkAllRead` now uses `Promise.allSettled`, updates state per-id, and only surfaces an error for ids that actually failed.
+- **M8 — [x] FIXED** — feedback-tab send failures now show a visible error (chat-message send was already fixed alongside H6).
+- **M9 — [x] FIXED** — removed the orphaned route from `index.ts`.
+- **M10 — [x] FIXED** — added `POST /api/chats/:chatId/unblock` + `isBlockedByMe` on `getChatMeta`; mobile's safety menu now offers Unblock once blocked. Also removed the confirmed-dead `/api/users/block`/`unblock` pair it superseded.
+- **M11 — [x] FIXED** — added nav links for `system_admin` to the 8 role dashboards.
 
 ---
 
 ## Low
 
-1. Unscoped authenticated file-upload endpoints with no role/ownership tie (`supervisorController.ts` `uploadProjectFile`, `applicationController.ts` `uploadApplicationDocument`, `chatController.ts` `uploadChatImage`) — storage/cost-abuse surface, not a data-access risk.
-2. `revisionDecisionController.ts`'s `isOwnAdvisee` checks only `supervisorId`, not `secondarySupervisorId` (under-permissive, not a bypass — a legitimate co-supervisor is wrongly denied).
-3. Two dead-code, unreachable endpoints with no auth checks if ever wired up: `milestoneController.ts`'s `approveMilestone`, `notificationController.ts`'s `ReadMessage`.
-4. `GET /privacy-policy` has zero rate limiting (deliberately public, cheap static response — low impact).
-5. Hardcoded Firebase Web API key as a source fallback (`web/lib/firebase.ts:20`, `server/src/services/loginSecurity.ts:80`) — not a live secret by design, but should fail loudly instead of silently falling back if the env var is ever unset.
-6. `/relay-tasks` nominally permits 7 roles that can never actually receive a relay task (harmless).
-7. Orphaned page `web/app/student/projects/[id]/page.tsx` — unchanged since 2026-09-22, harmless.
-8. 7 dead, never-imported nav-link components (`AcademicYearLink.tsx` and 6 siblings) — cleanup candidates.
-9. Low-stakes silent fire-and-forget failures (dismiss banner, mark field-guide/tour seen) — worst case the dismissed UI reappears next load.
-10. Mobile dependency drift (29 advisories, 11 High, needs `expo@57`) — out of this pass's scope, carried forward from the last full audit, still open.
-11. `web/` npm audit: 6 High advisories (`@grpc/grpc-js`, `sharp`, `source-map-js`) — `sharp`/`source-map-js` have a safe fix; `@grpc/grpc-js` needs a breaking `firebase` downgrade to fully clear.
-12. `server/` npm audit: 5 vulnerabilities, all clearable via plain `npm audit fix` (no `--force` needed) — **note: one of these (`proxy-addr`, IP-spoofing via IPv4-mapped IPv6) is rated Critical by npm's own advisory**, worth prioritizing even though the fix itself is trivial, especially given this server sets `trust proxy` for Cloud Run.
-13. `/2fa/setup` and `/2fa/verify` have no dedicated rate limiter — low risk since both require an already-authenticated session.
-14. Three dead Firestore rule blocks reference collections no longer written anywhere (`processFiles`, `processTemplates`, `examiners`) — safe by default-deny, just stale/confusing.
+1. Unscoped authenticated file-upload endpoints with no role/ownership tie — left open; the magic-byte check (M6) narrows what can be uploaded, but the missing role/ownership tie itself is a product-scope question, not touched.
+2. [x] FIXED — `revisionDecisionController.ts`'s `isOwnAdvisee` now also checks `secondarySupervisorId`.
+3. [x] FIXED — removed both dead-code endpoints (`milestoneController.ts`'s `approveMilestone`, `notificationController.ts`'s `ReadMessage`).
+4. [x] FIXED — `/privacy-policy` now runs `apiLimiter`.
+5. [x] Improved (not fully "fixed") — `web/lib/firebase.ts`'s fallback is explicitly documented as intentional (dev convenience, see file header), so a hard throw would fight the design rather than fix a bug; added a `console.warn` instead so a production misconfiguration is at least visible. `loginSecurity.ts`'s fallback is separately documented as an intentional stable default — left as-is.
+6. `/relay-tasks` — no fix needed, confirmed harmless.
+7. Orphaned page `web/app/student/projects/[id]/page.tsx` — left alone, harmless (consistent with the 2026-09-22 audit's own call on this exact page).
+8. [x] FIXED — deleted all 7 dead nav-link components.
+9. Low-stakes silent failures — left alone, consistent with prior audit precedent on this severity tier.
+10. Mobile dependency drift — still out of scope (mobile), still needs a deliberate `expo@57` upgrade.
+11. [x] PARTIALLY FIXED — `web/` npm audit: `sharp` and `source-map-js` cleared via plain `npm audit fix` (11 high → 9). `@grpc/grpc-js` still needs a breaking `firebase` downgrade; a new `braces`/`eslint-config-next` chain surfaced since the first pass, also breaking-only — neither forced, per the no-blind-breaking-changes rule.
+12. [x] FIXED — `server/` npm audit: all 5 vulnerabilities cleared via plain `npm audit fix`, including the Critical `proxy-addr` one.
+13. [x] FIXED — `/2fa/setup` and `/2fa/verify` now run `totpLimiter`.
+14. Left alone — pure hygiene, zero functional difference either way (confirmed safe-by-default-deny before and after); declined to touch `firestore.rules` a third time this pass for no behavioral gain while C1's deploy is still pending.
 
 ---
 
