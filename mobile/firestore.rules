@@ -261,6 +261,34 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Staff access to a project — ownership (supervisor/secondary) or
+    // same-faculty management, mirroring the identical over-broad-access
+    // pattern already fixed for milestones (M4) and chat creation (M5):
+    // `isStaffRole(userDoc())` used to grant ANY staff role (coordinator,
+    // faculty_admin, program_head, administrative_secretary,
+    // internal_examiner, grad_school_head, division_head, dean,
+    // supervisor/secondary_supervisor) unconditional get/list access to
+    // every project in the system, regardless of faculty or assignment.
+    // A full codebase sweep found zero direct client Firestore reads of
+    // this collection for any of these roles except supervisor/
+    // secondary_supervisor's own dashboard query (mobile/app/supervisor/
+    // dashboard.tsx), which already filters by own uid AND facultyId —
+    // so narrowing this to real ownership/faculty is a pure tightening,
+    // not a behavior change for any live screen. internal_examiner is
+    // deliberately excluded entirely: examinerIds lives on the milestone
+    // doc, not the project doc, so there's no project-level field to
+    // scope against, and the real examiner dashboard already works
+    // exclusively through examinerAccess.ts's scoped server endpoints.
+      function projectStaffAuthorized(u, resource) {
+        return role(u) == 'system_admin'
+          || (role(u) in ['supervisor', 'secondary_supervisor'] && (
+                resource.data.get('supervisorId', '') == request.auth.uid ||
+                resource.data.get('secondarySupervisorId', '') == request.auth.uid
+              ))
+          || ((isFacultyManager(u) || role(u) in ['grad_school_head', 'division_head', 'dean'])
+                && sameFaculty(u, resource.data.get('facultyId', '')));
+      }
+
     match /projects/{projectId} {
       // Split from a single `allow read` — studentCanReadProjectByMajor
       // depends on resource.data.major, a field the browse query (see
@@ -279,16 +307,21 @@ service cloud.firestore {
       allow get: if isSignedIn() && (
         request.auth.uid in resource.data.get('enrolledStudentIds', []) ||
         studentCanReadProjectByMajor(resource) ||
-        isStaffRole(userDoc())
+        projectStaffAuthorized(userDoc(), resource)
       );
       // The `status == 'active'` check here mirrors the browse query's own
       // where('status','==','active') exactly (same field/value Firestore
       // can verify structurally against the query), so it doesn't reintroduce
       // the list-breaking problem above — it just stops a student from
       // crafting a raw query to list draft/archived/in_progress projects,
-      // which the app's own UI never exposes to them anyway.
+      // which the app's own UI never exposes to them anyway. The staff
+      // branch below is similarly only structurally satisfiable by a query
+      // that itself filters on supervisorId/secondarySupervisorId/facultyId
+      // the way it already needs to — an unfiltered "list everything" query
+      // from a staff account was never actually issued (see
+      // projectStaffAuthorized's own comment) and still isn't permitted.
       allow list: if isSignedIn() && (
-        isStaffRole(userDoc()) ||
+        projectStaffAuthorized(userDoc(), resource) ||
         (role(userDoc()) == 'student' && resource.data.get('status', '') == 'active')
       );
       allow create: if isSignedIn() &&
