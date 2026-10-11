@@ -61,19 +61,30 @@ service cloud.firestore {
                          'faculty_admin', 'grad_school_head', 'division_head', 'dean', 'system_admin'];
     }
     // Roles with cross-faculty (or "all") access. grad_school_head/
-    // internal_examiner used to be unconditionally cross-faculty by role
-    // alone; they now get a real home facultyId like any other staff role
-    // (plus an optional per-role "additional faculties" grant server-side —
-    // see gradSchoolHeadFacultyIds/internalExaminerFacultyIds on the user
-    // doc), so here they only count as cross-faculty if a system_admin has
-    // explicitly kept/set their facultyId to the literal 'all' sentinel.
-    // Deliberately does NOT attempt to encode the extras arrays here — a
-    // real-faculty account with granted extras is still correctly matched
-    // via sameFaculty()'s own-faculty check for its home faculty; the extras
-    // themselves are enforced by the Express API, not at this rules layer.
+    // internal_examiner/administrative_secretary used to be unconditionally
+    // cross-faculty by role alone; they now get a real home facultyId like
+    // any other staff role (plus an optional per-role "additional faculties"
+    // grant server-side — see gradSchoolHeadFacultyIds/
+    // internalExaminerFacultyIds on the user doc), so here they only count
+    // as cross-faculty if a system_admin has explicitly kept/set their
+    // facultyId to the literal 'all' sentinel. Deliberately does NOT attempt
+    // to encode the extras arrays here — a real-faculty account with
+    // granted extras is still correctly matched via sameFaculty()'s own-
+    // faculty check for its home faculty; the extras themselves are
+    // enforced by the Express API, not at this rules layer.
+    //
+    // administrative_secretary specifically: her real scope lives in
+    // coordinatorScopes (narrower and multi-entry, unlike the single-
+    // facultyId *FacultyIds fields above), which this function intentionally
+    // does NOT try to express — she used to be unconditionally cross-faculty
+    // here as a stand-in for "rules can't easily check an array-of-objects
+    // field". Fixed via a flattened coordinatorScopeFacultyIds mirror field
+    // (kept in sync server-side — see adminController.ts's
+    // updateUserRoleAdmin) that sameFaculty() below checks directly, so she
+    // now only matches her actually-granted faculties through the normal
+    // isFacultyManager(u) && sameFaculty(...) branch, same as coordinator.
     function isCrossFaculty(u) {
       return role(u) == 'system_admin'
-        || role(u) == 'administrative_secretary'
         || ((role(u) == 'grad_school_head' || role(u) == 'internal_examiner') && facultyId(u) == 'all');
     }
 
@@ -89,9 +100,31 @@ service cloud.firestore {
       return role(u) in ['grad_school_head', 'system_admin'];
     }
 
-    // Faculty match helper
+    // Faculty match helper — also checks coordinatorScopeFacultyIds (the
+    // flattened mirror of coordinatorScopes' facultyId values, see
+    // adminController.ts's updateUserRoleAdmin), so a coordinator/
+    // administrative_secretary with scopes spanning more than one faculty
+    // matches all of them here, not just whichever one happens to be their
+    // singular home facultyId. Empty/absent for every role that doesn't use
+    // coordinatorScopes, so this is a no-op for them.
     function sameFaculty(u, resourceFacultyId) {
-      return facultyId(u) == resourceFacultyId || facultyId(u) == 'all';
+      return facultyId(u) == resourceFacultyId || facultyId(u) == 'all'
+        || resourceFacultyId in u.get('coordinatorScopeFacultyIds', [])
+        || 'all' in u.get('coordinatorScopeFacultyIds', []);
+    }
+
+    // For examinerIdentities/examinerTaxDocuments/examinerBankAccounts (M3):
+    // an examiner has no single home faculty — they're invited per-defense
+    // and accumulate a facultyIds array on their examinerIdentities doc as
+    // they're invited by more (see examinerAccess.ts's assignExaminersAndNotify).
+    // True if the caller's own faculty (home facultyId or any granted
+    // coordinatorScopeFacultyIds entry) is one the examiner has actually
+    // been invited to examine for, or the caller is unconditionally
+    // cross-faculty ('all').
+    function examinerFacultyMatch(u, examinerFacultyIds) {
+      return facultyId(u) == 'all'
+        || examinerFacultyIds.hasAny([facultyId(u)])
+        || examinerFacultyIds.hasAny(u.get('coordinatorScopeFacultyIds', []));
     }
 
 
@@ -509,29 +542,48 @@ service cloud.firestore {
     // `allow list: if false` on all three, same as examinerTokens above, so
     // no role can enumerate every examiner's identity/financial doc via an
     // unfiltered collection scan.
+    // MEDIUM FIX (M3): previously role-only, no faculty check at all — any
+    // administrative_secretary could read any examiner's identity/tax/bank
+    // record regardless of which faculty actually invited that examiner.
+    // examinerIdentities.facultyIds accumulates every faculty the examiner
+    // has ever been invited to examine for (see examinerAccess.ts) —
+    // system_admin stays unconditional (institution-wide oversight, same as
+    // everywhere else in this file); administrative_secretary now needs an
+    // actual faculty match via examinerFacultyMatch above.
     match /examinerIdentities/{emailHash} {
-      allow get: if isSignedIn() &&
-        role(userDoc()) in ['administrative_secretary', 'system_admin'];
+      allow get: if isSignedIn() && (
+        role(userDoc()) == 'system_admin' ||
+        (role(userDoc()) == 'administrative_secretary' && examinerFacultyMatch(userDoc(), resource.data.get('facultyIds', [])))
+      );
       allow list: if false;
       allow write: if false;
     }
     // Tax coordination documents — visible to administrative_secretary and
     // system_admin, same as identity above (only the actual bank account
-    // numbers below are administrative_secretary-only).
+    // numbers below are administrative_secretary-only). Same emailHash as
+    // examinerIdentities, so one extra get() resolves the examiner's
+    // facultyIds for the faculty-match check (M3, see examinerIdentities above).
     match /examinerTaxDocuments/{emailHash} {
-      allow get: if isSignedIn() &&
-        role(userDoc()) in ['administrative_secretary', 'system_admin'];
+      allow get: if isSignedIn() && (
+        role(userDoc()) == 'system_admin' ||
+        (role(userDoc()) == 'administrative_secretary' &&
+          examinerFacultyMatch(userDoc(),
+            get(/databases/$(database)/documents/examinerIdentities/$(emailHash)).data.get('facultyIds', [])))
+      );
       allow list: if false;
       allow write: if false;
     }
     // Bank account details — the single most sensitive collection in this
-    // app. administrative_secretary ONLY: system_admin is deliberately
+    // app. administrative_secretary ONLY, and now also faculty-matched
+    // (M3, see examinerIdentities above) — system_admin is deliberately
     // excluded (per explicit product decision — she's the one responsible
     // for getting examiners paid; a bank account number "does not involve"
     // system_admin). Never add 'system_admin' here even though it appears
     // in every other examiner-adjacent rule above.
     match /examinerBankAccounts/{emailHash} {
-      allow get: if isSignedIn() && role(userDoc()) == 'administrative_secretary';
+      allow get: if isSignedIn() && role(userDoc()) == 'administrative_secretary' &&
+        examinerFacultyMatch(userDoc(),
+          get(/databases/$(database)/documents/examinerIdentities/$(emailHash)).data.get('facultyIds', []));
       allow list: if false;
       allow write: if false;
     }

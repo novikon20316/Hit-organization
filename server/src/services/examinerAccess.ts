@@ -18,6 +18,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { sendNotificationEmail } from './emailService.js';
 import { academicYearToHebrew } from './hebrewYear.js';
+import { hashExaminerEmail } from './examinerFinancial.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -113,6 +114,20 @@ export async function createExternalExaminerAccess(
     academicYearHebrew = academicYearToHebrew(academicYear);
     projectStartDate = projectData?.projectStartDate?.toDate?.().toISOString?.() ?? null;
     major = projectData?.major ?? null;
+  }
+
+  // Accumulates onto the examiner's own identity doc (reused across every
+  // future defense — see examinerFinancial.ts's file header) so
+  // administrative_secretary can only read THIS examiner's bank/tax/identity
+  // records when they're actually tied to a faculty she administers,
+  // instead of every examiner in the system. An examiner invited by a
+  // second faculty later just gains that faculty too — never narrows. See
+  // M3 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md.
+  if (facultyId) {
+    await db.collection('examinerIdentities').doc(hashExaminerEmail(params.examinerEmail)).set(
+      { facultyIds: admin.firestore.FieldValue.arrayUnion(facultyId) },
+      { merge: true },
+    );
   }
 
   await db.collection('examinerTokens').doc(code).set({

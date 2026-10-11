@@ -1198,6 +1198,17 @@ export const updateUserRoleAdmin = async (req: AuthenticatedRequest, res: Respon
       internalExaminerFacultyIds: resolvedInternalExaminerFacultyIds ?? admin.firestore.FieldValue.delete(),
       permissionRules: resolvedPermissionRules?.length ? resolvedPermissionRules : admin.firestore.FieldValue.delete(),
       coordinatorScopes: resolvedCoordinatorScopes?.length ? resolvedCoordinatorScopes : admin.firestore.FieldValue.delete(),
+      // Flattened mirror of coordinatorScopes' facultyId values, kept in sync
+      // here so mobile/firestore.rules can check it cheaply — Firestore
+      // rules can't iterate an array-of-objects field to pull out just the
+      // facultyId of each entry, so this is the one thing rules actually
+      // needs duplicated. 'all' is a real possible entry (a coordinator
+      // scope can itself be facultyId:'all'), checked for directly by the
+      // rules the same way every other *FacultyIds field's 'all' sentinel
+      // already is. See H7 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md.
+      coordinatorScopeFacultyIds: resolvedCoordinatorScopes?.length
+        ? [...new Set(resolvedCoordinatorScopes.map((s) => s.facultyId))]
+        : admin.firestore.FieldValue.delete(),
       updatedAt: new Date().toISOString()
     });
 
