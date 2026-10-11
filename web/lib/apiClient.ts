@@ -77,6 +77,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Shape of a project eraseUserBySystemAdmin's 409 body names when the block
+ *  is SUPERVISOR_ACTIVE_PROJECTS — see server/src/services/accountDeletion.ts's
+ *  BlockingProject. Cast ApiError.body to this when err.status === 409 and
+ *  you need to offer the reassign-before-delete flow. */
+export interface SupervisorBlockingProject {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  facultyId: string;
+  role: 'primary' | 'secondary';
+}
+export interface EraseUserBlockedBody {
+  message: string;
+  code?: 'STUDENT_ACTIVE_PROJECT' | 'SUPERVISOR_ACTIVE_PROJECTS' | 'EXAMINER_PENDING_GRADING' | 'LAST_SYSTEM_ADMIN';
+  blockingProjects?: SupervisorBlockingProject[];
+}
+
 /** The backend's "soft error" convention: HTTP 200 with { success:false,
  *  message }, for non-critical failures (see server/src/middleware/auth.ts
  *  `softError`). Thrown separately from ApiError so callers can tell the two
@@ -696,6 +713,17 @@ export const apiClient = {
 
   async eraseUserBySystemAdmin(userId: string) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/erase`, { method: 'POST' });
+  },
+
+  /** POST /api/projects/:id/reassign-supervisor — system_admin only. Hands a
+   *  project's primary or secondary supervisor role to someone else; pass
+   *  newSupervisorId: null to clear a secondary slot (never valid for
+   *  'primary' — the server rejects that). See services/projectReassignment.ts. */
+  async reassignProjectSupervisor(projectId: string, role: 'primary' | 'secondary', newSupervisorId: string | null) {
+    return request<{ success: boolean; message: string }>(`/api/projects/${projectId}/reassign-supervisor`, {
+      method: 'POST',
+      body: { role, newSupervisorId },
+    });
   },
 
   /** POST /api/admin/users/:id/reset-password — system_admin (any user) or

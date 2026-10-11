@@ -64,6 +64,7 @@ export type AuditAction =
   | 'project_erasure_rejected'
   | 'project_erased_directly'
   | 'project_restored'
+  | 'project_supervisor_reassigned'
   // Three-rubric final-grade workflow (data_science, or any faculty whose
   // template configures finalGradeComponents) — see supervisorController.ts's
   // decideFinalGrade, gradSchoolHeadController.ts's decideGradeOverride, and

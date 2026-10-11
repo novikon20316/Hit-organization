@@ -13,7 +13,9 @@ import { getFacultyColor, getRoleAccent, getDegreeTypeColor, getTrackColor, with
 import { roleLabel, facultyLabel, type AppRole, type FacultyId } from '@/lib/i18n';
 import { staffFacultyMajorLabel } from '@/lib/permissions';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ReassignBeforeDeleteModal } from './ReassignBeforeDeleteModal';
 import { setActiveImpersonation, clearActiveImpersonation } from '@/lib/impersonation';
+import { ApiError, type SupervisorBlockingProject } from '@/lib/apiClient';
 import type { AdminUserRecord, StudentStatusConfig } from './types';
 
 function formatLastAt(iso: string | null | undefined, platform: 'web' | 'mobile' | null | undefined, lang: 'he' | 'en'): string {
@@ -74,6 +76,7 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
   const [confirmErase, setConfirmErase] = useState(false);
   const [erasing, setErasing] = useState(false);
   const [rowError, setRowError] = useState('');
+  const [reassignBlockingProjects, setReassignBlockingProjects] = useState<SupervisorBlockingProject[] | null>(null);
   const [confirmResetPassword, setConfirmResetPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetTempPassword, setResetTempPassword] = useState<string | null>(null);
@@ -133,8 +136,16 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
       setConfirmErase(false);
       onChanged();
     } catch (err) {
-      setRowError(err instanceof Error ? err.message : 'Failed to erase user');
-      setConfirmErase(false);
+      // A blocking-supervisor case gets its own reassign-then-retry modal
+      // instead of a dead-end inline error — see ReassignBeforeDeleteModal.
+      const body = err instanceof ApiError ? (err.body as { code?: string; blockingProjects?: SupervisorBlockingProject[] } | null) : null;
+      if (body?.code === 'SUPERVISOR_ACTIVE_PROJECTS' && body.blockingProjects?.length) {
+        setReassignBlockingProjects(body.blockingProjects);
+        setConfirmErase(false);
+      } else {
+        setRowError(err instanceof Error ? err.message : 'Failed to erase user');
+        setConfirmErase(false);
+      }
     } finally {
       setErasing(false);
     }
@@ -472,6 +483,16 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
         busy={erasing}
         onConfirm={handleErase}
         onCancel={() => setConfirmErase(false)}
+      />
+
+      <ReassignBeforeDeleteModal
+        key={reassignBlockingProjects ? reassignBlockingProjects.map((p) => p.id).join(',') : 'closed'}
+        open={!!reassignBlockingProjects}
+        userId={user.id}
+        userDisplayName={user.displayName}
+        blockingProjects={reassignBlockingProjects ?? []}
+        onDone={() => { setReassignBlockingProjects(null); onChanged(); }}
+        onCancel={() => setReassignBlockingProjects(null)}
       />
     </div>
   );

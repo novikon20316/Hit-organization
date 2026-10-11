@@ -7,6 +7,7 @@ import {
   eraseProjectHandler,
   restoreProjectHandler,
   getArchivedProjects,
+  reassignProjectSupervisorHandler,
 } from '../controllers/projectErasureController.js';
 
 const router = Router();
@@ -23,5 +24,7 @@ router.post('/:id/erase', verifyToken, eraseProjectHandler);
 router.post('/:id/restore', verifyToken, restoreProjectHandler);
 // GET  /api/projects/archived                                       — coordinator/system_admin
 router.get('/archived', verifyToken, getArchivedProjects);
+// POST /api/projects/:id/reassign-supervisor  { role, newSupervisorId }  — system_admin only
+router.post('/:id/reassign-supervisor', verifyToken, reassignProjectSupervisorHandler);
 
 export default router;

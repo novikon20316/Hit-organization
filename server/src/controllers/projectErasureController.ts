@@ -23,6 +23,7 @@ import {
   restoreProject,
   listArchivedProjects,
 } from '../services/projectErasure.js';
+import { reassignProjectSupervisor } from '../services/projectReassignment.js';
 
 function isApprover(req: AuthenticatedRequest): boolean {
   return hasAnyRole(req.user, ['coordinator', 'system_admin']);
@@ -101,9 +102,42 @@ export const eraseProjectHandler = async (req: AuthenticatedRequest, res: Respon
 
   try {
     await eraseProjectDirectly({ projectId, erasedBy: req.user.uid, erasedByRole: req.user.role, reason });
-    return res.status(200).json({ success: true, message: 'Project archived.' });
+    return res.status(200).json({ success: true, message: L(req, 'Project archived.', 'הפרויקט הועבר לארכיון.') });
   } catch (error: any) {
     return res.status(400).json({ message: error.message || L(req, 'Failed to erase project.', 'מחיקת הפרויקט נכשלה.') });
+  }
+};
+
+// ─── POST /api/projects/:id/reassign-supervisor ──────────────────────────────
+// system_admin only — hands a project's primary or secondary supervisor
+// role to someone else. See services/projectReassignment.ts. Built for the
+// "reassign before delete" flow (accountDeletion.ts's checkDeletionEligibility
+// blocks deleting a supervisor with active projects) but usable standalone.
+export const reassignProjectSupervisorHandler = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'המשתמש אינו מאומת.') });
+  if (!hasAnyRole(req.user, ['system_admin'])) return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
+
+  const { id: projectId } = req.params;
+  const { role, newSupervisorId } = req.body ?? {};
+  if (!projectId || typeof projectId !== 'string') return res.status(400).json({ message: L(req, 'Invalid projectId.', 'מזהה פרויקט לא תקין.') });
+  if (role !== 'primary' && role !== 'secondary') {
+    return res.status(400).json({ message: L(req, 'role must be "primary" or "secondary".', 'הערך של role חייב להיות "primary" או "secondary".') });
+  }
+  if (newSupervisorId !== null && typeof newSupervisorId !== 'string') {
+    return res.status(400).json({ message: L(req, 'newSupervisorId must be a string or null.', 'הערך של newSupervisorId חייב להיות מחרוזת או null.') });
+  }
+
+  try {
+    await reassignProjectSupervisor({
+      projectId,
+      role,
+      newSupervisorId,
+      actingAdminUid: req.user.uid,
+      actingAdminRole: req.user.role,
+    });
+    return res.status(200).json({ success: true, message: L(req, 'Supervisor reassigned.', 'המנחה הוחלף בהצלחה.') });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message || L(req, 'Failed to reassign supervisor.', 'החלפת המנחה נכשלה.') });
   }
 };
 

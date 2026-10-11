@@ -1617,7 +1617,10 @@ export const eraseUserBySystemAdmin = async (req: AuthenticatedRequest, res: Res
 
     const result = await checkDeletionEligibility(userId, 'admin', req.lang);
     if (!result.eligible) {
-      return res.status(409).json({ message: result.reason });
+      // code/blockingProjects let the web admin panel offer a reassign-then-
+      // delete flow for SUPERVISOR_ACTIVE_PROJECTS instead of a dead end —
+      // see services/projectReassignment.ts.
+      return res.status(409).json({ message: result.reason, code: result.code, blockingProjects: result.blockingProjects });
     }
 
     await purgeAccount(userId);

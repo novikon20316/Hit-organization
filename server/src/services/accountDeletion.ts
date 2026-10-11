@@ -28,9 +28,33 @@ const GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 // to the automatic graduation-triggered path).
 const RETENTION_YEARS_AFTER_GRADUATION = 7;
 
+/** Stable, language-independent identifier for why checkDeletionEligibility
+ * blocked — lets callers (specifically eraseUserBySystemAdmin's web client)
+ * branch on the reason without parsing localized `reason` text. */
+export type EligibilityBlockCode =
+  | 'STUDENT_ACTIVE_PROJECT'
+  | 'SUPERVISOR_ACTIVE_PROJECTS'
+  | 'EXAMINER_PENDING_GRADING'
+  | 'LAST_SYSTEM_ADMIN';
+
+export interface BlockingProject {
+  id: string;
+  titleHe: string;
+  titleEn: string;
+  facultyId: string;
+  /** Which supervisor slot `uid` holds on this project — the reassignment
+   *  endpoint needs this to know whether to write supervisorId or
+   *  secondarySupervisorId. */
+  role: 'primary' | 'secondary';
+}
+
 export interface EligibilityResult {
   eligible: boolean;
   reason?: string;
+  code?: EligibilityBlockCode;
+  /** Only populated for code === 'SUPERVISOR_ACTIVE_PROJECTS' — lets the
+   *  caller offer a reassign-then-delete flow instead of just a dead end. */
+  blockingProjects?: BlockingProject[];
 }
 
 export function getEffectiveRoles(userData: FirebaseFirestore.DocumentData): string[] {
@@ -62,6 +86,7 @@ export async function checkDeletionEligibility(
   if (roles.includes('student') && userData.hasActiveProject) {
     return {
       eligible: false,
+      code: 'STUDENT_ACTIVE_PROJECT',
       reason: viewer === 'admin'
         ? L(lang, 'This user has an active project. Ask their coordinator or faculty admin to resolve this before the account can be deleted.', 'למשתמש זה יש פרויקט פעיל. יש לבקש מהרכז או ממנהל הפקולטה לטפל בכך לפני שניתן יהיה למחוק את החשבון.')
         : L(lang, 'You have an active project. Ask your coordinator or faculty admin to resolve this before deleting your account.', 'יש לך פרויקט פעיל. בקש/י מהרכז או ממנהל הפקולטה שלך לטפל בכך לפני מחיקת החשבון שלך.'),
@@ -69,15 +94,38 @@ export async function checkDeletionEligibility(
   }
 
   if (roles.includes('supervisor') || roles.includes('secondary_supervisor')) {
-    const activeSnap = await db.collection('projects')
-      .where('supervisorId', '==', uid)
-      .where('status', 'in', ['active', 'in_progress'])
-      .get();
-    if (!activeSnap.empty) {
-      const count = activeSnap.size;
+    // Both slots — a user who is only ever a SECONDARY supervisor on active
+    // projects used to sail through here as "eligible" (the query below only
+    // ever checked supervisorId), which would silently leave
+    // secondarySupervisorId pointing at a deleted account. Querying both and
+    // merging by project id catches that case too.
+    const [primarySnap, secondarySnap] = await Promise.all([
+      db.collection('projects')
+        .where('supervisorId', '==', uid)
+        .where('status', 'in', ['active', 'in_progress'])
+        .get(),
+      db.collection('projects')
+        .where('secondarySupervisorId', '==', uid)
+        .where('status', 'in', ['active', 'in_progress'])
+        .get(),
+    ]);
+    const blockingProjects: BlockingProject[] = [
+      ...primarySnap.docs.map((d) => ({ id: d.id, role: 'primary' as const, data: d.data() })),
+      ...secondarySnap.docs.map((d) => ({ id: d.id, role: 'secondary' as const, data: d.data() })),
+    ].map(({ id, role, data }) => ({
+      id,
+      role,
+      titleHe: data.titleHe ?? '',
+      titleEn: data.titleEn ?? '',
+      facultyId: data.facultyId ?? '',
+    }));
+    if (blockingProjects.length > 0) {
+      const count = blockingProjects.length;
       const plural = count === 1 ? '' : 's';
       return {
         eligible: false,
+        code: 'SUPERVISOR_ACTIVE_PROJECTS',
+        blockingProjects,
         reason: viewer === 'admin'
           ? L(lang, `This user is supervising ${count} active student project${plural}. Reassign them before the account can be deleted.`, `משתמש זה מנחה ${count} פרויקט${count === 1 ? ' סטודנט פעיל' : 'ים פעילים של סטודנטים'}. יש להעביר אותם לפני שניתן יהיה למחוק את החשבון.`)
           : L(lang, `You are supervising ${count} active student project${plural}. Ask your faculty admin to reassign them before deleting your account.`, `את/ה מנחה ${count} פרויקט${count === 1 ? ' סטודנט פעיל' : 'ים פעילים של סטודנטים'}. בקש/י ממנהל הפקולטה שלך להעביר אותם לפני מחיקת החשבון שלך.`),
@@ -96,6 +144,7 @@ export async function checkDeletionEligibility(
       const plural = count === 1 ? '' : 's';
       return {
         eligible: false,
+        code: 'EXAMINER_PENDING_GRADING',
         reason: viewer === 'admin'
           ? L(lang, `This user has ${count} pending defense grading assignment${plural}. Reassign ${count === 1 ? 'it' : 'them'} before the account can be deleted.`, `למשתמש זה יש ${count} ${count === 1 ? 'מטלת' : 'מטלות'} בדיקת הגנה ${count === 1 ? 'ממתינה' : 'ממתינות'}. יש להעביר אות${count === 1 ? 'ה' : 'ן'} לפני שניתן יהיה למחוק את החשבון.`)
           : L(lang, `You have ${count} pending defense grading assignment${plural}. Ask your coordinator to reassign it before deleting your account.`, `יש לך ${count} ${count === 1 ? 'מטלת' : 'מטלות'} בדיקת הגנה ${count === 1 ? 'ממתינה' : 'ממתינות'}. בקש/י מהרכז שלך להעביר אות${count === 1 ? 'ה' : 'ן'} לפני מחיקת החשבון שלך.`),
@@ -140,6 +189,7 @@ export async function checkDeletionEligibility(
       if (err?.message === 'LAST_ADMIN') {
         return {
           eligible: false,
+          code: 'LAST_SYSTEM_ADMIN',
           reason: viewer === 'admin'
             ? L(lang, 'This is the last active system_admin — promote another account to system_admin before deleting this one.', 'זהו מנהל המערכת הפעיל האחרון — יש לקדם חשבון אחר למנהל מערכת לפני מחיקת חשבון זה.')
             : L(lang, 'You are the last active system_admin — promote another account to system_admin first.', 'את/ה מנהל/ת המערכת הפעיל/ה האחרון/ה — יש לקדם חשבון אחר למנהל מערכת קודם.'),
