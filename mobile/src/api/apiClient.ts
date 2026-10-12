@@ -5,8 +5,17 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { auth, appCheck } from '../firebase/firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
-import { reportClientError } from './errorReporting';
+import { reportClientError, reportTransportFailure } from './errorReporting';
 import { getCurrentLang } from './currentLang';
+
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    /** Set by the request interceptor below — see the error interceptor. */
+    startedAt?: number;
+  }
+}
+
+const REQUEST_TIMEOUT_MS = 15_000;
 
 function getBaseUrl(): string {
   // Always hit the deployed server (value baked in via app.json extra) —
@@ -42,7 +51,7 @@ class ApiClient {
         'Content-Type': 'application/json; charset=utf-8',
         'Accept':       'application/json',
       },
-      timeout: 15000,
+      timeout: REQUEST_TIMEOUT_MS,
     });
 
     // ── Request interceptor: attach fresh Firebase ID token ──────────────────
@@ -70,6 +79,9 @@ class ApiClient {
         // separate language toggle of its own, so this mirrors the account's
         // stored language field (see src/api/currentLang.ts).
         config.headers['X-Lang'] = getCurrentLang();
+        // Read back in the error interceptor to spot a timeout that only
+        // "fired" because the device was asleep.
+        config.startedAt = Date.now();
         return config;
       },
       (error) => Promise.reject(error)
@@ -137,12 +149,20 @@ class ApiClient {
         // DNS failure, etc.) — both are exactly what system_admin needs to
         // hear about. A real HTTP error (4xx/5xx) — reported only for 5xx,
         // since 4xx is normal business-logic rejection, not a system problem.
+        // Filtered for this-device-only causes (app backgrounded/just
+        // resumed, sleep, multi-endpoint connectivity loss) — see
+        // errorReporting.ts. A deliberate cancel (axios.isCancel) is the
+        // caller's choice, not a failure at all.
         if (!error.response) {
-          reportClientError({
-            kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
-            message: error.message || 'Request failed with no response',
-            route: error.config?.url,
-          });
+          if (!axios.isCancel(error)) {
+            reportTransportFailure({
+              kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
+              message: error.message || 'Request failed with no response',
+              route: error.config?.url ?? null,
+              startedAt: error.config?.startedAt,
+              timeoutMs: error.config?.timeout || REQUEST_TIMEOUT_MS,
+            });
+          }
         } else if (error.response.status >= 500) {
           reportClientError({
             kind: 'network_failure',
