@@ -100,6 +100,12 @@
       "googleIosClientId": "432175584982-lnqj6lbca6vino6habjf25k4mbgm1f7l.apps.googleusercontent.com",
       "googleAndroidClientId": "432175584982-edo6d4jc1agijr24qte4hl3g2cdng4vb.apps.googleusercontent.com"
     },
-    "owner": "dorno"
+    "owner": "dorno",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a969028f-f207-42fe-881f-2a6f3cb6760e"
+    }
   }
 }
