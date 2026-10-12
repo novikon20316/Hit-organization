@@ -200,6 +200,8 @@ interface CommitteeConflictRow {
   blocking: boolean;
   /** Last stand-in used for this person elsewhere in the project — pre-selected. */
   suggestedReplacementId: string | null;
+  /** Current members (chairman included) — left out of the picker. */
+  committeeMemberIds: string[];
 }
 interface EligibleMember {
   id: string;
@@ -863,10 +865,13 @@ export default function ProjectCoordinatorDashboard() {
     const key = `${c.milestoneId}:${c.conflictedUserId}`;
     setReplacingKey(key);
     setSelectedReplacement(c.suggestedReplacementId ?? '');
-    if (!membersByFaculty[c.facultyId]) {
+    const poolKey = `${c.facultyId}/${c.major}`;
+    if (!membersByFaculty[poolKey]) {
       try {
-        const res = await apiClient.get('/api/committees/eligible-members', { params: { facultyId: c.facultyId } });
-        setMembersByFaculty((prev) => ({ ...prev, [c.facultyId]: res.data.members ?? [] }));
+        // Only active staff of the project's own department (see server's
+        // listEligibleReplacementsForMajor).
+        const res = await apiClient.get('/api/committees/eligible-members', { params: { facultyId: c.facultyId, major: c.major } });
+        setMembersByFaculty((prev) => ({ ...prev, [poolKey]: res.data.members ?? [] }));
       } catch {
         // The picker just shows "no candidates" below if this failed.
       }
@@ -1279,7 +1284,7 @@ export default function ProjectCoordinatorDashboard() {
               conflicts.map((c) => {
                 const key = `${c.milestoneId}:${c.conflictedUserId}`;
                 const isReplacing = replacingKey === key;
-                const candidates = (membersByFaculty[c.facultyId] ?? []).filter((m) => m.id !== c.conflictedUserId);
+                const candidates = (membersByFaculty[`${c.facultyId}/${c.major}`] ?? []).filter((m) => m.id !== c.conflictedUserId && !(c.committeeMemberIds ?? []).includes(m.id));
                 return (
                   <View key={key} style={[s.card, { borderLeftColor: '#EF4444' }]}>
                     <Text style={s.cardTitle}>{lang === 'he' ? (c.projectTitleHe || c.projectTitleEn) : (c.projectTitleEn || c.projectTitleHe)}</Text>

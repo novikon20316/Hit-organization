@@ -60,10 +60,13 @@ export function CommitteeConflictsTab() {
   const openReplace = async (c: CommitteeConflict) => {
     setReplacingKey(conflictKey(c));
     setSelectedReplacement(c.suggestedReplacementId ?? '');
-    if (!membersByFaculty[c.facultyId]) {
+    const poolKey = `${c.facultyId}/${c.major}`;
+    if (!membersByFaculty[poolKey]) {
       try {
-        const res = await apiClient.listEligibleCommitteeMembers(c.facultyId);
-        setMembersByFaculty((prev) => ({ ...prev, [c.facultyId]: res.members }));
+        // Only active staff of the project's own department (see server's
+        // listEligibleReplacementsForMajor).
+        const res = await apiClient.listEligibleCommitteeMembers(c.facultyId, c.major);
+        setMembersByFaculty((prev) => ({ ...prev, [poolKey]: res.members }));
       } catch {
         // The picker just shows "no candidates" below if this failed —
         // she can retry by reopening it.
@@ -110,7 +113,7 @@ export function CommitteeConflictsTab() {
         conflicts.map((c) => {
           const key = conflictKey(c);
           const isReplacing = replacingKey === key;
-          const candidates = (membersByFaculty[c.facultyId] ?? []).filter((m) => m.id !== c.conflictedUserId);
+          const candidates = (membersByFaculty[`${c.facultyId}/${c.major}`] ?? []).filter((m) => m.id !== c.conflictedUserId && !(c.committeeMemberIds ?? []).includes(m.id));
           return (
             <div
               key={key}

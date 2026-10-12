@@ -2958,10 +2958,12 @@ export const apiClient = {
     return request<{ committees: CommitteeRecord[] }>('/api/committees/mine', { method: 'GET' });
   },
 
-  async listEligibleCommitteeMembers(facultyId?: string) {
+  /** With `major` (Replace Committee Member), only active staff of that
+   *  faculty+major — no students, system_admins or cross-faculty accounts. */
+  async listEligibleCommitteeMembers(facultyId?: string, major?: string) {
     return request<{ members: Array<{ id: string; displayName: string; email: string; role: string; facultyId: string }> }>(
       '/api/committees/eligible-members',
-      { method: 'GET', params: { facultyId } },
+      { method: 'GET', params: { facultyId, ...(major ? { major } : {}) } },
     );
   },
 
@@ -3075,6 +3077,8 @@ export interface CommitteeConflict {
   blocking: boolean;
   /** Last stand-in used for this person elsewhere in the project — pre-selected. */
   suggestedReplacementId: string | null;
+  /** Current members (chairman included) — left out of the picker. */
+  committeeMemberIds: string[];
 }
 
 export interface ParallelSignoffStatus {

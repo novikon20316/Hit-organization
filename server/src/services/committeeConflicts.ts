@@ -39,6 +39,9 @@ export interface CommitteeConflict {
    *  (another milestone, or the project-level recusal) — pre-selected in the
    *  picker; she can still choose someone else for this milestone. */
   suggestedReplacementId: string | null;
+  /** The effective committee's current members (chairman included) — the
+   *  picker leaves them out, since someone already on it can't stand in. */
+  committeeMemberIds: string[];
 }
 
 /** True for a stage that genuinely blocks on administrative_secretary
@@ -128,6 +131,7 @@ export async function findCommitteeConflictsForScopes(
           supervisorRole: conflict.supervisorRole,
           blocking: !!m.committeeConflictHold,
           suggestedReplacementId: suggested,
+          committeeMemberIds: committee.memberIds,
         });
       }
     }

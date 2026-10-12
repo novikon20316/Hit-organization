@@ -128,7 +128,14 @@ export const getMyCommittees = async (req: AuthenticatedRequest, res: Response) 
  *  workflow-chain role, isn't tied to one specific existing role) — just a
  *  helpful default candidate pool for the picker UI. */
 export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, res: Response) => {
-  const { facultyId } = req.query;
+  const { facultyId, major } = req.query;
+  // "Replace Committee Member" passes the project's major — the stand-in
+  // must then be active staff of that very faculty AND major (see
+  // isStaffOfMajor), never a student, a system_admin account, or a
+  // cross-faculty ('all') account from outside the department.
+  if (typeof major === 'string' && major) {
+    return listEligibleReplacementsForMajor(req, res, typeof facultyId === 'string' ? facultyId : '', major);
+  }
   // administrative_secretary needs this for "Replace Committee Member" —
   // scoped to a facultyId she's actually assigned to (coordinatorScopes),
   // never an arbitrary one, unlike system_admin/a chairman's open access.
@@ -163,6 +170,51 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
     return res.status(500).json({ message: L(req, 'Failed to load candidate members.', 'טעינת רשימת המועמדים נכשלה.') });
   }
 };
+
+/** A user counts as staff of `major` when tied to it through their own
+ *  major, the majors a system_admin restricted them to (assignedMajors), or
+ *  a coordinatorScopes entry naming that faculty+major. A whole-faculty
+ *  scope (no major) deliberately does NOT count — it isn't specific to this
+ *  department. */
+function isStaffOfMajor(user: FirebaseFirestore.DocumentData, facultyId: string, major: string): boolean {
+  return user.major === major
+    || (Array.isArray(user.assignedMajors) && user.assignedMajors.includes(major))
+    || (user.coordinatorScopes ?? []).some((s: { facultyId?: string; major?: string }) => s.facultyId === facultyId && s.major === major);
+}
+
+/** GET /api/committees/eligible-members?facultyId=...&major=... — the
+ *  replacement pool for "Replace Committee Member". Only active staff of the
+ *  project's own faculty and major: no students, no system_admin accounts,
+ *  no deactivated accounts, no cross-faculty ('all') accounts. */
+async function listEligibleReplacementsForMajor(req: AuthenticatedRequest, res: Response, facultyId: string, major: string) {
+  if (!facultyId) return res.status(400).json({ message: L(req, 'facultyId is required.', 'שדה הפקולטה נדרש.') });
+  const inScope = (req.user?.coordinatorScopes ?? []).some(
+    (s) => s.facultyId === facultyId && (!s.major || s.major === major)
+  );
+  if (!isSystemAdmin(req) && !(hasAnyRole(req.user, ['administrative_secretary']) && inScope)) {
+    return res.status(403).json({ message: L(req, 'Access denied for this department.', 'הגישה למחלקה זו נדחתה.') });
+  }
+  try {
+    const snap = await db.collection('users').where('facultyId', '==', facultyId).get();
+    const members = snap.docs
+      .filter((doc) => {
+        const u = doc.data();
+        const roles: string[] = [u.role, ...(u.roles ?? [])].filter(Boolean);
+        if (roles.includes('student')) return false;
+        if (u.role === 'system_admin') return false;
+        if (u.isActive === false) return false;
+        return isStaffOfMajor(u, facultyId, major);
+      })
+      .map((doc) => {
+        const u = doc.data();
+        return { id: doc.id, displayName: u.displayName ?? '', email: u.email ?? '', role: u.role ?? '', facultyId: u.facultyId ?? '' };
+      });
+    return res.status(200).json({ members });
+  } catch (error: any) {
+    console.error('listEligibleReplacementsForMajor error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to load candidate members.', 'טעינת רשימת המועמדים נכשלה.') });
+  }
+}
 
 /** Joins each committee's memberIds to {id, displayName, email} at read
  *  time (never stored on the committee doc itself — resolving live avoids
@@ -506,6 +558,20 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
     const replacementSnap = await db.collection('users').doc(replacementUserId).get();
     if (!replacementSnap.exists || replacementSnap.data()?.role === 'student') {
       return res.status(400).json({ message: L(req, 'Invalid replacement — must be an existing staff account.', 'מחליף לא תקין — יש לבחור חשבון צוות קיים.') });
+    }
+    // Same pool listEligibleReplacementsForMajor offers — enforced here too,
+    // so a direct API call can't pick someone the picker would never show.
+    const replacement = replacementSnap.data()!;
+    const replacementRoles: string[] = [replacement.role, ...(replacement.roles ?? [])].filter(Boolean);
+    const outsideDepartment = !!project.major && (
+      replacement.facultyId !== project.facultyId
+      || replacement.role === 'system_admin'
+      || replacementRoles.includes('student')
+      || replacement.isActive === false
+      || !isStaffOfMajor(replacement, project.facultyId, project.major)
+    );
+    if (outsideDepartment) {
+      return res.status(400).json({ message: L(req, "The replacement must be active staff of this project's own department.", 'המחליף/ה חייב/ת להיות איש/אשת צוות פעיל/ה מהמחלקה של הפרויקט.') });
     }
 
     if (milestoneRef && milestone) {
