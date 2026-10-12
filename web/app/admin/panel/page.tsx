@@ -41,6 +41,7 @@ import { DecisionRelayModal } from './DecisionRelayModal';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
 import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import { RolePermissionsCard } from './RolePermissionsCard';
+import { UsersByFacultyCard } from './UsersByFacultyCard';
 import type { AdminUserRecord, AdminProjectRecord, AdminMilestoneRecord, StudentStatusConfig } from './types';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
@@ -541,6 +542,8 @@ function OverviewTab({
             {projects.length === 0 && <p className="text-sm text-admin-on-surface-variant">{lang === 'he' ? 'אין פרויקטים עדיין' : 'No projects yet'}</p>}
           </div>
         </div>
+
+        <UsersByFacultyCard users={users} lang={lang} />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
           <StatCard icon="📁" value={stats.totalProjects} label={lang === 'he' ? 'פרויקטים' : 'Projects'} href="/admin/panel?tab=projects" />
