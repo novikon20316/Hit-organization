@@ -765,6 +765,18 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/admin/users/${userId}/standard-supervisor`, { method: 'POST', body: { category, value } });
   },
 
+  /** POST /api/admin/standard-supervisors/import-preview — reads the
+   *  Standard Supervisor Excel template and matches rows to supervisors by
+   *  name. Writes nothing; see adminController.ts's previewStandardSupervisorImport. */
+  async previewStandardSupervisorImport(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{
+      matches: Array<{ rowNumber: number; name: string; supervisorId: string; flags: Partial<Record<'bachelor_project' | 'masters_project' | 'masters_thesis', boolean>> }>;
+      unmatched: Array<{ rowNumber: number; name: string; reason: 'not_found' | 'ambiguous' | 'duplicate' }>;
+    }>('/api/admin/standard-supervisors/import-preview', { method: 'POST', body: formData, raw: true });
+  },
+
   /** GET /api/admin/external-examiners — see externalExaminersController.ts.
    *  `bankAccount` is present (possibly null) for administrative_secretary
    *  and entirely absent from the response for system_admin — never typed

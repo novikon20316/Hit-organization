@@ -1,5 +1,6 @@
 // src/controllers/adminController.ts
 
+import * as XLSX from 'xlsx';
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
@@ -388,6 +389,39 @@ export type StandardSupervisorCategory = typeof STANDARD_SUPERVISOR_CATEGORIES[n
  * supervisor's home faculty/majors, not every faculty they've been granted
  * as an extra.
  */
+/** Every supervisor the caller may manage on the Standard Supervisor screen —
+ *  everyone for system_admin, otherwise only those within her own
+ *  coordinatorScopes (by faculty + assignedMajors). Shared by the list
+ *  endpoint and the Excel import preview, so both see the same set. */
+async function listScopedStandardSupervisors(req: AuthenticatedRequest, isSystemAdmin: boolean) {
+  const [byRole, byRoles] = await Promise.all([
+    db.collection('users').where('role', 'in', STANDARD_SUPERVISOR_ROLES).get(),
+    db.collection('users').where('roles', 'array-contains-any', STANDARD_SUPERVISOR_ROLES).get(),
+  ]);
+  const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  [...byRole.docs, ...byRoles.docs].forEach((doc) => byId.set(doc.id, doc));
+
+  return [...byId.values()]
+    .map((doc) => ({ id: doc.id, ...doc.data() }) as Record<string, any>)
+    .filter((u) => {
+      if (isSystemAdmin) return true;
+      const majors: (string | undefined)[] = u.assignedMajors?.length ? u.assignedMajors : [undefined];
+      return majors.some((major) => withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', ...(major ? { major } : {}) }));
+    })
+    .map((u) => ({
+      id: u.id as string,
+      displayName: (u.displayName ?? 'Unknown') as string,
+      email: (u.email ?? '') as string,
+      facultyId: (u.facultyId ?? '') as string,
+      assignedMajors: (u.assignedMajors ?? []) as string[],
+      standardSupervisorEligibility: {
+        bachelor_project: !!u.standardSupervisorEligibility?.bachelor_project,
+        masters_project: !!u.standardSupervisorEligibility?.masters_project,
+        masters_thesis: !!u.standardSupervisorEligibility?.masters_thesis,
+      },
+    }));
+}
+
 export const getStandardSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
   const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
@@ -396,32 +430,7 @@ export const getStandardSupervisors = async (req: AuthenticatedRequest, res: Res
   }
 
   try {
-    const [byRole, byRoles] = await Promise.all([
-      db.collection('users').where('role', 'in', STANDARD_SUPERVISOR_ROLES).get(),
-      db.collection('users').where('roles', 'array-contains-any', STANDARD_SUPERVISOR_ROLES).get(),
-    ]);
-    const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-    [...byRole.docs, ...byRoles.docs].forEach((doc) => byId.set(doc.id, doc));
-
-    const supervisors = [...byId.values()]
-      .map((doc) => ({ id: doc.id, ...doc.data() }) as Record<string, any>)
-      .filter((u) => {
-        if (isSystemAdmin) return true;
-        const majors: (string | undefined)[] = u.assignedMajors?.length ? u.assignedMajors : [undefined];
-        return majors.some((major) => withinCoordinatorScope(req.user, { facultyId: u.facultyId ?? '', ...(major ? { major } : {}) }));
-      })
-      .map((u) => ({
-        id: u.id,
-        displayName: u.displayName ?? 'Unknown',
-        email: u.email ?? '',
-        facultyId: u.facultyId ?? '',
-        assignedMajors: u.assignedMajors ?? [],
-        standardSupervisorEligibility: {
-          bachelor_project: !!u.standardSupervisorEligibility?.bachelor_project,
-          masters_project: !!u.standardSupervisorEligibility?.masters_project,
-          masters_thesis: !!u.standardSupervisorEligibility?.masters_thesis,
-        },
-      }));
+    const supervisors = await listScopedStandardSupervisors(req, isSystemAdmin);
 
     return res.status(200).json({ supervisors });
   } catch (error: any) {
@@ -494,6 +503,119 @@ export const setStandardSupervisorFlag = async (req: AuthenticatedRequest, res: 
   } catch (error: any) {
     console.error('setStandardSupervisorFlag error:', error);
     return res.status(500).json({ message: L(req, 'Failed to update supervisor.', 'עדכון המנחה נכשל.') });
+  }
+};
+
+
+// Header text (as in the administrative coordinator's Excel template) → the
+// category it fills. Compared after normalizeSheetText, so spacing/quote
+// variants in a hand-edited header still resolve.
+const STANDARD_SUPERVISOR_IMPORT_HEADERS: Record<string, string> = {
+  'פרויקט גמר תואר ראשון': 'bachelor_project',
+  'פרויקט גמר תואר שני': 'masters_project',
+  'תזה': 'masters_thesis',
+};
+const STANDARD_SUPERVISOR_NAME_HEADERS = ['שם מנחה', 'מנחה', 'שם'];
+const MAX_STANDARD_SUPERVISOR_IMPORT_ROWS = 500;
+
+/** Trims, collapses whitespace, lowercases, and unifies the quote
+ *  characters Hebrew names/abbreviations get typed with (" ״ ” ' ׳ ’) — so
+ *  a name typed with ״ in the file still matches one stored with ". */
+function normalizeSheetText(value: unknown): string {
+  return String(value ?? '')
+    .replace(/[״“”„″"]/g, '"')
+    .replace(/[׳‘’′']/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** A ticked Excel checkbox arrives as boolean true; also accept the text
+ *  people type by hand instead (TRUE, כן, V, X, 1, ✓). Anything else —
+ *  including an empty cell — is "not eligible". */
+function sheetCellIsChecked(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  return ['true', 'כן', 'v', 'x', '1', '✓', '✔', 'yes'].includes(normalizeSheetText(value));
+}
+
+/**
+ * POST /api/admin/standard-supervisors/import-preview  (multipart, field "file")
+ * Reads the Standard Supervisor Excel template — a supervisor-name column
+ * plus one checkbox column per category — and matches each row by name to
+ * the supervisors the caller may manage (same set as getStandardSupervisors).
+ * Writes NOTHING: the screen fills its checkboxes from this, and only the
+ * administrative coordinator's own "Save" applies them through the regular
+ * per-flag endpoint (so every change is still scope-checked and audited).
+ */
+export const previewStandardSupervisorImport = async (req: AuthenticatedRequest, res: Response) => {
+  const isSystemAdmin = hasAnyRole(req.user, ['system_admin']);
+  const isAdminCoordinator = hasAnyRole(req.user, ['administrative_secretary']);
+  if (!isSystemAdmin && !isAdminCoordinator) {
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
+  }
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
+
+  let rows: unknown[][];
+  try {
+    const workbook = XLSX.read(file.buffer, { type: 'buffer', sheetRows: MAX_STANDARD_SUPERVISOR_IMPORT_ROWS + 1 });
+    const sheet = workbook.Sheets[workbook.SheetNames[0] ?? ''];
+    if (!sheet) throw new Error('empty workbook');
+    rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+  } catch {
+    return res.status(400).json({ message: L(req, 'Could not read the file — please upload an Excel (.xlsx) file.', 'לא ניתן לקרוא את הקובץ — יש להעלות קובץ אקסל (.xlsx).') });
+  }
+
+  const header = (rows[0] ?? []).map(normalizeSheetText);
+  const nameCol = header.findIndex((h) => STANDARD_SUPERVISOR_NAME_HEADERS.includes(h));
+  const categoryCols: Array<{ col: number; category: string }> = [];
+  header.forEach((h, col) => {
+    const category = Object.entries(STANDARD_SUPERVISOR_IMPORT_HEADERS).find(([label]) => normalizeSheetText(label) === h)?.[1];
+    if (category) categoryCols.push({ col, category });
+  });
+  if (nameCol === -1 || categoryCols.length === 0) {
+    return res.status(400).json({ message: L(
+      req,
+      'The file does not match the template — the first row must contain "שם מנחה" and at least one of: פרויקט גמר תואר ראשון, פרויקט גמר תואר שני, תזה.',
+      'הקובץ אינו תואם לתבנית — השורה הראשונה חייבת לכלול "שם מנחה" ולפחות אחת מהעמודות: פרויקט גמר תואר ראשון, פרויקט גמר תואר שני, תזה.',
+    ) });
+  }
+
+  try {
+    const supervisors = await listScopedStandardSupervisors(req, isSystemAdmin);
+    const byName = new Map<string, typeof supervisors>();
+    supervisors.forEach((s) => {
+      const key = normalizeSheetText(s.displayName);
+      byName.set(key, [...(byName.get(key) ?? []), s]);
+    });
+
+    const matches: Array<{ rowNumber: number; name: string; supervisorId: string; flags: Record<string, boolean> }> = [];
+    const unmatched: Array<{ rowNumber: number; name: string; reason: 'not_found' | 'ambiguous' | 'duplicate' }> = [];
+    const seen = new Set<string>();
+    rows.slice(1).forEach((row, i) => {
+      const rowNumber = i + 2; // as Excel numbers it (row 1 is the header)
+      const rawName = String(row?.[nameCol] ?? '').trim();
+      if (!rawName) return; // the template's blank rows
+      const candidates = byName.get(normalizeSheetText(rawName)) ?? [];
+      if (candidates.length !== 1) {
+        unmatched.push({ rowNumber, name: rawName, reason: candidates.length === 0 ? 'not_found' : 'ambiguous' });
+        return;
+      }
+      const supervisor = candidates[0]!;
+      if (seen.has(supervisor.id)) {
+        unmatched.push({ rowNumber, name: rawName, reason: 'duplicate' });
+        return;
+      }
+      seen.add(supervisor.id);
+      const flags: Record<string, boolean> = {};
+      categoryCols.forEach(({ col, category }) => { flags[category] = sheetCellIsChecked(row?.[col]); });
+      matches.push({ rowNumber, name: rawName, supervisorId: supervisor.id, flags });
+    });
+
+    return res.status(200).json({ matches, unmatched });
+  } catch (error: any) {
+    console.error('previewStandardSupervisorImport error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to read the supervisors file.', 'קריאת קובץ המנחים נכשלה.') });
   }
 };
 

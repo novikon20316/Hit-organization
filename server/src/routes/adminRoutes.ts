@@ -12,6 +12,7 @@ import {
   getAdminProjectMilestones,
   getSupervisorsList,
   getStandardSupervisors,
+  previewStandardSupervisorImport,
   setStandardSupervisorFlag,
   createAdminProject,
   createAdminUser,
@@ -128,6 +129,9 @@ router.post('/users/:id/reset-onboarding', verifyToken, resetUserOnboardingAdmin
 // or administrative coordinator (supervisors in her own faculty/major scope
 // only) — gated inside the controller.
 router.post('/users/:id/standard-supervisor', verifyToken, setStandardSupervisorFlag);
+// Excel template → matched rows for the Standard Supervisor screen to fill in.
+// Read-only preview; saving goes through the per-flag route above.
+router.post('/standard-supervisors/import-preview', verifyToken, uploadExcelFileMiddleware, previewStandardSupervisorImport);
 // Temporary debug tool — see config/featureFlags.ts's IMPERSONATION_ENABLED.
 router.post('/users/:id/impersonate', verifyToken, impersonationLimiter, impersonateUser);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
