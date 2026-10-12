@@ -11,8 +11,9 @@
 // web's components/MilestoneTimeline.tsx card layout so both platforms read
 // as one design.
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
+import { ROLE_LABELS, type AppRole } from '@/components/i18n';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 
@@ -34,6 +35,19 @@ export interface RoadmapMilestone {
   defenseBuilding?: string | null;
   defenseTime?: string | null;
   onlineDefenseLink?: string | null;
+  examinerIds?: string[];
+  /** The milestone's approval chain, snapshotted from its workflow template
+   *  at enrollment, and the index of the stage currently awaiting action.
+   *  Absent on legacy milestones — the "Approval Process" section is then
+   *  simply not shown. */
+  routing?: RoutingStage[];
+  currentStageIndex?: number;
+}
+
+export interface RoutingStage {
+  id: string;
+  role: string;
+  action: 'grade' | 'approve' | 'notify';
 }
 
 interface Props {
@@ -98,6 +112,100 @@ function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string 
     // fall through to generic label below
   }
   return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
+}
+
+// Labels for a routing stage's role — ChainRole (server/src/services/
+// workflowTemplates.ts) has a few values that aren't AppRoles.
+const CHAIN_ROLE_LABEL: Record<string, { he: string; en: string }> = {
+  examiner: { he: 'בוחנים', en: 'Examiners' },
+  committee: { he: 'ועדה', en: 'Committee' },
+};
+
+function chainStageLabel(stage: RoutingStage, lang: 'he' | 'en'): string {
+  const roleLabels = CHAIN_ROLE_LABEL[stage.role] ?? ROLE_LABELS[stage.role as AppRole];
+  const role = roleLabels?.[lang] ?? stage.role;
+  if (lang === 'he') {
+    if (stage.action === 'grade') return `ציון ${role}`;
+    if (stage.action === 'notify') return `עדכון ל${role}`;
+    return `אישור ${role}`;
+  }
+  if (stage.action === 'grade') return `${role} grading`;
+  if (stage.action === 'notify') return `${role} notified`;
+  return `${role} approval`;
+}
+
+type ChainStep = { label: string; done: boolean; current?: boolean };
+
+/** Same derivation as web's components/MilestoneTimeline.tsx
+ *  buildApprovalChain — currentStageIndex is the stage currently awaiting
+ *  action, so every stage before it is done; a 'graded' status parked ON a
+ *  grade stage means that final grade stage itself already finished. */
+function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
+  const routing = (m.routing ?? []).filter((st) => st && typeof st.role === 'string');
+  if (routing.length === 0) return [];
+  const submitted = m.status !== 'pending';
+  const allDone = isCompletedStatus(m.status);
+  const idx = m.currentStageIndex ?? 0;
+  const currentFinished = m.status === 'graded' && routing[idx]?.action === 'grade';
+
+  const steps: ChainStep[] = [{ label: lang === 'he' ? 'הגשה' : 'Submission', done: submitted }];
+  routing.forEach((stage, i) => {
+    const done = allDone || (submitted && (i < idx || (i === idx && currentFinished)));
+    steps.push({ label: chainStageLabel(stage, lang), done, current: submitted && !done && i === idx });
+  });
+  if (m.type === 'defense') {
+    // A defense's routing is only its pre-check chain — the examiner
+    // scheduling/grading engine takes over after it.
+    steps.push(
+      { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: !!m.examinerIds?.length },
+      { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: !!m.defenseDate },
+      {
+        label: lang === 'he' ? 'ציונים הוגשו' : 'Grades submitted',
+        done: ['examiner_graded', 'both_examiners_graded', 'completed'].includes(m.status),
+      },
+    );
+  }
+  return steps;
+}
+
+function ApprovalChain({ milestone, lang, isRtl }: { milestone: RoadmapMilestone; lang: 'he' | 'en'; isRtl: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const steps = buildApprovalChain(milestone, lang);
+  if (steps.length === 0) return null;
+  return (
+    <View style={{ marginTop: spacing.sm }}>
+      <Pressable
+        onPress={() => setExpanded((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        hitSlop={8}
+      >
+        <Text style={[s.chainToggle, isRtl && s.textRight]}>
+          {expanded ? '▲' : '▼'} {lang === 'he' ? 'תהליך האישור' : 'Approval Process'}
+        </Text>
+      </Pressable>
+      {expanded && (
+        <View style={s.chainList}>
+          {steps.map((step, i) => (
+            <View key={i} style={[s.chainRow, isRtl && s.rowReverse]}>
+              <View style={[s.chainDot, { backgroundColor: step.done ? p.success : step.current ? '#b8862e' : p.outlineVariant }]} />
+              <Text
+                style={[
+                  s.chainText,
+                  step.done && s.chainTextDone,
+                  step.current && s.chainTextCurrent,
+                  isRtl && s.textRight,
+                ]}
+              >
+                {step.label}
+                {step.current ? (lang === 'he' ? ' · ממתין כעת' : ' · waiting now') : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 }
 
 export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
@@ -222,6 +330,8 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
                 </View>
               </View>
             )}
+
+            <ApprovalChain milestone={m} lang={lang} isRtl={isRtl} />
           </View>
         );
       })}
@@ -240,6 +350,14 @@ const s = StyleSheet.create({
   },
   emptyIcon: { fontSize: 28, marginBottom: 8 },
   emptyText: { fontSize: 13, color: p.onSurfaceVariant, textAlign: 'center', paddingHorizontal: 24 },
+
+  chainToggle: { fontSize: 12, fontWeight: '600', color: p.primary },
+  chainList: { marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: p.outlineVariant, gap: 6 },
+  chainRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chainDot: { width: 8, height: 8, borderRadius: 4 },
+  chainText: { flex: 1, fontSize: 12, color: p.onSurfaceVariant },
+  chainTextDone: { fontWeight: '600', color: p.onSurface },
+  chainTextCurrent: { fontWeight: '600', color: '#b8862e' },
 
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between' },
   rowReverse: { flexDirection: 'row-reverse' },

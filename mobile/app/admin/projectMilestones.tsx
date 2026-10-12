@@ -18,7 +18,7 @@ import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient } from '../../src/api/apiClient';
-import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
+import { MilestoneRoadmap, type RoadmapMilestone, type RoutingStage } from '@/components/MilestoneRoadmap';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
 
@@ -80,6 +80,9 @@ function toRoadmapMilestone(raw: Record<string, unknown> & { id: string }): Road
     defenseBuilding: typeof raw.defenseBuilding === 'string' ? raw.defenseBuilding : null,
     defenseTime: typeof raw.defenseTime === 'string' ? raw.defenseTime : null,
     onlineDefenseLink: typeof raw.onlineDefenseLink === 'string' ? raw.onlineDefenseLink : null,
+    examinerIds: Array.isArray(raw.examinerIds) ? (raw.examinerIds as string[]) : [],
+    routing: Array.isArray(raw.routing) ? (raw.routing as RoutingStage[]) : undefined,
+    currentStageIndex: typeof raw.currentStageIndex === 'number' ? raw.currentStageIndex : undefined,
   };
 }
 
