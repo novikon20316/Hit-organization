@@ -16,8 +16,9 @@
 // server/src/controllers/milestoneController.ts and
 // server/src/services/studentProgress.ts — neither sets them), so reading
 // them here would just be `undefined.map()` waiting to crash. Instead the
-// chain steps below are derived generically from the milestone's status,
-// the same way ActiveDashboard.tsx already reasons about status thresholds.
+// chain steps below come from the milestone's own `routing` (snapshotted
+// from its workflow template), falling back to a generic status-derived
+// chain only for legacy milestones that have no routing.
 
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -26,6 +27,8 @@ import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { roleLabel } from '@/lib/i18n';
+import type { AppRole } from '@/lib/roles';
 import {
   MILESTONE_LABEL,
   STATUS_LABEL,
@@ -64,6 +67,18 @@ export interface MilestoneData {
   onlineDefenseLink?: string | null;
   examinerNames?: string[];
   examinerIds?: string[];
+  /** The milestone's approval chain, snapshotted from its workflow template
+   *  at enrollment, and the index of the stage currently awaiting action.
+   *  Absent on legacy milestones — those fall back to the generic
+   *  status-derived chain in buildApprovalChain. */
+  routing?: RoutingStage[];
+  currentStageIndex?: number;
+}
+
+export interface RoutingStage {
+  id: string;
+  role: string;
+  action: 'grade' | 'approve' | 'notify';
 }
 
 /** Loosely typed on purpose — callers pass whatever role string their own
@@ -102,8 +117,65 @@ function isCompletedStatus(status: MilestoneStatus): boolean {
 
 // ─── Approval-chain detail (expanded card content) ─────────────────────────
 
-function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): { label: string; done: boolean }[] {
+// Labels for a workflow-template routing stage's role — ChainRole
+// (server/src/services/workflowTemplates.ts) has a few values that aren't
+// AppRoles ('examiner', 'committee'), so this can't just be roleLabel().
+const CHAIN_ROLE_LABEL: Record<string, { he: string; en: string }> = {
+  examiner:  { he: 'בוחנים', en: 'Examiners' },
+  committee: { he: 'ועדה', en: 'Committee' },
+};
+
+function chainStageLabel(stage: RoutingStage, lang: 'he' | 'en'): string {
+  const role = CHAIN_ROLE_LABEL[stage.role]?.[lang] ?? roleLabel(stage.role as AppRole, lang);
+  if (lang === 'he') {
+    if (stage.action === 'grade') return `ציון ${role}`;
+    if (stage.action === 'notify') return `עדכון ל${role}`;
+    return `אישור ${role}`;
+  }
+  if (stage.action === 'grade') return `${role} grading`;
+  if (stage.action === 'notify') return `${role} notified`;
+  return `${role} approval`;
+}
+
+type ChainStep = { label: string; done: boolean; current?: boolean };
+
+/** The milestone's REAL chain, from the `routing` snapshotted off its
+ *  workflow template at enrollment — currentStageIndex is the stage
+ *  currently awaiting action (see server/src/controllers/projectController.ts
+ *  and coordinatorController.ts's approveChainMilestone), so every stage
+ *  before it is done. A 'graded' status parked ON a grade stage means that
+ *  final grade stage itself already finished. */
+function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he' | 'en'): ChainStep[] {
+  const submitted = m.status !== 'pending';
+  const allDone = isCompletedStatus(m.status);
+  const idx = m.currentStageIndex ?? 0;
+  const currentFinished = m.status === 'graded' && routing[idx]?.action === 'grade';
+
+  const steps: ChainStep[] = [{ label: lang === 'he' ? 'הגשה' : 'Submission', done: submitted }];
+  routing.forEach((stage, i) => {
+    const done = allDone || (submitted && (i < idx || (i === idx && currentFinished)));
+    steps.push({ label: chainStageLabel(stage, lang), done, current: submitted && !done && i === idx });
+  });
+  return steps;
+}
+
+function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
   const isDefense = m.type === 'defense';
+  const routing = (m.routing ?? []).filter((s) => s && typeof s.role === 'string');
+  if (routing.length > 0) {
+    const steps = buildRoutingChain(m, routing, lang);
+    if (!isDefense) return steps;
+    // A defense's routing is only its pre-check chain — the examiner
+    // scheduling/grading engine takes over after it, same tail as below.
+    const graded = (['examiner_graded', 'both_examiners_graded', 'completed'] as MilestoneStatus[]).includes(m.status);
+    return [
+      ...steps,
+      { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: !!(m.examinerIds && m.examinerIds.length > 0) },
+      { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: !!m.defenseDate },
+      { label: lang === 'he' ? 'ציונים הוגשו' : 'Grades submitted', done: graded },
+    ];
+  }
+
   const submittedOrLater = m.status !== 'pending';
   const supervisorGraded = (['supervisor_graded', 'graded', 'coordinator_approved', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded', 'awaiting_defense_date', 'date_conflict', 'defense_date_set', 'scheduled', 'completed'] as MilestoneStatus[]).includes(m.status);
   const coordinatorApproved = isCompletedStatus(m.status) || (['examiners_assigned', 'examiner_graded', 'both_examiners_graded', 'awaiting_defense_date', 'date_conflict', 'defense_date_set', 'scheduled'] as MilestoneStatus[]).includes(m.status);
@@ -434,8 +506,11 @@ function MilestoneCard({
         <div id={`approval-chain-${milestone.id}`} className="mt-2 grid gap-1 border-t border-line pt-2.5">
           {buildApprovalChain(milestone, lang).map((step, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${step.done ? 'bg-success' : 'bg-line'}`} />
-              <span className={`text-xs ${step.done ? 'font-medium text-ink' : 'text-muted'}`}>{step.label}</span>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${step.done ? 'bg-success' : step.current ? 'bg-accent' : 'bg-line'}`} />
+              <span className={`text-xs ${step.done ? 'font-medium text-ink' : step.current ? 'font-medium text-accent' : 'text-muted'}`}>
+                {step.label}
+                {step.current && (lang === 'he' ? ' · ממתין כעת' : ' · waiting now')}
+              </span>
             </div>
           ))}
           {/* The "Examiners assigned" step above only shows a checkmark —

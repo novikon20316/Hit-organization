@@ -26,7 +26,7 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
-import { MilestoneTimeline, type MilestoneData } from '@/components/MilestoneTimeline';
+import { MilestoneTimeline, type MilestoneData, type RoutingStage } from '@/components/MilestoneTimeline';
 import { resolveMilestoneOrder, isDefenseDateConfirmed, type MilestoneType, type MilestoneStatus } from '@/app/student/home/types';
 import type { AdminProjectRecord } from '@/app/admin/panel/types';
 
@@ -72,6 +72,8 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
     defenseTime: typeof raw.defenseTime === 'string' ? raw.defenseTime : null,
     examinerNames: Array.isArray(raw.examinerNames) ? (raw.examinerNames as string[]) : [],
     examinerIds: Array.isArray(raw.examinerIds) ? (raw.examinerIds as string[]) : [],
+    routing: Array.isArray(raw.routing) ? (raw.routing as RoutingStage[]) : undefined,
+    currentStageIndex: typeof raw.currentStageIndex === 'number' ? raw.currentStageIndex : undefined,
   };
 }
 

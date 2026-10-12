@@ -659,6 +659,11 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         onlineDefenseLink: m.onlineDefenseLink ?? null,
         examinerNames: m.examinerNames ?? [],
         examinerIds: m.examinerIds ?? [],
+        // The milestone's real approval chain (snapshotted from its
+        // workflow template) — without these the roadmap could only show a
+        // generic supervisor→coordinator chain for every milestone.
+        routing: Array.isArray(m.routing) ? m.routing.map((s: any) => ({ id: s.id, role: s.role, action: s.action })) : undefined,
+        currentStageIndex: typeof m.currentStageIndex === 'number' ? m.currentStageIndex : undefined,
       })),
     });
   } catch (error: any) {
