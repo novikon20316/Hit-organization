@@ -25,6 +25,7 @@ import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // grading-queue "Submitted Files" chips — same approach as web's
@@ -320,7 +321,9 @@ export default function SupervisorHome() {
   );
 
   // ── Fetch dashboard (projects + grading stay on API) ─────────────────────
-  const fetchDashboardData = async () => {
+  // `silent` — a background live refresh (useLiveRefresh below) must never
+  // pop an error alert over whatever the supervisor is doing.
+  const fetchDashboardData = async (silent = false) => {
     try {
       const res = await apiClient.get('/api/supervisor/dashboard');
       setSupervisorName(res.data.supervisorName);
@@ -340,7 +343,7 @@ export default function SupervisorHome() {
         setApplications(res.data.applications ?? []);
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to load dashboard data.');
+      if (!silent) Alert.alert('Error', 'Failed to load dashboard data.');
     }try {
       const recRes = await apiClient.get('/api/supervisor/examiner-recommendations');
       setRecommendations(recRes.data.recommendations ?? []);
@@ -370,6 +373,10 @@ export default function SupervisorHome() {
       unsubGradingRef.current?.();
     };
   }, []);
+
+  // A new notification (a submission, an application, a committee outcome)
+  // reloads the dashboard in place — see hooks/useLiveRefresh.ts.
+  useLiveRefresh(() => fetchDashboardData(true));
 
   // Re-check connection status right after bouncing back from the Google
   // Calendar OAuth flow (see connectCalendar/handleCalendarCallback) — the
@@ -583,6 +590,10 @@ export default function SupervisorHome() {
             dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
             submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
             gradingComponents: data.gradingComponents ?? [],
+            // GradeMilestoneModal decides grade-form vs approve/reject from
+            // these — without them an approve station showed a grading form.
+            routing:           data.routing ?? null,
+            currentStageIndex: data.currentStageIndex ?? 0,
           };
         });
         chunkResults[i] = grades;
@@ -872,7 +883,9 @@ export default function SupervisorHome() {
 
   const handleReject = async (reason: string) => {
     if (!gradeMilestone) return;
-    if (!reason.trim()) {
+    // The modal already enforces "reason, or (CS pilot) a comments file" —
+    // the server re-checks which of the two this department accepts.
+    if (!reason.trim() && gradeAttachedFiles.length === 0) {
       Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject');
       return;
     }

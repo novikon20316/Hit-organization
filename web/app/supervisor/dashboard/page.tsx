@@ -18,6 +18,7 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { db } from '@/lib/firebase';
@@ -209,6 +210,10 @@ function SupervisorDashboardContent() {
     }
   }, [isAllowed, fetchDashboard, fetchInternalExaminers]);
 
+  // A new notification (a submission, an application, a committee outcome)
+  // reloads the dashboard in place — see hooks/useLiveRefresh.ts.
+  useLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
+
   // Live milestone listener for pendingGrades. Unlike the coordinator/
   // examiner dashboards' overlay-by-id (which only ever patches fields onto
   // milestones already present), pendingGrades is itself defined as "every
@@ -254,6 +259,11 @@ function SupervisorDashboardContent() {
           submissionNote: data.submissionNote ?? '',
           facultyId: data.facultyId ?? '',
           gradingComponents: data.gradingComponents ?? [],
+          // GradeMilestoneModal decides grade-form vs approve/reject from
+          // these — dropping them turned a live-updated approve station
+          // into a grading form.
+          routing: data.routing ?? null,
+          currentStageIndex: data.currentStageIndex ?? 0,
           dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
           submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
         }));

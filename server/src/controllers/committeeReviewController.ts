@@ -22,7 +22,9 @@ import { notifyUser } from '../services/notify.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { statusForStage } from '../services/milestoneRouting.js';
 import type { ChainStage } from '../services/workflowTemplates.js';
-import { resolveCommitteeForProject, applyCommitteeSubstitutions, type CommitteeDoc } from './committeeController.js';
+import { applyCommitteeSubstitutions, mergedCommitteeSubstitutions, resolveCommitteeForMilestone, findSupervisorConflicts, type CommitteeDoc } from './committeeController.js';
+import { resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { isCsPilotMajor } from '../config/csPilot.js';
 import { isDecisionRelayEnabled, resolveDecisionRecipientCandidates, createRelayTask, type DecisionRecipientCandidate } from '../services/decisionRelay.js';
 import type { ResourceScope } from '../services/scopeAuthorization.js';
 import { L } from '../utils/localize.js';
@@ -61,26 +63,14 @@ export async function onEnterCommitteeStage(
   const projectData = projectSnap.data()!;
 
   // A stage authored with an explicit committeeId (see workflowTemplates.ts's
-  // ChainStage) always wins over the per-student-major dynamic lookup below —
-  // that's the whole point of pinning one at template-authoring time.
-  const routing: ChainStage[] = milestoneData.routing ?? [];
-  const currentStageIndex: number = milestoneData.currentStageIndex ?? 0;
-  const stage = routing[currentStageIndex];
-  let committee: CommitteeDoc | null = null;
-  if (stage?.role === 'committee' && stage.committeeId) {
-    const pinnedSnap = await db.collection('committees').doc(stage.committeeId).get();
-    committee = pinnedSnap.exists
-      ? applyCommitteeSubstitutions({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc, projectData.committeeMemberSubstitutions)
-      : null;
-  } else {
-    // resolveCommitteeForProject already applies projectData's own
-    // committeeMemberSubstitutions internally.
-    committee = await resolveCommitteeForProject(projectData);
-  }
+  // ChainStage) always wins over the per-student-major dynamic lookup —
+  // that's the whole point of pinning one at template-authoring time. Both
+  // the project's and this milestone's own substitutions are applied.
+  const committee = await resolveCommitteeForMilestone(milestoneData, projectData);
   const milestoneRef = db.collection('milestones').doc(milestoneId);
 
   if (!committee) {
-    await milestoneRef.update({ currentCommitteeId: null, committeeVotes: [] });
+    await milestoneRef.update({ currentCommitteeId: null, committeeVotes: [], committeeConflictHold: admin.firestore.FieldValue.delete() });
     const adminSnap = await db.collection('users').where('roles', 'array-contains', 'system_admin').get();
     await Promise.all(adminSnap.docs.map(async (doc) => {
       try {
@@ -105,7 +95,69 @@ export async function onEnterCommitteeStage(
     return;
   }
 
-  await milestoneRef.update({ currentCommitteeId: committee.id, committeeVotes: [] });
+  // CS pilot (see config/csPilot.ts) — conflict-of-interest hold. If the
+  // project's own supervisor still sits on the effective committee, the
+  // committee must not receive this submission yet: currentCommitteeId stays
+  // null (so no member can see/vote/decide — see loadMilestoneAndCommittee
+  // and getMyPendingCommitteeReviews), and the administrative coordinator is
+  // told to substitute someone in for this milestone. substituteCommitteeMember
+  // calls back into this function once she does, which then lands below.
+  const conflicts = isCsPilotMajor(projectData.major) ? findSupervisorConflicts(committee, projectData) : [];
+  if (conflicts.length > 0) {
+    // Already held and re-checked after one of several swaps (e.g. both
+    // supervisors sit on the committee) — she was already told.
+    const alreadyHeld = !!milestoneData.committeeConflictHold;
+    await milestoneRef.update({
+      currentCommitteeId: null,
+      committeeVotes: [],
+      committeeConflictHold: {
+        committeeId: committee.id,
+        conflictedUserIds: conflicts.map((c) => c.userId),
+        heldAt: admin.firestore.Timestamp.now(),
+      },
+    });
+    const resource: ResourceScope = {
+      facultyId: projectData.facultyId ?? '',
+      major: projectData.major || undefined,
+      degreeLevel: projectData.degreeType || undefined,
+      processType: projectData.projectType || undefined,
+    };
+    let secretaryIds = alreadyHeld ? [] : await resolveStaffForScope('administrative_secretary', resource, [], [], false);
+    // Nobody holds this scope — same "never strand it silently" fallback as
+    // the no-committee branch above, so the missing administrative
+    // coordinator assignment gets noticed and fixed.
+    if (!alreadyHeld && secretaryIds.length === 0) {
+      console.warn(`onEnterCommitteeStage: no administrative_secretary in scope for held milestone ${milestoneId} — alerting system_admin`);
+      const adminSnap = await db.collection('users').where('roles', 'array-contains', 'system_admin').get();
+      secretaryIds = adminSnap.docs.map((d) => d.id);
+    }
+    await Promise.all(secretaryIds.map(async (secretaryId) => {
+      try {
+        await notifyUser({
+          recipientId: secretaryId,
+          type: 'general',
+          inAppType: 'committee_conflict_hold',
+          titleHe: 'ניגוד עניינים — יש להחליף חבר ועדה',
+          titleEn: 'Conflict of interest — replace a committee member',
+          bodyHe: `המנחה של "${projectData.titleHe ?? ''}" חבר/ה בוועדה. "${milestoneData.nameHe ?? milestoneData.type}" לא יועבר לוועדה עד שתבחר/י מחליף/ה.`,
+          bodyEn: `The supervisor of "${projectData.titleEn ?? projectData.titleHe ?? ''}" sits on the committee. "${milestoneData.nameEn ?? milestoneData.type}" won't reach the committee until you choose a replacement.`,
+          relatedProjectId: projectId,
+          relatedMilestoneId: milestoneId,
+          channels: { email: true, sms: false },
+          targetScreen: 'admin_coordinator_committee_conflicts',
+        });
+      } catch (err) {
+        console.error(`onEnterCommitteeStage: conflict-hold notify failed for ${secretaryId}:`, err);
+      }
+    }));
+    return;
+  }
+
+  await milestoneRef.update({
+    currentCommitteeId: committee.id,
+    committeeVotes: [],
+    committeeConflictHold: admin.firestore.FieldValue.delete(),
+  });
 
   const studentNames: string[] = (projectData.enrolledStudentIds ?? []).length
     ? await Promise.all((projectData.enrolledStudentIds as string[]).map(async (sid: string) => {
@@ -159,11 +211,12 @@ async function loadMilestoneAndCommittee(milestoneId: string): Promise<
   // this committee is used for any authorization/voting/decision below —
   // the shared committee doc itself is untouched, so a member substituted
   // out here still has full standing on every other project.
-  let committee = rawCommittee;
+  // The milestone's own (per-milestone, CS pilot) substitutions are layered
+  // on top of the project-level ones — see mergedCommitteeSubstitutions.
+  let committee = applyCommitteeSubstitutions(rawCommittee, mergedCommitteeSubstitutions(null, milestone));
   if (milestone.projectId) {
     const projectSnap = await db.collection('projects').doc(milestone.projectId).get();
-    const substitutions = projectSnap.exists ? (projectSnap.data()?.committeeMemberSubstitutions ?? null) : null;
-    committee = applyCommitteeSubstitutions(rawCommittee, substitutions);
+    committee = applyCommitteeSubstitutions(rawCommittee, mergedCommitteeSubstitutions(projectSnap.data(), milestone));
   }
 
   return { milestone, stage, committee };
@@ -237,7 +290,9 @@ export const getCommitteeReview = async (req: AuthenticatedRequest, res: Respons
     fileUrls: milestone.fileUrls ?? [],
     committee: { id: committee.id, chairmanId: committee.chairmanId, memberIds: committee.memberIds, memberNames },
     isChairman: committee.chairmanId === uid,
-    votes: (milestone.committeeVotes ?? []) as CommitteeVote[],
+    // A chairman vote cast before chairmen stopped voting as members is
+    // dropped rather than shown as a second opinion of theirs.
+    votes: ((milestone.committeeVotes ?? []) as CommitteeVote[]).filter((v) => v.memberId !== committee.chairmanId),
   });
 };
 
@@ -261,6 +316,11 @@ export const submitCommitteeVote = async (req: AuthenticatedRequest, res: Respon
   if ('error' in resolved) return res.status(resolved.error.status).json({ message: resolved.error.message });
   const { committee } = resolved;
   if (!committee.memberIds.includes(uid)) return res.status(403).json({ message: L(req, 'You are not a member of this committee.', 'אינך חבר/ה בוועדה זו.') });
+  // The chairman's say is the binding final decision (submitCommitteeDecision)
+  // — a separate member vote on top of it was redundant, so it's not offered.
+  if (committee.chairmanId === uid) {
+    return res.status(400).json({ message: L(req, 'As chairman, you record your position through the final decision, not a member vote.', 'כיו"ר, עמדתך נקבעת בהחלטה הסופית ולא בהצבעת חבר ועדה.') });
+  }
 
   try {
     const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -366,7 +426,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   const historyEntry = {
     committeeId: committee.id,
     stageId: stage.id,
-    memberVotes: milestone.committeeVotes ?? [],
+    memberVotes: ((milestone.committeeVotes ?? []) as CommitteeVote[]).filter((v) => v.memberId !== uid),
     chairmanId: uid,
     chairmanDecision: decision,
     chairmanComment: typeof comment === 'string' ? comment.trim() : '',
@@ -524,17 +584,43 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
   try {
     const committeesSnap = await db.collection('committees').where('memberIds', 'array-contains', uid).get();
     const committeeIds = committeesSnap.docs.map((d) => d.id);
-    if (committeeIds.length === 0) return res.status(200).json({ reviews: [] });
 
-    // Firestore 'in' caps at 30 values — a real account is realistically a
-    // member of a small handful of committees (2 types x a couple of
-    // departments), nowhere near that.
-    const milestonesSnap = await db.collection('milestones').where('currentCommitteeId', 'in', committeeIds).get();
-    const reviews = await Promise.all(milestonesSnap.docs.map(async (doc) => {
+    // Two candidate sources: milestones at a committee the caller formally
+    // belongs to, plus milestones where they were substituted in (see
+    // substituteCommitteeMember's committeeSubstituteIds index). Firestore
+    // 'in' caps at 30 values — a real account is realistically a member of a
+    // small handful of committees, nowhere near that.
+    const [byCommitteeSnap, bySubstitutionSnap] = await Promise.all([
+      committeeIds.length > 0
+        ? db.collection('milestones').where('currentCommitteeId', 'in', committeeIds.slice(0, 30)).get()
+        : Promise.resolve(null),
+      db.collection('milestones').where('committeeSubstituteIds', 'array-contains', uid).get(),
+    ]);
+    const candidateDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    byCommitteeSnap?.docs.forEach((d) => candidateDocs.set(d.id, d));
+    bySubstitutionSnap.docs.forEach((d) => { if (d.data().currentCommitteeId) candidateDocs.set(d.id, d); });
+
+    const committeeCache = new Map<string, CommitteeDoc | null>();
+    committeesSnap.docs.forEach((c) => committeeCache.set(c.id, { id: c.id, ...c.data() } as CommitteeDoc));
+    const loadCommittee = async (id: string): Promise<CommitteeDoc | null> => {
+      if (!committeeCache.has(id)) {
+        const snap = await db.collection('committees').doc(id).get();
+        committeeCache.set(id, snap.exists ? ({ id: snap.id, ...snap.data() } as CommitteeDoc) : null);
+      }
+      return committeeCache.get(id) ?? null;
+    };
+
+    const reviews = (await Promise.all([...candidateDocs.values()].map(async (doc) => {
       const m = doc.data();
-      const committee = committeesSnap.docs.find((c) => c.id === m.currentCommitteeId)?.data() as CommitteeDoc | undefined;
+      const rawCommittee = await loadCommittee(m.currentCommitteeId);
+      if (!rawCommittee) return null;
       const projectSnap = m.projectId ? await db.collection('projects').doc(m.projectId).get() : null;
       const project = projectSnap?.data();
+      // Effective membership, substitutions applied — a supervisor recused
+      // from this milestone no longer sees it; their stand-in does.
+      const committee = applyCommitteeSubstitutions(rawCommittee, mergedCommitteeSubstitutions(project, m));
+      if (!committee.memberIds.includes(uid)) return null;
+      const memberVotes = ((m.committeeVotes ?? []) as CommitteeVote[]).filter((v) => v.memberId !== committee.chairmanId);
       return {
         milestoneId: doc.id,
         type: m.type,
@@ -542,12 +628,13 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
         projectTitleHe: project?.titleHe ?? '',
         projectTitleEn: project?.titleEn ?? '',
         committeeId: m.currentCommitteeId,
-        isChairman: committee?.chairmanId === uid,
-        alreadyVoted: (m.committeeVotes ?? []).some((v: CommitteeVote) => v.memberId === uid),
-        voteCount: (m.committeeVotes ?? []).length,
-        memberCount: committee?.memberIds?.length ?? 0,
+        isChairman: committee.chairmanId === uid,
+        alreadyVoted: memberVotes.some((v) => v.memberId === uid),
+        voteCount: memberVotes.length,
+        // Voters only — the chairman decides rather than votes.
+        memberCount: committee.memberIds.filter((id) => id !== committee.chairmanId).length,
       };
-    }));
+    }))).filter((r): r is NonNullable<typeof r> => r !== null);
 
     return res.status(200).json({ reviews });
   } catch (error: any) {

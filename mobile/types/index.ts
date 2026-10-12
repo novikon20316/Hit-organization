@@ -957,6 +957,11 @@ export interface Milestone {
   supervisorScore?: number | null;
   rejectionReason?: string | null;
   coordinatorComment?: string | null;
+  /** CS pilot — the supervisor's own approve/reject decision as the student
+   *  sees it: typed comment and/or Word/PDF comments file(s). Latest
+   *  supervisor action only (see server coordinatorController.ts's
+   *  supervisorReviewFeedbackEntry). */
+  supervisorReviewFeedback?: { decision: 'approve' | 'reject'; comment: string; fileUrls: string[]; decidedByName?: string } | null;
   revisionHistory?: MilestoneRevision[];
   /** Three-rubric defense workflow — the supervisor's own evaluation
    *  (distinct from examinerEvaluations, which the student never receives —

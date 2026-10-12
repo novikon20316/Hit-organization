@@ -13,6 +13,7 @@ import { AnnouncementsBanner } from './AnnouncementsBanner';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { downloadFile } from '@/lib/fileClickPreview';
 import {
   OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
   MILESTONES_TAB_FIELD_GUIDE, MILESTONES_TAB_GUIDE_KEY,
@@ -27,6 +28,7 @@ import {
   daysUntil,
   gradeColor,
   type ActiveProject,
+  type SupervisorReviewFeedback,
   type Milestone,
 } from './types';
 
@@ -381,6 +383,10 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                         </div>
                       )}
 
+                      {m.supervisorReviewFeedback && (m.supervisorReviewFeedback.decision === 'approve' || isRejected) && (
+                        <SupervisorFeedbackBlock feedback={m.supervisorReviewFeedback} showComment={m.supervisorReviewFeedback.decision === 'approve'} />
+                      )}
+
                       {isApprovedOrDone && m.coordinatorComment && (
                         <div className="mt-2 rounded-student bg-student-surface-container-low p-2.5">
                           <p className="text-xs font-semibold text-student-on-surface">{lang === 'he' ? 'הערת הרכז:' : "Coordinator's comment:"}</p>
@@ -498,6 +504,9 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                   <p className={`mt-2 text-sm italic ${feedbackMilestone.rejectionReason ? 'text-danger' : 'text-student-on-surface'}`}>
                     “{feedbackMilestone.rejectionReason ?? feedbackMilestone.coordinatorComment}”
                   </p>
+                  {feedbackMilestone.rejectionReason && feedbackMilestone.supervisorReviewFeedback?.decision === 'reject' && (
+                    <SupervisorFeedbackBlock feedback={feedbackMilestone.supervisorReviewFeedback} showComment={false} />
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-student-on-surface-variant">
@@ -751,6 +760,35 @@ function DefenseDetails({ milestone: m }: { milestone: Milestone }) {
           <span className="text-xs font-medium text-student-on-surface">{row.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** CS pilot — the supervisor's comments on a milestone: the typed comment
+ *  (when not already shown as the rejection reason) and every Word/PDF
+ *  comments file they attached, each downloadable. */
+function SupervisorFeedbackBlock({ feedback, showComment }: { feedback: SupervisorReviewFeedback; showComment: boolean }) {
+  const { lang } = useLanguage();
+  const hasComment = showComment && !!feedback.comment;
+  if (!hasComment && feedback.fileUrls.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-student bg-student-surface-container-low p-2.5">
+      <p className="text-xs font-semibold text-student-on-surface">{lang === 'he' ? 'הערות המנחה:' : "Supervisor's comments:"}</p>
+      {hasComment && <p className="mt-0.5 whitespace-pre-wrap text-xs text-student-on-surface-variant">{feedback.comment}</p>}
+      {feedback.fileUrls.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {feedback.fileUrls.map((url, i) => (
+            <button
+              key={url}
+              type="button"
+              onClick={() => downloadFile(url, fileNameFromUrl(url, i, lang))}
+              className="rounded-student border border-student-outline-variant bg-student-surface-container-lowest px-2 py-1 text-xs font-medium text-student-primary hover:underline"
+            >
+              📥 {fileNameFromUrl(url, i, lang)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

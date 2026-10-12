@@ -323,6 +323,32 @@ export default function StudentMilestones() {
                           </Text>
                         )}
 
+                        {/* CS pilot — the supervisor's comments: typed (when not
+                            already the rejection reason above) and/or the
+                            Word/PDF comments files they attached. */}
+                        {!!m.supervisorReviewFeedback && (m.supervisorReviewFeedback.decision === 'approve' || isRejected)
+                          && ((m.supervisorReviewFeedback.decision === 'approve' && !!m.supervisorReviewFeedback.comment) || m.supervisorReviewFeedback.fileUrls.length > 0) && (
+                          <View style={mt.filesSection}>
+                            <Text style={[mt.filesLabel, isRtl && styles.textRight]}>
+                              {lang === 'he' ? 'הערות המנחה' : "Supervisor's comments"}
+                            </Text>
+                            {m.supervisorReviewFeedback.decision === 'approve' && !!m.supervisorReviewFeedback.comment && (
+                              <Text style={[mt.fileChipText, isRtl && styles.textRight]}>{m.supervisorReviewFeedback.comment}</Text>
+                            )}
+                            {m.supervisorReviewFeedback.fileUrls.length > 0 && (
+                              <View style={[mt.filesRow, isRtl && styles.rowReverse]}>
+                                {m.supervisorReviewFeedback.fileUrls.map((url, idx) => (
+                                  <Pressable key={url} onPress={() => Linking.openURL(url)} style={mt.fileChip} accessibilityRole="link">
+                                    <Text style={mt.fileChipText} numberOfLines={1}>
+                                      📥 {fileNameFromUrl(url, idx, lang)}
+                                    </Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        )}
+
                         {m.fileUrls?.length > 0 && (
                           <View style={mt.filesSection}>
                             <Text style={[mt.filesLabel, isRtl && styles.textRight]}>

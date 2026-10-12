@@ -17,6 +17,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient } from '@/lib/apiClient';
 import { isDefenseDateConfirmed } from '@/app/student/home/types';
 import type { AppRole } from '@/lib/roles';
@@ -157,6 +158,9 @@ function CoordinatorHomeContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchAll's setState calls happen after its awaited network calls resolve, not synchronously in this effect
     if (isAllowed) fetchAll();
   }, [isAllowed, fetchAll]);
+
+  // New notification → reload in place (see hooks/useLiveRefresh.ts).
+  useLiveRefresh(() => { if (isAllowed) fetchAll(); });
 
   // Live milestone listener — the REST fetch above stays the source of
   // truth for "shell" fields that don't change in real time (project/

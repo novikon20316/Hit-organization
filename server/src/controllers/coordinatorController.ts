@@ -12,7 +12,7 @@ import {
   openDefenseSchedulingIfPanelReady,
   findDefenseMilestoneRef,
 } from '../services/defenseScheduling.js';
-import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
+import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope, type ResourceScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
 import { authorizeStageActor, isAutoAdvanceStage, isChainDriven, isIdentityKeyedDefense, routingHasExaminerStage, scopeMismatchMessage, statusForStage } from '../services/milestoneRouting.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
@@ -20,6 +20,7 @@ import { resolveCommitteeForProject } from './committeeController.js';
 import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
+import { isCsPilotMajor } from '../config/csPilot.js';
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -840,6 +841,22 @@ async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.Docu
  *  configured stage, or (on the chain's last stage) finalizes exactly like
  *  the legacy path does, reusing the same 'coordinator_approved' status and
  *  notification regardless of which role actually approved it. */
+/** CS pilot (see config/csPilot.ts) — the supervisor's own station's
+ *  decision as the STUDENT sees it: the typed comment and/or the Word/PDF
+ *  comments file(s) attached to it. A single field overwritten on every
+ *  supervisor-station action (not keyed per round), so a resubmission never
+ *  shows the previous round's comment files as if they were current.
+ *  stageAttachments[stage.id] keeps its own (staff-facing) record alongside. */
+function supervisorReviewFeedbackEntry(decision: 'approve' | 'reject', comment: string, fileUrls: string[], decidedByName: string | undefined) {
+  return {
+    decision,
+    comment,
+    fileUrls,
+    decidedAt: admin.firestore.Timestamp.now(),
+    decidedByName: decidedByName ?? '',
+  };
+}
+
 async function approveChainMilestone(
   req: AuthenticatedRequest, res: Response, milestoneId: string, milestone: FirebaseFirestore.DocumentData, actorId: string, comment?: string,
   recommendation?: 'approved' | 'approved_conditionally',
@@ -997,6 +1014,9 @@ async function approveChainMilestone(
       }
       if (attachmentUrls && attachmentUrls.length > 0) {
         update[`stageAttachments.${stage.id}`] = attachmentUrls;
+      }
+      if (stage.role === 'supervisor' && isCsPilotMajor((resource as ResourceScope).major)) {
+        update.supervisorReviewFeedback = supervisorReviewFeedbackEntry('approve', comment ?? '', attachmentUrls, req.user?.displayName);
       }
 
       if (stillMissingUids.length > 0) {
@@ -1563,6 +1583,9 @@ async function rejectChainMilestone(
       }
       previousStatus = fresh.status;
       rejectedMilestone = fresh;
+      const feedbackUpdate = stage.role === 'supervisor' && isCsPilotMajor((resource as ResourceScope).major)
+        ? { supervisorReviewFeedback: supervisorReviewFeedbackEntry('reject', reason, attachmentUrls, req.user?.displayName) }
+        : {};
 
       if (rejectsToStudent) {
         transaction.update(milestoneRef, {
@@ -1578,6 +1601,7 @@ async function rejectChainMilestone(
           // round's own requireAllAssignedSupervisors check.
           supervisorApprovals: {},
           ...(attachmentUrls && attachmentUrls.length > 0 ? { [`stageAttachments.${stage.id}`]: attachmentUrls } : {}),
+          ...feedbackUpdate,
         });
 
         const studentIds: string[] = fresh.studentIds ?? [];
@@ -1621,6 +1645,7 @@ async function rejectChainMilestone(
           // 'rejected' here — this is an internal staff reroute, not a
           // student-facing rejection (see the "fully silent" scope decision).
           ...(attachmentUrls && attachmentUrls.length > 0 ? { [`stageAttachments.${stage.id}`]: attachmentUrls } : {}),
+          ...feedbackUpdate,
         });
       }
     });
@@ -1720,7 +1745,7 @@ async function rejectChainMilestone(
  */
 export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res: Response) => {
   const { milestoneId } = req.params;
-  const { reason } = req.body;
+  const { reason: rawReason } = req.body;
   const coordinatorId = req.user?.uid;
   // See approveChainMilestone's own doc comment — only meaningful for a
   // research_proposal milestone's supervisor stage, validated there.
@@ -1732,15 +1757,24 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
   if (!coordinatorId) {
     return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   }
-  if (!reason || typeof reason !== 'string') {
-    return res.status(400).json({ message: L(req, 'A rejection reason is required.', 'נדרשת סיבת דחייה.') });
-  }
-
   // Optional file(s) attached alongside the rejection — see
   // coordinatorApproveMilestone's identical lazy getAttachmentUrls handling
   // (deferred so an unauthorized/invalid request never triggers a real
   // Cloudinary upload).
   const attachmentFiles = ((req as any).files as Express.Multer.File[]) ?? [];
+
+  // CS pilot (see config/csPilot.ts): a comments file may stand in for the
+  // typed reason — the supervisor writes their comments either inline or in
+  // a Word/PDF file. Every other department still requires the typed reason.
+  let reason: string = typeof rawReason === 'string' ? rawReason.trim() : '';
+  if (!reason) {
+    const scope = attachmentFiles.length > 0 ? await resolveMilestoneScope(milestoneId) : null;
+    if (!scope || !isCsPilotMajor(scope.major)) {
+      return res.status(400).json({ message: L(req, 'A rejection reason is required.', 'נדרשת סיבת דחייה.') });
+    }
+    reason = L(req, 'See the attached comments file.', 'ראו את קובץ ההערות המצורף.');
+  }
+
   let attachmentUrlsPromise: Promise<string[]> | null = null;
   const getAttachmentUrls = (): Promise<string[]> => {
     if (!attachmentUrlsPromise) {

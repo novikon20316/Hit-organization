@@ -27,6 +27,11 @@ interface NotificationsContextValue {
    *  badge, so it clears immediately. */
   markTabSeen: (targetScreens: string[]) => Promise<void>;
   refresh: () => Promise<void>;
+  /** Bumps every time a NEW notification lands (never on the initial
+   *  load) — screens watch it via hooks/useLiveRefresh.ts to reload their
+   *  data the moment something happens to them (a supervisor's rejection,
+   *  a new submission, a conflict-of-interest hold), no manual refresh. */
+  liveEventTick: number;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue>({
@@ -35,6 +40,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   unreadByTargetScreen: {},
   markTabSeen: async () => {},
   refresh: async () => {},
+  liveEventTick: 0,
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
@@ -48,6 +54,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // badge total below, same split the old single refresh() had.
   const unreadMessagesRef = useRef(0);
   const unsubUnread = useRef<Unsubscribe | null>(null);
+  const [liveEventTick, setLiveEventTick] = useState(0);
 
    // Track auth state
   useEffect(() => {
@@ -95,9 +102,16 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     if (!isLoggedIn || !uid) return;
 
     const q = query(collection(db, 'notifications'), where('recipientId', '==', uid), where('isRead', '==', false));
+    let initialSnapshot = true;
     unsubUnread.current = onSnapshot(
       q,
       (snapshot) => {
+        // The first snapshot is the existing backlog — only later 'added'
+        // changes are genuinely new events worth a refetch.
+        if (!initialSnapshot && snapshot.docChanges().some((c) => c.type === 'added')) {
+          setLiveEventTick((n) => n + 1);
+        }
+        initialSnapshot = false;
         const alertDocs = snapshot.docs.filter((d) => d.data().type !== 'new_message');
         // The bell/badge count reflects "unread notifications for the role
         // I'm currently viewing the app as" — a multi-role user switched
@@ -138,8 +152,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // every consumer (e.g. one only reading markTabSeen) on every unread-count
   // tick from the live listener above.
   const value = useMemo<NotificationsContextValue>(() => ({
-    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh,
-  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh]);
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick]);
 
   return (
     <NotificationsContext.Provider value={value}>

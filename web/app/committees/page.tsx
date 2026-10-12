@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type CommitteeRecord, type CommitteePendingReview, type ChairDecisionPendingReview } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty, DEGREE_LEVELS } from '@/lib/permissions';
@@ -61,6 +62,9 @@ export default function CommitteesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount
     if (isAllowed) fetchAll();
   }, [isAllowed, fetchAll]);
+
+  // New notification → reload in place (see hooks/useLiveRefresh.ts).
+  useLiveRefresh(() => { if (isAllowed) fetchAll(); });
 
   if (guardLoading) {
     return (

@@ -1,7 +1,7 @@
 'use client';
 
 // app/supervisor/dashboard/GradeMilestoneModal.tsx
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -67,6 +67,20 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   // submitMilestoneGrade/approveChainMilestone/rejectChainMilestone's own
   // confirmedProposalRead gate), this is just the UI for it.
   const requiresReadConfirmation = m.type === 'research_proposal' && currentStage?.role === 'supervisor';
+  // CS pilot (server config/csPilot.ts) — at the supervisor's own
+  // approve/reject station, a Word/PDF comments file can carry the comments
+  // instead of (or alongside) typed text, and the student sees both.
+  const isSupervisorApproveStation = isApproveStage && currentStage?.role === 'supervisor';
+  const [commentFilesMode, setCommentFilesMode] = useState(false);
+  useEffect(() => {
+    if (!isSupervisorApproveStation) return;
+    let cancelled = false;
+    apiClient.getMilestonePilotFeatures(m.id)
+      .then((res) => { if (!cancelled) setCommentFilesMode(res.csPilot); })
+      .catch(() => { /* falls back to the generic optional attachment field */ });
+    return () => { cancelled = true; };
+  }, [isSupervisorApproveStation, m.id]);
+  const commentFilesInputRef = useRef<HTMLInputElement>(null);
 
   const activeFields: ActiveGradingField[] = m.gradingComponents?.length
     ? m.gradingComponents.map((c) => ({ key: c.key, max: c.maxScore, weight: c.weight, he: c.labelHe, en: c.labelEn }))
@@ -175,8 +189,13 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim()) {
-      setError(lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject');
+    // CS pilot: an attached comments file is enough on its own.
+    if (!rejectReason.trim() && !(commentFilesMode && attachedFiles.length > 0)) {
+      setError(
+        commentFilesMode
+          ? (lang === 'he' ? 'יש לכתוב סיבה לדחייה או לצרף קובץ הערות' : 'Write a reason or attach a comments file to reject')
+          : (lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject'),
+      );
       return;
     }
     setSubmitting(true);
@@ -335,33 +354,81 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
           />
         </label>
 
-        <label data-field-guide-id="attachFile" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
-            {lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)'}
-            <InfoTooltip text={gradeGuideEntry('attachFile').description} />
-          </span>
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            multiple
-            onChange={(e) => setAttachedFiles(Array.from(e.target.files ?? []))}
-            className="block w-full text-sm text-supervisor-on-surface file:me-3 file:rounded-lg file:border-0 file:bg-supervisor-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-supervisor-on-primary hover:file:opacity-90"
-          />
-          {attachedFiles.length > 0 && (
-            <ul className="mt-1.5 grid gap-0.5">
-              {attachedFiles.map((f, i) => (
-                <li key={i} className="text-xs text-supervisor-on-surface-variant">📎 {f.name}</li>
-              ))}
-            </ul>
-          )}
-        </label>
+        {commentFilesMode ? (
+          <div data-field-guide-id="attachFile" className="mt-4">
+            <input
+              ref={commentFilesInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              multiple
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []);
+                setAttachedFiles((prev) => [...prev, ...picked]);
+                e.target.value = '';
+              }}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => commentFilesInputRef.current?.click()}
+              className="w-full rounded-lg border border-dashed border-supervisor-primary px-4 py-2.5 text-sm font-semibold text-supervisor-primary hover:bg-supervisor-surface-container-low"
+            >
+              📎 {lang === 'he' ? 'הוספת קובצי הערות (Word / PDF)' : 'Add comment files (Word / PDF)'}
+            </button>
+            <p className="mt-1 text-xs text-supervisor-on-surface-variant">
+              {lang === 'he'
+                ? 'ניתן לכתוב את ההערות למעלה, לצרף אותן כקובץ, או שניהם — הסטודנט/ית יראה/תראה את שניהם.'
+                : 'Write your comments above, attach them as a file, or both — the student sees both.'}
+            </p>
+            {attachedFiles.length > 0 && (
+              <ul className="mt-1.5 grid gap-1">
+                {attachedFiles.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 text-xs text-supervisor-on-surface-variant">
+                    <span className="min-w-0 truncate">📎 {f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))}
+                      aria-label={lang === 'he' ? `הסר ${f.name}` : `Remove ${f.name}`}
+                      className="shrink-0 text-danger hover:underline"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <label data-field-guide-id="attachFile" className="mt-4 block">
+            <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
+              {lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)'}
+              <InfoTooltip text={gradeGuideEntry('attachFile').description} />
+            </span>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              multiple
+              onChange={(e) => setAttachedFiles(Array.from(e.target.files ?? []))}
+              className="block w-full text-sm text-supervisor-on-surface file:me-3 file:rounded-lg file:border-0 file:bg-supervisor-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-supervisor-on-primary hover:file:opacity-90"
+            />
+            {attachedFiles.length > 0 && (
+              <ul className="mt-1.5 grid gap-0.5">
+                {attachedFiles.map((f, i) => (
+                  <li key={i} className="text-xs text-supervisor-on-surface-variant">📎 {f.name}</li>
+                ))}
+              </ul>
+            )}
+          </label>
+        )}
 
         {!isApproveStage && <p className="mt-3 text-sm font-bold text-supervisor-on-surface">Total: {totalScore}/{maxTotal}</p>}
 
         {isApproveStage && rejecting && (
           <label className="mt-4 block">
             <span className="mb-1.5 block text-sm font-medium text-supervisor-on-surface">
-              {lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)'}
+              {commentFilesMode
+                ? (lang === 'he' ? 'סיבת דחייה (חובה, אלא אם צורף קובץ הערות)' : 'Reason for rejection (required unless a comments file is attached)')
+                : (lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)')}
             </span>
             <textarea
               rows={3}

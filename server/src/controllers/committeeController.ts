@@ -29,6 +29,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { findCommitteeConflictsForScopes } from '../services/committeeConflicts.js';
+import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { L } from '../utils/localize.js';
 
 export type CommitteeType = 'thesis' | 'final_project';
@@ -350,6 +351,64 @@ export function applyCommitteeSubstitutions(
   return { ...committee, chairmanId, memberIds };
 }
 
+/** A milestone's effective substitution map — the project-level map (the
+ *  original, whole-project recusal) overlaid by the milestone's own map (CS
+ *  pilot: the administrative coordinator picks the replacement per
+ *  milestone, so two milestones of one project can each have a different
+ *  stand-in). The milestone's own entry wins for the same original uid. */
+export function mergedCommitteeSubstitutions(
+  projectData: { committeeMemberSubstitutions?: Record<string, string> | null } | null | undefined,
+  milestoneData: { committeeMemberSubstitutions?: Record<string, string> | null } | null | undefined,
+): Record<string, string> {
+  return { ...(projectData?.committeeMemberSubstitutions ?? {}), ...(milestoneData?.committeeMemberSubstitutions ?? {}) };
+}
+
+/** The committee a milestone is (or is about to be) reviewed by, with every
+ *  substitution that applies to it already swapped in. Honors a stage's
+ *  pinned committeeId (see workflowTemplates.ts's ChainStage) for the
+ *  current stage if it's a committee stage, else the next committee stage
+ *  in the chain — falls back to the per-project dynamic lookup otherwise. */
+export async function resolveCommitteeForMilestone(
+  milestoneData: FirebaseFirestore.DocumentData,
+  projectData: FirebaseFirestore.DocumentData,
+): Promise<CommitteeDoc | null> {
+  const routing: Array<{ role?: string; committeeId?: string | null }> = milestoneData.routing ?? [];
+  const currentIndex: number = milestoneData.currentStageIndex ?? 0;
+  const committeeStage = routing.slice(currentIndex).find((s) => s?.role === 'committee');
+  const substitutions = mergedCommitteeSubstitutions(projectData, milestoneData);
+  if (committeeStage?.committeeId) {
+    const pinnedSnap = await db.collection('committees').doc(committeeStage.committeeId).get();
+    return pinnedSnap.exists ? applyCommitteeSubstitutions({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc, substitutions) : null;
+  }
+  return resolveCommitteeForProject({ ...projectData, committeeMemberSubstitutions: substitutions });
+}
+
+export interface SupervisorCommitteeConflict {
+  userId: string;
+  conflictRole: 'chairman' | 'member';
+  supervisorRole: 'supervisor' | 'secondary_supervisor';
+}
+
+/** Every one of the project's supervisors who still sits on `committee`
+ *  (pass the EFFECTIVE committee, substitutions already applied — an
+ *  already-recused supervisor is no longer a conflict). */
+export function findSupervisorConflicts(
+  committee: CommitteeDoc,
+  projectData: { supervisorId?: string | null; secondarySupervisorId?: string | null },
+): SupervisorCommitteeConflict[] {
+  const entries: Array<{ id: string | null | undefined; role: SupervisorCommitteeConflict['supervisorRole'] }> = [
+    { id: projectData.supervisorId, role: 'supervisor' },
+    { id: projectData.secondarySupervisorId, role: 'secondary_supervisor' },
+  ];
+  const conflicts: SupervisorCommitteeConflict[] = [];
+  for (const { id, role } of entries) {
+    if (!id) continue;
+    const conflictRole = committee.chairmanId === id ? 'chairman' : committee.memberIds.includes(id) ? 'member' : null;
+    if (conflictRole) conflicts.push({ userId: id, conflictRole, supervisorRole: role });
+  }
+  return conflicts;
+}
+
 // ─── "Replace Committee Member" (administrative_secretary) ────────────────
 
 /** GET /api/committees/conflicts — every project in the caller's own
@@ -383,7 +442,7 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'לא מורשה.') });
   const { projectId } = req.params as { projectId: string };
-  const { originalUserId, replacementUserId } = req.body ?? {};
+  const { originalUserId, replacementUserId, milestoneId } = req.body ?? {};
   if (!projectId) return res.status(400).json({ message: L(req, 'Invalid projectId.', 'מזהה פרויקט לא תקין.') });
   if (typeof originalUserId !== 'string' || !originalUserId) {
     return res.status(400).json({ message: L(req, 'originalUserId is required.', 'שדה originalUserId נדרש.') });
@@ -418,11 +477,30 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ message: L(req, "The replacement can't be this project's own supervisor.", 'המחליף/ה לא יכול/ה להיות המנחה של הפרויקט עצמו.') });
     }
 
-    const committee = await resolveCommitteeForProject(project);
+    // With a milestoneId (CS pilot — see config/csPilot.ts), the swap applies
+    // to that one milestone only, so each milestone of the same project can
+    // get its own stand-in; without one, the original whole-project recusal.
+    let milestoneRef: FirebaseFirestore.DocumentReference | null = null;
+    let milestone: FirebaseFirestore.DocumentData | null = null;
+    if (typeof milestoneId === 'string' && milestoneId) {
+      milestoneRef = db.collection('milestones').doc(milestoneId);
+      const milestoneSnap = await milestoneRef.get();
+      if (!milestoneSnap.exists || milestoneSnap.data()?.projectId !== projectId) {
+        return res.status(404).json({ message: L(req, 'Milestone not found for this project.', 'אבן הדרך לא נמצאה בפרויקט זה.') });
+      }
+      milestone = milestoneSnap.data()!;
+    }
+
+    const committee = milestone
+      ? await resolveCommitteeForMilestone(milestone, project)
+      : await resolveCommitteeForProject(project);
     if (!committee) return res.status(400).json({ message: L(req, 'No committee is configured for this project yet.', 'לא הוגדרה ועדה לפרויקט זה עדיין.') });
     const isCurrentMember = committee.chairmanId === originalUserId || committee.memberIds.includes(originalUserId);
     if (!isCurrentMember) {
       return res.status(400).json({ message: L(req, 'That person is not currently on this project\'s committee.', 'אדם זה אינו חבר בוועדת הפרויקט כעת.') });
+    }
+    if (committee.memberIds.includes(replacementUserId) || committee.chairmanId === replacementUserId) {
+      return res.status(400).json({ message: L(req, 'The replacement is already on this committee.', 'המחליף/ה כבר חבר/ה בוועדה זו.') });
     }
 
     const replacementSnap = await db.collection('users').doc(replacementUserId).get();
@@ -430,10 +508,27 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ message: L(req, 'Invalid replacement — must be an existing staff account.', 'מחליף לא תקין — יש לבחור חשבון צוות קיים.') });
     }
 
-    await projectRef.set(
-      { committeeMemberSubstitutions: { [originalUserId]: replacementUserId } },
-      { merge: true }
-    );
+    if (milestoneRef && milestone) {
+      // committeeSubstituteIds is only a lookup index (Firestore can't query
+      // map values) — lets getMyPendingCommitteeReviews and firestore.rules
+      // find the milestones a stand-in reviews. Membership itself is always
+      // re-derived live from the substitution maps, never from this list.
+      await milestoneRef.update({
+        [`committeeMemberSubstitutions.${originalUserId}`]: replacementUserId,
+        committeeSubstituteIds: admin.firestore.FieldValue.arrayUnion(replacementUserId),
+      });
+      // A held milestone (see onEnterCommitteeStage) is re-entered: if that
+      // was the last conflict, the committee now receives it.
+      if (milestone.committeeConflictHold) {
+        const fresh = (await milestoneRef.get()).data()!;
+        await onEnterCommitteeStage(milestoneRef.id, fresh);
+      }
+    } else {
+      await projectRef.set(
+        { committeeMemberSubstitutions: { [originalUserId]: replacementUserId } },
+        { merge: true }
+      );
+    }
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

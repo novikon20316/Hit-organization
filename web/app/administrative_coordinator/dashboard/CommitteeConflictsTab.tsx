@@ -7,11 +7,15 @@
 // overlap exists and it's currently her turn to act, and lets her recuse
 // the conflicted person for THIS project only (the shared department
 // committee is untouched — see server/src/controllers/committeeController.ts's
-// resolveCommitteeForProject/applyCommitteeSubstitutions).
+// resolveCommitteeForProject/applyCommitteeSubstitutions). CS pilot: one row
+// per milestone, held back from the committee until she picks a stand-in for
+// that milestone (each milestone may get a different one — the last choice
+// is pre-selected).
 
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeConflict } from '@/lib/apiClient';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 
 interface EligibleMember {
   id: string;
@@ -47,11 +51,15 @@ export function CommitteeConflictsTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const conflictKey = (c: CommitteeConflict) => `${c.projectId}:${c.conflictedUserId}`;
+  // A new conflict-of-interest hold arrives as a notification — show it
+  // without a manual refresh (see hooks/useLiveRefresh.ts).
+  useLiveRefresh(fetchConflicts);
+
+  const conflictKey = (c: CommitteeConflict) => `${c.milestoneId}:${c.conflictedUserId}`;
 
   const openReplace = async (c: CommitteeConflict) => {
     setReplacingKey(conflictKey(c));
-    setSelectedReplacement('');
+    setSelectedReplacement(c.suggestedReplacementId ?? '');
     if (!membersByFaculty[c.facultyId]) {
       try {
         const res = await apiClient.listEligibleCommitteeMembers(c.facultyId);
@@ -67,7 +75,9 @@ export function CommitteeConflictsTab() {
     if (!selectedReplacement) return;
     setSubmitting(true);
     try {
-      await apiClient.substituteCommitteeMember(c.projectId, c.conflictedUserId, selectedReplacement);
+      // A held (CS pilot) milestone is swapped for that milestone only —
+      // which also releases it to the committee; otherwise whole-project.
+      await apiClient.substituteCommitteeMember(c.projectId, c.conflictedUserId, selectedReplacement, c.blocking ? c.milestoneId : undefined);
       setReplacingKey(null);
       setSelectedReplacement('');
       await fetchConflicts();
@@ -86,8 +96,8 @@ export function CommitteeConflictsTab() {
     <div className="grid gap-3">
       <p className="text-xs text-administrative-coordinator-on-surface-variant">
         {lang === 'he'
-          ? 'פרויקטים בהם המנחה הוא גם חבר בוועדה שתבחן אותו — יש להחליף אותו במגמה זו בלבד. שאר חברי הוועדה, ופרויקטים אחרים שהוועדה בוחנת, אינם מושפעים.'
-          : "Projects where the supervisor is also on the committee reviewing them — replace them for this project only. Every other committee member, and every other project the committee reviews, is unaffected."}
+          ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. ההחלפה חלה על אבן הדרך הזו בלבד (לכל אבן דרך אפשר לבחור מחליף/ה אחר/ת); אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה. שאר חברי הוועדה, ופרויקטים אחרים שהוועדה בוחנת, אינם מושפעים.'
+          : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The swap applies to this milestone only (each milestone can get a different replacement); a held milestone goes to the committee as soon as you swap. Every other committee member, and every other project the committee reviews, is unaffected."}
       </p>
 
       {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -107,8 +117,18 @@ export function CommitteeConflictsTab() {
               className="role-rail rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-4"
               style={{ '--rail-color': 'var(--danger)' } as React.CSSProperties}
             >
-              <p className="text-sm font-semibold text-administrative-coordinator-on-surface">
-                {lang === 'he' ? c.projectTitleHe || c.projectTitleEn : c.projectTitleEn || c.projectTitleHe}
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-administrative-coordinator-on-surface">
+                  {lang === 'he' ? c.projectTitleHe || c.projectTitleEn : c.projectTitleEn || c.projectTitleHe}
+                </p>
+                {c.blocking && (
+                  <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">
+                    ⏸ {lang === 'he' ? 'מעוכב — לא הועבר לוועדה' : 'On hold — not sent to the committee'}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs font-medium text-administrative-coordinator-on-surface">
+                🏁 {lang === 'he' ? c.milestoneNameHe || c.milestoneNameEn : c.milestoneNameEn || c.milestoneNameHe}
               </p>
               <p className="mt-1 text-xs text-administrative-coordinator-on-surface-variant">
                 {lang === 'he'

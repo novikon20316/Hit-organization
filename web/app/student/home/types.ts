@@ -223,6 +223,18 @@ export interface Milestone {
    *  entry per round. The "timeline of the review conversation" this
    *  feature exists for. */
   committeeReviewHistory?: CommitteeReviewHistoryEntry[];
+  /** CS pilot — the supervisor's own approve/reject decision as the student
+   *  sees it: their typed comment and/or Word/PDF comments file(s). Latest
+   *  supervisor action only (see server coordinatorController.ts's
+   *  supervisorReviewFeedbackEntry). */
+  supervisorReviewFeedback?: SupervisorReviewFeedback | null;
+}
+
+export interface SupervisorReviewFeedback {
+  decision: 'approve' | 'reject';
+  comment: string;
+  fileUrls: string[];
+  decidedByName?: string;
 }
 
 export interface CommitteeReviewHistoryEntry {

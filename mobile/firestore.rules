@@ -383,6 +383,11 @@ service cloud.firestore {
         resource.data.get('supervisorId', '') == request.auth.uid ||
         resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
         request.auth.uid in resource.data.get('examinerIds', []) ||
+        // A staff member the administrative coordinator substituted onto this
+        // milestone's committee in place of a conflicted supervisor (see
+        // committeeController.ts's substituteCommitteeMember) — needed for
+        // their live "am I reviewing anything" sidebar gate.
+        request.auth.uid in resource.data.get('committeeSubstituteIds', []) ||
         // Role check (1 get() call) — for coordinators/admins, scoped to the
         // milestone's own faculty (mirrors processFiles below). Previously
         // any holder of these roles could read every faculty's milestones.

@@ -32,6 +32,7 @@ import { TabBadge } from '@/components/TabBadge';
 import { useNotifications } from '@/src/context/NotificationsContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import {
   DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
@@ -193,6 +194,12 @@ interface CommitteeConflictRow {
   conflictedUserName: string;
   conflictRole: 'chairman' | 'member';
   supervisorRole: 'supervisor' | 'secondary_supervisor';
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  /** Held back from the committee until a replacement is picked (CS pilot). */
+  blocking: boolean;
+  /** Last stand-in used for this person elsewhere in the project — pre-selected. */
+  suggestedReplacementId: string | null;
 }
 interface EligibleMember {
   id: string;
@@ -848,10 +855,14 @@ export default function ProjectCoordinatorDashboard() {
     if (activeTab === 'committeeConflicts' && !conflictsLoaded) fetchConflicts();
   }, [activeTab, conflictsLoaded, fetchConflicts]);
 
+  // A new conflict-of-interest hold arrives as a notification — reload the
+  // list if it's already been opened (see hooks/useLiveRefresh.ts).
+  useLiveRefresh(() => { if (conflictsLoaded) fetchConflicts(); });
+
   const openReplace = async (c: CommitteeConflictRow) => {
-    const key = `${c.projectId}:${c.conflictedUserId}`;
+    const key = `${c.milestoneId}:${c.conflictedUserId}`;
     setReplacingKey(key);
-    setSelectedReplacement('');
+    setSelectedReplacement(c.suggestedReplacementId ?? '');
     if (!membersByFaculty[c.facultyId]) {
       try {
         const res = await apiClient.get('/api/committees/eligible-members', { params: { facultyId: c.facultyId } });
@@ -869,6 +880,9 @@ export default function ProjectCoordinatorDashboard() {
       await apiClient.post(`/api/committees/projects/${c.projectId}/substitute-member`, {
         originalUserId: c.conflictedUserId,
         replacementUserId: selectedReplacement,
+        // A held (CS pilot) milestone is swapped for that milestone only —
+        // which also releases it to the committee; otherwise whole-project.
+        ...(c.blocking ? { milestoneId: c.milestoneId } : {}),
       });
       setReplacingKey(null);
       setSelectedReplacement('');
@@ -1251,8 +1265,8 @@ export default function ProjectCoordinatorDashboard() {
           <View>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 10 }}>
               {lang === 'he'
-                ? 'פרויקטים בהם המנחה הוא גם חבר בוועדה שתבחן אותו — יש להחליף אותו במגמה זו בלבד.'
-                : "Projects where the supervisor is also on the committee reviewing them — replace them for this project only."}
+                ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. ההחלפה חלה על אבן הדרך הזו בלבד; אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה.'
+                : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The swap applies to this milestone only; a held milestone goes to the committee as soon as you swap."}
             </Text>
             {conflictsLoading && !conflictsLoaded ? (
               <ActivityIndicator style={{ marginTop: 24 }} />
@@ -1263,12 +1277,20 @@ export default function ProjectCoordinatorDashboard() {
               </View>
             ) : (
               conflicts.map((c) => {
-                const key = `${c.projectId}:${c.conflictedUserId}`;
+                const key = `${c.milestoneId}:${c.conflictedUserId}`;
                 const isReplacing = replacingKey === key;
                 const candidates = (membersByFaculty[c.facultyId] ?? []).filter((m) => m.id !== c.conflictedUserId);
                 return (
                   <View key={key} style={[s.card, { borderLeftColor: '#EF4444' }]}>
                     <Text style={s.cardTitle}>{lang === 'he' ? (c.projectTitleHe || c.projectTitleEn) : (c.projectTitleEn || c.projectTitleHe)}</Text>
+                    <Text style={s.cardSub}>
+                      🏁 {lang === 'he' ? (c.milestoneNameHe || c.milestoneNameEn) : (c.milestoneNameEn || c.milestoneNameHe)}
+                    </Text>
+                    {c.blocking && (
+                      <Text style={[s.cardSub, { color: '#B91C1C', fontWeight: '700' }]}>
+                        ⏸ {lang === 'he' ? 'מעוכב — לא הועבר לוועדה עד להחלפה' : 'On hold — not sent to the committee until replaced'}
+                      </Text>
+                    )}
                     <Text style={s.cardSub}>
                       {lang === 'he'
                         ? `${c.conflictedUserName} הוא ${c.conflictRole === 'chairman' ? 'יו"ר' : 'חבר'} הוועדה, וגם ${c.supervisorRole === 'supervisor' ? 'המנחה' : 'המנחה המשני'} של הפרויקט.`

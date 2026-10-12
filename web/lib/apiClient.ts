@@ -3041,17 +3041,27 @@ export const apiClient = {
     return request<{ conflicts: CommitteeConflict[] }>('/api/committees/conflicts', { method: 'GET' });
   },
 
-  async substituteCommitteeMember(projectId: string, originalUserId: string, replacementUserId: string) {
+  /** `milestoneId` (CS pilot) scopes the swap to that one milestone and
+   *  releases its conflict-of-interest hold; omitted = whole-project swap. */
+  async substituteCommitteeMember(projectId: string, originalUserId: string, replacementUserId: string, milestoneId?: string) {
     return request<{ success: boolean }>(`/api/committees/projects/${projectId}/substitute-member`, {
       method: 'POST',
-      body: { originalUserId, replacementUserId },
+      body: { originalUserId, replacementUserId, ...(milestoneId ? { milestoneId } : {}) },
     });
+  },
+
+  /** Which CS-pilot behaviors apply to this milestone (see server's
+   *  config/csPilot.ts) — the client never keeps its own copy of that list. */
+  async getMilestonePilotFeatures(milestoneId: string) {
+    return request<{ csPilot: boolean }>(`/api/milestones/${milestoneId}/pilot-features`, { method: 'GET' });
   },
 };
 
 export interface CommitteeConflict {
   projectId: string;
   milestoneId: string;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
   projectTitleHe: string;
   projectTitleEn: string;
   facultyId: string;
@@ -3060,6 +3070,11 @@ export interface CommitteeConflict {
   conflictedUserName: string;
   conflictRole: 'chairman' | 'member';
   supervisorRole: 'supervisor' | 'secondary_supervisor';
+  /** True when the milestone is actually held back from the committee until
+   *  a replacement is chosen (CS pilot). */
+  blocking: boolean;
+  /** Last stand-in used for this person elsewhere in the project — pre-selected. */
+  suggestedReplacementId: string | null;
 }
 
 export interface ParallelSignoffStatus {

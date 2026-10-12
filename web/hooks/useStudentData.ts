@@ -12,8 +12,9 @@ import { db, auth } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
-import { resolveMilestoneOrder, isDefenseDateConfirmed } from '@/app/student/home/types';
+import { resolveMilestoneOrder } from '@/app/student/home/types';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
 
 // One entry per project the student is currently enrolled in — in practice
@@ -61,9 +62,11 @@ export function useStudentData() {
     cancel(unsubMilestones);
   }, []);
 
-  const fetchDashboardData = useCallback(async () => {
+  // `silent` skips the 'loading' state flip — used for background live
+  // refreshes, so the screen updates in place instead of flashing a spinner.
+  const fetchDashboardData = useCallback(async (silent = false) => {
     try {
-      setStudentState('loading');
+      if (!silent) setStudentState('loading');
       setError(null);
 
       const userData = (await apiClient.getMyProfile()) as {
@@ -175,6 +178,25 @@ export function useStudentData() {
       setStudentState('no_project');
     }
   }, []);
+
+  // Re-fetches only the milestones of the projects already loaded, keeping
+  // the server-side sort/visibility of getMilestones — see EFFECT 4.
+  const activeProjectIdsKey = activeProjects.map((ap) => ap.project.id).sort().join(',');
+  const refreshMilestones = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    const projectIds = activeProjectIdsKey ? activeProjectIdsKey.split(',') : [];
+    if (!uid || projectIds.length === 0) return;
+    const results = await Promise.allSettled(projectIds.map((pid) => apiClient.getMilestones({ studentId: uid, projectId: pid })));
+    const byProject = new Map<string, Milestone[]>();
+    results.forEach((r, i) => {
+      if (r.status !== 'fulfilled') return;
+      const sorted = ((r.value?.milestones || []) as unknown as Milestone[])
+        .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
+      byProject.set(projectIds[i]!, sorted);
+    });
+    // A project whose refetch failed keeps what it was already showing.
+    setActiveProjects((prev) => prev.map((ap) => (byProject.has(ap.project.id) ? { ...ap, milestones: byProject.get(ap.project.id)! } : ap)));
+  }, [activeProjectIdsKey]);
 
   // ── EFFECT 1: fetch profile on mount ──────────────────────────────────────
   useEffect(() => {
@@ -290,7 +312,6 @@ export function useStudentData() {
   // array-contains, no projectId filter), grouped back out by projectId
   // below — simpler than juggling one onSnapshot per project, and works
   // identically whether the student has 1 or 2 active projects.
-  const activeProjectIdsKey = activeProjects.map((ap) => ap.project.id).sort().join(',');
   useEffect(() => {
     cancel(unsubMilestones);
     if (studentState !== 'active' || !activeProjectIdsKey) return;
@@ -299,65 +320,23 @@ export function useStudentData() {
 
     const q = query(collection(db, 'milestones'), where('studentIds', 'array-contains', uid));
 
+    // The listener is only a "something changed" signal: the milestones are
+    // re-fetched through the same API a full page refresh uses. Rebuilding
+    // them from the raw docs here (as this used to) dropped every field not
+    // hand-copied over — revisionHistory, committeeReviewHistory,
+    // supervisorEvaluation, gradeOverride, supervisorReviewFeedback... — and
+    // skipped the server's own per-viewer visibility filtering, so e.g. a
+    // supervisor's rejection only fully showed up after a manual refresh.
+    // The first snapshot is the state fetchDashboardData just loaded; a
+    // short debounce folds a multi-field server write into one refetch.
+    let initialSnapshot = true;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
     const unsub = onSnapshot(
       q,
-      (snapshot) => {
-        const liveMilestones = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            projectId: data.projectId,
-            type: data.type,
-            // Snapshotted from the workflow template at enrollment (see
-            // server/src/services/projectEnrollment.ts) — the only real name
-            // a custom (`custom_xxxxx`-typed) milestone has; MILESTONE_LABEL
-            // only covers the 5 legacy built-in types (see
-            // milestoneDisplayName in lib/milestoneLabel.ts).
-            nameHe: data.nameHe ?? null,
-            nameEn: data.nameEn ?? null,
-            order: data.order,
-            status: data.status,
-            dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
-            submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
-            fileUrls: data.fileUrls ?? [],
-            finalGrade: data.finalGrade ?? null,
-            supervisorScore: data.supervisorScore ?? null,
-            // The real confirmed defense date lives in `dueDate`
-            // (defenseScheduling.ts's finalizeMatchedDate writes it there,
-            // same field every other milestone type's due date lives in) —
-            // but only once the status confirms that actually happened (see
-            // isDefenseDateConfirmed), otherwise dueDate is still just the
-            // original target/deadline, not a real agreed date.
-            defenseDate: isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
-            defenseRoom: data.defenseRoom ?? null,
-            defenseBuilding: data.defenseBuilding ?? null,
-            defenseTime: data.defenseTime ?? null,
-            examinerNames: data.examinerNames ?? [],
-            examinerIds: data.examinerIds ?? [],
-            rejectionReason: data.rejectionReason ?? null,
-            coordinatorComment: data.coordinatorComment ?? null,
-            staffRecord: data.staffRecord ?? null,
-            staffFormFields: data.staffFormFields ?? undefined,
-            submissionRequirement: data.submissionRequirement ?? undefined,
-            studentIds: data.studentIds ?? [],
-            studentFormFields: data.studentFormFields ?? undefined,
-            studentFormData: data.studentFormData ?? null,
-            coordinatorRecommendation: data.coordinatorRecommendation ?? null,
-            supervisorSignedAt: data.supervisorSignedAt?.toDate?.()?.toISOString() ?? null,
-            supervisorSignedByName: data.supervisorSignedByName ?? null,
-            coordinatorSignedAt: data.coordinatorSignedAt?.toDate?.()?.toISOString() ?? null,
-            coordinatorSignedByName: data.coordinatorSignedByName ?? null,
-          } as Milestone & { projectId: string };
-        });
-
-        setActiveProjects((prev) =>
-          prev.map((ap) => ({
-            ...ap,
-            milestones: liveMilestones
-              .filter((m) => m.projectId === ap.project.id)
-              .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b)),
-          }))
-        );
+      () => {
+        if (initialSnapshot) { initialSnapshot = false; return; }
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(() => { refreshMilestones(); }, 250);
       },
       (err) => {
         if ((err as { code?: string }).code === 'permission-denied') return;
@@ -365,8 +344,15 @@ export function useStudentData() {
     );
 
     unsubMilestones.current = unsub;
-    return () => cancel(unsubMilestones);
-  }, [studentState, activeProjectIdsKey]);
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      cancel(unsubMilestones);
+    };
+  }, [studentState, activeProjectIdsKey, refreshMilestones]);
+
+  // Any new notification (an application decision, a grade released, ...)
+  // also silently reloads — covers events that don't touch a milestone doc.
+  useLiveRefresh(() => (studentState === 'active' ? refreshMilestones() : fetchDashboardData(true)));
 
   const withDerived = (milestones: Milestone[]) => ({
     nextMilestone:
@@ -426,7 +412,7 @@ export function useStudentData() {
     studentHasGradeRecord,
     chooseTrack,
     error,
-    refresh: fetchDashboardData,
+    refresh: () => fetchDashboardData(),
     cancelAllListeners,
   };
 }

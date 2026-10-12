@@ -13,7 +13,8 @@
 // receives fully-formed values and calls back up rather than owning state).
 
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { apiClient } from '../src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -147,6 +148,35 @@ export function GradeMilestoneModal({
 
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+
+  // CS pilot (server config/csPilot.ts) — at the supervisor's own
+  // approve/reject station, a Word/PDF comments file can carry the comments
+  // instead of (or alongside) typed text, and the student sees both. Mirrors
+  // web's GradeMilestoneModal.tsx.
+  const isSupervisorApproveStation = isApproveStage && currentStage?.role === 'supervisor';
+  const [commentFilesMode, setCommentFilesMode] = useState(false);
+  useEffect(() => {
+    setCommentFilesMode(false);
+    if (!visible || !isSupervisorApproveStation || !milestone?.id) return;
+    let cancelled = false;
+    apiClient.get(`/api/milestones/${milestone.id}/pilot-features`)
+      .then((res) => { if (!cancelled) setCommentFilesMode(!!res.data?.csPilot); })
+      .catch(() => { /* falls back to the generic optional attachment field */ });
+    return () => { cancelled = true; };
+  }, [visible, isSupervisorApproveStation, milestone?.id]);
+
+  const confirmReject = () => {
+    if (!rejectReason.trim() && !(commentFilesMode && attachedFiles.length > 0)) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        commentFilesMode
+          ? (lang === 'he' ? 'יש לכתוב סיבה לדחייה או לצרף קובץ הערות' : 'Write a reason or attach a comments file to reject')
+          : (lang === 'he' ? 'יש לציין סיבה לדחייה' : 'A reason is required to reject'),
+      );
+      return;
+    }
+    onReject?.(rejectReason);
+  };
 
   // Reset the reject-reason toggle each time this reopens for a (possibly
   // different) milestone.
@@ -332,12 +362,27 @@ export function GradeMilestoneModal({
           <FieldGuideTarget fieldKey="attachFile">
           <View style={s.card}>
             <View style={[s.rowBetween, isRtl && s.rowReverse]}>
-              <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)'}</Text>
+              <Text style={[s.cardTitle, isRtl && s.textRight]}>
+                {commentFilesMode
+                  ? (lang === 'he' ? 'קובצי הערות (אופציונלי)' : 'Comment files (optional)')
+                  : (lang === 'he' ? 'צירוף קובץ (אופציונלי)' : 'Attach a file (optional)')}
+              </Text>
               <InfoTooltip textHe={gradeGuideEntry('attachFile').description.he} textEn={gradeGuideEntry('attachFile').description.en} />
             </View>
             <Pressable onPress={onPickFile} style={s.attachBtn} accessibilityRole="button">
-              <Text style={s.attachBtnText}>📎 {lang === 'he' ? 'בחר קובץ (PDF/Word)' : 'Choose file (PDF/Word)'}</Text>
+              <Text style={s.attachBtnText}>
+                📎 {commentFilesMode
+                  ? (lang === 'he' ? 'הוספת קובצי הערות (Word / PDF)' : 'Add comment files (Word / PDF)')
+                  : (lang === 'he' ? 'בחר קובץ (PDF/Word)' : 'Choose file (PDF/Word)')}
+              </Text>
             </Pressable>
+            {commentFilesMode && (
+              <Text style={[s.hintText, isRtl && s.textRight]}>
+                {lang === 'he'
+                  ? 'ניתן לכתוב את ההערות, לצרף אותן כקובץ, או שניהם — הסטודנט/ית יראה/תראה את שניהם.'
+                  : 'Write your comments, attach them as a file, or both — the student sees both.'}
+              </Text>
+            )}
             {attachedFiles.length > 0 && (
               <View style={[s.chipsRow, isRtl && s.rowReverse]}>
                 {attachedFiles.map((f, idx) => (
@@ -362,7 +407,9 @@ export function GradeMilestoneModal({
               {rejecting && (
                 <View style={[s.card, { marginBottom: spacing.sm }]}>
                   <Text style={[s.cardTitle, isRtl && s.textRight]}>
-                    {lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)'}
+                    {commentFilesMode
+                      ? (lang === 'he' ? 'סיבת דחייה (חובה, אלא אם צורף קובץ הערות)' : 'Reason for rejection (required unless a comments file is attached)')
+                      : (lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)')}
                   </Text>
                   <TextInput
                     style={[s.input, s.textarea, isRtl && s.textRight]}
@@ -388,7 +435,7 @@ export function GradeMilestoneModal({
                     </Pressable>
                     <Pressable
                       style={[s.decisionBtn, s.rejectBtn, submitting && { opacity: 0.6 }]}
-                      onPress={() => onReject?.(rejectReason)}
+                      onPress={confirmReject}
                       disabled={submitting}
                       accessibilityRole="button"
                     >
@@ -519,6 +566,7 @@ const s = StyleSheet.create({
     backgroundColor: p.surfaceContainer,
   },
   attachBtnText: { fontSize: 12, fontWeight: '700', color: p.primary },
+  hintText: { fontSize: 11, color: p.onSurfaceVariant, marginTop: spacing.xs },
 
   rubricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
   rubricRowDivider: { borderBottomWidth: 1, borderBottomColor: p.outlineVariant },

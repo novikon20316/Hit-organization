@@ -13,6 +13,8 @@ import { submitRevisionDecision, getExaminerOpinions } from '../controllers/revi
 import { getCommitteeReview, submitCommitteeVote, submitCommitteeDecision, getCommitteeDecisionRecipients } from '../controllers/committeeReviewController.js';
 import { submitCommitteeChairDecision, submitExaminerOneSignoff, getParallelSignoffStatus } from '../controllers/parallelSignoffController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
+import { resolveMilestoneScope } from '../services/scopeAuthorization.js';
+import { isCsPilotMajor } from '../config/csPilot.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -49,6 +51,16 @@ router.get('/:id/parallel-signoffs', verifyToken, getParallelSignoffStatus)
 router.post('/:id/committee-chair-decision', verifyToken, submitCommitteeChairDecision)
 // POST /api/milestones/:id/examiner-one-signoff — this milestone's examinerIds[0] only
 router.post('/:id/examiner-one-signoff', verifyToken, submitExaminerOneSignoff)
+
+// GET /api/milestones/:id/pilot-features — which CS-pilot behaviors (see
+// config/csPilot.ts) apply to this milestone, so a client never keeps its
+// own copy of the pilot major list. A milestone doc carries no major of its
+// own — resolved through its project, same as every scope check.
+router.get('/:id/pilot-features', verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+  const scope = await resolveMilestoneScope(String(req.params.id ?? ''));
+  if (!scope) return res.status(404).json({ message: 'Milestone not found.' });
+  return res.status(200).json({ csPilot: isCsPilotMajor(scope.major) });
+})
 
 
 export default router;

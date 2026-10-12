@@ -1,12 +1,12 @@
 'use client';
 
 // app/committees/CommitteeReviewModal.tsx
-// Every committee member (including the chairman, who is also a plain
-// member and may cast their own opinion) can see the submission and every
-// vote cast so far, and cast/update their own vote. Only the chairman sees
-// the additional "Final Decision" control — the one act that actually
-// advances/rejects the milestone (see committeeReviewController.ts's
-// submitCommitteeDecision). A member's vote never does that by itself.
+// Every committee member can see the submission and every vote cast so far,
+// and cast/update their own vote. The chairman doesn't vote as a member — a
+// second, non-binding opinion of theirs next to their own final decision was
+// redundant — and instead sees only the "Final Decision" control, the one
+// act that actually advances/rejects the milestone (see
+// committeeReviewController.ts's submitCommitteeDecision).
 
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -113,9 +113,8 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
   // before the chairman may finalize, so a member's vote is never just
   // decorative. Computed here purely to disable the button and explain why;
   // the server re-checks this itself regardless.
-  const missingVoterIds = detail
-    ? detail.committee.memberIds.filter((id) => id !== detail.committee.chairmanId && !detail.votes.some((v) => v.memberId === id))
-    : [];
+  const voterIds = detail ? detail.committee.memberIds.filter((id) => id !== detail.committee.chairmanId) : [];
+  const missingVoterIds = detail ? voterIds.filter((id) => !detail.votes.some((v) => v.memberId === id)) : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -153,18 +152,16 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
 
             <div className="mt-4">
               <p className="mb-2 text-sm font-semibold text-ink">
-                {lang === 'he' ? `דעות חברי הוועדה (${detail.votes.length}/${detail.committee.memberIds.length})` : `Committee opinions (${detail.votes.length}/${detail.committee.memberIds.length})`}
+                {lang === 'he' ? `דעות חברי הוועדה (${detail.votes.length}/${voterIds.length})` : `Committee opinions (${detail.votes.length}/${voterIds.length})`}
               </p>
               <div className="grid gap-2">
-                {detail.committee.memberIds.map((memberId) => {
+                {voterIds.map((memberId) => {
                   const v = detail.votes.find((vote) => vote.memberId === memberId);
-                  const isChairmanMember = detail.committee.chairmanId === memberId;
                   return (
                     <div key={memberId} className="flex items-start justify-between gap-2 rounded-md bg-paper p-2 text-xs">
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-ink">
                           {detail.committee.memberNames[memberId] ?? memberId}
-                          {isChairmanMember && <span className="ms-1 text-muted">({lang === 'he' ? "יו\"ר" : 'Chair'})</span>}
                         </span>
                         {v?.comment && <p className="mt-0.5 text-muted">{v.comment}</p>}
                       </div>
@@ -180,36 +177,46 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
               </div>
             </div>
 
-            <div className="mt-4 rounded-lg border border-line p-3">
-              <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'ההצבעה שלך' : 'Your vote'}</p>
-              <div className="flex gap-2">
-                {(['approve', 'reject'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setMyVote(v)}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${myVote === v ? (v === 'approve' ? 'border-success bg-success-bg text-success' : 'border-danger bg-danger-bg text-danger') : 'border-line bg-surface text-ink'}`}
-                  >
-                    {v === 'approve' ? (lang === 'he' ? '✓ בעד' : '✓ Approve') : (lang === 'he' ? '✗ נגד' : '✗ Reject')}
-                  </button>
-                ))}
+            {detail.committee.chairmanId && (
+              <p className="mt-2 text-xs text-muted">
+                {lang === 'he'
+                  ? `יו"ר: ${detail.committee.memberNames[detail.committee.chairmanId] ?? detail.committee.chairmanId} — קובע/ת את ההחלטה הסופית`
+                  : `Chair: ${detail.committee.memberNames[detail.committee.chairmanId] ?? detail.committee.chairmanId} — makes the final decision`}
+              </p>
+            )}
+
+            {!detail.isChairman && (
+              <div className="mt-4 rounded-lg border border-line p-3">
+                <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'ההצבעה שלך' : 'Your vote'}</p>
+                <div className="flex gap-2">
+                  {(['approve', 'reject'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setMyVote(v)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${myVote === v ? (v === 'approve' ? 'border-success bg-success-bg text-success' : 'border-danger bg-danger-bg text-danger') : 'border-line bg-surface text-ink'}`}
+                    >
+                      {v === 'approve' ? (lang === 'he' ? '✓ בעד' : '✓ Approve') : (lang === 'he' ? '✗ נגד' : '✗ Reject')}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  rows={2}
+                  value={myComment}
+                  onChange={(e) => setMyComment(e.target.value)}
+                  placeholder={lang === 'he' ? 'הערה (חובה אם מצביעים נגד)' : 'Comment (required if voting reject)'}
+                  className={`${inputCls} mt-2`}
+                />
+                <button
+                  type="button"
+                  onClick={handleVote}
+                  disabled={!myVote || votingSaving}
+                  className="mt-2 w-full rounded-lg bg-primary py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                >
+                  {votingSaving ? '…' : lang === 'he' ? 'שמירת ההצבעה' : 'Save Vote'}
+                </button>
               </div>
-              <textarea
-                rows={2}
-                value={myComment}
-                onChange={(e) => setMyComment(e.target.value)}
-                placeholder={lang === 'he' ? 'הערה (חובה אם מצביעים נגד)' : 'Comment (required if voting reject)'}
-                className={`${inputCls} mt-2`}
-              />
-              <button
-                type="button"
-                onClick={handleVote}
-                disabled={!myVote || votingSaving}
-                className="mt-2 w-full rounded-lg bg-primary py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-              >
-                {votingSaving ? '…' : lang === 'he' ? 'שמירת ההצבעה' : 'Save Vote'}
-              </button>
-            </div>
+            )}
 
             {detail.isChairman && (
               <div className="mt-4 role-rail rounded-lg bg-[#EFEBF6] p-3" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
