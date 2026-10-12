@@ -2959,7 +2959,8 @@ export const apiClient = {
   },
 
   /** With `major` (Replace Committee Member), only active staff of that
-   *  faculty+major — no students, system_admins or cross-faculty accounts. */
+   *  faculty+major — no students, system_admins, administrative coordinators
+   *  or cross-faculty accounts. */
   async listEligibleCommitteeMembers(facultyId?: string, major?: string) {
     return request<{ members: Array<{ id: string; displayName: string; email: string; role: string; facultyId: string }> }>(
       '/api/committees/eligible-members',

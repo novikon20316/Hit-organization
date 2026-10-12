@@ -131,8 +131,9 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
   const { facultyId, major } = req.query;
   // "Replace Committee Member" passes the project's major — the stand-in
   // must then be active staff of that very faculty AND major (see
-  // isStaffOfMajor), never a student, a system_admin account, or a
-  // cross-faculty ('all') account from outside the department.
+  // isStaffOfMajor), never a student, a system_admin or administrative
+  // coordinator account, or a cross-faculty ('all') account from outside
+  // the department.
   if (typeof major === 'string' && major) {
     return listEligibleReplacementsForMajor(req, res, typeof facultyId === 'string' ? facultyId : '', major);
   }
@@ -171,6 +172,10 @@ export const listEligibleCommitteeMembers = async (req: AuthenticatedRequest, re
   }
 };
 
+/** Primary roles that never sit on a review committee as a stand-in —
+ *  administrative accounts, not academic staff. */
+const NON_COMMITTEE_ROLES = ['system_admin', 'administrative_secretary'];
+
 /** A user counts as staff of `major` when tied to it through their own
  *  major, the majors a system_admin restricted them to (assignedMajors), or
  *  a coordinatorScopes entry naming that faculty+major. A whole-faculty
@@ -184,7 +189,8 @@ function isStaffOfMajor(user: FirebaseFirestore.DocumentData, facultyId: string,
 
 /** GET /api/committees/eligible-members?facultyId=...&major=... — the
  *  replacement pool for "Replace Committee Member". Only active staff of the
- *  project's own faculty and major: no students, no system_admin accounts,
+ *  project's own faculty and major: no students, no system_admin or
+ *  administrative coordinator accounts,
  *  no deactivated accounts, no cross-faculty ('all') accounts. */
 async function listEligibleReplacementsForMajor(req: AuthenticatedRequest, res: Response, facultyId: string, major: string) {
   if (!facultyId) return res.status(400).json({ message: L(req, 'facultyId is required.', 'שדה הפקולטה נדרש.') });
@@ -201,7 +207,7 @@ async function listEligibleReplacementsForMajor(req: AuthenticatedRequest, res: 
         const u = doc.data();
         const roles: string[] = [u.role, ...(u.roles ?? [])].filter(Boolean);
         if (roles.includes('student')) return false;
-        if (u.role === 'system_admin') return false;
+        if (NON_COMMITTEE_ROLES.includes(u.role)) return false;
         if (u.isActive === false) return false;
         return isStaffOfMajor(u, facultyId, major);
       })
@@ -565,7 +571,7 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
     const replacementRoles: string[] = [replacement.role, ...(replacement.roles ?? [])].filter(Boolean);
     const outsideDepartment = !!project.major && (
       replacement.facultyId !== project.facultyId
-      || replacement.role === 'system_admin'
+      || NON_COMMITTEE_ROLES.includes(replacement.role)
       || replacementRoles.includes('student')
       || replacement.isActive === false
       || !isStaffOfMajor(replacement, project.facultyId, project.major)
