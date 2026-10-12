@@ -1106,6 +1106,11 @@ export default function ProjectCoordinatorDashboard() {
             onPress: () => router.push({ pathname: '/administrative_coordinator/credit-points', params: { lang } } as any),
           },
           {
+            key: 'standard-supervisors', icon: '🎖️',
+            label: lang === 'he' ? 'מנחה סטנדרטי' : 'Standard Supervisor',
+            onPress: () => router.push({ pathname: '/administrative_coordinator/standard-supervisors', params: { lang } } as any),
+          },
+          {
             key: 'project-records', icon: '📜',
             label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
             onPress: () => router.push({ pathname: '/administrative_coordinator/records', params: { lang } } as any),
