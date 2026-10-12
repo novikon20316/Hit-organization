@@ -7,7 +7,7 @@
 
 import { auth, appCheck } from './firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
-import { reportClientError } from './errorReporting';
+import { reportClientError, reportTransportFailure } from './errorReporting';
 
 // No timeout existed anywhere in this client before — a hung request (dead
 // server, bad network) would leave a fetch() pending forever with no
@@ -193,6 +193,7 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   }
 
   let res: Response;
+  const startedAt = Date.now();
   try {
     res = await fetch(buildUrl(path, params), {
       ...rest,
@@ -204,10 +205,14 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     clearTimeout(timeoutId);
     if (!callerSignal?.aborted) {
       const timedOut = err instanceof DOMException && err.name === 'AbortError';
-      reportClientError({
+      // Filtered for this-browser-only causes (offline, sleep, background
+      // tab, multi-endpoint connectivity loss) — see errorReporting.ts.
+      reportTransportFailure({
         kind: timedOut ? 'api_timeout' : 'network_failure',
         message: timedOut ? `Request to ${path} timed out after ${DEFAULT_TIMEOUT_MS}ms` : (err instanceof Error ? err.message : String(err)),
         route: path,
+        startedAt,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
       });
     }
     throw err;

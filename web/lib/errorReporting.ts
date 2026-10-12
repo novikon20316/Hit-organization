@@ -24,6 +24,71 @@ function getBaseUrl(): string {
 // would also fail, forever.
 const REPORT_ENDPOINT_PATH = '/api/system/report-error';
 
+// ─── Client-side connectivity filter for transport failures ──────────────────
+// A fetch() that rejects ("Failed to fetch") or hits our own timeout is very
+// often THIS browser's problem, not the system's: Wi-Fi dropped, the laptop
+// slept (every paused timer fires at once on wake, so in-flight requests all
+// "time out" together), or a background tab was throttled. Those flooded the
+// System Health widget with one card per endpoint the page happened to be
+// polling while the server itself was answering everyone else fine. The
+// filters below drop the cases we can recognize as local; whatever survives
+// is a failure the system_admin can actually do something about.
+
+// How long after the tab becomes visible again / the browser comes back
+// online we keep treating failures as fallout from that transition.
+const RECOVERY_GRACE_MS = 10_000;
+// Failures are held this long before reporting, so a connectivity loss that
+// takes down several different endpoints at once can be recognized as one.
+const BURST_WINDOW_MS = 3_000;
+// A timeout whose wall-clock duration overshot the configured timeout by
+// more than this means the timer itself was suspended (sleep), not that the
+// server was slow.
+const SUSPEND_SLACK_MS = 10_000;
+
+let lastRecoveryAt = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { lastRecoveryAt = Date.now(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') lastRecoveryAt = Date.now();
+  });
+}
+
+let pendingFailures: Array<{ kind: ErrorReportKind; message: string; route: string }> = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPendingFailures(): void {
+  const batch = pendingFailures;
+  pendingFailures = [];
+  flushTimer = null;
+  // Several DIFFERENT endpoints failing together = this client lost its
+  // connection. One endpoint failing alone while the rest of the page works
+  // is the endpoint-specific case worth surfacing.
+  if (new Set(batch.map((f) => f.route)).size > 1) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  for (const f of batch) reportClientError(f);
+}
+
+/** apiClient's entry point for a fetch() rejection or its own timeout —
+ *  NOT for HTTP 5xx responses (those prove the server was reached and are
+ *  reported directly via reportClientError). */
+export function reportTransportFailure(input: {
+  kind: 'api_timeout' | 'network_failure';
+  message: string;
+  route: string;
+  startedAt: number;
+  timeoutMs: number;
+}): void {
+  if (typeof window === 'undefined') return;
+  const now = Date.now();
+  if (navigator.onLine === false) return;
+  if (document.visibilityState === 'hidden') return;
+  if (now - lastRecoveryAt < RECOVERY_GRACE_MS) return;
+  if (input.kind === 'api_timeout' && now - input.startedAt > input.timeoutMs + SUSPEND_SLACK_MS) return;
+
+  pendingFailures.push({ kind: input.kind, message: input.message, route: input.route });
+  if (!flushTimer) flushTimer = setTimeout(flushPendingFailures, BURST_WINDOW_MS);
+}
+
 export function reportClientError(input: {
   kind: ErrorReportKind;
   message: string;
