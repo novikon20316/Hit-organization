@@ -314,6 +314,8 @@ export const apiClient = {
     /** Required only for a 'signup_choice' major (see lib/studentTrack.ts) —
      *  rejected by the server for any other program. */
     chosenTrack?: 'thesis' | 'project';
+    /** Required only for a program with specializations (see lib/specialization.ts). */
+    specialization?: string;
   }) {
     return request<{ success: boolean; message?: string }>('/api/users/sync', { method: 'POST', body: profileData });
   },
@@ -2283,6 +2285,7 @@ export const apiClient = {
         facultyId: string | null;
         major: string | null;
         degreeType: 'bachelors' | 'masters' | null;
+        specialization: string | null;
         email: string;
         phoneNumber: string | null;
         yearOfStudy: number | null;

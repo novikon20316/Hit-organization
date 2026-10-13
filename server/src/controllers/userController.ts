@@ -12,6 +12,7 @@ import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../s
 import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
+import { specializationsFor } from '../config/specialization.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
 import { resolvePlatform } from '../services/maintenanceStatus.js';
@@ -165,7 +166,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
     const {
       newUid, email, displayName, displayNameHe, displayNameEn,
-      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, phoneNumber,
+      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, specialization, phoneNumber,
     } = req.body;
 
     if (!newUid || !email || !role) {
@@ -232,6 +233,16 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: L(req, 'This program does not allow choosing a track at signup.', 'תוכנית זו אינה מאפשרת בחירת מסלול בעת ההרשמה.') });
     }
 
+    // Specialization (תחום) — see config/specialization.ts. Required for, and
+    // only accepted from, a program that lists specializations.
+    const allowedSpecializations = role === 'student' ? specializationsFor(degreeType, major, chosenTrack) : [];
+    if (allowedSpecializations.length > 0 && !allowedSpecializations.includes(specialization)) {
+      return res.status(400).json({ error: L(req, 'You must choose a specialization to register for this program.', 'עליך לבחור תחום התמחות כדי להירשם לתוכנית זו.') });
+    }
+    if (allowedSpecializations.length === 0 && specialization) {
+      return res.status(400).json({ error: L(req, 'This program does not have specializations.', 'לתוכנית זו אין תחומי התמחות.') });
+    }
+
     // Authoritative gate — the public verify-eligibility endpoint the client
     // calls before this is only a fail-fast UX check; this is what actually
     // decides whether the account gets created. See services/studentRoster.ts.
@@ -268,6 +279,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       degreeType:   role === 'student' ? (degreeType  || 'bachelors') : null,
       yearOfStudy:  role === 'student' ? (Number(yearOfStudy) || 1)   : null,
       major:        role === 'student' ? major : null,
+      specialization: allowedSpecializations.length > 0 ? specialization : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
       phoneNumber:  role === 'student' ? (phoneNumber  || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see

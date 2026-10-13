@@ -30,6 +30,7 @@ import {
 } from '@/constants/faculties';
 import type { DegreeLevel, Program } from '@/types';
 import { resolveTrackPolicy, type StudentTrack } from '@/constants/studentTrack';
+import { specializationsFor, SPECIALIZATION_LABELS } from '@/constants/specialization';
 
 // Same tokens as web's app/globals.css (--paper/--surface/--ink/--muted/
 // --line/--primary/--success*/--danger*/--accent) — kept local to this
@@ -130,6 +131,7 @@ export default function ProfileSetup() {
   const [programKey, setProgramKey] = useState<string | null>(null);
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
+  const [specialization, setSpecialization] = useState<string | null>(null);
   // Set once the user tries to save with the form incomplete — turns on the
   // red "required field" indicators below instead of just the blocking Alert.
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -146,6 +148,7 @@ export default function ProfileSetup() {
   // no separate "degree type" step needed.
   const degreeType: DegreeLevel | null = selectedProgram?.level ?? null;
   const trackPolicy = selectedProgram ? resolveTrackPolicy(degreeType, selectedProgram.slug) : null;
+  const specializationOptions = selectedProgram ? specializationsFor(degreeType, selectedProgram.slug, chosenTrack) : [];
 
   const yearOptions: number[] = (() => {
     if (!selectedProgram) return [];
@@ -179,6 +182,7 @@ export default function ProfileSetup() {
         studentId: studentId,
         phoneNumber: phoneNumber,
         chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack : undefined,
+        specialization: specializationOptions.length > 0 ? specialization : undefined,
         hasActiveProject: false,
         expoPushToken: null,
         displayName,
@@ -348,7 +352,8 @@ export default function ProfileSetup() {
     faculty &&
     programKey &&
     yearOfStudy &&
-    (trackPolicy !== 'signup_choice' || !!chosenTrack);
+    (trackPolicy !== 'signup_choice' || !!chosenTrack) &&
+    (specializationOptions.length === 0 || !!specialization);
 
   if (stage === 'verify') {
     return (
@@ -623,6 +628,7 @@ export default function ProfileSetup() {
                       setProgramKey(p.key);
                       setYearOfStudy(null);
                       setChosenTrack(null);
+                      setSpecialization(null);
                     }}
                     disabled={facultyPrograms.length === 1}
                     accessibilityRole="button"
@@ -702,7 +708,10 @@ export default function ProfileSetup() {
                   <Pressable
                     key={track}
                     style={[styles.yearOption, chosenTrack === track && styles.yearOptionActive]}
-                    onPress={() => setChosenTrack(track)}
+                    onPress={() => {
+                      setChosenTrack(track);
+                      setSpecialization(null);
+                    }}
                     accessibilityRole="button"
                   >
                     <Text style={[styles.yearNum, chosenTrack === track && styles.yearNumActive]}>
@@ -715,6 +724,31 @@ export default function ProfileSetup() {
               </View>
               {attemptedSubmit && !chosenTrack && (
                 <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור מסלול' : 'Please select a track'}</ErrorNote>
+              )}
+            </Field>
+          )}
+
+          {/* --- Specialization (תחום) — only for programs that list them,
+               see constants/specialization.ts. --- */}
+          {specializationOptions.length > 0 && (
+            <Field label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}>
+              <View style={styles.majorGrid}>
+                {specializationOptions.map((key) => (
+                  <Pressable
+                    key={key}
+                    style={[styles.majorOption, specialization === key && styles.majorOptionActive]}
+                    onPress={() => setSpecialization(key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: specialization === key }}
+                  >
+                    <Text style={[styles.majorText, specialization === key && styles.majorTextActive, isRtl && styles.textRight]}>
+                      {SPECIALIZATION_LABELS[key]?.[lang] ?? key}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {attemptedSubmit && !specialization && (
+                <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור תחום התמחות' : 'Please select a specialization'}</ErrorNote>
               )}
             </Field>
           )}
@@ -793,6 +827,8 @@ export default function ProfileSetup() {
                         setFaculty(item.key);
                         setProgramKey(item.programs.length === 1 ? item.programs[0]!.key : null);
                         setYearOfStudy(null);
+                        setChosenTrack(null);
+                        setSpecialization(null);
                         setShowFacultyModal(false);
                       }}
                       accessibilityRole="button"

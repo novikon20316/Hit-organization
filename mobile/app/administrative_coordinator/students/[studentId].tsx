@@ -14,6 +14,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
 import { HIT_FACULTIES } from '@/constants/faculties';
 import { majorsForFaculty } from '@/constants/permissions';
+import { specializationLabel } from '@/constants/specialization';
 import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
 import { ap } from '@/constants/theme';
 
@@ -24,6 +25,7 @@ interface StudentDetail {
     facultyId: string | null;
     major: string | null;
     degreeType: 'bachelors' | 'masters' | null;
+    specialization?: string | null;
     email: string;
     phoneNumber: string | null;
     yearOfStudy: number | null;
@@ -83,7 +85,9 @@ function formatDate(iso: string | null, lang: 'he' | 'en'): string {
 
 // Mirrors web's StudentsReportTab.tsx majorCellText — only worth showing for
 // a faculty that actually splits into more than one major.
-function majorLabel(facultyId: string | null, major: string | null, degreeType: string | null, lang: 'he' | 'en'): string {
+function majorLabel(facultyId: string | null, major: string | null, degreeType: string | null, lang: 'he' | 'en', specialization?: string | null): string {
+  const spec = specializationLabel(specialization, lang);
+  if (spec) return spec;
   if (!facultyId) return '—';
   const majors = majorsForFaculty(facultyId);
   if (majors.length <= 1) return '—';
@@ -182,7 +186,7 @@ export default function StudentDetailScreen() {
                 🎓 {lang === 'he' ? 'תואר:' : 'Degree:'} {student.degreeType ? (student.degreeType === 'masters' ? (lang === 'he' ? 'תואר שני' : "Master's") : (lang === 'he' ? 'תואר ראשון' : "Bachelor's")) : '—'}
               </Text>
               <Text style={styles.cardSub}>
-                📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorLabel(student.facultyId, student.major, student.degreeType, lang)}
+                📚 {lang === 'he' ? 'מגמה:' : 'Major:'} {majorLabel(student.facultyId, student.major, student.degreeType, lang, student.specialization)}
               </Text>
               <Text style={styles.cardSub}>
                 📆 {lang === 'he' ? 'שנת לימודים:' : 'Year of study:'} {student.yearOfStudy ?? '—'}

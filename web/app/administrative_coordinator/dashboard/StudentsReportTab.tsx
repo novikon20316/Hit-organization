@@ -13,6 +13,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
+import { specializationLabel } from '@/lib/specialization';
 import { HIT_FACULTIES } from '@/lib/faculties';
 
 type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
@@ -32,6 +33,8 @@ interface StudentReportRow {
   facultyId: string | null;
   major: string | null;
   degreeType: 'bachelors' | 'masters' | null;
+  /** Signup-chosen specialization (תחום), see lib/specialization.ts. */
+  specialization?: string | null;
   lastLoginAt: string | null;
   lastLoginPlatform: 'web' | 'mobile' | null;
   lastLogoutAt: string | null;
@@ -82,7 +85,12 @@ function statusText(row: StudentReportRow, lang: 'he' | 'en'): string {
 // major, look the student's exact program back up in the raw (undeduped)
 // HIT_FACULTIES data using both `major` and `degreeType`, which keeps the
 // degree prefix in the returned label and disambiguates the two.
-export function majorCellText(row: Pick<StudentReportRow, 'facultyId' | 'major' | 'degreeType'>, lang: 'he' | 'en'): string {
+//
+// A student who picked a specialization at signup (e.g. M.Sc Electrical
+// Engineering) shows that instead — it's the more specific answer.
+export function majorCellText(row: Pick<StudentReportRow, 'facultyId' | 'major' | 'degreeType' | 'specialization'>, lang: 'he' | 'en'): string {
+  const spec = specializationLabel(row.specialization, lang);
+  if (spec) return spec;
   if (!row.facultyId) return '—';
   const majors = majorsForFaculty(row.facultyId);
   if (majors.length <= 1) return '—';

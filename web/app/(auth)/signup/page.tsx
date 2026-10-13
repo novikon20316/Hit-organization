@@ -13,6 +13,7 @@ import { apiClient } from '@/lib/apiClient';
 import { HIT_FACULTIES, PROGRAM_DEGREE_LENGTHS } from '@/lib/faculties';
 import { VALID_FACULTY_IDS } from '@/lib/roles';
 import { resolveTrackPolicy, type StudentTrack } from '@/lib/studentTrack';
+import { specializationsFor, SPECIALIZATION_LABELS } from '@/lib/specialization';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
@@ -95,6 +96,7 @@ export default function SignupPage() {
   const [programKey, setProgramKey] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
+  const [specialization, setSpecialization] = useState('');
 
   const [stage, setStage] = useState<'form' | 'verify'>('form');
   const [saving, setSaving] = useState(false);
@@ -107,6 +109,7 @@ export default function SignupPage() {
   const selectedProgram = facultyPrograms.find((p) => p.key === programKey);
   const degreeType = selectedProgram?.level ?? null;
   const trackPolicy = selectedProgram ? resolveTrackPolicy(degreeType, selectedProgram.slug) : null;
+  const specializationOptions = selectedProgram ? specializationsFor(degreeType, selectedProgram.slug, chosenTrack) : [];
 
   const yearOptions: number[] = (() => {
     if (!selectedProgram) return [];
@@ -126,7 +129,8 @@ export default function SignupPage() {
       facultyId &&
       programKey &&
       yearOfStudy &&
-      (trackPolicy !== 'signup_choice' || !!chosenTrack)
+      (trackPolicy !== 'signup_choice' || !!chosenTrack) &&
+      (specializationOptions.length === 0 || !!specialization)
   );
 
   const finishRegistration = async (user: User) => {
@@ -143,6 +147,7 @@ export default function SignupPage() {
       studentId,
       phoneNumber,
       chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack! : undefined,
+      specialization: specializationOptions.length > 0 ? specialization : undefined,
     });
     if (!res.success) throw new Error(res.message ?? 'Sync failed');
 
@@ -408,6 +413,7 @@ export default function SignupPage() {
                     setProgramKey(programs.length === 1 ? programs[0]!.key : '');
                     setYearOfStudy(null);
                     setChosenTrack(null);
+                    setSpecialization('');
                   }}
                   className={inputCls}
                 >
@@ -430,6 +436,7 @@ export default function SignupPage() {
                     setProgramKey(e.target.value);
                     setYearOfStudy(null);
                     setChosenTrack(null);
+                    setSpecialization('');
                   }}
                   className={inputCls}
                   disabled={!facultyId || facultyPrograms.length === 1}
@@ -466,7 +473,10 @@ export default function SignupPage() {
                       <button
                         key={track}
                         type="button"
-                        onClick={() => setChosenTrack(track)}
+                        onClick={() => {
+                          setChosenTrack(track);
+                          setSpecialization('');
+                        }}
                         aria-pressed={chosenTrack === track}
                         className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                           chosenTrack === track ? 'border-primary bg-primary/10 text-primary' : 'border-line bg-paper text-ink'
@@ -481,6 +491,19 @@ export default function SignupPage() {
                       ? 'בחירה זו סופית ולא ניתן לשנותה בעצמך לאחר ההרשמה.'
                       : 'This choice is final — you will not be able to change it yourself after signing up.'}
                   </p>
+                </Field>
+              )}
+
+              {specializationOptions.length > 0 && (
+                <Field label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}>
+                  <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className={inputCls}>
+                    <option value="">{lang === 'he' ? 'בחר תחום' : 'Select specialization'}</option>
+                    {specializationOptions.map((key) => (
+                      <option key={key} value={key}>
+                        {SPECIALIZATION_LABELS[key]?.[lang] ?? key}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               )}
             </div>
