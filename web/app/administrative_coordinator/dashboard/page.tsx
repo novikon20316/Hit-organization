@@ -73,6 +73,13 @@ function gradeStatusLabel(m: MemberMilestoneGrade, lang: 'he' | 'en'): string {
   return STATUS_LABEL[m.status as MilestoneStatus]?.[lang] ?? (lang === 'he' ? 'טרם הוגש' : 'Not submitted yet');
 }
 
+// 0 for a missing/unparseable date, so those land at the end of a
+// newest-first sort instead of throwing it off with NaN.
+function createdAtMs(g: ProjectGroup): number {
+  const t = g.createdAt ? Date.parse(g.createdAt) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function isMilestoneDone(status: string): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
@@ -306,19 +313,24 @@ function AdministrativeCoordinatorDashboardContent() {
 
   const supervisorKey = (g: ProjectGroup) => g.supervisorId ?? `name:${g.supervisorName}`;
 
+  // Newest first, everywhere on this tab: a supervisor ranks by their most
+  // recently created project, and their own projects list newest-to-oldest.
+  // Legacy projects with no createdAt sort last; ties fall back to name.
   const supervisorSummaries = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number }>();
+    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number; latestCreatedAt: number }>();
     groups.forEach((g) => {
       const key = supervisorKey(g);
+      const created = createdAtMs(g);
       const existing = map.get(key);
       if (existing) {
         existing.projectCount++;
         if (g.isOverdue) existing.overdueCount++;
+        existing.latestCreatedAt = Math.max(existing.latestCreatedAt, created);
       } else {
-        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0 });
+        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0, latestCreatedAt: created });
       }
     });
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...map.values()].sort((a, b) => b.latestCreatedAt - a.latestCreatedAt || a.name.localeCompare(b.name));
   }, [groups]);
 
   const filteredSupervisors = useMemo(() => {
@@ -337,7 +349,8 @@ function AdministrativeCoordinatorDashboardContent() {
         const matchesTrack = filterTrack === 'all' || g.trackType === filterTrack;
         const matchesOverdue = !filterOverdue || g.isOverdue;
         return matchesSearch && matchesTrack && matchesOverdue;
-      });
+      })
+      .sort((a, b) => createdAtMs(b) - createdAtMs(a));
   }, [groups, search, filterTrack, filterOverdue, viewingSupervisorKey]);
 
   const facultyColor = getFacultyColor(facultyId);
@@ -384,7 +397,7 @@ function AdministrativeCoordinatorDashboardContent() {
       ) : activeTab === 'students' ? (
         <div data-field-guide-id="reportList">
           <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
-          <StudentsReportTab />
+          <StudentsReportTab enableMessaging />
         </div>
       ) : activeTab === 'users' ? (
         <div data-field-guide-id="userList">

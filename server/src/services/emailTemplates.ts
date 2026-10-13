@@ -51,6 +51,11 @@ export type NotificationType =
   | 'milestone_deadline_1d'
   | 'milestone_overdue'
   | 'broadcast'
+  // A free-text message an administrative coordinator sent to students she
+  // picked by hand on the Students Report (see projectCoordinatorController.ts's
+  // sendStudentsMessage) — unlike 'broadcast', the subject carries the
+  // coordinator's own title, not a generic "system broadcast" line.
+  | 'coordinator_message'
   | 'new_message'
   | 'account_created'
   | 'examiner_access_link'
@@ -305,6 +310,25 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
       <p>${d.message || ''}</p>
+    `,
+  },
+
+  coordinator_message: {
+    subjectHe: '📩 הודעה מרכזת הפרויקטים',
+    subjectEn: '📩 Message from the Project Coordinator',
+    // d.title/d.message are already HTML-escaped by escapeEmailData, so
+    // turning their newlines into <br/> here can't inject markup.
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      ${d.title ? `<p><strong>${d.title}</strong></p>` : ''}
+      <p>${(d.message || '').replace(/\n/g, '<br/>')}</p>
+      ${d.senderName ? `<p style="color:#777">— ${d.senderName}</p>` : ''}
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      ${d.title ? `<p><strong>${d.title}</strong></p>` : ''}
+      <p>${(d.message || '').replace(/\n/g, '<br/>')}</p>
+      ${d.senderName ? `<p style="color:#777">— ${d.senderName}</p>` : ''}
     `,
   },
 

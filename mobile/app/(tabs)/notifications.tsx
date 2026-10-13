@@ -7,7 +7,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { collection, query, where, orderBy, limit, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../../src/firebase/firebase';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import NewChatSheet from '../message/new';
 import { apiClient } from '../../src/api/apiClient';
@@ -17,6 +17,8 @@ import { notifMatchesRole } from '../../firebase/notificationScreens';
 import FeedbackChat from '../../components/FeedbackChat';
 import ReadTicks from '../../components/ReadTicks';
 import { NotificationsStyles, NotificationsRowStyles, ChatRowStyles } from '../../constants/styles';
+import StudentMessageComposer from '../../components/StudentMessageComposer';
+import { loadStudentMessageRecipients, type StudentMessageRecipient } from '../../utils/studentMessageDraft';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   milestone_submission_confirmed: { icon: '✅', color: '#10B981', bg: '#ECFDF5' },
   account_created:        { icon: '🎓', color: '#2E86FF', bg: '#EFF6FF' },
   broadcast:              { icon: '📢', color: '#EF4444', bg: '#FEF2F2' },
+  coordinator_message:    { icon: '📩', color: '#2E86FF', bg: '#EFF6FF' },
   new_message:            { icon: '💬', color: '#2E86FF', bg: '#EFF6FF' },
 };
 
@@ -360,6 +363,16 @@ export default function NotificationsScreen() {
   const { activeRole: userRole } = useActiveRole();
   const [chatSheetVisible, setChatSheetVisible] = useState(false);
   const [deletingChatId,   setDeletingChatId]   = useState<string | null>(null);
+  // Set when arriving from the administrative coordinator's Students Report
+  // "Send message" button (?compose=students) — see StudentMessageComposer.
+  const { compose } = useLocalSearchParams<{ compose?: string }>();
+  const [composeRecipients, setComposeRecipients] = useState<StudentMessageRecipient[] | null>(null);
+  useEffect(() => {
+    if (compose !== 'students') return;
+    if (userRole !== 'administrative_secretary' && userRole !== 'system_admin') return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the handed-over selection on arrival
+    setComposeRecipients(loadStudentMessageRecipients());
+  }, [compose, userRole]);
 
   const isRtl       = lang === 'he';
   // Chat-originated entries belong to the Messages tab, not Alerts — they're
@@ -582,6 +595,52 @@ export default function NotificationsScreen() {
 
   // IDs of chats that are still visible to the current user (not soft-deleted)
   const activeChatIds = new Set(chats.map((c) => c.chatId));
+
+  // ── Compose mode (admin coordinator → selected students) ──────────────────
+  if (composeRecipients) {
+    const closeComposer = () => {
+      setComposeRecipients(null);
+      router.setParams({ compose: undefined } as any);
+    };
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={[s.header, isRtl && s.rowReverse]}>
+          <Pressable
+            style={s.backBtn}
+            onPress={closeComposer}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'חזרה' : 'Back'}
+          >
+            <Text style={s.backText}>{isRtl ? '→' : '←'}</Text>
+          </Pressable>
+          <View style={[s.headerCenter, isRtl && s.alignRight]}>
+            <Text style={s.headerTitle}>{lang === 'he' ? 'שליחת הודעה' : 'Send message'}</Text>
+          </View>
+          <View style={[s.headerRight, isRtl && s.rowReverse]}>
+            <Pressable
+              style={s.langBtn}
+              onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'he' ? 'החלף לאנגלית' : 'Switch to Hebrew'}
+            >
+              <Text style={s.langText}>{lang === 'he' ? 'EN' : 'עב'}</Text>
+            </Pressable>
+          </View>
+        </View>
+        {composeRecipients.length > 0 ? (
+          <StudentMessageComposer initialRecipients={composeRecipients} lang={lang} onDone={closeComposer} />
+        ) : (
+          <View style={{ padding: 16 }}>
+            <Text style={{ fontSize: 13, color: '#92400E', textAlign: isRtl ? 'right' : 'left' }}>
+              {lang === 'he'
+                ? 'לא נמצאו סטודנטים שנבחרו — חזרו לדוח הסטודנטים וסמנו אותם שוב.'
+                : 'No selected students found — go back to the Students Report and tick them again.'}
+            </Text>
+          </View>
+        )}
+      </SafeAreaView>
+    );
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (

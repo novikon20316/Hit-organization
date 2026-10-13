@@ -28,6 +28,7 @@ import type { AppUser } from '@/types';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { ap } from '@/constants/theme';
+import { saveStudentMessageRecipients } from '@/utils/studentMessageDraft';
 import { TabBadge } from '@/components/TabBadge';
 import { useNotifications } from '@/src/context/NotificationsContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -72,6 +73,15 @@ interface ProjectGroup {
   submissionsCount:number;
   overdueCount:    number;
   isOverdue:       boolean;
+  /** ISO; null for legacy docs with no createdAt. Drives newest-first order. */
+  createdAt:       string | null;
+}
+
+// 0 for a missing/unparseable date, so those land at the end of a
+// newest-first sort instead of throwing it off with NaN.
+function createdAtMs(g: ProjectGroup): number {
+  const t = g.createdAt ? Date.parse(g.createdAt) : NaN;
+  return Number.isNaN(t) ? 0 : t;
 }
 
 interface DashboardData {
@@ -819,6 +829,35 @@ export default function ProjectCoordinatorDashboard() {
     return matchesSearch && matchesStatus;
   });
 
+  // "Pick students → Send message" (same flow as web's StudentsReportTab).
+  // Survives search/filter changes on purpose, so she can search one name,
+  // tick it, search the next, and so on.
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const allShownSelected = filteredStudentsReport.length > 0 && filteredStudentsReport.every((r) => selectedStudentIds.has(r.id));
+  const toggleStudentSelected = (id: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  // Acts on what's currently shown (search + status filter).
+  const toggleAllShownStudents = () => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (allShownSelected) filteredStudentsReport.forEach((r) => next.delete(r.id));
+      else filteredStudentsReport.forEach((r) => next.add(r.id));
+      return next;
+    });
+  };
+  const goToStudentMessageCompose = () => {
+    const recipients = studentsReport.filter((r) => selectedStudentIds.has(r.id)).map((r) => ({ id: r.id, name: r.name }));
+    if (recipients.length === 0) return;
+    saveStudentMessageRecipients(recipients);
+    router.push('/(tabs)/notifications?compose=students' as any);
+  };
+
   const fetchOverrides = useCallback(async () => {
     setOverridesLoading(true);
     try {
@@ -1016,19 +1055,24 @@ export default function ProjectCoordinatorDashboard() {
     return [...byFaculty.entries()].map(([facultyId, majors]) => ({ facultyId, ...(majors ? { majors: [...majors] } : {}) }));
   }, [data?.scopes]);
 
+  // Newest first, same as web: a supervisor ranks by their most recently
+  // created project, and their own projects list newest-to-oldest. Legacy
+  // projects with no createdAt sort last; ties fall back to name.
   const supervisorSummaries = React.useMemo(() => {
-    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number }>();
+    const map = new Map<string, { key: string; name: string; projectCount: number; overdueCount: number; latestCreatedAt: number }>();
     (data?.groups ?? []).forEach((g) => {
       const key = supervisorKey(g);
+      const created = createdAtMs(g);
       const existing = map.get(key);
       if (existing) {
         existing.projectCount++;
         if (g.isOverdue) existing.overdueCount++;
+        existing.latestCreatedAt = Math.max(existing.latestCreatedAt, created);
       } else {
-        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0 });
+        map.set(key, { key, name: g.supervisorName, projectCount: 1, overdueCount: g.isOverdue ? 1 : 0, latestCreatedAt: created });
       }
     });
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...map.values()].sort((a, b) => b.latestCreatedAt - a.latestCreatedAt || a.name.localeCompare(b.name));
   }, [data?.groups]);
 
   const filteredSupervisors = supervisorSummaries.filter((s) =>
@@ -1049,7 +1093,8 @@ export default function ProjectCoordinatorDashboard() {
       const matchesTrack   = filterTrack === 'all' || g.trackType === filterTrack;
       const matchesOverdue = !filterOverdue || g.isOverdue;
       return matchesSearch && matchesTrack && matchesOverdue;
-    });
+    })
+    .sort((a, b) => createdAtMs(b) - createdAtMs(a));
 
   if (loading) {
     return (
@@ -1397,6 +1442,40 @@ export default function ProjectCoordinatorDashboard() {
               ))}
             </View>
 
+            {!studentsNoScope && (
+              <View style={{ flexDirection: lang === 'he' ? 'row-reverse' : 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                <Pressable
+                  onPress={goToStudentMessageCompose}
+                  disabled={selectedStudentIds.size === 0}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: selectedStudentIds.size === 0 }}
+                  style={{ backgroundColor: fc.primary, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14, opacity: selectedStudentIds.size === 0 ? 0.4 : 1 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                    ✉️ {lang === 'he' ? 'שליחת הודעה' : 'Send message'}{selectedStudentIds.size > 0 ? ` (${selectedStudentIds.size})` : ''}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={toggleAllShownStudents}
+                  disabled={filteredStudentsReport.length === 0}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: allShownSelected }}
+                  hitSlop={6}
+                >
+                  <Text style={{ fontSize: 13, color: ap.onSurface }}>
+                    {allShownSelected ? '☑' : '☐'} {lang === 'he' ? 'בחירת כל המוצגים' : 'Select all shown'}
+                  </Text>
+                </Pressable>
+                {selectedStudentIds.size > 0 && (
+                  <Pressable onPress={() => setSelectedStudentIds(new Set())} accessibilityRole="button" hitSlop={6}>
+                    <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, textDecorationLine: 'underline' }}>
+                      {lang === 'he' ? 'ניקוי בחירה' : 'Clear selection'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
             {studentsNoScope ? (
               <View style={s.empty}>
                 <Text style={s.emptyText}>
@@ -1429,7 +1508,22 @@ export default function ProjectCoordinatorDashboard() {
                     onPress={() => router.push(`/administrative_coordinator/students/${row.id}` as any)}
                     accessibilityRole="link"
                   >
-                    <Text style={s.cardTitle}>{row.name}</Text>
+                    <View style={{ flexDirection: lang === 'he' ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                      {/* Its own tap target — the rest of the card still
+                          opens the student's detail page. */}
+                      <Pressable
+                        onPress={() => toggleStudentSelected(row.id)}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: selectedStudentIds.has(row.id) }}
+                        accessibilityLabel={lang === 'he' ? `בחירת ${row.name}` : `Select ${row.name}`}
+                        hitSlop={10}
+                      >
+                        <Text style={{ fontSize: 20, color: selectedStudentIds.has(row.id) ? fc.primary : ap.outline }}>
+                          {selectedStudentIds.has(row.id) ? '☑' : '☐'}
+                        </Text>
+                      </Pressable>
+                      <Text style={[s.cardTitle, { flex: 1 }]}>{row.name}</Text>
+                    </View>
                     <Text style={[s.cardSub, { color: STUDENT_STATUS_COLOR[row.status], fontWeight: '700' }]}>
                       {studentStatusText(row, lang)}
                     </Text>

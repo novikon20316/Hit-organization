@@ -417,6 +417,12 @@ export const apiClient = {
     return request<{ chatId: string }>('/api/chats', { method: 'POST', body: { recipientId } });
   },
 
+  /** Administrative coordinator → hand-picked students from the Students
+   *  Report, over every channel (in-app/email/push/SMS/WhatsApp). */
+  async sendStudentsMessage(payload: { studentIds: string[]; title: string; message: string }) {
+    return request<{ success: boolean; sent: number; failed: number }>('/api/project-coordinator/students/message', { method: 'POST', body: payload });
+  },
+
   async sendChatBroadcast(payload: { title: string; message: string }) {
     return request<{ success: boolean; count: number }>('/api/chats/broadcast', { method: 'POST', body: payload });
   },

@@ -34,6 +34,8 @@ export interface ProjectGroup {
   submissionsCount: number;
   overdueCount: number;
   isOverdue: boolean;
+  /** ISO; null for legacy docs with no createdAt. Drives newest-first order. */
+  createdAt: string | null;
 }
 
 export interface DegreeScope {

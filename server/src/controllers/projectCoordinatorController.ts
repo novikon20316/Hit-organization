@@ -23,6 +23,7 @@ import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { specializationsForStudent } from '../config/specialization.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
+import { notifyUser } from '../services/notify.js';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
@@ -277,6 +278,12 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
         submissionsCount,
         overdueCount: overdueMilestones.length,
         isOverdue,
+        // For the dashboard's newest-first ordering (supervisors by their
+        // most recent project, projects within a supervisor). Timestamp on
+        // every current creation path, but tolerate a legacy ISO string too
+        // (same defensive read as resolveSignupDate below).
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.()
+          ?? (typeof data.createdAt === 'string' ? data.createdAt : null),
       };
     });
 
@@ -512,6 +519,107 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
   } catch (error: any) {
     console.error('getStudentsReport error:', error);
     return res.status(500).json({ message: L(req, 'Failed to load students report.', 'טעינת דוח הסטודנטים נכשלה.') });
+  }
+};
+
+// Only the administrative coordinator's own Students Report offers the
+// "pick students → send a message" flow — the plain `coordinator` role shares
+// the report itself (STUDENTS_REPORT_ROLES) but was never given this.
+const STUDENTS_MESSAGE_ROLES = ['administrative_secretary', 'system_admin'];
+const STUDENTS_MESSAGE_MAX_RECIPIENTS = 500;
+const STUDENTS_MESSAGE_MAX_TITLE = 150;
+const STUDENTS_MESSAGE_MAX_BODY = 2000;
+// notifyUser makes up to four outbound calls per recipient (email/push/SMS/
+// WhatsApp) — sent in small waves so a 300-student send doesn't open ~1200
+// sockets to Brevo/Twilio/Expo at once.
+const STUDENTS_MESSAGE_CONCURRENCY = 10;
+
+/**
+ * POST /api/project-coordinator/students/message   { studentIds, title, message }
+ * Sends one free-text message to the students the administrative coordinator
+ * hand-picked on the Students Report, over every channel at once (in-app +
+ * email + push + SMS + WhatsApp — see notify.ts's notifyUser). Every
+ * recipient is re-checked server-side: must be a real student account inside
+ * the caller's coordinator scope, same resolution getStudentsReport uses to
+ * build the list she picked them from — a hand-crafted request can't reach
+ * anyone that report wouldn't have shown her.
+ */
+export const sendStudentsMessage = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!req.user || !hasAnyRole(req.user, STUDENTS_MESSAGE_ROLES)) {
+    return res.status(403).json({ message: L(req, 'You do not have permission to message students.', 'אין לך הרשאה לשלוח הודעות לסטודנטים.') });
+  }
+
+  const { studentIds, title, message } = req.body ?? {};
+  const cleanTitle = typeof title === 'string' ? title.trim() : '';
+  const cleanMessage = typeof message === 'string' ? message.trim() : '';
+  if (!cleanTitle || !cleanMessage) {
+    return res.status(400).json({ message: L(req, 'Title and message are required.', 'יש להזין כותרת ותוכן הודעה.') });
+  }
+  if (cleanTitle.length > STUDENTS_MESSAGE_MAX_TITLE || cleanMessage.length > STUDENTS_MESSAGE_MAX_BODY) {
+    return res.status(400).json({
+      message: L(
+        req,
+        `Title is limited to ${STUDENTS_MESSAGE_MAX_TITLE} characters and the message to ${STUDENTS_MESSAGE_MAX_BODY}.`,
+        `הכותרת מוגבלת ל־${STUDENTS_MESSAGE_MAX_TITLE} תווים וההודעה ל־${STUDENTS_MESSAGE_MAX_BODY}.`,
+      ),
+    });
+  }
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    return res.status(400).json({ message: L(req, 'Pick at least one student.', 'יש לבחור לפחות סטודנט/ית אחד/ת.') });
+  }
+  const ids = [...new Set(studentIds)];
+  if (ids.length > STUDENTS_MESSAGE_MAX_RECIPIENTS || !ids.every((id) => typeof id === 'string' && isValidDocId(id))) {
+    return res.status(400).json({ message: L(req, 'Invalid recipient list.', 'רשימת הנמענים אינה תקינה.') });
+  }
+
+  try {
+    const snaps = await Promise.all(ids.map((id) => db.collection('users').doc(id as string).get()));
+    const allowed: string[] = [];
+    for (const snap of snaps) {
+      const data = snap.data();
+      if (!snap.exists || !data) continue;
+      const roles = new Set<string>([data.role, ...(Array.isArray(data.roles) ? data.roles : [])].filter(Boolean));
+      if (!roles.has('student')) continue;
+      if (!data.facultyId || !withinCoordinatorScope(req.user, { facultyId: data.facultyId, ...(data.major ? { major: data.major } : {}) })) continue;
+      allowed.push(snap.id);
+    }
+    // All-or-nothing: if anything she picked isn't hers to message, refuse
+    // the whole send rather than quietly dropping names off her list.
+    if (allowed.length !== ids.length) {
+      return res.status(403).json({ message: L(req, 'Some of the selected students are outside your scope.', 'חלק מהסטודנטים שנבחרו אינם בתחום האחריות שלך.') });
+    }
+
+    const meSnap = await db.collection('users').doc(uid).get();
+    const senderName: string = meSnap.data()?.displayName ?? '';
+
+    let sent = 0;
+    let failed = 0;
+    for (const wave of chunk(allowed, STUDENTS_MESSAGE_CONCURRENCY)) {
+      const results = await Promise.allSettled(wave.map((recipientId) => notifyUser({
+        recipientId,
+        type: 'coordinator_message',
+        titleHe: cleanTitle,
+        titleEn: cleanTitle,
+        bodyHe: cleanMessage,
+        bodyEn: cleanMessage,
+        emailData: { title: cleanTitle, message: cleanMessage, senderName },
+        channels: { inApp: true, email: true, push: true, sms: true, whatsapp: true },
+      })));
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') sent++;
+        else {
+          failed++;
+          console.error(`sendStudentsMessage: notifyUser failed for ${wave[i]}:`, r.reason);
+        }
+      });
+    }
+
+    return res.status(200).json({ success: true, sent, failed });
+  } catch (error: any) {
+    console.error('sendStudentsMessage error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to send the message.', 'שליחת ההודעה נכשלה.') });
   }
 };
 

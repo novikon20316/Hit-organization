@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  getProjectCoordinatorDashboard, getStudentsReport, getStudentDetail, getPendingGradeOverrides,
+  getProjectCoordinatorDashboard, getStudentsReport, sendStudentsMessage, getStudentDetail, getPendingGradeOverrides,
   getCoordinatorStatistics, exportCoordinatorStatistics, updateSupervisorPaymentRates,
 } from '../controllers/projectCoordinatorController.js';
 import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization } from '../controllers/studentTrackController.js';
@@ -11,6 +11,8 @@ const router = Router();
 
 router.get('/:uid/dashboard', verifyToken, getProjectCoordinatorDashboard);
 router.get('/students-report', verifyToken, getStudentsReport);
+// POST /api/project-coordinator/students/message   { studentIds, title, message }
+router.post('/students/message', verifyToken, sendStudentsMessage);
 router.get('/students/:studentId/detail', verifyToken, getStudentDetail);
 // POST /api/project-coordinator/students/:studentId/thesis-eligibility   { eligible, reason? }
 router.post('/students/:studentId/thesis-eligibility', verifyToken, setStudentThesisEligibility);

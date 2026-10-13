@@ -15,6 +15,7 @@ import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
 import { specializationLabel } from '@/lib/specialization';
 import { HIT_FACULTIES } from '@/lib/faculties';
+import { saveStudentMessageRecipients } from '@/lib/studentMessageDraft';
 
 type StudentStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
 
@@ -103,7 +104,11 @@ export function majorCellText(row: Pick<StudentReportRow, 'facultyId' | 'major' 
   return match ? match.label[lang] : '—';
 }
 
-export function StudentsReportTab() {
+/** `enableMessaging` adds the row checkboxes + "Send message" button — only
+ *  the administrative coordinator's dashboard turns it on; the plain
+ *  coordinator's copy of this tab (coordinator/home) stays read-only, and the
+ *  server endpoint behind it is gated to the same roles. */
+export function StudentsReportTab({ enableMessaging = false }: { enableMessaging?: boolean } = {}) {
   const { lang } = useLanguage();
   const router = useRouter();
   const [rows, setRows] = useState<StudentReportRow[]>([]);
@@ -112,6 +117,10 @@ export function StudentsReportTab() {
   const [noScopeAssigned, setNoScopeAssigned] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | StudentStatus>('all');
+  // Survives search/filter changes on purpose — she can search for one
+  // student, tick them, search for the next, and so on.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [handoffError, setHandoffError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +151,40 @@ export function StudentsReportTab() {
       return matchesSearch && matchesStatus;
     });
   }, [rows, search, filterStatus]);
+
+  const allVisibleSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedIds.has(r.id));
+  const someVisibleSelected = filteredRows.some((r) => selectedIds.has(r.id));
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // "Select all" acts on what's currently shown (search + status filter), so
+  // filtering to e.g. "Not in a project" then ticking the header picks
+  // exactly that group.
+  const toggleAllVisible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) filteredRows.forEach((r) => next.delete(r.id));
+      else filteredRows.forEach((r) => next.add(r.id));
+      return next;
+    });
+  };
+
+  const goToCompose = () => {
+    const recipients = rows.filter((r) => selectedIds.has(r.id)).map((r) => ({ id: r.id, name: r.name }));
+    if (recipients.length === 0) return;
+    if (!saveStudentMessageRecipients(recipients)) {
+      setHandoffError(lang === 'he' ? 'הדפדפן חוסם אחסון זמני — לא ניתן להעביר את הבחירה.' : 'Your browser is blocking session storage, so the selection could not be carried over.');
+      return;
+    }
+    router.push('/notifications?compose=students');
+  };
 
   if (loading) return <p className="text-sm text-administrative-coordinator-on-surface-variant">…</p>;
   if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
@@ -178,10 +221,53 @@ export function StudentsReportTab() {
         ))}
       </div>
 
+      {enableMessaging && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={goToCompose}
+            disabled={selectedIds.size === 0}
+            className="rounded-lg bg-administrative-coordinator-primary px-4 py-2 text-sm font-semibold text-administrative-coordinator-on-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ✉️ {lang === 'he' ? 'שליחת הודעה' : 'Send message'}
+            {selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+          </button>
+          {selectedIds.size > 0 ? (
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-administrative-coordinator-on-surface-variant underline hover:text-administrative-coordinator-primary"
+            >
+              {lang === 'he' ? 'ניקוי בחירה' : 'Clear selection'}
+            </button>
+          ) : (
+            <span className="text-xs text-administrative-coordinator-on-surface-variant">
+              {lang === 'he' ? 'סמנו סטודנטים בטבלה כדי לשלוח להם הודעה' : 'Tick students in the table to message them'}
+            </span>
+          )}
+        </div>
+      )}
+      {handoffError && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{handoffError}</p>}
+
       <div className="overflow-x-auto rounded-administrative-coordinator border border-administrative-coordinator-outline-variant">
         <table className="w-full min-w-[900px] text-start text-sm">
           <thead>
             <tr className="border-b border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low text-xs text-administrative-coordinator-on-surface-variant">
+              {enableMessaging && (
+                <th className="w-10 px-3 py-2 text-start font-medium">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                    }}
+                    onChange={toggleAllVisible}
+                    disabled={filteredRows.length === 0}
+                    aria-label={lang === 'he' ? 'בחירת כל הסטודנטים המוצגים' : 'Select all shown students'}
+                    className="h-4 w-4 cursor-pointer"
+                  />
+                </th>
+              )}
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'שם' : 'Name'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'פקולטה' : 'Faculty'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'מגמה' : 'Major'}</th>
@@ -211,6 +297,19 @@ export function StudentsReportTab() {
                   onClick={() => router.push(`/administrative_coordinator/dashboard/students/${r.id}`)}
                   className="cursor-pointer border-b border-administrative-coordinator-outline-variant last:border-b-0 hover:bg-administrative-coordinator-surface-container-low"
                 >
+                  {enableMessaging && (
+                    // Its own click target — the rest of the row still opens
+                    // the student's detail page.
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleOne(r.id)}
+                        aria-label={lang === 'he' ? `בחירת ${r.name}` : `Select ${r.name}`}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="px-3 py-2 font-medium text-administrative-coordinator-primary">{r.name}</td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.facultyId ? facultyLabel(r.facultyId as FacultyId, lang) : '—'}</td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{majorCellText(r, lang)}</td>
@@ -233,7 +332,7 @@ export function StudentsReportTab() {
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
+                <td colSpan={enableMessaging ? 12 : 11} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>

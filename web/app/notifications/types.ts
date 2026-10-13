@@ -59,6 +59,7 @@ export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: strin
   milestone_submission_confirmed: { icon: '✅', color: 'var(--success)', bg: 'var(--success-bg)' },
   account_created: { icon: '🎓', color: '#3E6C8C', bg: '#E9F0F5' },
   broadcast: { icon: '📢', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  coordinator_message: { icon: '📩', color: '#3E6C8C', bg: '#E9F0F5' },
   new_message: { icon: '💬', color: '#3E6C8C', bg: '#E9F0F5' },
 };
 

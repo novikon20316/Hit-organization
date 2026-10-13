@@ -20,6 +20,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
 import ReadTicks from '@/components/ReadTicks';
+import { StudentMessageComposer } from './StudentMessageComposer';
+import { loadStudentMessageRecipients, type StudentMessageRecipient } from '@/lib/studentMessageDraft';
 import { TYPE_STYLE, relativeTime, initials, rowTimestamp, computeNotifTargetRoute, withDeepLinkParams, type Notif, type ChatRow } from './types';
 
 type Tab = 'notifs' | 'chats' | 'feedback';
@@ -48,6 +50,25 @@ export default function NotificationsPage() {
   const [showNewChat, setShowNewChat] = useState(false);
   const [deletingChat, setDeletingChat] = useState<ChatRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Set when arriving from the administrative coordinator's Students Report
+  // "Send message" button (?compose=students) — see StudentMessageComposer.
+  // Read from window.location rather than useSearchParams so this shared
+  // page doesn't need its own Suspense boundary just for this one flag.
+  const [composeRecipients, setComposeRecipients] = useState<StudentMessageRecipient[] | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (activeRole !== 'administrative_secretary' && activeRole !== 'system_admin') return;
+    if (new URLSearchParams(window.location.search).get('compose') !== 'students') return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the handed-over selection from sessionStorage on arrival
+    setComposeRecipients(loadStudentMessageRecipients());
+    setTab('notifs');
+  }, [authLoading, activeRole]);
+
+  const closeComposer = () => {
+    setComposeRecipients(null);
+    router.replace('/notifications');
+  };
 
   // Scoped to whichever role the user is currently viewing the app as — a
   // multi-role account switched into supervisor shouldn't see their
@@ -283,6 +304,21 @@ export default function NotificationsPage() {
             ✕
           </button>
         </div>
+      )}
+
+      {composeRecipients && (
+        composeRecipients.length > 0 ? (
+          <StudentMessageComposer initialRecipients={composeRecipients} onDone={closeComposer} />
+        ) : (
+          <div className="mb-5 flex items-center justify-between rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">
+            <span>
+              {lang === 'he'
+                ? 'לא נמצאו סטודנטים שנבחרו — חזרו לדוח הסטודנטים וסמנו אותם שוב.'
+                : 'No selected students found — go back to the Students Report and tick them again.'}
+            </span>
+            <button type="button" onClick={closeComposer} className="font-medium">✕</button>
+          </div>
+        )
       )}
 
       <div className="mb-5 flex gap-1 border-b border-line">
