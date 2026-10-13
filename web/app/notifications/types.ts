@@ -40,6 +40,9 @@ export interface ChatRow {
   lastMessage: string;
   updatedAt: string | null;
   unreadCount: number;
+  /** Last message was sent by me — only then are read-receipt ticks shown. */
+  lastMessageMine?: boolean;
+  lastMessageSeen?: boolean;
 }
 
 export const TYPE_STYLE: Record<string, { icon: string; color: string; bg: string }> = {

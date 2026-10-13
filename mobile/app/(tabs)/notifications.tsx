@@ -15,6 +15,7 @@ import { useNotifications } from '../../src/context/NotificationsContext';
 import { useActiveRole } from '../../contexts/ActiveRoleContext';
 import { notifMatchesRole } from '../../firebase/notificationScreens';
 import FeedbackChat from '../../components/FeedbackChat';
+import ReadTicks from '../../components/ReadTicks';
 import { NotificationsStyles, NotificationsRowStyles, ChatRowStyles } from '../../constants/styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,6 +54,8 @@ interface ChatRow {
   lastMessage:   string;
   updatedAt:     string | null;
   unreadCount:   number;
+  lastMessageMine?: boolean; // last message was sent by me — only then are ticks shown
+  lastMessageSeen?: boolean;
   deletedBy:     string[];   // uids who soft-deleted this chat
   participants:  string[];
 }
@@ -310,6 +313,9 @@ function ChatRowItem({ chat, lang, isRtl, onPress, onLongPress }: {
           <Text style={cr.time}>{relativeTime(chat.updatedAt, lang)}</Text>
         </View>
         <View style={cr.bottomLine}>
+          {chat.lastMessageMine && (
+            <ReadTicks seen={!!chat.lastMessageSeen} lang={lang} style={{ marginHorizontal: 4 }} />
+          )}
           <Text style={[cr.preview, chat.unreadCount > 0 && cr.previewBold]} numberOfLines={1}>
             {chat.lastMessage || (lang === 'he' ? 'אין הודעות' : 'No messages yet')}
           </Text>

@@ -19,6 +19,7 @@ import { getUserRoles, isValidRole } from '@/lib/roles';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
+import ReadTicks from '@/components/ReadTicks';
 import { TYPE_STYLE, relativeTime, initials, rowTimestamp, computeNotifTargetRoute, withDeepLinkParams, type Notif, type ChatRow } from './types';
 
 type Tab = 'notifs' | 'chats' | 'feedback';
@@ -421,8 +422,9 @@ export default function NotificationsPage() {
                           <span className="truncate text-sm font-medium text-ink">{chat.otherName}</span>
                           <span className="shrink-0 text-xs text-muted">{relativeTime(chat.updatedAt, lang)}</span>
                         </span>
-                        <span className={`mt-0.5 block truncate text-xs ${chat.unreadCount > 0 ? 'font-semibold text-ink' : 'text-muted'}`}>
-                          {chat.lastMessage || (lang === 'he' ? 'אין הודעות' : 'No messages yet')}
+                        <span className={`mt-0.5 flex items-center gap-1 text-xs ${chat.unreadCount > 0 ? 'font-semibold text-ink' : 'text-muted'}`}>
+                          {chat.lastMessageMine && <ReadTicks seen={!!chat.lastMessageSeen} lang={lang} />}
+                          <span className="truncate">{chat.lastMessage || (lang === 'he' ? 'אין הודעות' : 'No messages yet')}</span>
                         </span>
                       </span>
                       {chat.unreadCount > 0 && (

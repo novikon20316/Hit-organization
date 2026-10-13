@@ -896,7 +896,12 @@ service cloud.firestore {
       allow create: if isCreatingParticipant()
                     && request.resource.data.participants.size() == 2
                     && chatCreateAllowed();
-      allow update: if isParticipant();
+      // Read-receipt fields are server-only (chatController.ts writes them
+      // via the Admin SDK) — otherwise either participant could set the
+      // OTHER's readAt and fake a "seen" double tick.
+      allow update: if isParticipant()
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['readAt', 'lastMessageSenderId', 'lastMessageAt']);
       allow delete: if false;
 
       // ── Messages subcollection ────────────────────────────────────────────

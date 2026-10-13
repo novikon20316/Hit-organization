@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, Image, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
 import { ChatScreenStyles } from '../../constants/styles';
 import type { Lang } from '../../components/i18n';
+import ReadTicks from '../../components/ReadTicks';
 
 interface Message {
   id:        string;
@@ -108,6 +109,22 @@ export default function ChatScreen() {
   // this endpoint previously had no limit at all and was re-fetched in
   // full every 3s for as long as the screen was open).
   const lastMessageTimeRef = useRef<string | null>(null);
+  // The other participant's read position (ISO) — my messages with
+  // createdAt <= this get the blue double tick.
+  const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
+  // Newest createdAt already reported via /read, so a steady-state poll
+  // doesn't re-POST the same read position every 3s.
+  const reportedReadRef = useRef<string | null>(null);
+
+  // Reports "seen" only while the app is in the foreground — a chat left
+  // open behind a backgrounded app shouldn't give the sender a blue tick.
+  const reportRead = useCallback(() => {
+    const upTo = lastMessageTimeRef.current;
+    if (!chatId || !upTo || upTo === reportedReadRef.current) return;
+    if (AppState.currentState !== 'active') return;
+    reportedReadRef.current = upTo;
+    apiClient.post(`/api/chats/${chatId}/read`, { upTo }).catch(() => { reportedReadRef.current = null; });
+  }, [chatId]);
 
   // ── Fetch messages (polls every 3s) ────────────────────────────────────────
   const fetchMessages = useCallback(async () => {
@@ -115,12 +132,14 @@ export default function ChatScreen() {
     try {
       const since = lastMessageTimeRef.current;
       const res = await apiClient.get(`/api/chats/${chatId}/messages`, {
-        params: since ? { since } : undefined,
+        params: since ? { since, withReadState: '1' } : { withReadState: '1' },
       });
-      const incoming = Array.isArray(res.data) ? res.data : [];
+      const incoming = Array.isArray(res.data?.messages) ? res.data.messages : [];
+      setOtherReadAt(res.data?.otherReadAt ?? null);
       if (incoming.length > 0) {
         lastMessageTimeRef.current = incoming[incoming.length - 1]?.createdAt ?? lastMessageTimeRef.current;
       }
+      reportRead();
       setMessages((prev) => {
         if (!since) return incoming; // initial load — replace outright
         if (incoming.length === 0) return prev; // steady-state poll, nothing new
@@ -131,13 +150,15 @@ export default function ChatScreen() {
     } catch {} finally {
       setLoadingMessages(false);
     }
-  }, [chatId, currentUser]);
+  }, [chatId, currentUser, reportRead]);
 
   useEffect(() => {
     // Reset the incremental cursor + any previous chat's messages before
     // the first fetch for a (possibly) new chatId.
     lastMessageTimeRef.current = null;
+    reportedReadRef.current = null;
     setMessages([]);
+    setOtherReadAt(null);
     setLoadingMessages(true);
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);
@@ -178,10 +199,15 @@ export default function ChatScreen() {
   }, [chatId, currentUser]);
 
   // ── Mark chat notifications as read when opening ───────────────────────────
+  // Also reports "seen" as soon as the app returns to the foreground.
   useEffect(() => {
     if (!chatId || !currentUser) return;
-    apiClient.post(`/api/chats/${chatId}/read`).catch(() => {});
-  }, [chatId, currentUser]);
+    apiClient.post(`/api/chats/${chatId}/read`, lastMessageTimeRef.current ? { upTo: lastMessageTimeRef.current } : {}).catch(() => {});
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') reportRead(); });
+    return () => sub.remove();
+  }, [chatId, currentUser, reportRead]);
+
+  const otherReadMs = otherReadAt ? new Date(otherReadAt).getTime() : null;
 
   // ── Send ───────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
@@ -440,6 +466,13 @@ export default function ChatScreen() {
                         {item.text}
                       </Text>
                     </View>
+                  )}
+                  {mine && (
+                    <ReadTicks
+                      lang={lang}
+                      seen={otherReadMs !== null && !!item.createdAt && new Date(item.createdAt).getTime() <= otherReadMs}
+                      style={{ marginTop: 2, marginHorizontal: 4 }}
+                    />
                   )}
                 </View>
               </>

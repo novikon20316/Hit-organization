@@ -315,8 +315,13 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     });
 
     // 2. Update parent chat window thread overview timestamps
+    // lastMessageSenderId/lastMessageAt feed the chat list's read-receipt
+    // ticks (see getChatDashboard) — compared against the recipient's
+    // readAt.<uid> entry, which markChatNotificationsAsRead maintains.
     batch.update(chatRef, {
       lastMessage: previewText,
+      lastMessageSenderId: uid,
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -511,11 +516,48 @@ export const unblockChatPartner = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+// Read receipts ("seen" ticks): each participant's read position is stored on
+// the chat doc as readAt.<uid>, a Timestamp. A message counts as seen by the
+// other side once its createdAt <= their readAt. Compared at millisecond
+// precision because clients report their read position as an ISO string
+// (ms), while serverTimestamp() carries microseconds.
+function tsMillis(v: any): number | null {
+  if (!v) return null;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  return null;
+}
+
 export const markChatNotificationsAsRead = async (req: Request, res: Response) => {
   const uid = (req as any).user?.uid; // The authenticated recipient clearing their notifications
   const { chatId } = req.params;
+  // Optional: createdAt (ISO) of the newest message the client actually has
+  // on screen. Without it (older clients), "now" is used — slightly
+  // generous if a message lands between the client's last fetch and this
+  // call, but those clients only call this once on opening the chat.
+  const upTo = (req.body as any)?.upTo;
 
   try {
+    if (uid && typeof chatId === 'string' && chatId) {
+      const chatRef = db.collection('chats').doc(chatId);
+      const chatSnap = await chatRef.get();
+      const chatData = chatSnap.data();
+      if (chatSnap.exists && (chatData?.participants ?? []).includes(uid)) {
+        let readAt: admin.firestore.Timestamp = admin.firestore.Timestamp.now();
+        if (typeof upTo === 'string' && upTo) {
+          const d = new Date(upTo);
+          if (!isNaN(d.getTime()) && d.getTime() < readAt.toMillis()) {
+            readAt = admin.firestore.Timestamp.fromDate(d);
+          }
+        }
+        // Never move the read position backwards (e.g. a stale poll
+        // response arriving after a newer one).
+        const current = tsMillis(chatData?.readAt?.[uid]);
+        if (current === null || readAt.toMillis() > current) {
+          await chatRef.update({ [`readAt.${uid}`]: readAt });
+        }
+      }
+    }
+
     // Locate all unread message alerts sent to this user originating from this chat room
     const snapshot = await db.collection('notifications')
       .where('recipientId', '==', uid)
@@ -939,6 +981,17 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
         // reads it today.
         const primaryOther = otherParticipants[0];
 
+        // Read-receipt state of the LAST message, only meaningful when the
+        // current user sent it (WhatsApp-style ticks on the chat-list row).
+        // Chats whose last message predates lastMessageSenderId being
+        // written report lastMessageMine: false and show no ticks.
+        const lastMessageMine = !!data.lastMessage && data.lastMessageSenderId === uid;
+        const lastMessageAtMs = tsMillis(data.lastMessageAt);
+        const otherReadAtMs = tsMillis(data.readAt?.[otherIds[0] ?? '']);
+        const lastMessageSeen = lastMessageMine
+          && lastMessageAtMs !== null && otherReadAtMs !== null
+          && lastMessageAtMs <= otherReadAtMs;
+
         return {
           chatId:            doc.id,
           type:              data.type        ?? 'direct',
@@ -948,6 +1001,8 @@ export const getChatDashboard = async (req: AuthenticatedRequest, res: Response)
           otherUid:          primaryOther?.id   ?? '',
           otherName:         primaryOther?.name ?? '',
           otherRole:         primaryOther?.role ?? '',
+          lastMessageMine,
+          lastMessageSeen,
           otherParticipants,
         };
       })
@@ -1046,6 +1101,19 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
     // is already in the right order).
     if (!(typeof since === 'string' && since && !isNaN(new Date(since).getTime()))) {
       messages.reverse();
+    }
+
+    // Opt-in envelope so already-shipped mobile builds (which expect a bare
+    // array) keep working. otherReadAt is returned on every poll — including
+    // an empty `since` poll — because it advances independently of new
+    // messages arriving: it's how the sender's ✓ turns into ✓✓.
+    if (req.query.withReadState === '1') {
+      const otherId = participants.find((id) => id !== uid);
+      const otherReadAt = otherId ? chatSnap.data()?.readAt?.[otherId] : null;
+      return res.status(200).json({
+        messages,
+        otherReadAt: otherReadAt?.toDate?.()?.toISOString() ?? null,
+      });
     }
 
     return res.status(200).json(messages);

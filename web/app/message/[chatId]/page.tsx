@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getRoleAccent } from '@/lib/facultyColors';
+import ReadTicks from '@/components/ReadTicks';
 
 interface Message {
   id: string;
@@ -58,16 +59,34 @@ export default function ChatConversationPage() {
   // a ref, not state, since it's read/written inside the poll loop without
   // needing to trigger a re-render itself.
   const lastMessageTimeRef = useRef<string | null>(null);
+  // The other participant's read position (ISO) — my messages with
+  // createdAt <= this get the blue double tick.
+  const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
+  // Newest createdAt this client has already reported via markChatRead, so
+  // a steady-state poll doesn't re-POST the same read position every 3s.
+  const reportedReadRef = useRef<string | null>(null);
+
+  // Reports "seen" only while the tab is actually visible — a chat left
+  // open in a background tab shouldn't show the sender a blue double tick.
+  const reportRead = useCallback(() => {
+    const upTo = lastMessageTimeRef.current;
+    if (!chatId || !upTo || upTo === reportedReadRef.current) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    reportedReadRef.current = upTo;
+    apiClient.markChatRead(chatId, upTo).catch(() => { reportedReadRef.current = null; });
+  }, [chatId]);
 
   const fetchMessages = useCallback(async () => {
     if (!chatId) return;
     try {
       const since = lastMessageTimeRef.current ?? undefined;
-      const res = await apiClient.getChatMessages(chatId, since);
-      const incoming = Array.isArray(res) ? res : [];
+      const res = await apiClient.getChatMessagesWithReadState(chatId, since);
+      const incoming = Array.isArray(res?.messages) ? res.messages : [];
+      setOtherReadAt(res?.otherReadAt ?? null);
       if (incoming.length > 0) {
         lastMessageTimeRef.current = incoming[incoming.length - 1]!.createdAt ?? lastMessageTimeRef.current;
       }
+      reportRead();
       setMessages((prev) => {
         if (!since) return incoming; // initial load — replace outright
         if (incoming.length === 0) return prev; // steady-state poll, nothing new
@@ -78,7 +97,7 @@ export default function ChatConversationPage() {
     } catch {} finally {
       setLoadingMessages(false);
     }
-  }, [chatId]);
+  }, [chatId, reportRead]);
 
   useEffect(() => {
     // Reset the incremental cursor + any previous chat's messages before
@@ -86,8 +105,10 @@ export default function ChatConversationPage() {
     // would apply the OLD chat's cursor/messages to the new one if this
     // component instance is reused across navigations instead of remounted.
     lastMessageTimeRef.current = null;
+    reportedReadRef.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting for a (possibly) new chatId before the fetch below runs
     setMessages([]);
+    setOtherReadAt(null);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     setLoadingMessages(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; fetchMessages' setState calls happen after its awaited network call resolves, not synchronously in this effect
@@ -110,10 +131,18 @@ export default function ChatConversationPage() {
       .catch(() => {});
   }, [chatId, firebaseUser, headerName]);
 
+  // Clears this chat's unread notifications on open even when it has no
+  // messages yet (reportRead above needs a message to anchor on), and
+  // reports "seen" as soon as a backgrounded tab comes back into view.
   useEffect(() => {
     if (!chatId) return;
-    apiClient.markChatRead(chatId).catch(() => {});
-  }, [chatId]);
+    apiClient.markChatRead(chatId, lastMessageTimeRef.current ?? undefined).catch(() => {});
+    const onVisible = () => reportRead();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [chatId, reportRead]);
+
+  const otherReadMs = otherReadAt ? new Date(otherReadAt).getTime() : null;
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -234,6 +263,14 @@ export default function ChatConversationPage() {
                       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>{item.text}</div>
                     )}
                   </div>
+                  {mine && (
+                    <div className="mt-0.5 flex justify-end">
+                      <ReadTicks
+                        lang={lang}
+                        seen={otherReadMs !== null && !!item.createdAt && new Date(item.createdAt).getTime() <= otherReadMs}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}

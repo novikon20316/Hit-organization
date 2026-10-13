@@ -432,6 +432,19 @@ export const apiClient = {
     });
   },
 
+  /** Same as getChatMessages, plus the other participant's read position
+   *  (ISO) for read-receipt ticks — a message I sent is "seen" once its
+   *  createdAt <= otherReadAt. */
+  async getChatMessagesWithReadState(chatId: string, since?: string) {
+    return request<{
+      messages: Array<{ id: string; type: 'text' | 'image'; text: string; imageUrl: string | null; senderId: string; createdAt: string | null }>;
+      otherReadAt: string | null;
+    }>(`/api/chats/${chatId}/messages`, {
+      method: 'GET',
+      params: since ? { since, withReadState: '1' } : { withReadState: '1' },
+    });
+  },
+
   async sendChatMessage(chatId: string, text: string, senderId: string) {
     return request<{ success: boolean }>(`/api/chats/${chatId}/messages`, { method: 'POST', body: { text, senderId } });
   },
@@ -465,8 +478,10 @@ export const apiClient = {
     }>(`/api/chats/${chatId}/meta`, { method: 'GET' });
   },
 
-  async markChatRead(chatId: string) {
-    return request<{ success: boolean }>(`/api/chats/${chatId}/read`, { method: 'POST' });
+  /** upTo = createdAt (ISO) of the newest message actually on screen, so the
+   *  sender's "seen" ticks never cover a message this client hasn't shown. */
+  async markChatRead(chatId: string, upTo?: string) {
+    return request<{ success: boolean }>(`/api/chats/${chatId}/read`, { method: 'POST', body: upTo ? { upTo } : {} });
   },
 
   async deleteChat(chatId: string) {
