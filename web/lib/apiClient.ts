@@ -1297,6 +1297,17 @@ export const apiClient = {
     return request<{ url: string; fileName: string }>('/api/student/thesis-template', { method: 'GET' });
   },
 
+  /** GET /api/student/final-report-links — the signed-in student's own
+   *  view-only final report link(s); see app/final-report/page.tsx. */
+  async getMyFinalReportLinks() {
+    return request<{ links: FinalReportLinkInfo[] }>('/api/student/final-report-links', { method: 'GET' });
+  },
+
+  /** GET /api/final-report/:token — PUBLIC, no sign-in. */
+  async getFinalReport(token: string) {
+    return request<FinalReportData>(`/api/final-report/${encodeURIComponent(token)}`, { method: 'GET' });
+  },
+
   async getPendingApplications() {
     return request<{ applications: Array<Record<string, unknown> & { id: string }> }>('/api/applications/pending', {
       method: 'GET',
@@ -2050,6 +2061,7 @@ export const apiClient = {
         defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string; onlyIfRequiresExaminers?: boolean }>;
         examinerSignoffRole?: string;
         finalGradeSignoffRole?: string;
+        finalReportSignatureRoles?: string[];
         approvedBy?: string;
         approvedAt?: string;
         retroactiveAppliedAt?: string;
@@ -2095,6 +2107,7 @@ export const apiClient = {
      *  a ChainRole (no 'none' option, this step is always required). Omitted
      *  uses the server's legacy default (grad_school_head). */
     finalGradeSignoffRole?: string;
+    finalReportSignatureRoles?: string[];
     /** What a student with no active project sees first for this subject —
      *  omitted uses the server's default ('browse_projects', today's only
      *  behavior). See workflowTemplates.ts's resolveFirstStepMode. */
@@ -2132,6 +2145,7 @@ export const apiClient = {
     defaultRouting?: Array<{ id: string; role: string; action: 'grade' | 'approve' | 'notify'; rejectTo: string; onlyIfRequiresExaminers?: boolean }>;
     examinerSignoffRole?: string;
     finalGradeSignoffRole?: string;
+    finalReportSignatureRoles?: string[];
     firstStepMode?: 'browse_projects' | 'choose_supervisor';
     supervisorSelectionRequiresApproval?: boolean;
   }) {
@@ -3251,4 +3265,41 @@ export interface ClockPause {
   pausedAt: string;
   resumedBy: string | null;
   resumedAt: string | null;
+}
+
+// ─── Final report (view-only link) — see server/src/services/finalReport.ts ──
+export interface FinalReportLinkInfo {
+  link: string;
+  projectId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  expiresAt: string | null;
+}
+
+export interface FinalReportData {
+  student: {
+    name: string;
+    idNumber: string | null;
+    email: string | null;
+    phone: string | null;
+    facultyId: string;
+    major: string | null;
+    degreeType: string | null;
+    specialization: string | null;
+  };
+  faculty: { he: string; en: string };
+  project: {
+    titleHe: string;
+    titleEn: string;
+    projectType: string | null;
+    academicYear: string | null;
+    academicYearHebrew: string | null;
+    recordNumber: string | null;
+  };
+  supervisors: string[];
+  milestones: Array<{ type: string; nameHe: string | null; nameEn: string | null; grade: number | null; completedAt: string | null }>;
+  finalGrade: number | null;
+  finalGradeApprovedAt: string | null;
+  signatures: Array<{ role: string; name: string | null; signedAt: string | null }>;
+  generatedAt: string;
 }

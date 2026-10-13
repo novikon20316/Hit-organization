@@ -70,6 +70,9 @@ export type NotificationType =
   | 'suspicious_login_admin_alert'
   | 'system_error_admin_alert'
   | 'two_factor_enforcement_notice'
+  // The student's view-only final report link, sent once their final grade
+  // is approved — see services/finalReport.ts.
+  | 'final_report_ready'
   | 'general';
 
 interface EmailTemplate {
@@ -625,6 +628,23 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
         <li>Enter the 6-digit code shown in the app to confirm.</li>
       </ol>
       <p>That's it — on future logins you'll be asked for a code from the app alongside your password.</p>
+    `,
+  },
+
+  final_report_ready: {
+    subjectHe: '🎓 הדוח המסכם שלך מוכן',
+    subjectEn: '🎓 Your Final Report Is Ready',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>הציון הסופי שלך עבור <strong>"${d.projectTitle || ''}"</strong> אושר. הדוח המסכם — פרטיך, אבני הדרך, הציונים והציון הסופי — זמין לצפייה ולהדפסה בקישור הבא:</p>
+      <p><a href="${d.link || ''}">לצפייה בדוח המסכם</a></p>
+      <p>הקישור מיועד לצפייה בדוח בלבד ואינו מאפשר כניסה למערכת. הקישור אישי — אין להעבירו לאחרים.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>Your final grade for <strong>"${d.projectTitle || ''}"</strong> has been approved. Your final report — your details, milestones, grades and final grade — is available to view and print here:</p>
+      <p><a href="${d.link || ''}">View your final report</a></p>
+      <p>This link only shows the report — it cannot be used to sign in to the system. It is personal; please don't share it.</p>
     `,
   },
 

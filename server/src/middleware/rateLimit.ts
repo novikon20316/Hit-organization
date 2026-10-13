@@ -53,6 +53,17 @@ export const examinerAccessLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
+// Public view-only final report links (see services/finalReport.ts) — a
+// student re-opening/printing their report is a handful of requests; this
+// only needs to make token guessing pointless on top of the 256-bit token.
+export const finalReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
+
 // Impersonation (see config/featureFlags.ts) mints live Firebase sign-in
 // tokens — throttle it per-admin-account like totpLimiter above, rather than
 // leaning solely on the blanket apiLimiter.

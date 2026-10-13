@@ -35,6 +35,7 @@ const PUBLIC_PREFIXES = [
   '/reset-password',
   '/examiner-access',
   '/defense-access',
+  '/final-report',
   '/login-security',
   '/privacy-policy',
   '/maintenance',

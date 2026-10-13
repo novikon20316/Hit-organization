@@ -42,6 +42,14 @@ export const WORKFLOW_TEMPLATE_FIELD_GUIDE: FieldGuideStep[] = [
     },
   },
   {
+    key: 'finalReportSignatureRoles',
+    label: { he: 'חתימות בדוח המסכם', en: 'Final report signatures' },
+    description: {
+      he: 'לאחר אישור הציון הסופי, הסטודנט/ית מקבל/ת קישור לצפייה בדוח המסכם (ללא אפשרות כניסה למערכת). בתחתית הדוח מופיעים מקומות חתימה לתפקידים שנבחרו כאן, לפי הסדר. בעל/ת תפקיד שאישר/ה במערכת מופיע/ה כחתום/ה דיגיטלית.',
+      en: "Once the final grade is approved, the student gets a view-only link to their final report (it can't be used to sign in). The bottom of the report has signature lines for the roles chosen here, in order. Anyone in those roles who signed off in the system appears as digitally signed.",
+    },
+  },
+  {
     key: 'firstStepMode',
     label: { he: 'מה הסטודנט/ית רואה קודם?', en: 'What does the student see first?' },
     description: {

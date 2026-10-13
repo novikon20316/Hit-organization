@@ -159,6 +159,11 @@ export const CHAIN_ROLES: { key: ChainRole; he: string; en: string }[] = [
 // multi-actor vote-then-chairman-decides flow, not a single approver.
 export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner' && r.key !== 'committee');
 
+// Final report signature lines when a template doesn't configure its own —
+// supervisor, coordinator, administrative coordinator. Mirrors the server's
+// DEFAULT_FINAL_REPORT_SIGNATURE_ROLES.
+export const DEFAULT_FINAL_REPORT_SIGNATURE_ROLES: ChainRole[] = ['supervisor', 'coordinator', 'administrative_secretary'];
+
 export function chainRoleLabel(role: ChainRole, lang: 'he' | 'en'): string {
   return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
 }
@@ -279,6 +284,10 @@ export interface WorkflowTemplateDoc {
    *  required. Omitted → legacy default (grad_school_head, for any process
    *  type). */
   finalGradeSignoffRole?: ChainRole;
+  /** Whose signature lines appear at the bottom of the student's final
+   *  report, in display order. Omitted → DEFAULT_FINAL_REPORT_SIGNATURE_ROLES.
+   *  Mirrors server/src/services/workflowTemplates.ts. */
+  finalReportSignatureRoles?: ChainRole[];
   /** What a student with no active project sees first for this subject —
    *  omitted means 'browse_projects' (today's only behavior). See
    *  server's workflowTemplates.ts's resolveFirstStepMode. */

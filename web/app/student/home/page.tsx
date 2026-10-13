@@ -23,6 +23,7 @@ import { BrowseSupervisors } from './BrowseSupervisors';
 import { ActiveDashboard } from './ActiveDashboard';
 import { InfoScreen } from './InfoScreen';
 import { AwaitingGradeScreen } from './AwaitingGradeScreen';
+import { FinalReportCard } from './FinalReportCard';
 import { NoProjectTabPlaceholder } from './NoProjectTabPlaceholder';
 
 const STUDENT_ROLES: AppRole[] = ['student'];
@@ -88,6 +89,8 @@ function StudentHomeContent() {
             <p className="text-sm text-muted" role="status" aria-live="polite">{t('loading')}</p>
           </div>
         )}
+
+        {studentState !== 'loading' && activeTab === 'overview' && <FinalReportCard />}
 
         {studentState === 'ineligible' && <InfoScreen studentDegree={studentDegree} />}
 

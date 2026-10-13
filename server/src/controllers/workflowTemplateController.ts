@@ -132,6 +132,18 @@ const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'facu
 // it's a multi-actor vote-then-chairman-decides flow, not a single approver
 // the signoff endpoints (gradSchoolHeadController.ts) know how to resolve.
 const SIGNOFF_ROLES: ChainRole[] = CHAIN_ROLES.filter((r) => r !== 'examiner' && r !== 'committee');
+
+/** Validates finalReportSignatureRoles — the final report's signature lines
+ *  (see services/finalReport.ts). Same single-person roles as SIGNOFF_ROLES;
+ *  at least one, no duplicates. Returns undefined when absent, null when
+ *  invalid. */
+function validateSignatureRoles(raw: unknown): ChainRole[] | undefined | null {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 6) return null;
+  if (!raw.every((r) => SIGNOFF_ROLES.includes(r))) return null;
+  if (new Set(raw).size !== raw.length) return null;
+  return raw as ChainRole[];
+}
 const SUBMISSION_REQUIREMENTS: SubmissionRequirement[] = ['file', 'comment', 'both', 'none'];
 const MILESTONE_FILE_TYPE_KEYS: MilestoneFileType[] = MILESTONE_FILE_TYPES.map((t) => t.key);
 
@@ -560,6 +572,10 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
   }
   // What a student with no active project sees first for this subject —
   // see WorkflowTemplateDoc.firstStepMode/resolveFirstStepMode.
+  const finalReportSignatureRoles = validateSignatureRoles(req.body.finalReportSignatureRoles);
+  if (finalReportSignatureRoles === null) {
+    return res.status(400).json({ message: L(req, 'Invalid finalReportSignatureRoles — a non-empty list of distinct sign-off roles.', 'תפקידי החתימה בדוח הסופי אינם תקינים — יש לבחור לפחות תפקיד אחד, ללא כפילויות.') });
+  }
   let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
   if (req.body.firstStepMode !== undefined) {
     if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
@@ -581,6 +597,7 @@ export const createWorkflowTemplateProposal = async (req: AuthenticatedRequest, 
       ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
       ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
       ...(finalGradeSignoffRole !== undefined ? { finalGradeSignoffRole } : {}),
+      ...(finalReportSignatureRoles !== undefined ? { finalReportSignatureRoles } : {}),
       ...(firstStepMode !== undefined ? { firstStepMode } : {}),
       ...(supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval } : {}),
     });
@@ -650,6 +667,10 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
       }
       finalGradeSignoffRole = req.body.finalGradeSignoffRole;
     }
+    const finalReportSignatureRoles = validateSignatureRoles(req.body.finalReportSignatureRoles);
+    if (finalReportSignatureRoles === null) {
+      return res.status(400).json({ message: L(req, 'Invalid finalReportSignatureRoles — a non-empty list of distinct sign-off roles.', 'תפקידי החתימה בדוח הסופי אינם תקינים — יש לבחור לפחות תפקיד אחד, ללא כפילויות.') });
+    }
     let firstStepMode: 'browse_projects' | 'choose_supervisor' | undefined;
     if (req.body.firstStepMode !== undefined) {
       if (req.body.firstStepMode !== 'browse_projects' && req.body.firstStepMode !== 'choose_supervisor') {
@@ -672,6 +693,7 @@ export const updateWorkflowTemplateProposalController = async (req: Authenticate
       ...(defaultRouting.value ? { defaultRouting: defaultRouting.value } : {}),
       ...(examinerSignoffRole !== undefined ? { examinerSignoffRole } : {}),
       ...(finalGradeSignoffRole !== undefined ? { finalGradeSignoffRole } : {}),
+      ...(finalReportSignatureRoles !== undefined ? { finalReportSignatureRoles } : {}),
       ...(firstStepMode !== undefined ? { firstStepMode } : {}),
       ...(supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval } : {}),
     });
@@ -926,6 +948,7 @@ export const duplicateWorkflowTemplateController = async (req: AuthenticatedRequ
       ...(duplicatedDefaultRouting ? { defaultRouting: duplicatedDefaultRouting } : {}),
       ...(source.examinerSignoffRole ? { examinerSignoffRole: source.examinerSignoffRole } : {}),
       ...(source.finalGradeSignoffRole ? { finalGradeSignoffRole: source.finalGradeSignoffRole } : {}),
+      ...(source.finalReportSignatureRoles?.length ? { finalReportSignatureRoles: source.finalReportSignatureRoles } : {}),
       ...(source.firstStepMode ? { firstStepMode: source.firstStepMode } : {}),
       ...(source.supervisorSelectionRequiresApproval !== undefined ? { supervisorSelectionRequiresApproval: source.supervisorSelectionRequiresApproval } : {}),
     });

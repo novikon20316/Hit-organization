@@ -553,6 +553,10 @@ export interface WorkflowTemplateDoc {
    *  branching, so the default doesn't vary by process type either). See
    *  resolveFinalGradeSignoffRole. */
   finalGradeSignoffRole?: ChainRole;
+  /** Whose signature lines appear at the bottom of the student's final
+   *  report (see services/finalReport.ts), in display order — differs per
+   *  faculty. Omitted → DEFAULT_FINAL_REPORT_SIGNATURE_ROLES. */
+  finalReportSignatureRoles?: ChainRole[];
   /** What a student with no active project sees first, for this template's
    *  faculty+processType+major: browse/apply to individually-posted projects
    *  (today's only behavior), or browse/pick a supervisor instead. Omitted →
@@ -615,6 +619,7 @@ export async function findApprovedTemplateId(
   id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
   firstStepMode?: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval?: boolean;
+  finalReportSignatureRoles?: ChainRole[];
 } | null> {
   const tryMajor = async (m: string | null) => {
     const snap = await db.collection(COLLECTION)
@@ -633,10 +638,14 @@ export async function findApprovedTemplateId(
       id: string; milestones: WorkflowMilestoneSpec[]; defaultRouting?: MilestoneRoutingSpec;
       examinerSignoffRole?: ChainRole | 'none'; finalGradeSignoffRole?: ChainRole;
       firstStepMode?: 'browse_projects' | 'choose_supervisor'; supervisorSelectionRequiresApproval?: boolean;
+      finalReportSignatureRoles?: ChainRole[];
     } = { id: doc.id, milestones };
     if (data.defaultRouting) result.defaultRouting = data.defaultRouting as MilestoneRoutingSpec;
     if (data.examinerSignoffRole) result.examinerSignoffRole = data.examinerSignoffRole as ChainRole | 'none';
     if (data.finalGradeSignoffRole) result.finalGradeSignoffRole = data.finalGradeSignoffRole as ChainRole;
+    if (Array.isArray(data.finalReportSignatureRoles) && data.finalReportSignatureRoles.length > 0) {
+      result.finalReportSignatureRoles = data.finalReportSignatureRoles as ChainRole[];
+    }
     if (data.firstStepMode) result.firstStepMode = data.firstStepMode as 'browse_projects' | 'choose_supervisor';
     if (data.supervisorSelectionRequiresApproval !== undefined && data.supervisorSelectionRequiresApproval !== null) {
       result.supervisorSelectionRequiresApproval = data.supervisorSelectionRequiresApproval as boolean;
@@ -687,6 +696,18 @@ export async function resolveFinalGradeSignoffRole(
 ): Promise<ChainRole> {
   const resolved = await findApprovedTemplateId(facultyId, processType, major);
   return resolved?.finalGradeSignoffRole ?? 'grad_school_head';
+}
+
+/** Default signature lines on the final report — supervisor, coordinator,
+ *  administrative coordinator — for any subject whose approved template
+ *  doesn't configure its own. */
+export const DEFAULT_FINAL_REPORT_SIGNATURE_ROLES: ChainRole[] = ['supervisor', 'coordinator', 'administrative_secretary'];
+
+export async function resolveFinalReportSignatureRoles(
+  facultyId: string, processType: ProcessType, major: string | null
+): Promise<ChainRole[]> {
+  const resolved = await findApprovedTemplateId(facultyId, processType, major);
+  return resolved?.finalReportSignatureRoles ?? DEFAULT_FINAL_REPORT_SIGNATURE_ROLES;
 }
 
 /** What a student with no active project in this faculty+degree(+major)
@@ -854,6 +875,7 @@ export async function proposeWorkflowTemplate(params: {
   defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none';
   finalGradeSignoffRole?: ChainRole;
+  finalReportSignatureRoles?: ChainRole[];
   firstStepMode?: 'browse_projects' | 'choose_supervisor';
   supervisorSelectionRequiresApproval?: boolean;
 }): Promise<{ id: string }> {
@@ -887,6 +909,7 @@ export async function proposeWorkflowTemplate(params: {
     defaultRouting: params.defaultRouting ?? null,
     examinerSignoffRole: params.examinerSignoffRole ?? null,
     finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
+    finalReportSignatureRoles: params.finalReportSignatureRoles ?? null,
     firstStepMode: params.firstStepMode ?? null,
     supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
       ? (params.supervisorSelectionRequiresApproval ?? true)
@@ -911,6 +934,7 @@ export async function updatePendingWorkflowTemplate(id: string, params: {
   defaultRouting?: MilestoneRoutingSpec;
   examinerSignoffRole?: ChainRole | 'none';
   finalGradeSignoffRole?: ChainRole;
+  finalReportSignatureRoles?: ChainRole[];
   firstStepMode?: 'browse_projects' | 'choose_supervisor';
   supervisorSelectionRequiresApproval?: boolean;
 }): Promise<void> {
@@ -933,6 +957,7 @@ export async function updatePendingWorkflowTemplate(id: string, params: {
       defaultRouting: params.defaultRouting ?? null,
       examinerSignoffRole: params.examinerSignoffRole ?? null,
       finalGradeSignoffRole: params.finalGradeSignoffRole ?? null,
+      finalReportSignatureRoles: params.finalReportSignatureRoles ?? null,
       firstStepMode: params.firstStepMode ?? null,
       supervisorSelectionRequiresApproval: params.firstStepMode === 'choose_supervisor'
         ? (params.supervisorSelectionRequiresApproval ?? true)

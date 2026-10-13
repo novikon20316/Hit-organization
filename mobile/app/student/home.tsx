@@ -21,6 +21,7 @@ import ActiveDashboard from '../(tabs)/Activedashboard';
 import InfoScreen      from './info';
 import AwaitingGradeScreen from './awaitingGrade';
 import ChatbotFab       from '@/components/ChatbotFab';
+import { FinalReportCard } from '@/components/FinalReportCard';
 
 export default function StudentHome() {
   const [lang, setLang] = useState<Lang>('he');
@@ -102,6 +103,8 @@ export default function StudentHome() {
         onToggleLang={() => setLang(lang === 'he' ? 'en' : 'he')}
         onBeforeSignOut={handleBeforeSignOut}
       />
+
+      <FinalReportCard lang={lang} isRtl={isRtl} />
 
       {/* ── Main Content — smart routing ── */}
       {studentState === 'awaiting_grade' && <AwaitingGradeScreen lang={lang} isRtl={isRtl} />}

@@ -25,6 +25,7 @@ import facultyTemplateRoutes from './routes/facultyTemplates.js';
 import workflowTemplateRoutes from './routes/workflowTemplates.js';
 import reportsRoutes from './routes/reports.js';
 import examinerAccessRoutes from './routes/examinerAccess.js';
+import finalReportRoutes from './routes/finalReport.js';
 import gradSchoolHeadRoutes from './routes/gradSchoolHead.js';
 import schoolHeadRoutes from './routes/schoolHead.js';
 import programHeadRoutes from './routes/programHead.js';
@@ -219,6 +220,9 @@ app.use('/api/program-head', programHeadRoutes);
 // PUBLIC — no verifyToken. External examiners have no Firebase Auth account;
 // identity comes from the token/grant code itself. See routes/examinerAccess.ts.
 app.use('/api/examiner-access', examinerAccessRoutes);
+// PUBLIC — no verifyToken. View-only final report link; the token grants
+// read access to one student's report only. See routes/finalReport.ts.
+app.use('/api/final-report', finalReportRoutes);
 app.use('/api/grades',        gradeHistoryRoutes);
 app.use('/api/project-records', projectRecordsRoutes);
 app.use('/api/projects',      clockPauseRoutes);

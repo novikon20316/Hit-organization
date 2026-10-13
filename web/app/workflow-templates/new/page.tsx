@@ -31,7 +31,7 @@ import type { AppRole } from '@/lib/roles';
 import { MilestoneRowModal } from '../MilestoneRowModal';
 import { ChainEditor } from '../ChainEditor';
 import {
-  SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, emptyMilestone, processTypeLabel, isMastersProcess,
+  SIGNOFF_ROLES, DEFAULT_ROUTING, DEFAULT_FINAL_REPORT_SIGNATURE_ROLES, PROCESS_TYPES, chainRoleLabel, emptyMilestone, processTypeLabel, isMastersProcess,
   type ChainRole, type FormFieldSpec, type GradingComponentSpec, type MilestoneRoutingSpec, type MilestoneSpec, type ProcessType, type WorkflowTemplateDoc,
 } from '../types';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -163,6 +163,7 @@ function ProposeVersionContent() {
           initialDefaultRouting={sourceTpl?.defaultRouting}
           initialExaminerSignoffRole={sourceTpl?.examinerSignoffRole}
           initialFinalGradeSignoffRole={sourceTpl?.finalGradeSignoffRole}
+          initialFinalReportSignatureRoles={sourceTpl?.finalReportSignatureRoles}
           initialFirstStepMode={sourceTpl?.firstStepMode}
           initialSupervisorSelectionRequiresApproval={sourceTpl?.supervisorSelectionRequiresApproval}
           copiedFromLabel={proposeFrom === 'other' && otherProcessType ? processTypeLabel(otherProcessType, lang) : undefined}
@@ -186,6 +187,7 @@ interface ProposeVersionFormProps {
   initialDefaultRouting?: MilestoneRoutingSpec;
   initialExaminerSignoffRole?: ChainRole | 'none';
   initialFinalGradeSignoffRole?: ChainRole;
+  initialFinalReportSignatureRoles?: ChainRole[];
   initialFirstStepMode?: 'browse_projects' | 'choose_supervisor';
   initialSupervisorSelectionRequiresApproval?: boolean;
   copiedFromLabel?: string;
@@ -205,7 +207,7 @@ interface ProposeVersionFormProps {
 // (a plain page section instead of a fixed-overlay dialog). The nested
 // MilestoneRowModal.tsx stays an actual modal, opened from within this page.
 function ProposeVersionForm({
-  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole,
+  processType, facultyId, major, initialMilestones, initialDefaultRouting, initialExaminerSignoffRole, initialFinalGradeSignoffRole, initialFinalReportSignatureRoles,
   initialFirstStepMode, initialSupervisorSelectionRequiresApproval,
   copiedFromLabel, editingTemplateId, editingStatus, initialMode = 'view', loadError, onDone, onCancel,
 }: ProposeVersionFormProps) {
@@ -225,6 +227,9 @@ function ProposeVersionForm({
   );
   const [finalGradeSignoffRole, setFinalGradeSignoffRole] = useState<ChainRole>(
     initialFinalGradeSignoffRole ?? 'grad_school_head'
+  );
+  const [finalReportSignatureRoles, setFinalReportSignatureRoles] = useState<ChainRole[]>(
+    initialFinalReportSignatureRoles && initialFinalReportSignatureRoles.length > 0 ? [...initialFinalReportSignatureRoles] : [...DEFAULT_FINAL_REPORT_SIGNATURE_ROLES]
   );
   const [firstStepMode, setFirstStepMode] = useState<'browse_projects' | 'choose_supervisor'>(
     initialFirstStepMode ?? 'browse_projects'
@@ -423,6 +428,7 @@ function ProposeVersionForm({
           defaultRouting,
           examinerSignoffRole,
           finalGradeSignoffRole,
+          finalReportSignatureRoles,
           firstStepMode,
           ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
         });
@@ -437,6 +443,7 @@ function ProposeVersionForm({
           defaultRouting,
           examinerSignoffRole,
           finalGradeSignoffRole,
+          finalReportSignatureRoles,
           firstStepMode,
           ...(firstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval } : {}),
         });
@@ -609,6 +616,42 @@ function ProposeVersionForm({
             ))}
           </select>
         </label>
+
+        <fieldset data-field-guide-id="finalReportSignatureRoles" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
+          <legend className="sr-only">{lang === 'he' ? 'חתימות בדוח המסכם' : 'Final report signatures'}</legend>
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            {lang === 'he' ? 'חתימות בדוח המסכם' : 'Final report signatures'}
+            <InfoTooltip text={fieldGuideEntry('finalReportSignatureRoles').description} />
+          </span>
+          <p className="mb-2 text-xs text-muted">
+            {lang === 'he'
+              ? 'התפקידים שמקום החתימה שלהם מופיע בתחתית הדוח המסכם שהסטודנט/ית מקבל/ת, לפי סדר הבחירה.'
+              : "The roles whose signature lines appear at the bottom of the student's final report, in the order selected."}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SIGNOFF_ROLES.map((r) => {
+              const idx = finalReportSignatureRoles.indexOf(r.key);
+              const selected = idx !== -1;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={isReadOnly || (selected && finalReportSignatureRoles.length === 1)}
+                  onClick={() => {
+                    markDirty();
+                    setFinalReportSignatureRoles((prev) => (prev.includes(r.key) ? prev.filter((x) => x !== r.key) : [...prev, r.key]));
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    selected ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-paper text-ink hover:border-primary'
+                  }`}
+                >
+                  {selected ? `${idx + 1}. ` : ''}{chainRoleLabel(r.key, lang)}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
 
         <label data-field-guide-id="firstStepMode" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
           <span className="mb-1.5 block text-sm font-medium text-ink">

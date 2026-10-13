@@ -29,6 +29,7 @@ import { hasActionGrant, resolveStaffForScope, effectiveFacultyIds } from '../se
 import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../services/examinerAccess.js';
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 import { deriveProcessType, resolveFinalGradeSignoffRole } from '../services/workflowTemplates.js';
+import { issueFinalReportLinks } from '../services/finalReport.js';
 import { L } from '../utils/localize.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
@@ -453,6 +454,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
     } catch (notifyErr) {
       console.error('decideGradeOverride: failed to notify students:', notifyErr);
     }
+    await issueFinalReportLinks(milestoneId);
 
     return res.status(200).json({ success: true, finalGrade });
   } catch (error: any) {
@@ -581,6 +583,8 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
     } catch (notifyErr) {
       console.error(`approveFinalGrade: failed to notify students for milestone ${milestoneId}:`, notifyErr);
     }
+    // The student's view-only final report link — see services/finalReport.ts.
+    await issueFinalReportLinks(milestoneId);
 
     return res.status(200).json({ success: true, message: 'Final grade approved and transferred to Michlol.' });
   } catch (error: any) {
