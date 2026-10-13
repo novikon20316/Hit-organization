@@ -20,6 +20,7 @@ import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
+import { specializationsForStudent } from '../config/specialization.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 
@@ -601,6 +602,9 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         major: studentData.major ?? null,
         degreeType: studentData.degreeType ?? null,
         specialization: studentData.specialization ?? null,
+        // Options staff may pick from on the student detail page (empty =
+        // program has no specializations, so no editor is shown).
+        specializationOptions: specializationsForStudent(studentData),
         email: studentData.email ?? '',
         phoneNumber: studentData.phoneNumber ?? null,
         yearOfStudy: studentData.yearOfStudy ?? null,

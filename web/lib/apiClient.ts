@@ -2286,6 +2286,7 @@ export const apiClient = {
         major: string | null;
         degreeType: 'bachelors' | 'masters' | null;
         specialization: string | null;
+        specializationOptions: string[];
         email: string;
         phoneNumber: string | null;
         yearOfStudy: number | null;
@@ -2359,6 +2360,15 @@ export const apiClient = {
    *  server/src/services/studentTrack.ts's setThesisEligibilityFromAverage.
    *  A subsequent setStudentThesisEligibility call can still override the
    *  result. */
+  /** Coordinator / admin coordinator / system_admin, scoped — see
+   *  studentTrackController.ts's setStudentSpecialization. null clears it. */
+  async setStudentSpecialization(studentId: string, specialization: string | null) {
+    return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/specialization`, {
+      method: 'POST',
+      body: { specialization },
+    });
+  },
+
   async setStudentThesisAverage(studentId: string, average: number) {
     return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/thesis-average`, {
       method: 'POST',

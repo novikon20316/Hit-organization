@@ -21,6 +21,7 @@ import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { academicYearToHebrew, currentHebrewYear } from '@/lib/hebrewYear';
 import type { AppRole } from '@/lib/roles';
 import { majorCellText } from '../../StudentsReportTab';
+import { SPECIALIZATION_LABELS } from '@/lib/specialization';
 
 // Widened to include 'coordinator' — the plain faculty coordinator role is
 // who actually grants thesis eligibility for a coordinator_gated student
@@ -43,6 +44,8 @@ const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordin
 // withinCoordinatorScope, same as program_head). Plain 'coordinator' keeps
 // the existing manual eligible/not-eligible buttons only, same as before
 // this feature existed.
+// Mirrors studentTrackController.ts's SPECIALIZATION_ROLES.
+const SPECIALIZATION_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
@@ -96,6 +99,8 @@ export default function StudentDetailPage() {
   const studentId = params.studentId;
   const role = userData?.role as AppRole | undefined;
   const canSetAverage = !!role && THESIS_AVERAGE_ROLES.includes(role);
+  const roles = [role, ...((userData?.roles ?? []) as AppRole[])].filter(Boolean) as AppRole[];
+  const canSetSpecialization = roles.some((r) => SPECIALIZATION_ROLES.includes(r));
 
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -104,6 +109,8 @@ export default function StudentDetailPage() {
   const [savingEligibility, setSavingEligibility] = useState(false);
   const [averageInput, setAverageInput] = useState('');
   const [savingAverage, setSavingAverage] = useState(false);
+  const [specializationInput, setSpecializationInput] = useState('');
+  const [savingSpecialization, setSavingSpecialization] = useState(false);
 
   const loadDetail = async () => {
     if (!studentId) return;
@@ -143,6 +150,23 @@ export default function StudentDetailPage() {
       alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
     } finally {
       setSavingAverage(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- same sync-to-loaded-data pattern as averageInput above
+    setSpecializationInput(data?.student?.specialization ?? '');
+  }, [data?.student?.specialization]);
+
+  const handleSetSpecialization = async () => {
+    setSavingSpecialization(true);
+    try {
+      await apiClient.setStudentSpecialization(studentId, specializationInput || null);
+      await loadDetail();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSavingSpecialization(false);
     }
   };
 
@@ -308,6 +332,42 @@ export default function StudentDetailPage() {
               </p>
             )}
           </div>
+
+          {/* Specialization (תחום) — see lib/specialization.ts. Lets staff
+              set it for students who registered before signup asked for it,
+              or correct it. */}
+          {student.specializationOptions.length > 0 && (
+            <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+              <p className="text-sm font-semibold text-administrative-coordinator-on-surface">🎯 {lang === 'he' ? 'תחום התמחות' : 'Specialization'}</p>
+              {canSetSpecialization ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select
+                    value={specializationInput}
+                    onChange={(e) => setSpecializationInput(e.target.value)}
+                    aria-label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}
+                    className="rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
+                  >
+                    <option value="">{lang === 'he' ? 'לא הוגדר' : 'Not set'}</option>
+                    {student.specializationOptions.map((key) => (
+                      <option key={key} value={key}>{SPECIALIZATION_LABELS[key]?.[lang] ?? key}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={savingSpecialization || specializationInput === (student.specialization ?? '')}
+                    onClick={handleSetSpecialization}
+                    className="rounded-lg bg-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
+                  >
+                    {savingSpecialization ? '…' : lang === 'he' ? 'שמור' : 'Save'}
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
+                  {student.specialization ? SPECIALIZATION_LABELS[student.specialization]?.[lang] ?? student.specialization : (lang === 'he' ? 'לא הוגדר' : 'Not set')}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Communication */}
           <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">

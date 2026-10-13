@@ -23,3 +23,15 @@ export function specializationsFor(
   if (degreeType !== 'masters' || (track !== 'thesis' && track !== 'project')) return [];
   return MASTERS_SPECIALIZATIONS[major ?? '']?.[track] ?? [];
 }
+
+/** Options for an existing student, used when staff set it after signup. A
+ *  student doc with no thesis/project track yet gets both tracks' options. */
+export function specializationsForStudent(student: { degreeType?: string | null; major?: string | null; track?: string | null }): string[] {
+  if (student.track === 'thesis' || student.track === 'project') {
+    return specializationsFor(student.degreeType, student.major, student.track);
+  }
+  return [...new Set([
+    ...specializationsFor(student.degreeType, student.major, 'thesis'),
+    ...specializationsFor(student.degreeType, student.major, 'project'),
+  ])];
+}

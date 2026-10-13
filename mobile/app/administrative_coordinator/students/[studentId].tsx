@@ -14,7 +14,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
 import { HIT_FACULTIES } from '@/constants/faculties';
 import { majorsForFaculty } from '@/constants/permissions';
-import { specializationLabel } from '@/constants/specialization';
+import { specializationLabel, SPECIALIZATION_LABELS } from '@/constants/specialization';
 import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
 import { ap } from '@/constants/theme';
 
@@ -26,6 +26,7 @@ interface StudentDetail {
     major: string | null;
     degreeType: 'bachelors' | 'masters' | null;
     specialization?: string | null;
+    specializationOptions?: string[];
     email: string;
     phoneNumber: string | null;
     yearOfStudy: number | null;
@@ -111,6 +112,7 @@ export default function StudentDetailScreen() {
   const [error, setError] = useState('');
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [savingEligibility, setSavingEligibility] = useState(false);
+  const [savingSpecialization, setSavingSpecialization] = useState(false);
 
   const loadDetail = () => {
     if (!studentId) return;
@@ -145,6 +147,24 @@ export default function StudentDetailScreen() {
       );
     } finally {
       setSavingEligibility(false);
+    }
+  };
+
+  // Coordinator / admin coordinator / system_admin only — the server
+  // (studentTrackController.ts's setStudentSpecialization) enforces the role
+  // and scope; anyone else gets its error message back here.
+  const handleSetSpecialization = async (specialization: string | null) => {
+    setSavingSpecialization(true);
+    try {
+      await apiClient.post(`/api/project-coordinator/students/${studentId}/specialization`, { specialization });
+      await loadDetail();
+    } catch (err: any) {
+      Alert.alert(
+        lang === 'he' ? 'שגיאה' : 'Error',
+        err?.response?.data?.message || (lang === 'he' ? 'העדכון נכשל' : 'Update failed')
+      );
+    } finally {
+      setSavingSpecialization(false);
     }
   };
 
@@ -252,6 +272,38 @@ export default function StudentDetailScreen() {
                 </Text>
               )}
             </View>
+
+            {/* Specialization (תחום) — see constants/specialization.ts */}
+            {(student.specializationOptions?.length ?? 0) > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>🎯 {lang === 'he' ? 'תחום התמחות' : 'Specialization'}</Text>
+                {student.specializationOptions!.map((key) => {
+                  const selected = student.specialization === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      disabled={savingSpecialization || selected}
+                      onPress={() => handleSetSpecialization(key)}
+                      style={{
+                        borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 6,
+                        borderColor: selected ? ap.primary : ap.outlineVariant,
+                        backgroundColor: selected ? 'rgba(0,35,111,0.08)' : 'transparent',
+                        opacity: savingSpecialization ? 0.6 : 1,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected, disabled: savingSpecialization }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: selected ? '700' : '500', color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>
+                        {selected ? '✓ ' : ''}{SPECIALIZATION_LABELS[key]?.[lang] ?? key}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {!student.specialization && (
+                  <Text style={styles.cardSub}>{lang === 'he' ? 'טרם הוגדר — הקש/י על תחום כדי לשמור' : 'Not set yet — tap one to save'}</Text>
+                )}
+              </View>
+            )}
 
             {/* Communication */}
             <View style={styles.card}>

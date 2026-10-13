@@ -17,6 +17,8 @@ import {
 } from '../services/studentTrack.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
+import { specializationsForStudent } from '../config/specialization.js';
+import { logAuditEvent } from '../services/auditLog.js';
 
 // Mirrors PROJECT_COORDINATOR_DASHBOARD_ROLES in projectCoordinatorController.ts
 // plus 'coordinator' — the plain faculty coordinator role is who the business
@@ -147,6 +149,61 @@ export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Respo
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
     const message = error instanceof Error ? error.message : L(req, 'Failed to override track.', 'שינוי המסלול בכפייה נכשל.');
+    return res.status(400).json({ message });
+  }
+};
+
+// Who may set/correct a student's specialization (תחום) after signup — e.g.
+// for students who registered before the field existed. Scoped the same way
+// as the thesis-eligibility endpoints (withinCoordinatorScope).
+const SPECIALIZATION_ROLES = ['coordinator', 'administrative_secretary', 'system_admin'];
+
+export const setStudentSpecialization = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAnyRole(req.user, SPECIALIZATION_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
+  }
+  const { studentId } = req.params;
+  const specialization: unknown = req.body?.specialization ?? null;
+  if (!isValidDocId(studentId)) {
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
+  }
+  if (specialization !== null && typeof specialization !== 'string') {
+    return res.status(400).json({ message: L(req, 'Invalid specialization.', 'תחום התמחות לא תקין.') });
+  }
+
+  try {
+    const studentRef = db.collection('users').doc(studentId);
+    const studentSnap = await studentRef.get();
+    if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
+    }
+    const studentData = studentSnap.data()!;
+    if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
+      return res.status(403).json({ message: L(req, 'This student is outside your assigned scope.', 'סטודנט זה אינו בתחום האחריות שהוקצה לך.') });
+    }
+
+    const allowed = specializationsForStudent(studentData);
+    if (allowed.length === 0) {
+      return res.status(400).json({ message: L(req, "This student's program has no specializations.", 'לתוכנית של סטודנט זה אין תחומי התמחות.') });
+    }
+    if (specialization !== null && !allowed.includes(specialization)) {
+      return res.status(400).json({ message: L(req, "This specialization is not available for the student's program/track.", 'תחום ההתמחות אינו זמין לתוכנית/למסלול של הסטודנט.') });
+    }
+
+    await studentRef.update({ specialization, updatedAt: new Date().toISOString() });
+    await logAuditEvent({
+      userId: req.user.uid,
+      userRole: req.user.role,
+      action: 'student_specialization_set',
+      entityType: 'user',
+      entityId: studentId,
+      oldValue: { specialization: studentData.specialization ?? null },
+      newValue: { specialization },
+    });
+    return res.status(200).json({ success: true, specialization });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : L(req, 'Failed to set specialization.', 'עדכון תחום ההתמחות נכשל.');
     return res.status(400).json({ message });
   }
 };

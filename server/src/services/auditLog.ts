@@ -79,6 +79,7 @@ export type AuditAction =
   // distinct from 'track_changed' above, which is trackChange.ts's
   // already-enrolled-project switch.
   | 'student_track_chosen'
+  | 'student_specialization_set'
   | 'student_thesis_eligibility_set'
   | 'student_track_overridden_by_admin'
   // Temporary debug tooling (see config/featureFlags.ts's
