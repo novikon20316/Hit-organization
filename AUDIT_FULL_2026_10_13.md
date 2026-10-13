@@ -65,9 +65,10 @@ Live `api` service: `APP_CHECK_ENFORCEMENT_MODE=monitor`, unchanged since 2026-0
 Live `api` service env: `CLOUDINARY_API_SECRET`, `BREVO_API_KEY`, `TWILIO_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `GOOGLE_CALENDAR_CLIENT_SECRET`. These are readable by anyone with `run.services.get` (any project Viewer), and they're exposed to the same env-var-wipe risk that caused the 2026-09-30 outage.
 **Fix:** move them to Secret Manager and mount them as secret env vars. This is an infra change, so you run it (same rule as IAM).
 
-### M7: Student mass-messaging has no rate limit; each call can send 500 × (SMS + WhatsApp + email + push)
+### M7: [x] FIXED (committed). Student mass-messaging has no rate limit; each call can send 500 × (SMS + WhatsApp + email + push)
 `projectCoordinatorController.ts` `sendStudentsMessage`. Scope checks and HTML escaping are correct. But if an `administrative_secretary` account is compromised, it can burn Twilio/Brevo credit and spam an entire faculty in a loop.
 **Fix:** add a dedicated per-user limiter on `/students/message` (for example, 10/hour).
+**Applied:** `studentsMessageLimiter` (`middleware/rateLimit.ts`): 10 sends per hour per account, mounted after `verifyToken`, with a localized 429 `message` that both web and mobile composers already display. Checked locally: sends 1–10 → 200, send 11 → 429, other accounts unaffected. The counter is in-memory per Cloud Run instance, so it caps each instance rather than enforcing a strict global limit.
 
 ---
 

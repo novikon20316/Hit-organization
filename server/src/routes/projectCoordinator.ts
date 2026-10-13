@@ -5,6 +5,7 @@ import {
 } from '../controllers/projectCoordinatorController.js';
 import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization } from '../controllers/studentTrackController.js';
 import { assignDefense } from '../controllers/coordinatorController.js';
+import { studentsMessageLimiter } from '../middleware/rateLimit.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -12,7 +13,7 @@ const router = Router();
 router.get('/:uid/dashboard', verifyToken, getProjectCoordinatorDashboard);
 router.get('/students-report', verifyToken, getStudentsReport);
 // POST /api/project-coordinator/students/message   { studentIds, title, message }
-router.post('/students/message', verifyToken, sendStudentsMessage);
+router.post('/students/message', verifyToken, studentsMessageLimiter, sendStudentsMessage);
 router.get('/students/:studentId/detail', verifyToken, getStudentDetail);
 // POST /api/project-coordinator/students/:studentId/thesis-eligibility   { eligible, reason? }
 router.post('/students/:studentId/thesis-eligibility', verifyToken, setStudentThesisEligibility);

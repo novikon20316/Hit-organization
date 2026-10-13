@@ -1,6 +1,7 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import type { AuthenticatedRequest } from './auth.js';
+import { L } from '../utils/localize.js';
 
 // Runs after verifyToken where available, so authenticated brute-force attempts
 // (e.g. a stolen token trying every TOTP code) are throttled per-account rather
@@ -116,4 +117,28 @@ export const errorReportLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: keyByUserOrIp,
   message: { error: 'Too many requests. Please try again later.' },
+});
+
+// MEDIUM FIX (M7, AUDIT_FULL_2026_10_13.md): one POST
+// /api/project-coordinator/students/message can reach up to 500 students
+// over in-app + email + push + SMS + WhatsApp — every send costs real
+// Twilio/Brevo credit. Without a per-account limit, a compromised
+// administrative_secretary account could loop it to drain credit and spam
+// a whole faculty. 10 sends/hour per account is well above real usage (a
+// few announcements a day). Mount AFTER verifyToken so it keys per account.
+// Note: the counter is in-memory per Cloud Run instance, so it's a ceiling
+// per instance, not a strict global one — still caps a runaway loop.
+export const studentsMessageLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: (req: Request) => ({
+    message: L(
+      req,
+      'You have sent too many messages in the last hour. Please try again later.',
+      'שלחת יותר מדי הודעות בשעה האחרונה. נסה/י שוב מאוחר יותר.',
+    ),
+  }),
 });
