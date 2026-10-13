@@ -37,14 +37,15 @@ The new feature code from the last week is in good shape. Every new endpoint che
 
 ## Medium
 
-### M1: `POST /api/users/sync` can be re-run on an existing account
+### M1: [x] FIXED (committed). `POST /api/users/sync` can be re-run on an existing account
 `server/src/controllers/userController.ts` (`syncData`, ~L150–340). It never rejects when `users/{uid}` already exists, and writes with `set(..., { merge: true })`. A re-sync resets `isActive: true` (re-enables an account an admin deactivated, as long as the Firebase Auth user itself isn't disabled). It also resets `additionalRoles: []`, `trackLocked`/`track`, `facultyId`, `major`, `totp_enabled: false`, and `hasActiveProject: false`. The roster gate limits this, because it needs an *unused* roster entry, but see M2 for how easy that is to get.
 **Fix:** if the doc exists with `profileComplete: true`, return 409. Re-sync should only complete a half-finished signup.
 
-### M2: Roster identity is "knows a 9-digit ID number", and signup email is taken from the body
+### M2: [x] PARTIALLY FIXED (committed). Roster identity is "knows a 9-digit ID number", and signup email is taken from the body
 - `services/studentRoster.ts` (`checkStudentEligibility`) authorizes on ID + faculty + degree only. Anyone who knows another (not-yet-registered) student's ID number can claim that roster slot and become them. The check and `markRosterEntryUsed` are also separate, non-transactional steps, so two concurrent signups can both pass.
 - `syncData` validates the **body** `email`'s domain and stores it, but never compares it to `req.user.email` (the verified token email). A user can register with any verified address and claim any `@gmail.com`/`@my.hit.ac.il` address in their profile. Notifications, including the final-report bearer link, then go to that arbitrary address.
 **Fix:** use `req.user.email` (ignore the body field), wrap check+mark in a transaction, and consider matching the roster's name, or a second factor such as the institutional email, if the roster has it.
+**Applied:** `syncData` now trusts only the ID token's verified email, and the profile-exists check, roster eligibility, profile create and roster claim run in one Firestore transaction. M1 is fixed in the same change: an existing profile is left untouched and the call returns `{ success: true, alreadyExists: true }`. **Still open:** roster identity is still ID number + faculty + degree. The roster has a `fullName`, but matching it against Hebrew/English signup names needs a product decision.
 
 ### M3: Any verified user can `get` any user's full profile, including national ID and phone
 `firestore.rules` `users` → `allow get: if isVerifiedSignedIn()`. The 10-07 fix closed `list`. `get` by a known uid is still open, and uids are everywhere: `supervisorId`, `enrolledStudentIds` on listable active projects, chat participants. A student can read a classmate's or supervisor's `studentId` (Israeli ID number), `phoneNumber`, email, roles, and scopes. Given Privacy Protection Law Amendment 13, this is the most important privacy item before launch.

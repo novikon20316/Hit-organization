@@ -165,9 +165,17 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const {
-      newUid, email, displayName, displayNameHe, displayNameEn,
+      newUid, displayName, displayNameHe, displayNameEn,
       role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, specialization, phoneNumber,
     } = req.body;
+
+    // MEDIUM FIX (M2, AUDIT_FULL_2026_10_13.md): the profile email used to
+    // come from the request body and was never compared to the login —
+    // anyone could register with one verified address and claim another
+    // (bypassing the domain allowlist below, and redirecting notifications
+    // such as the final-report link). Only the ID token's own, Firebase-
+    // verified email is trusted now; a body `email` is ignored.
+    const email = req.user?.email;
 
     if (!newUid || !email || !role) {
       return res.status(400).json({ error: L(req, 'Missing required fields: newUid, email, role.', 'שדות חובה חסרים: newUid, email, role.') });
@@ -243,14 +251,6 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ error: L(req, 'This program does not have specializations.', 'לתוכנית זו אין תחומי התמחות.') });
     }
 
-    // Authoritative gate — the public verify-eligibility endpoint the client
-    // calls before this is only a fail-fast UX check; this is what actually
-    // decides whether the account gets created. See services/studentRoster.ts.
-    const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major);
-    if (!eligibility.eligible) {
-      return res.status(403).json({ error: eligibility.reason || L(req, 'You are not on the approved students list for this faculty and degree.', 'את/ה לא מופיע/ה ברשימת הסטודנטים המאושרים לפקולטה ולתואר אלו.') });
-    }
-
     const isEligibleForProcess = computeIsEligible(
       degreeType,
       major,
@@ -259,13 +259,6 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
 
     const userRef = db.collection('users').doc(newUid);
-    // Preserve the existing programStartDate on repeat syncs (e.g. a student
-    // re-running signup after an interrupted flow) — this field anchors the
-    // automatic post-graduation deletion sweep (services/accountDeletion.ts),
-    // so re-stamping it to "now" on every call would let a student push their
-    // own deletion date out indefinitely just by re-calling this endpoint.
-    const existingSnap = await userRef.get();
-    const existingProgramStartDate = existingSnap.exists ? existingSnap.data()?.programStartDate : undefined;
     const firestoreUserDoc = {
       uid:          newUid,
       email,
@@ -285,8 +278,8 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       // Anchor for the automatic graduation-based deletion sweep (see
       // services/accountDeletion.ts). Defaults to signup time on first sync
       // only; system_admin can correct it per-student for transfers/import
-      // discrepancies. Preserved across repeat syncs — see comment above.
-      programStartDate: role === 'student' ? (existingProgramStartDate ?? Timestamp.now()) : null,
+      // discrepancies. Never re-stamped: a repeat sync is a no-op (below).
+      programStartDate: role === 'student' ? Timestamp.now() : null,
 
       isActive:        true,
       profileComplete: true,
@@ -323,18 +316,36 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       } : {}),
     };
 
-    await userRef.set(firestoreUserDoc, { merge: true });
+    // One transaction: profile-exists check, roster eligibility (the
+    // authoritative gate — the public verify-eligibility endpoint is only a
+    // fail-fast UX check), profile create, and roster claim.
+    //
+    // MEDIUM FIX (M1, AUDIT_FULL_2026_10_13.md): this used to merge-write
+    // over an EXISTING profile, so re-calling it reset isActive (re-enabling
+    // an account an admin had disabled), additionalRoles, track locks,
+    // faculty/major, etc. Every client calls it only for a brand-new
+    // account, so an existing profile is now left untouched and reported as
+    // success (keeps a retried signup request idempotent).
+    //
+    // MEDIUM FIX (M2): the roster check and claim used to be separate,
+    // non-atomic steps, so two concurrent signups with the same ID number
+    // could both pass and both create accounts.
+    const outcome = await db.runTransaction(async (tx) => {
+      const existingSnap = await tx.get(userRef);
+      if (existingSnap.exists) return { kind: 'exists' as const };
+      const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major, tx);
+      if (!eligibility.eligible) return { kind: 'ineligible' as const, reason: eligibility.reason };
+      tx.create(userRef, firestoreUserDoc);
+      markRosterEntryUsed(studentId, resolvedFacultyId, degreeType, newUid, tx);
+      return { kind: 'created' as const };
+    });
 
-    // Locks the roster entry so this ID can't be reused by a second account.
-    // Best-effort: the profile above is already written and correct even if
-    // this fails — it would just leave the roster entry reusable, which a
-    // coordinator can review manually rather than the student being blocked.
-    try {
-      await markRosterEntryUsed(studentId, resolvedFacultyId, degreeType, newUid);
-    } catch (rosterErr) {
-      console.error(`syncData: failed to mark roster entry used for ${newUid}:`, rosterErr);
+    if (outcome.kind === 'ineligible') {
+      return res.status(403).json({ error: outcome.reason || L(req, 'You are not on the approved students list for this faculty and degree.', 'את/ה לא מופיע/ה ברשימת הסטודנטים המאושרים לפקולטה ולתואר אלו.') });
     }
-
+    if (outcome.kind === 'exists') {
+      return res.status(200).json({ success: true, alreadyExists: true });
+    }
     return res.status(200).json({ success: true, user: firestoreUserDoc });
   } catch (error: any) {
     console.error('POST /sync error:', error);

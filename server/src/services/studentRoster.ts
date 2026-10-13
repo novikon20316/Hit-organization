@@ -304,6 +304,9 @@ export async function checkStudentEligibility(
   facultyId: string,
   degreeType: string,
   major?: string | null,
+  // syncData passes its transaction so the check and markRosterEntryUsed
+  // are atomic — two concurrent signups with the same ID can't both pass.
+  tx?: FirebaseFirestore.Transaction,
 ): Promise<EligibilityCheckResult> {
   const normalizedId = normalizeStudentId(studentId);
   const normalizedDegree = normalizeDegreeType(degreeType);
@@ -312,7 +315,8 @@ export async function checkStudentEligibility(
   if (!facultyId) return { eligible: false, reason: 'Missing faculty.' };
 
   const docId = rosterDocId(normalizedId, facultyId, normalizedDegree);
-  const snap = await db.collection('approvedStudents').doc(docId).get();
+  const ref = db.collection('approvedStudents').doc(docId);
+  const snap = tx ? await tx.get(ref) : await ref.get();
   if (!snap.exists) {
     return {
       eligible: false,
@@ -329,18 +333,21 @@ export async function checkStudentEligibility(
   return { eligible: true };
 }
 
-/** Locks the roster entry so the same ID can't be reused by a second registration. */
-export async function markRosterEntryUsed(
+/** Locks the roster entry so the same ID can't be reused by a second
+ *  registration. Transaction-only — always paired with the
+ *  checkStudentEligibility read in the same transaction (see syncData). */
+export function markRosterEntryUsed(
   studentId: string,
   facultyId: string,
   degreeType: string,
   uid: string,
-): Promise<void> {
+  tx: FirebaseFirestore.Transaction,
+): void {
   const normalizedId = normalizeStudentId(studentId);
   const normalizedDegree = normalizeDegreeType(degreeType);
   if (!normalizedDegree || !facultyId) return;
   const docId = rosterDocId(normalizedId, facultyId, normalizedDegree);
-  await db.collection('approvedStudents').doc(docId).update({
+  tx.update(db.collection('approvedStudents').doc(docId), {
     used: true,
     usedByUid: uid,
     usedAt: new Date().toISOString(),
