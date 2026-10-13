@@ -24,6 +24,7 @@ import { specializationsForStudent } from '../config/specialization.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { notifyUser } from '../services/notify.js';
+import admin from 'firebase-admin';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
 
@@ -577,6 +578,9 @@ export const sendStudentsMessage = async (req: AuthenticatedRequest, res: Respon
   try {
     const snaps = await Promise.all(ids.map((id) => db.collection('users').doc(id as string).get()));
     const allowed: string[] = [];
+    // Students who blocked her — still notified (it's an official message),
+    // but no chat thread is written, same as sendDirectMessage refusing.
+    const blockedSender = new Set<string>();
     for (const snap of snaps) {
       const data = snap.data();
       if (!snap.exists || !data) continue;
@@ -584,6 +588,7 @@ export const sendStudentsMessage = async (req: AuthenticatedRequest, res: Respon
       if (!roles.has('student')) continue;
       if (!data.facultyId || !withinCoordinatorScope(req.user, { facultyId: data.facultyId, ...(data.major ? { major: data.major } : {}) })) continue;
       allowed.push(snap.id);
+      if (Array.isArray(data.blockedUserIds) && data.blockedUserIds.includes(uid)) blockedSender.add(snap.id);
     }
     // All-or-nothing: if anything she picked isn't hers to message, refuse
     // the whole send rather than quietly dropping names off her list.
@@ -593,12 +598,58 @@ export const sendStudentsMessage = async (req: AuthenticatedRequest, res: Respon
 
     const meSnap = await db.collection('users').doc(uid).get();
     const senderName: string = meSnap.data()?.displayName ?? '';
+    const myBlocked: string[] = meSnap.data()?.blockedUserIds ?? [];
+
+    // Her existing 1:1 threads, so the message lands in the same
+    // conversation she already has with a student instead of a duplicate —
+    // same participants.length === 2 rule as chatController.ts's
+    // findOrCreateDirectChat.
+    const myChatsSnap = await db.collection('chats').where('participants', 'array-contains', uid).get();
+    const chatIdByStudent = new Map<string, string>();
+    myChatsSnap.docs.forEach((d) => {
+      const participants: string[] = d.data().participants ?? [];
+      if (participants.length !== 2) return;
+      const other = participants.find((p) => p !== uid);
+      if (other) chatIdByStudent.set(other, d.id);
+    });
+    const chatText = `${cleanTitle}\n\n${cleanMessage}`;
+
+    // Mirrors the message into her Messages tab (and the student's): one
+    // direct chat per student, like a WhatsApp broadcast list — each
+    // student can reply to her privately, never to the whole group.
+    const writeChatMessage = async (studentId: string): Promise<string | null> => {
+      if (blockedSender.has(studentId) || myBlocked.includes(studentId)) return null;
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      let chatRef: FirebaseFirestore.DocumentReference;
+      const existingId = chatIdByStudent.get(studentId);
+      const batch = db.batch();
+      if (existingId) {
+        chatRef = db.collection('chats').doc(existingId);
+      } else {
+        chatRef = db.collection('chats').doc();
+        batch.set(chatRef, { participants: [uid, studentId], type: 'direct', createdAt: now, updatedAt: now, lastMessage: '' });
+      }
+      batch.set(chatRef.collection('messages').doc(), { type: 'text', text: chatText, senderId: uid, createdAt: now });
+      batch.set(chatRef, {
+        lastMessage: chatText,
+        lastMessageSenderId: uid,
+        lastMessageAt: now,
+        updatedAt: now,
+      }, { merge: true });
+      await batch.commit();
+      return chatRef.id;
+    };
 
     let sent = 0;
     let failed = 0;
     for (const wave of chunk(allowed, STUDENTS_MESSAGE_CONCURRENCY)) {
-      const results = await Promise.allSettled(wave.map((recipientId) => notifyUser({
+      const results = await Promise.allSettled(wave.map(async (recipientId) => notifyUser({
         recipientId,
+        // A failed chat write shouldn't stop the message itself going out.
+        chatId: await writeChatMessage(recipientId).catch((err) => {
+          console.error(`sendStudentsMessage: chat write failed for ${recipientId}:`, err);
+          return null;
+        }),
         type: 'coordinator_message',
         titleHe: cleanTitle,
         titleEn: cleanTitle,
@@ -607,7 +658,7 @@ export const sendStudentsMessage = async (req: AuthenticatedRequest, res: Respon
         emailData: { title: cleanTitle, message: cleanMessage, senderName },
         channels: { inApp: true, email: true, push: true, sms: true, whatsapp: true },
       })));
-      results.forEach((r, i) => {
+      results.forEach((r: PromiseSettledResult<void>, i: number) => {
         if (r.status === 'fulfilled') sent++;
         else {
           failed++;

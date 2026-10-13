@@ -308,7 +308,14 @@ export default function NotificationsPage() {
 
       {composeRecipients && (
         composeRecipients.length > 0 ? (
-          <StudentMessageComposer initialRecipients={composeRecipients} onDone={closeComposer} />
+          <StudentMessageComposer
+            initialRecipients={composeRecipients}
+            onDone={closeComposer}
+            onSent={() => {
+              setTab('chats');
+              fetchChats();
+            }}
+          />
         ) : (
           <div className="mb-5 flex items-center justify-between rounded-md bg-[#FBF3E3] px-3 py-2 text-sm text-accent">
             <span>
@@ -430,6 +437,18 @@ export default function NotificationsPage() {
 
       {tab === 'chats' && (
         <div>
+          {/* Inline, not a floating button: the old bottom-corner "+" sat
+              exactly under the chatbot launcher (ChatbotFab, same corner,
+              z-40) on every role that has it, so nobody could see it. */}
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowNewChat(true)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
+            >
+              + {lang === 'he' ? 'שיחה חדשה' : 'New conversation'}
+            </button>
+          </div>
           {chatsError && (
             <div className="mb-3 flex items-center justify-between rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
               <span>⚠️ {chatsError}</span>
@@ -442,7 +461,7 @@ export default function NotificationsPage() {
           {loadingChats ? (
             <p className="text-sm text-muted">{t('loading')}</p>
           ) : chats.length === 0 ? (
-            chatsError ? null : <p className="text-sm text-muted">💬 {lang === 'he' ? 'אין שיחות. לחץ על + כדי להתחיל.' : 'No conversations yet. Tap + to start one.'}</p>
+            chatsError ? null : <p className="text-sm text-muted">💬 {lang === 'he' ? 'אין שיחות. לחצו על "+ שיחה חדשה" כדי להתחיל.' : 'No conversations yet. Click "+ New conversation" to start one.'}</p>
           ) : (
             <div className="grid gap-2">
               {chats.map((chat) => {
@@ -482,14 +501,6 @@ export default function NotificationsPage() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setShowNewChat(true)}
-            className="fixed bottom-8 end-8 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-2xl text-primary-ink shadow-lg hover:bg-primary-hover"
-            aria-label={lang === 'he' ? 'הודעה חדשה' : 'New message'}
-          >
-            +
-          </button>
         </div>
       )}
 

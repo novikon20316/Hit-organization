@@ -41,6 +41,11 @@ export interface NotifyParams {
   pushBodyEn?: string;
   relatedProjectId?:   string | null;
   relatedMilestoneId?: string | null;
+  /** Ties the in-app notification to a chat thread the same way
+   *  chatController.ts's sendDirectMessage does for 'new_message' — the chat
+   *  list counts unread notifications by chatId, and opening the chat marks
+   *  them read (markChatNotificationsAsRead). */
+  chatId?: string | null;
   /** What kind of task this is, so notifyUser can resolve it to a
    *  role-specific dashboard screen (see notificationTargets.ts) using the
    *  recipient's own role — already fetched below regardless. Lets a
@@ -94,7 +99,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   const {
     recipientId, type, inAppType, titleHe, titleEn, bodyHe, bodyEn,
     pushBodyHe = bodyHe, pushBodyEn = bodyEn,
-    relatedProjectId = null, relatedMilestoneId = null, emailData, channels, taskKind,
+    relatedProjectId = null, relatedMilestoneId = null, chatId = null, emailData, channels, taskKind,
     taskRoleCandidates, targetScreen: targetScreenOverride,
   } = params;
 
@@ -152,6 +157,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       relatedProjectId,
       relatedMilestoneId,
+      ...(chatId ? { chatId } : {}),
       // Persisted alongside targetScreen so the client can switch its own
       // activeRole (same setActiveRole the sidebar's "Switch Role" section
       // uses — see lib/roleChrome.ts) to whichever role this notification

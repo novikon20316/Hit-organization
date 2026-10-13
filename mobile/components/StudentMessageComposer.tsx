@@ -27,11 +27,15 @@ export default function StudentMessageComposer({
   initialRecipients,
   lang,
   onDone,
+  onSent,
 }: {
   initialRecipients: StudentMessageRecipient[];
   lang: Lang;
   /** Called after a successful send or when she discards the draft. */
   onDone: () => void;
+  /** Called right after a successful send (before onDone) — the screen
+   *  switches to its Messages tab, where one chat per student now exists. */
+  onSent?: () => void;
 }) {
   const isRtl = lang === 'he';
   const [recipients, setRecipients] = useState(initialRecipients);
@@ -72,6 +76,7 @@ export default function StudentMessageComposer({
         (lang === 'he' ? `ההודעה נשלחה ל־${sent} סטודנטים` : `Message sent to ${sent} student${sent === 1 ? '' : 's'}`) +
           (failed > 0 ? (lang === 'he' ? `\nשליחה ל־${failed} נכשלה.` : `\nSending failed for ${failed}.`) : ''),
       );
+      onSent?.();
       onDone();
     } catch (err: any) {
       setError(err?.response?.data?.message || (lang === 'he' ? 'שליחת ההודעה נכשלה' : 'Failed to send the message'));

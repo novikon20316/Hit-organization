@@ -22,10 +22,14 @@ const MAX_MESSAGE = 2000;
 export function StudentMessageComposer({
   initialRecipients,
   onDone,
+  onSent,
 }: {
   initialRecipients: StudentMessageRecipient[];
-  /** Called after a successful send or when she discards the draft. */
+  /** Called when she closes the panel (after sending) or discards the draft. */
   onDone: () => void;
+  /** Called right after a successful send — the page switches to its
+   *  Messages tab, where the server has just written one chat per student. */
+  onSent?: () => void;
 }) {
   const { lang } = useLanguage();
   const [recipients, setRecipients] = useState(initialRecipients);
@@ -64,6 +68,7 @@ export function StudentMessageComposer({
       clearStudentMessageRecipients();
       setResult({ sent: res.sent, failed: res.failed });
       setConfirming(false);
+      onSent?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'שליחת ההודעה נכשלה' : 'Failed to send the message');
       setConfirming(false);
@@ -87,6 +92,8 @@ export function StudentMessageComposer({
           {lang === 'he'
             ? 'ההודעה נשלחה באפליקציה, במייל, בהתראת פוש, ב־SMS ובוואטסאפ — לכל סטודנט/ית בערוצים הזמינים עבורו/ה.'
             : 'Sent in-app, by email, push, SMS and WhatsApp — over whichever of those each student can receive.'}
+          {' '}
+          {lang === 'he' ? 'עותק מופיע למטה בלשונית ההודעות, בשיחה נפרדת עם כל סטודנט/ית.' : 'A copy is below in the Messages tab, in a separate conversation with each student.'}
         </p>
         <button type="button" onClick={onDone} className="mt-3 text-sm font-medium text-primary hover:underline">
           {lang === 'he' ? 'סגירה' : 'Close'}

@@ -628,7 +628,16 @@ export default function NotificationsScreen() {
           </View>
         </View>
         {composeRecipients.length > 0 ? (
-          <StudentMessageComposer initialRecipients={composeRecipients} lang={lang} onDone={closeComposer} />
+          <StudentMessageComposer
+            initialRecipients={composeRecipients}
+            lang={lang}
+            onDone={closeComposer}
+            onSent={() => {
+              // The server wrote one chat per student — land her on them.
+              setActiveTab('chats');
+              fetchInboxData();
+            }}
+          />
         ) : (
           <View style={{ padding: 16 }}>
             <Text style={{ fontSize: 13, color: '#92400E', textAlign: isRtl ? 'right' : 'left' }}>
