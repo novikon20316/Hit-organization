@@ -147,6 +147,11 @@ export const SIGNOFF_ROLES = CHAIN_ROLES.filter((r) => r.key !== 'examiner' && r
 
 // Exported so WorkflowTemplateEditor.tsx (the propose-version full screen)
 // can share this single source of truth instead of duplicating the lookup.
+// Final report signature lines when a template doesn't configure its own —
+// supervisor, coordinator, administrative coordinator. Mirrors the server's
+// DEFAULT_FINAL_REPORT_SIGNATURE_ROLES.
+export const DEFAULT_FINAL_REPORT_SIGNATURE_ROLES: ChainRole[] = ['supervisor', 'coordinator', 'administrative_secretary'];
+
 export function chainRoleLabel(role: ChainRole, lang: Lang): string {
   return CHAIN_ROLES.find((r) => r.key === role)?.[lang] ?? role;
 }
@@ -279,6 +284,10 @@ export interface WorkflowTemplateDoc {
    *  No 'none' option — always required. Omitted → legacy default
    *  (grad_school_head, for any process type). */
   finalGradeSignoffRole?: ChainRole;
+  /** Whose signature lines appear at the bottom of the student's final
+   *  report, in display order. Omitted → DEFAULT_FINAL_REPORT_SIGNATURE_ROLES.
+   *  Mirrors server/src/services/workflowTemplates.ts. */
+  finalReportSignatureRoles?: ChainRole[];
   /** What a student with no active project sees first for this subject —
    *  omitted means 'browse_projects' (today's only behavior). */
   firstStepMode?: 'browse_projects' | 'choose_supervisor';
@@ -576,6 +585,7 @@ export default function WorkflowTemplateManager() {
       defaultRouting: from?.defaultRouting ?? null,
       examinerSignoffRole: from?.examinerSignoffRole ?? null,
       finalGradeSignoffRole: from?.finalGradeSignoffRole ?? null,
+      finalReportSignatureRoles: from?.finalReportSignatureRoles ?? null,
       firstStepMode: from?.firstStepMode ?? null,
       supervisorSelectionRequiresApproval: from?.supervisorSelectionRequiresApproval ?? null,
       copiedFromLabel: source && otherLabel ? (lang === 'he' ? otherLabel.he : otherLabel.en) : null,

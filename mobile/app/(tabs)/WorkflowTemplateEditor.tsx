@@ -34,7 +34,7 @@ import { TopBar } from '../../components/shared';
 import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { apiClient } from '../../src/api/apiClient';
 import {
-  CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
+  CHAIN_ROLES, SIGNOFF_ROLES, DEFAULT_ROUTING, DEFAULT_FINAL_REPORT_SIGNATURE_ROLES, PROCESS_TYPES, chainRoleLabel, SUBMISSION_REQUIREMENTS,
   MILESTONE_FILE_TYPES, DEFAULT_ALLOWED_FILE_TYPES, isMastersProcess,
   type ProcessType, type ChainRole, type ChainStage, type MilestoneRoutingSpec,
   type GradingComponentSpec, type FormFieldSpec, type FinalGradeComponents,
@@ -74,6 +74,7 @@ export interface WorkflowTemplateEditorPayload {
   defaultRouting: MilestoneRoutingSpec | null;
   examinerSignoffRole: ChainRole | 'none' | null;
   finalGradeSignoffRole: ChainRole | null;
+  finalReportSignatureRoles: ChainRole[] | null;
   firstStepMode: 'browse_projects' | 'choose_supervisor' | null;
   supervisorSelectionRequiresApproval: boolean | null;
   copiedFromLabel: string | null;
@@ -564,6 +565,11 @@ export default function WorkflowTemplateEditor() {
   const [editorFinalGradeSignoffRole, setEditorFinalGradeSignoffRole] = useState<ChainRole>(
     payload.finalGradeSignoffRole ?? 'grad_school_head'
   );
+  const [editorFinalReportSignatureRoles, setEditorFinalReportSignatureRoles] = useState<ChainRole[]>(
+    payload.finalReportSignatureRoles && payload.finalReportSignatureRoles.length > 0
+      ? [...payload.finalReportSignatureRoles]
+      : [...DEFAULT_FINAL_REPORT_SIGNATURE_ROLES]
+  );
   const [editorFirstStepMode, setEditorFirstStepMode] = useState<'browse_projects' | 'choose_supervisor'>(
     payload.firstStepMode ?? 'browse_projects'
   );
@@ -579,6 +585,7 @@ export default function WorkflowTemplateEditor() {
     defaultRouting: editorDefaultRouting.map((s) => ({ ...s })),
     examinerSignoffRole: editorExaminerSignoffRole,
     finalGradeSignoffRole: editorFinalGradeSignoffRole,
+    finalReportSignatureRoles: editorFinalReportSignatureRoles,
     firstStepMode: editorFirstStepMode,
     supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval,
   }));
@@ -590,6 +597,7 @@ export default function WorkflowTemplateEditor() {
     defaultRouting: editorDefaultRouting.map((s) => ({ ...s })),
     examinerSignoffRole: editorExaminerSignoffRole,
     finalGradeSignoffRole: editorFinalGradeSignoffRole,
+    finalReportSignatureRoles: editorFinalReportSignatureRoles,
     firstStepMode: editorFirstStepMode,
     supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval,
   });
@@ -932,6 +940,7 @@ export default function WorkflowTemplateEditor() {
         defaultRouting: editorDefaultRouting,
         examinerSignoffRole: editorExaminerSignoffRole,
         finalGradeSignoffRole: editorFinalGradeSignoffRole,
+        finalReportSignatureRoles: editorFinalReportSignatureRoles,
         firstStepMode: editorFirstStepMode,
         ...(editorFirstStepMode === 'choose_supervisor' ? { supervisorSelectionRequiresApproval: editorSupervisorSelectionRequiresApproval } : {}),
         ...(payload.includeFacultyIdInSubmit && payload.facultyId ? { facultyId: payload.facultyId } : {}),
@@ -1136,6 +1145,44 @@ export default function WorkflowTemplateEditor() {
               </Text>
             </Pressable>
           ))}
+        </ScrollView>
+        </View>
+        </FieldGuideTarget>
+
+        <FieldGuideTarget fieldKey="finalReportSignatureRoles">
+        <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4 }}>
+            {lang === 'he' ? 'חתימות בדוח המסכם' : 'Final report signatures'}
+          </Text>
+          <InfoTooltip textHe={guideEntry('finalReportSignatureRoles').description.he} textEn={guideEntry('finalReportSignatureRoles').description.en} />
+        </View>
+        <Text style={{ fontSize: 11, color: '#6B7280', marginBottom: 6 }}>
+          {lang === 'he'
+            ? 'התפקידים שמקום החתימה שלהם מופיע בתחתית הדוח המסכם, לפי סדר הבחירה.'
+            : "Roles whose signature lines appear at the bottom of the student's final report, in the order selected."}
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+          {SIGNOFF_ROLES.map((r) => {
+            const idx = editorFinalReportSignatureRoles.indexOf(r.key);
+            const selected = idx !== -1;
+            // At least one signature line is required (server rejects an empty list).
+            const locked = selected && editorFinalReportSignatureRoles.length === 1;
+            return (
+              <Pressable
+                key={r.key}
+                disabled={locked}
+                onPress={() => setEditorFinalReportSignatureRoles((prev) => (prev.includes(r.key) ? prev.filter((x) => x !== r.key) : [...prev, r.key]))}
+                style={{ borderWidth: 1.5, borderColor: selected ? '#7C3AED' : '#DDD6FE', backgroundColor: selected ? '#7C3AED' : '#fff', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginEnd: 6, opacity: locked ? 0.6 : 1 }}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected, disabled: locked }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: selected ? '#fff' : '#7C3AED' }}>
+                  {selected ? `${idx + 1}. ` : ''}{lang === 'he' ? r.he : r.en}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
         </View>
         </FieldGuideTarget>
