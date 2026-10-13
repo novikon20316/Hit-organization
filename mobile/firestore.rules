@@ -665,7 +665,13 @@ service cloud.firestore {
       // unused-client-write lockdown already applied to applications/
       // milestones/grades.
       allow create: if false;
-      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      // HIGH FIX (H2, AUDIT_FULL_2026_10_13.md): was `recipientId == uid`
+      // with no field restriction — a user could retarget one of their own
+      // notifications (recipientId → victim) and rewrite its text, forging
+      // a "system" notification in someone else's inbox and bypassing the
+      // create lockdown above. No client code updates notifications
+      // directly (mark-read goes through the server), so denied outright.
+      allow update: if false;
       allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
 
@@ -893,15 +899,15 @@ service cloud.firestore {
       // Was `if request.auth != null` — any signed-in user could list the whole
       // chats collection. Scope list to the same check as get.
       allow list:   if isParticipant();
-      allow create: if isCreatingParticipant()
-                    && request.resource.data.participants.size() == 2
-                    && chatCreateAllowed();
-      // Read-receipt fields are server-only (chatController.ts writes them
-      // via the Admin SDK) — otherwise either participant could set the
-      // OTHER's readAt and fake a "seen" double tick.
-      allow update: if isParticipant()
-                    && !request.resource.data.diff(resource.data).affectedKeys()
-                         .hasAny(['readAt', 'lastMessageSenderId', 'lastMessageAt']);
+      // HIGH FIX (H1, AUDIT_FULL_2026_10_13.md): client create/update used
+      // to be allowed, and update had no lock on `participants` — any
+      // participant could rewrite it to [self, anyUid] and message anyone
+      // in the system, bypassing chatCreateAllowed() (kept above as
+      // documentation of the policy chatController.ts enforces). No client
+      // code writes chats directly; every chat write goes through
+      // chatController.ts / projectCoordinatorController.ts (Admin SDK).
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
 
       // ── Messages subcollection ────────────────────────────────────────────
@@ -914,29 +920,13 @@ service cloud.firestore {
         }
 
         allow read: if isParentParticipant();
-        // The live path is server-mediated (chatController.ts's
-        // sendDirectMessage, Admin SDK — bypasses this rule); kept as
-        // defense-in-depth matching that endpoint's own validation, now
-        // extended for image messages (see server/src/controllers/
-        // chatController.ts's CHAT_IMAGE_URL_RE for why the host is pinned
-        // rather than accepting any https URL).
-        allow create: if isParentParticipant()
-          && request.resource.data.senderId == request.auth.uid
-          && (
-            (
-              request.resource.data.get('type', 'text') == 'text' &&
-              request.resource.data.text is string &&
-              request.resource.data.text.size() > 0 &&
-              request.resource.data.text.size() <= 4000
-            ) ||
-            (
-              request.resource.data.type == 'image' &&
-              request.resource.data.imageUrl is string &&
-              request.resource.data.imageUrl.matches('^https://res\\.cloudinary\\.com/dp7stlfas/image/upload/.*') &&
-              request.resource.data.get('text', '') is string &&
-              request.resource.data.get('text', '').size() <= 1000
-            )
-          );
+        // HIGH FIX (H3, AUDIT_FULL_2026_10_13.md): client create used to be
+        // allowed for any participant, which skipped the blockedUserIds
+        // check that only chatController.ts's sendDirectMessage enforces —
+        // a blocked user could keep messaging via the SDK. No client code
+        // writes messages directly (all sends go through the server, Admin
+        // SDK), so denied outright.
+        allow create: if false;
         allow update, delete: if false;
       }
     }
