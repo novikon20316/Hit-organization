@@ -40,8 +40,8 @@ export function computeIsEligible(
   if (!degreeType || yearOfStudy === null) return false;
 
   if (degreeType === 'masters') {
-    // Masters year 1 = eligible, year 2 = NOT eligible
-    return yearOfStudy === 1;
+    // Masters: eligible in both year 1 and year 2
+    return yearOfStudy === 1 || yearOfStudy === 2;
   }
 
   if (degreeType === 'bachelors') {
