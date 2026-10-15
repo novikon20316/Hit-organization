@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { apiClient } from '../../src/api/apiClient';
 import { auth, db } from '@/src/firebase/firebase';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
@@ -83,6 +83,12 @@ export default function ChangePasswordScreen() {
     setLoading(true);
     try {
       await apiClient.post('/api/users/change-password', { newPassword });
+
+      // The change revokes every session, this one included (server/src/
+      // middleware/auth.ts's tokensValidAfterMs) — sign straight back in
+      // with the new password so the user isn't bounced to the login screen.
+      const email = auth.currentUser?.email;
+      if (email) await signInWithEmailAndPassword(auth, email, newPassword);
 
       const uid     = auth.currentUser?.uid;
       const userDoc = uid ? await getDoc(doc(db, 'users', uid)) : null;

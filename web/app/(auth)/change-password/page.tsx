@@ -10,6 +10,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { getHomeRoute, type AppRole } from '@/lib/roles';
@@ -74,6 +75,12 @@ export default function ChangePasswordPage() {
     setLoading(true);
     try {
       await apiClient.post('/api/users/change-password', { newPassword });
+
+      // The change revokes every session, this one included (server/src/
+      // middleware/auth.ts's tokensValidAfterMs) — sign straight back in
+      // with the new password so the user isn't bounced to the login page.
+      const email = auth.currentUser?.email;
+      if (email) await signInWithEmailAndPassword(auth, email, newPassword);
 
       const uid = auth.currentUser?.uid;
       const userSnap = uid ? await getDoc(doc(db, 'users', uid)) : null;

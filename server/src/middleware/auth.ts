@@ -107,6 +107,38 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+// ─── Session revocation on password change ──────────────────────────────────
+// A password change (self-service /api/users/change-password, an admin
+// temp-password reset, or the email reset link) makes Firebase bump the
+// account's tokensValidAfterTime and revoke its refresh tokens — but an
+// already-issued ID token stays cryptographically valid for up to an hour,
+// and verifyIdToken() without checkRevoked accepts it. So a session stolen
+// before the change (e.g. a web tab, which reuses its cached ID token) kept
+// working for up to an hour after the owner changed their password.
+// Confirmed against live data (2026-10-15): on every password account
+// tokensValidAfterTime == passwordUpdatedAt, so email verification and
+// normal sign-ins never move it. Same auth_time comparison firebase-admin's
+// own checkRevoked uses, but cached per uid so it costs one Auth lookup per
+// user per minute instead of one per request.
+const VALID_AFTER_CACHE_TTL_MS = 60 * 1000;
+const validAfterCache = new Map<string, { validAfterMs: number | null; fetchedAt: number }>();
+
+async function tokensValidAfterMs(uid: string): Promise<number | null> {
+  const cached = validAfterCache.get(uid);
+  if (cached && Date.now() - cached.fetchedAt < VALID_AFTER_CACHE_TTL_MS) return cached.validAfterMs;
+  const record = await auth.getUser(uid);
+  const parsed = record.tokensValidAfterTime ? Date.parse(record.tokensValidAfterTime) : NaN;
+  const validAfterMs = Number.isFinite(parsed) ? parsed : null;
+  validAfterCache.set(uid, { validAfterMs, fetchedAt: Date.now() });
+  return validAfterMs;
+}
+
+/** Call right after changing a user's password on this instance, so the
+ *  change takes effect here immediately instead of after the cache TTL. */
+export function forgetTokensValidAfter(uid: string): void {
+  validAfterCache.delete(uid);
+}
+
 /**
  * verifyToken — enriches req.user with role + facultyId from Firestore.
  * Use this on ALL routes so controllers can trust req.user.role.
@@ -136,6 +168,20 @@ export const verifyToken = async (
   }
 
   const uid = decodedToken.uid;
+
+  // Sessions signed in before the account's last password change are
+  // rejected — see tokensValidAfterMs below.
+  try {
+    const validAfterMs = await tokensValidAfterMs(uid);
+    if (validAfterMs !== null && decodedToken.auth_time * 1000 < validAfterMs) {
+      return res.status(401).json({ error: 'SESSION_REVOKED', message: L(req, 'Your password was changed. Please sign in again.', 'הסיסמה שונתה. יש להתחבר מחדש.') });
+    }
+  } catch (err) {
+    // Fail open: an Auth lookup hiccup must not lock every user out. The
+    // refresh token is already revoked by Firebase, so the exposure is at
+    // most this one ID token's remaining lifetime.
+    console.error(`verifyToken: tokensValidAfter lookup failed for ${uid}:`, err);
+  }
 
   try {
     const userDoc = await db.collection('users').doc(uid).get();

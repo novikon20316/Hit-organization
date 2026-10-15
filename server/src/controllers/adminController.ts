@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { Response } from 'express';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
-import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole, getUserRoles, forgetTokensValidAfter } from '../middleware/auth.js';
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { L } from '../utils/localize.js';
@@ -1512,6 +1512,7 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
     // `isActive` untouched, since that's a separate, deliberate suspension
     // flag with its own toggle.
     await admin.auth().updateUser(userId, { password: tempPassword, disabled: false });
+    forgetTokensValidAfter(userId);
     await db.collection('users').doc(userId).update({
       mustChangePassword: true,
       updatedAt: new Date().toISOString(),

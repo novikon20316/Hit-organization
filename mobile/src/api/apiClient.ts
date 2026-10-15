@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { auth, appCheck } from '../firebase/firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
+import { signOut } from 'firebase/auth';
 import { reportClientError, reportTransportFailure } from './errorReporting';
 import { getCurrentLang } from './currentLang';
 
@@ -141,6 +142,16 @@ class ApiClient {
         if (error.response?.status === 403 && error.response?.data?.error === 'TWO_FACTOR_REQUIRED') {
           try {
             router.replace('/(auth)/setup2fa' as any);
+          } catch {}
+        }
+
+        // Session signed in before the account's last password change
+        // (server/src/middleware/auth.ts's tokensValidAfterMs) — sign out
+        // locally and return to login.
+        if (error.response?.status === 401 && error.response?.data?.error === 'SESSION_REVOKED') {
+          signOut(auth).catch(() => {});
+          try {
+            router.replace('/(auth)/login' as any);
           } catch {}
         }
         // No error.response at all means the request never got a reply —

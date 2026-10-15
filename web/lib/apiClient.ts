@@ -7,6 +7,7 @@
 
 import { auth, appCheck } from './firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
+import { signOut } from 'firebase/auth';
 import { reportClientError, reportTransportFailure } from './errorReporting';
 
 // No timeout existed anywhere in this client before — a hung request (dead
@@ -247,6 +248,14 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   // so they never trigger this and there's no redirect loop.
   if (res.status === 403 && data && typeof data === 'object' && (data as { error?: string }).error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined') {
     window.location.href = '/setup-2fa';
+  }
+
+  // This session was signed in before the account's password was last
+  // changed (server/src/middleware/auth.ts's tokensValidAfterMs) — e.g. a
+  // tab left open on another computer. Sign out locally and go to login.
+  if (res.status === 401 && data && typeof data === 'object' && (data as { error?: string }).error === 'SESSION_REVOKED' && typeof window !== 'undefined') {
+    await signOut(auth).catch(() => {});
+    window.location.href = '/login';
   }
 
   if (!res.ok) {

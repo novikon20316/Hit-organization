@@ -3,7 +3,7 @@
 import { Request, Response } from 'express';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
-import { AuthenticatedRequest, verifyToken } from '../middleware/auth.js';
+import { AuthenticatedRequest, verifyToken, forgetTokensValidAfter } from '../middleware/auth.js';
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { VALID_MAJORS, MAJORS_BY_FACULTY } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
@@ -632,7 +632,11 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: L(req, 'Your new password cannot be the same as the temporary password you were issued.', 'הסיסמה החדשה לא יכולה להיות זהה לסיסמה הזמנית שהונפקה לך.') });
     }
 
+    // Revokes every existing session, this one included (see
+    // middleware/auth.ts's tokensValidAfterMs) — the client signs in again
+    // with the new password right after this succeeds.
     await auth.updateUser(uid, { password: newPassword });
+    forgetTokensValidAfter(uid);
     await db.collection('users').doc(uid).update({
       mustChangePassword: false,
       updatedAt: new Date().toISOString(),
