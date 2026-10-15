@@ -15,7 +15,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
-import { IMPERSONATION_ENABLED } from '../config/featureFlags.js';
+import { IMPERSONATION_ENABLED, isImpersonationProtected } from '../config/featureFlags.js';
 import {
   validateScopeRule, validateCoordinatorScope,
   ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
@@ -103,6 +103,9 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
     const users = usersSnap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
+      // Lets the Users tab hide the Impersonate button for real users —
+      // same check impersonateUser enforces (config/featureFlags.ts).
+      impersonationProtected: isImpersonationProtected(d.data()),
     }));
 
     // Resolves each project's supervisorId to a display name — without this,
@@ -187,6 +190,12 @@ export const impersonateUser = async (req: AuthenticatedRequest, res: Response) 
     const targetRoles = new Set<string>([targetData.role, ...(targetData.roles ?? [])].filter(Boolean));
     if (targetRoles.has('system_admin')) {
       return res.status(400).json({ message: L(req, 'Cannot impersonate another system_admin account.', 'לא ניתן להתחזות לחשבון מנהל מערכת אחר.') });
+    }
+    // Real, live users (IMPERSONATION_PROTECTED_FACULTIES — currently Data
+    // Science) can never be impersonated; only the still-test faculties can.
+    if (isImpersonationProtected(targetData)) {
+      await logPermissionDenied(req, 'user_impersonation', targetUid);
+      return res.status(403).json({ message: L(req, 'This user belongs to a live department and cannot be impersonated.', 'משתמש זה שייך למחלקה פעילה ולא ניתן להתחזות אליו.') });
     }
 
     const [targetToken, adminReturnToken] = await Promise.all([

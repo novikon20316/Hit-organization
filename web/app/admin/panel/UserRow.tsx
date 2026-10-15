@@ -41,7 +41,9 @@ export function UserRow({ user, statusConfig, onChanged, onEdit, impersonationEn
   const roleColor = getRoleAccent(user.role);
   const isSelf = user.id === firebaseUser?.uid;
   const isOtherAdmin = user.role === 'system_admin' || (user.roles ?? []).includes('system_admin');
-  const canImpersonate = !!impersonationEnabled && !isSelf && !isOtherAdmin;
+  // Server enforces the same rule (impersonateUser) — hidden here so the
+  // button never appears for a real, live department's users.
+  const canImpersonate = !!impersonationEnabled && !isSelf && !isOtherAdmin && !user.impersonationProtected;
 
   // Status badges are student-only, and only shown once actually set —
   // omit entirely rather than showing an empty/placeholder badge.
