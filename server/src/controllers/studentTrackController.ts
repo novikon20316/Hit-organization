@@ -19,6 +19,7 @@ import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { specializationsForStudent } from '../config/specialization.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { normalizeCompletedCourses } from '../services/prerequisites.js';
 
 // Mirrors PROJECT_COORDINATOR_DASHBOARD_ROLES in projectCoordinatorController.ts
 // plus 'coordinator' — the plain faculty coordinator role is who the business
@@ -205,5 +206,70 @@ export const setStudentSpecialization = async (req: AuthenticatedRequest, res: R
   } catch (error) {
     const message = error instanceof Error ? error.message : L(req, 'Failed to set specialization.', 'עדכון תחום ההתמחות נכשל.');
     return res.status(400).json({ message });
+  }
+};
+
+// Who may set a student's completed courses (+ grades) from the student
+// detail page — the list project prerequisites are checked against. Same
+// roles/scope model as SPECIALIZATION_ROLES above. system_admin can also do
+// this unscoped from the Academic Year page (adminController.ts's
+// updateStudentCompletedCoursesAsAdmin). Replaces the whole list.
+const COMPLETED_COURSES_ROLES = ['coordinator', 'administrative_secretary', 'system_admin'];
+
+export const setStudentCompletedCourses = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAnyRole(req.user, COMPLETED_COURSES_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
+  }
+  const { studentId } = req.params;
+  const { completedCourses } = req.body ?? {};
+  if (!isValidDocId(studentId)) {
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
+  }
+  if (!Array.isArray(completedCourses) || completedCourses.length > 300) {
+    return res.status(400).json({ message: L(req, 'completedCourses must be an array.', 'completedCourses חייב להיות מערך.') });
+  }
+
+  const normalized: { subject: string; grade: number }[] = [];
+  const seen = new Set<string>();
+  for (const entry of completedCourses) {
+    const subject = typeof entry?.subject === 'string' ? entry.subject.trim().slice(0, 200) : '';
+    const grade = Number(entry?.grade);
+    if (!subject) return res.status(400).json({ message: L(req, 'Each course needs a subject name.', 'לכל קורס יש להזין שם מקצוע.') });
+    if (entry?.grade === '' || entry?.grade == null || !Number.isFinite(grade) || grade < 0 || grade > 100) {
+      return res.status(400).json({ message: L(req, `Invalid grade for "${subject}" — must be 0-100.`, `ציון לא תקין עבור "${subject}" — חייב להיות בין 0 ל-100.`) });
+    }
+    if (seen.has(subject)) {
+      return res.status(400).json({ message: L(req, `"${subject}" appears more than once.`, `"${subject}" מופיע יותר מפעם אחת.`) });
+    }
+    seen.add(subject);
+    normalized.push({ subject, grade });
+  }
+
+  try {
+    const studentRef = db.collection('users').doc(studentId);
+    const studentSnap = await studentRef.get();
+    if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
+    }
+    const studentData = studentSnap.data()!;
+    if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
+      return res.status(403).json({ message: L(req, 'This student is outside your assigned scope.', 'סטודנט זה אינו בתחום האחריות שהוקצה לך.') });
+    }
+
+    await studentRef.update({ completedCourses: normalized, updatedAt: new Date().toISOString() });
+    await logAuditEvent({
+      userId: req.user.uid,
+      userRole: req.user.role,
+      action: 'completed_courses_updated_by_staff',
+      entityType: 'user',
+      entityId: studentId,
+      oldValue: { completedCourses: normalizeCompletedCourses(studentData.completedCourses) },
+      newValue: { completedCourses: normalized },
+    });
+    return res.status(200).json({ success: true, completedCourses: normalized });
+  } catch (error) {
+    console.error('setStudentCompletedCourses error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to update completed courses.', 'עדכון הקורסים שהושלמו נכשל.') });
   }
 };

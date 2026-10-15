@@ -2322,6 +2322,8 @@ export const apiClient = {
         degreeType: 'bachelors' | 'masters' | null;
         specialization: string | null;
         specializationOptions: string[];
+        completedCourses: { subject: string; grade?: number }[];
+        prerequisiteSubjects: string[];
         email: string;
         phoneNumber: string | null;
         yearOfStudy: number | null;
@@ -2402,6 +2404,16 @@ export const apiClient = {
       method: 'POST',
       body: { specialization },
     });
+  },
+
+  /** Coordinator/administrative coordinator/system_admin — replaces the
+   *  student's completed courses (checked against project prerequisites).
+   *  See studentTrackController.ts's setStudentCompletedCourses. */
+  async setStudentCompletedCourses(studentId: string, completedCourses: { subject: string; grade: number }[]) {
+    return request<{ success: boolean; completedCourses: { subject: string; grade: number }[] }>(
+      `/api/project-coordinator/students/${studentId}/completed-courses`,
+      { method: 'PUT', body: { completedCourses } }
+    );
   },
 
   async setStudentThesisAverage(studentId: string, average: number) {

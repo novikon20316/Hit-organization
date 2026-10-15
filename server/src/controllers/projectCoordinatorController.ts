@@ -21,6 +21,7 @@ import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workf
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { specializationsForStudent } from '../config/specialization.js';
+import { normalizeCompletedCourses, normalizePrerequisites } from '../services/prerequisites.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { notifyUser } from '../services/notify.js';
@@ -753,6 +754,17 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
       }
     }
 
+    // Distinct prerequisite course names used by projects in the student's
+    // faculty — offered as suggestions in the completed-courses editor, since
+    // meetsPrerequisite matches on the exact subject string.
+    const prerequisiteSubjects = new Set<string>();
+    if (studentData.facultyId) {
+      const facultyProjects = await db.collection('projects').where('facultyId', '==', studentData.facultyId).select('prerequisites').get();
+      for (const p of facultyProjects.docs) {
+        for (const pr of normalizePrerequisites(p.data().prerequisites)) prerequisiteSubjects.add(pr.subject);
+      }
+    }
+
     return res.status(200).json({
       student: {
         id: studentSnap.id,
@@ -764,6 +776,11 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         // Options staff may pick from on the student detail page (empty =
         // program has no specializations, so no editor is shown).
         specializationOptions: specializationsForStudent(studentData),
+        // Checked against project prerequisites when the student browses/
+        // applies — editable on the detail page (see studentTrackController.ts's
+        // setStudentCompletedCourses).
+        completedCourses: normalizeCompletedCourses(studentData.completedCourses),
+        prerequisiteSubjects: [...prerequisiteSubjects].sort((a, b) => a.localeCompare(b)),
         email: studentData.email ?? '',
         phoneNumber: studentData.phoneNumber ?? null,
         yearOfStudy: studentData.yearOfStudy ?? null,

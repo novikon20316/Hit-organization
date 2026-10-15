@@ -46,6 +46,9 @@ const ADMIN_COORDINATOR_ROLES: AppRole[] = ['administrative_secretary', 'coordin
 // this feature existed.
 // Mirrors studentTrackController.ts's SPECIALIZATION_ROLES.
 const SPECIALIZATION_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
+// Mirrors studentTrackController.ts's COMPLETED_COURSES_ROLES. Other roles
+// that can open this page see the list read-only.
+const COMPLETED_COURSES_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
 const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
@@ -101,6 +104,7 @@ export default function StudentDetailPage() {
   const canSetAverage = !!role && THESIS_AVERAGE_ROLES.includes(role);
   const roles = [role, ...((userData?.roles ?? []) as AppRole[])].filter(Boolean) as AppRole[];
   const canSetSpecialization = roles.some((r) => SPECIALIZATION_ROLES.includes(r));
+  const canEditCourses = roles.some((r) => COMPLETED_COURSES_ROLES.includes(r));
 
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -369,6 +373,17 @@ export default function StudentDetailPage() {
             </div>
           )}
 
+          {/* Completed courses — what project prerequisites are checked
+              against when the student browses/applies. */}
+          <CompletedCoursesCard
+            key={`${student.id}-${JSON.stringify(student.completedCourses)}`}
+            studentId={student.id}
+            initial={student.completedCourses}
+            suggestions={student.prerequisiteSubjects}
+            canEdit={canEditCourses}
+            onSaved={loadDetail}
+          />
+
           {/* Communication */}
           <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
             <p className="text-sm font-semibold text-administrative-coordinator-on-surface">☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</p>
@@ -482,5 +497,148 @@ export default function StudentDetailPage() {
         <p className="mt-4 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'הסטודנט לא נמצא' : 'Student not found'}</p>
       )}
     </DashboardShell>
+  );
+}
+
+function CompletedCoursesCard({
+  studentId, initial, suggestions, canEdit, onSaved,
+}: {
+  studentId: string;
+  initial: { subject: string; grade?: number }[];
+  suggestions: string[];
+  canEdit: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const { lang } = useLanguage();
+  const [rows, setRows] = useState(initial);
+  const [subject, setSubject] = useState('');
+  const [grade, setGrade] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const dirty = JSON.stringify(rows) !== JSON.stringify(initial);
+
+  const addRow = () => {
+    const trimmed = subject.trim();
+    if (!trimmed) {
+      setError(lang === 'he' ? 'יש להזין שם קורס' : 'Enter a course name');
+      return;
+    }
+    const g = Number(grade);
+    if (grade.trim() === '' || !Number.isFinite(g) || g < 0 || g > 100) {
+      setError(lang === 'he' ? 'ציון חייב להיות בין 0 ל-100' : 'Grade must be between 0 and 100');
+      return;
+    }
+    // Re-adding an existing course name updates its grade in place.
+    setRows((prev) => [...prev.filter((r) => r.subject !== trimmed), { subject: trimmed, grade: g }]);
+    setSubject('');
+    setGrade('');
+    setError('');
+  };
+
+  const removeRow = (subj: string) => setRows((prev) => prev.filter((r) => r.subject !== subj));
+
+  const handleSave = async () => {
+    // Legacy entries (from before grades were tracked) have no grade — the
+    // server requires one, so make the user re-add them rather than saving 0.
+    const missing = rows.find((r) => r.grade == null);
+    if (missing) {
+      setError(lang === 'he' ? `לקורס "${missing.subject}" אין ציון — הסר/י והוסף/י אותו מחדש עם ציון` : `"${missing.subject}" has no grade — remove it and add it again with a grade`);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await apiClient.setStudentCompletedCourses(studentId, rows.map((r) => ({ subject: r.subject, grade: r.grade! })));
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputClass = 'rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none';
+
+  return (
+    <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+      <p className="text-sm font-semibold text-administrative-coordinator-on-surface">📚 {lang === 'he' ? 'קורסים שהושלמו' : 'Completed Courses'} ({rows.length})</p>
+      <p className="mt-0.5 text-[11px] text-administrative-coordinator-on-surface-variant">
+        {lang === 'he'
+          ? 'דרישות הקדם של פרויקטים נבדקות מול רשימה זו. שם הקורס חייב להיות זהה בדיוק לשם בדרישת הקדם — בחר/י מההצעות כשאפשר.'
+          : "Project prerequisites are checked against this list. The course name must match the prerequisite's name exactly — pick from the suggestions when possible."}
+      </p>
+
+      <div className="mt-3 grid gap-2">
+        {rows.length === 0 && (
+          <p className="text-xs text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'טרם נרשמו קורסים' : 'No courses on record yet'}</p>
+        )}
+        {rows.map((r) => (
+          <div key={r.subject} className="flex items-center justify-between rounded-lg bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm">
+            <span className="text-administrative-coordinator-on-surface">{r.subject}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'ציון:' : 'Grade:'} {r.grade ?? '—'}</span>
+              {canEdit && (
+                <button type="button" onClick={() => removeRow(r.subject)} aria-label={`${lang === 'he' ? 'הסר' : 'Remove'} ${r.subject}`} className="text-danger hover:opacity-70">
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {canEdit && (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addRow()}
+              list={`prereq-subjects-${studentId}`}
+              placeholder={lang === 'he' ? 'שם הקורס' : 'Course name'}
+              aria-label={lang === 'he' ? 'שם הקורס' : 'Course name'}
+              className={`min-w-0 flex-1 ${inputClass}`}
+            />
+            <datalist id={`prereq-subjects-${studentId}`}>
+              {suggestions.map((s) => <option key={s} value={s} />)}
+            </datalist>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addRow()}
+              placeholder={lang === 'he' ? 'ציון' : 'Grade'}
+              aria-label={lang === 'he' ? 'ציון' : 'Grade'}
+              className={`w-24 ${inputClass}`}
+            />
+            <button
+              type="button"
+              onClick={addRow}
+              className="rounded-lg border border-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-primary hover:bg-administrative-coordinator-primary/10"
+            >
+              {lang === 'he' ? '+ הוסף' : '+ Add'}
+            </button>
+          </div>
+          {error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">{error}</p>}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={saving || !dirty}
+              onClick={handleSave}
+              className="rounded-lg bg-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
+            >
+              {saving ? '…' : lang === 'he' ? 'שמור קורסים' : 'Save courses'}
+            </button>
+            {dirty && !saving && (
+              <button type="button" onClick={() => { setRows(initial); setError(''); }} className="text-xs text-administrative-coordinator-on-surface-variant hover:underline">
+                {lang === 'he' ? 'בטל שינויים' : 'Discard changes'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

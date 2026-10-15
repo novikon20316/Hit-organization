@@ -53,6 +53,7 @@ export type AuditAction =
   | 'bulk_permissions_granted'
   | 'academic_year_updated'
   | 'completed_courses_updated_by_admin'
+  | 'completed_courses_updated_by_staff'
   | 'audit_log_entries_deleted'
   | 'audit_log_purged'
   | 'login_failed'

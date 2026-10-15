@@ -3,7 +3,7 @@ import {
   getProjectCoordinatorDashboard, getStudentsReport, sendStudentsMessage, getStudentDetail, getPendingGradeOverrides,
   getCoordinatorStatistics, exportCoordinatorStatistics, updateSupervisorPaymentRates,
 } from '../controllers/projectCoordinatorController.js';
-import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization } from '../controllers/studentTrackController.js';
+import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization, setStudentCompletedCourses } from '../controllers/studentTrackController.js';
 import { assignDefense } from '../controllers/coordinatorController.js';
 import { studentsMessageLimiter } from '../middleware/rateLimit.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -21,6 +21,8 @@ router.post('/students/:studentId/thesis-eligibility', verifyToken, setStudentTh
 router.post('/students/:studentId/thesis-average', verifyToken, setStudentThesisAverage);
 // POST /api/project-coordinator/students/:studentId/specialization   { specialization: string | null }
 router.post('/students/:studentId/specialization', verifyToken, setStudentSpecialization);
+// PUT /api/project-coordinator/students/:studentId/completed-courses   { completedCourses: { subject, grade }[] }
+router.put('/students/:studentId/completed-courses', verifyToken, setStudentCompletedCourses);
 router.get('/grade-overrides', verifyToken, getPendingGradeOverrides);
 router.get('/statistics', verifyToken, getCoordinatorStatistics);
 router.get('/statistics/export', verifyToken, exportCoordinatorStatistics);

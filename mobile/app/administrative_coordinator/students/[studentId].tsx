@@ -27,6 +27,8 @@ interface StudentDetail {
     degreeType: 'bachelors' | 'masters' | null;
     specialization?: string | null;
     specializationOptions?: string[];
+    completedCourses?: { subject: string; grade?: number }[];
+    prerequisiteSubjects?: string[];
     email: string;
     phoneNumber: string | null;
     yearOfStudy: number | null;
@@ -305,6 +307,18 @@ export default function StudentDetailScreen() {
               </View>
             )}
 
+            {/* Completed courses — what project prerequisites are checked
+                against when the student browses/applies. */}
+            <CompletedCoursesCard
+              key={`${student.id}-${JSON.stringify(student.completedCourses ?? [])}`}
+              studentId={student.id}
+              initial={student.completedCourses ?? []}
+              suggestions={student.prerequisiteSubjects ?? []}
+              lang={lang}
+              isRtl={isRtl}
+              onSaved={loadDetail}
+            />
+
             {/* Communication */}
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>☎️ {lang === 'he' ? 'פרטי התקשרות' : 'Communication'}</Text>
@@ -398,6 +412,163 @@ export default function StudentDetailScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Coordinator / admin coordinator / system_admin only — the server
+// (studentTrackController.ts's setStudentCompletedCourses) enforces the role
+// and scope; anyone else gets its error message back on save. Replaces the
+// whole list. Mirrors web's CompletedCoursesCard on students/[studentId].
+function CompletedCoursesCard({
+  studentId, initial, suggestions, lang, isRtl, onSaved,
+}: {
+  studentId: string;
+  initial: { subject: string; grade?: number }[];
+  suggestions: string[];
+  lang: 'he' | 'en';
+  isRtl: boolean;
+  onSaved: () => Promise<void> | undefined;
+}) {
+  const [rows, setRows] = useState(initial);
+  const [subject, setSubject] = useState('');
+  const [grade, setGrade] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const dirty = JSON.stringify(rows) !== JSON.stringify(initial);
+
+  // Prerequisite names are matched exactly, so surface the faculty's
+  // existing ones as tappable suggestions while typing.
+  const query = subject.trim().toLowerCase();
+  const matches = query
+    ? suggestions.filter((s) => s.toLowerCase().includes(query) && s !== subject.trim()).slice(0, 5)
+    : [];
+
+  const addRow = () => {
+    const trimmed = subject.trim();
+    if (!trimmed) {
+      setError(lang === 'he' ? 'יש להזין שם קורס' : 'Enter a course name');
+      return;
+    }
+    const g = Number(grade);
+    if (grade.trim() === '' || !Number.isFinite(g) || g < 0 || g > 100) {
+      setError(lang === 'he' ? 'ציון חייב להיות בין 0 ל-100' : 'Grade must be between 0 and 100');
+      return;
+    }
+    setRows((prev) => [...prev.filter((r) => r.subject !== trimmed), { subject: trimmed, grade: g }]);
+    setSubject('');
+    setGrade('');
+    setError('');
+  };
+
+  const handleSave = async () => {
+    const missing = rows.find((r) => r.grade == null);
+    if (missing) {
+      setError(lang === 'he' ? `לקורס "${missing.subject}" אין ציון — הסר/י והוסף/י אותו מחדש עם ציון` : `"${missing.subject}" has no grade — remove it and add it again with a grade`);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await apiClient.put(`/api/project-coordinator/students/${studentId}/completed-courses`, {
+        completedCourses: rows.map((r) => ({ subject: r.subject, grade: r.grade })),
+      });
+      await onSaved();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || (lang === 'he' ? 'העדכון נכשל' : 'Update failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = { borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, padding: 8, fontSize: 13, color: ap.onSurface, textAlign: (isRtl ? 'right' : 'left') as 'right' | 'left' };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>📚 {lang === 'he' ? 'קורסים שהושלמו' : 'Completed Courses'} ({rows.length})</Text>
+      <Text style={[styles.cardSub, { fontSize: 11 }]}>
+        {lang === 'he'
+          ? 'דרישות הקדם של פרויקטים נבדקות מול רשימה זו. שם הקורס חייב להיות זהה בדיוק לשם בדרישת הקדם — בחר/י מההצעות כשאפשר.'
+          : "Project prerequisites are checked against this list. The course name must match the prerequisite's name exactly — pick from the suggestions when possible."}
+      </Text>
+
+      {rows.length === 0 && (
+        <Text style={[styles.cardSub, { marginTop: 8 }]}>{lang === 'he' ? 'טרם נרשמו קורסים' : 'No courses on record yet'}</Text>
+      )}
+      {rows.map((r) => (
+        <View key={r.subject} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: ap.surfaceContainerLow, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 }}>
+          <Text style={{ flex: 1, fontSize: 13, color: ap.onSurface, textAlign: isRtl ? 'right' : 'left' }}>{r.subject}</Text>
+          <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginHorizontal: 8 }}>{lang === 'he' ? 'ציון:' : 'Grade:'} {r.grade ?? '—'}</Text>
+          <Pressable
+            onPress={() => setRows((prev) => prev.filter((x) => x.subject !== r.subject))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${lang === 'he' ? 'הסר' : 'Remove'} ${r.subject}`}
+          >
+            <Text style={{ color: '#EF4444', fontSize: 14 }}>✕</Text>
+          </Pressable>
+        </View>
+      ))}
+
+      <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginTop: 10 }}>
+        <TextInput
+          value={subject}
+          onChangeText={setSubject}
+          placeholder={lang === 'he' ? 'שם הקורס' : 'Course name'}
+          accessibilityLabel={lang === 'he' ? 'שם הקורס' : 'Course name'}
+          style={[inputStyle, { flex: 1 }]}
+        />
+        <TextInput
+          value={grade}
+          onChangeText={setGrade}
+          keyboardType="numeric"
+          placeholder={lang === 'he' ? 'ציון' : 'Grade'}
+          accessibilityLabel={lang === 'he' ? 'ציון' : 'Grade'}
+          style={[inputStyle, { width: 70 }]}
+        />
+      </View>
+      {matches.length > 0 && (
+        <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {matches.map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setSubject(m)}
+              style={{ borderWidth: 1, borderColor: ap.primary, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 }}
+              accessibilityRole="button"
+            >
+              <Text style={{ fontSize: 12, color: ap.primary }}>{m}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <Pressable
+        onPress={addRow}
+        style={{ borderWidth: 1, borderColor: ap.primary, borderRadius: 8, paddingVertical: 8, alignItems: 'center', marginTop: 8 }}
+        accessibilityRole="button"
+      >
+        <Text style={{ color: ap.primary, fontWeight: '700', fontSize: 13 }}>{lang === 'he' ? '+ הוסף קורס' : '+ Add course'}</Text>
+      </Pressable>
+
+      {!!error && (
+        <View style={{ backgroundColor: '#FEF2F2', borderRadius: 8, padding: 8, marginTop: 8 }}>
+          <Text style={{ color: '#EF4444', fontSize: 12 }}>{error}</Text>
+        </View>
+      )}
+
+      <Pressable
+        disabled={saving || !dirty}
+        onPress={handleSave}
+        style={{ backgroundColor: ap.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8, opacity: saving || !dirty ? 0.5 : 1 }}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: saving || !dirty }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{saving ? '…' : lang === 'he' ? 'שמור קורסים' : 'Save courses'}</Text>
+      </Pressable>
+      {dirty && !saving && (
+        <Pressable onPress={() => { setRows(initial); setError(''); }} style={{ alignItems: 'center', marginTop: 6 }} accessibilityRole="button">
+          <Text style={{ fontSize: 12, color: ap.onSurfaceVariant }}>{lang === 'he' ? 'בטל שינויים' : 'Discard changes'}</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
