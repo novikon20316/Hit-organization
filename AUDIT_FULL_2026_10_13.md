@@ -62,10 +62,15 @@ The new feature code from the last week is in good shape. Every new endpoint che
 ### M5: App Check is still `monitor` in production
 Live `api` service: `APP_CHECK_ENFORCEMENT_MODE=monitor`, unchanged since 2026-09-30. The API accepts requests from any client that holds a valid ID token, including scripts. Web is ready to enforce. Mobile needs a store build that sends App Check tokens, and that build is blocked on EAS quota until 2026-11-01.
 **Fix:** review the monitor logs for the pass rate, then switch to `enforce` once the mobile build ships.
+**Checked 2026-10-15 (BLOCKED, not fixed):** monitor logs since 10-12 show ≥5,000 verified and 1,422 missing-token requests, with 0 invalid. The missing ones are almost all `POST /api/presence/heartbeat` (708) and `GET /api/chats/dashboard` (696), i.e. mobile background polling. The cause is that mobile has `extra.appCheckReady: false` in `mobile/app.json`, so the store app sends **no** App Check token at all. Enforcing today would make every mobile request fail with 401. Per-platform enforcement (web only) gives no real protection, because the platform header is client-controlled. Remaining steps, in order:
+1. Finish the native attestation setup: Play Integrity (SHA-256 fingerprint plus Play Console link) and App Attest (Apple Developer). These are console steps you have to do.
+2. Set `appCheckReady: true`, ship a store build (EAS quota resets 2026-11-01), and confirm on a real device that the monitor logs show it verified.
+3. Wait for old builds to age out, or force an update, then set `APP_CHECK_ENFORCEMENT_MODE=enforce` on the `api` service (you run that change).
 
-### M6: Production secrets are plain Cloud Run env vars, not Secret Manager
-Live `api` service env: `CLOUDINARY_API_SECRET`, `BREVO_API_KEY`, `TWILIO_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `GOOGLE_CALENDAR_CLIENT_SECRET`. These are readable by anyone with `run.services.get` (any project Viewer), and they're exposed to the same env-var-wipe risk that caused the 2026-09-30 outage.
-**Fix:** move them to Secret Manager and mount them as secret env vars. This is an infra change, so you run it (same rule as IAM).
+### M6: [x] FIXED 2026-10-15 (corrected scope). One production secret was a plain env var
+The original finding was wrong in scope. It listed env var names without checking whether they were Secret Manager references. Cloudinary key and secret, Brevo, Anthropic, and the Twilio SID and token are **already** loaded from Secret Manager (`:latest`). The runtime service account has project-level secret-accessor access. **Only `GOOGLE_CALENDAR_CLIENT_SECRET` is a plain value**, readable by anyone who can view the service config. The deploy pipeline merges env vars (`--update-env-vars`), so migrating it is safe across future deploys.
+**Fix:** copy the current value into a new Secret Manager secret, then swap the env var for a secret reference in a single service update. No permission change is needed. Writing to Secret Manager is blocked for Claude, so you run this one.
+**Applied:** you ran both commands. Revision `api-00144-sxn` is Ready and serving 100%, `GOOGLE_CALENDAR_CLIENT_SECRET` is now a secret reference, and no ERROR logs appeared on the new revision. No credential remains a plain env var. **Optional:** rotate the OAuth client secret, since its old value was readable by anyone with access to view the service config.
 
 ### M7: [x] FIXED (committed). Student mass-messaging has no rate limit; each call can send 500 × (SMS + WhatsApp + email + push)
 `projectCoordinatorController.ts` `sendStudentsMessage`. Scope checks and HTML escaping are correct. But if an `administrative_secretary` account is compromised, it can burn Twilio/Brevo credit and spam an entire faculty in a loop.
