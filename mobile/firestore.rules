@@ -56,6 +56,19 @@ service cloud.firestore {
     function facultyId(u) {
       return u.get('facultyId', '');
     }
+    // Two users on the same active project. Enrollment writes both
+    // activeProjectId (latest) and activeProjectIds (all — see
+    // server/src/services/projectEnrollment.ts), and trackChange.ts rewrites
+    // only the scalar, so both shapes are checked.
+    function sharesActiveProject(me, them) {
+      let myIds = me.get('activeProjectIds', []);
+      let theirIds = them.get('activeProjectIds', []);
+      let mine = me.get('activeProjectId', '');
+      let theirs = them.get('activeProjectId', '');
+      return myIds.hasAny(theirIds)
+        || (mine != '' && (mine == theirs || theirIds.hasAny([mine])))
+        || (theirs != '' && myIds.hasAny([theirs]));
+    }
     function isStaffRole(u) {
       return role(u) in ['supervisor', 'secondary_supervisor', 'coordinator', 'administrative_secretary', 'program_head', 'internal_examiner',
                          'faculty_admin', 'grad_school_head', 'division_head', 'dean', 'system_admin'];
@@ -142,7 +155,22 @@ service cloud.firestore {
       // the only real need for a multi-document users query (rosters,
       // candidate pickers, etc.) — see userDoc()'s own single-get-per-rule
       // comment above for why this still costs just one extra get().
-      allow get:   if isVerifiedSignedIn();
+      // MEDIUM FIX (M3, AUDIT_FULL_2026_10_13.md): get used to be open to
+      // ANY verified user for ANY uid — and uids are everywhere (projects,
+      // chats), so a student could read a classmate's national ID number
+      // (studentId) and phone. Now limited to what the clients actually do:
+      //  - self (login, AuthContext, own forms)
+      //  - staff reading anyone (dashboards, recommendation/record modals)
+      //  - anyone reading a STAFF account (a student's supervisor-name
+      //    lookup in useStudentData.ts)
+      //  - a teammate on a shared active project (the student research-
+      //    proposal / progress-report forms show each teammate's ID/phone)
+      allow get:   if isVerifiedSignedIn() && (
+        request.auth.uid == userId ||
+        isStaffRole(resource.data) ||
+        isStaffRole(userDoc()) ||
+        sharesActiveProject(userDoc(), resource.data)
+      );
       allow list:  if isVerifiedSignedIn() && isStaffRole(userDoc());
 
       // CRITICAL FIX: this used to be a single unrestricted `allow write`
