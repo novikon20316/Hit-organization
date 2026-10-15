@@ -324,23 +324,14 @@ service cloud.firestore {
         projectStaffAuthorized(userDoc(), resource) ||
         (role(userDoc()) == 'student' && resource.data.get('status', '') == 'active')
       );
-      allow create: if isSignedIn() &&
-        role(userDoc()) in ['supervisor', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary'];
-      // HIGH FIX: 'supervisor' previously had blanket update access to every
-      // project in the system, not just their own — any supervisor could
-      // directly rewrite ANOTHER supervisor's enrolledStudentIds/status/
-      // major/supervisorId, bypassing the ownership checks the scoped
-      // /api/admin/projects/* and /api/supervisor/projects/* endpoints
-      // already enforce. The other roles here are real admin-tier accounts
-      // (coordinator/faculty_admin/program_head/administrative_secretary/
-      // system_admin) whose broader project-management authority is
-      // intentional elsewhere in this codebase, so only 'supervisor' gets
-      // an ownership constraint added.
-      allow update: if isSignedIn() && (
-        (role(userDoc()) == 'supervisor' && resource.data.get('supervisorId', '') == request.auth.uid) ||
-        role(userDoc()) in ['coordinator', 'faculty_admin', 'system_admin', 'program_head', 'administrative_secretary']
-      );
-      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+      // MEDIUM FIX (M4, AUDIT_FULL_2026_10_13.md): create/update used to be
+      // open to coordinator/faculty_admin/program_head/
+      // administrative_secretary on ANY project in ANY faculty, any field
+      // (supervisorId, enrolledStudentIds, status…), bypassing the faculty
+      // scoping the /api/admin, /api/supervisor and /api/projects endpoints
+      // enforce. Neither app has written projects directly since May 2026;
+      // every project write goes through the server (Admin SDK).
+      allow create, update, delete: if false;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -467,20 +458,10 @@ service cloud.firestore {
             isCrossFaculty(userDoc()
           )
       );
-			allow create: if isSignedIn() && (
-      	role(userDoc()) in [
-          'coordinator', 'faculty_admin', 'program_head',
-          'administrative_secretary', 'system_admin'
-        ]
-      );
-      allow update: if isSignedIn() && (
-      	resource.data.studentId == request.auth.uid ||
-        role(userDoc()) in [
-          'coordinator', 'faculty_admin', 'program_head',
-          'administrative_secretary', 'grad_school_head', 'system_admin'
-        ]
-      );
-      allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+      // MEDIUM FIX (M4, AUDIT_FULL_2026_10_13.md): staff create/update had
+      // no faculty scope, and a student could rewrite any field on their own
+      // process file. No client code writes this collection.
+      allow create, update, delete: if false;
     }
     // ─────────────────────────────────────────────────────────────────────────
     match /processTemplates/{templateId} {
@@ -488,16 +469,9 @@ service cloud.firestore {
         isFacultyManager(userDoc()) ||
         isCrossFaculty(userDoc())
       );
-			allow create: if isSignedIn() &&
-        role(userDoc()) in [
-          'faculty_admin', 'program_head', 'administrative_secretary', 'system_admin'
-        ];
-			allow update: if isSignedIn() &&
-        role(userDoc()) in [
-          'faculty_admin', 'program_head', 'administrative_secretary',
-          'grad_school_head', 'system_admin'
-        ];
-			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+      // MEDIUM FIX (M4): staff create/update had no faculty scope. No client
+      // code writes this collection.
+      allow create, update, delete: if false;
     }
     // ─────────────────────────────────────────────────────────────────────────
     match /examinerTokens/{token} {
@@ -518,21 +492,17 @@ service cloud.firestore {
     	// token verified before this field existed (otpVerifiedAt missing) has
     	// nothing to compare against and correctly falls through to requiring
     	// fresh verification rather than being grandfathered in.
-    	allow get: if (resource.data.otpVerified == true &&
+    	// MEDIUM FIX (M4, AUDIT_FULL_2026_10_13.md): a staff branch let any
+    	// coordinator-tier role, in any faculty, read and rewrite any token
+    	// (opinion, scores, status). No staff screen touches this collection
+    	// directly — staff go through the scoped /api/examiner-access and
+    	// /api/coordinator endpoints — so only the examiner's own OTP-gated
+    	// branch remains. Create/delete were staff-only and unused by clients.
+    	allow get: if resource.data.otpVerified == true &&
         'otpVerifiedAt' in resource.data &&
-        request.time < resource.data.otpVerifiedAt + duration.value(10, 'm')) ||
-        (isSignedIn() &&
-          role(userDoc()) in [
-            'coordinator', 'faculty_admin', 'program_head',
-            'administrative_secretary', 'grad_school_head', 'system_admin'
-          ]
-        );
+        request.time < resource.data.otpVerifiedAt + duration.value(10, 'm');
     	allow list: if false;
-    	allow create: if isSignedIn() &&
-        role(userDoc()) in [
-          'coordinator', 'faculty_admin', 'program_head',
-          'administrative_secretary', 'system_admin'
-        ];
+    	allow create: if false;
       // Was `... || true` — that trailing clause made this unconditionally
       // permit ANY update, by ANYONE, unauthenticated, to ANY field on ANY
       // examiner token doc: fake opinions/scores, resurrecting an
@@ -559,12 +529,6 @@ service cloud.firestore {
       // state), so a replaced or revoked examiner is locked out immediately
       // regardless of whether their otpVerified flag was ever cleared.
       allow update: if
-        (isSignedIn() &&
-          role(userDoc()) in [
-            'coordinator', 'faculty_admin', 'program_head',
-            'administrative_secretary', 'grad_school_head', 'system_admin'
-          ]
-        ) ||
         (
           resource.data.otpVerified == true &&
           'otpVerifiedAt' in resource.data &&
@@ -575,7 +539,7 @@ service cloud.firestore {
           ) &&
           request.resource.data.status in ['accepted', 'declined', 'submitted', resource.data.status]
         );
-			allow delete: if isSignedIn() && role(userDoc()) == 'system_admin';
+			allow delete: if false;
     }
     // ─────────────────────────────────────────────────────────────────────────
     // External examiner onboarding (identity/tax/bank) — one-time data an

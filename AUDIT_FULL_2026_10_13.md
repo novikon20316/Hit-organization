@@ -51,11 +51,12 @@ The new feature code from the last week is in good shape. Every new endpoint che
 `firestore.rules` `users` → `allow get: if isVerifiedSignedIn()`. The 10-07 fix closed `list`. `get` by a known uid is still open, and uids are everywhere: `supervisorId`, `enrolledStudentIds` on listable active projects, chat participants. A student can read a classmate's or supervisor's `studentId` (Israeli ID number), `phoneNumber`, email, roles, and scopes. Given Privacy Protection Law Amendment 13, this is the most important privacy item before launch.
 **Fix:** move PII (`studentId`, `phoneNumber`) into `users/{uid}/private/*` (server-only, like the TOTP secret), or restrict `get` to self, staff, and related parties.
 
-### M4: Staff write rules have no faculty scope (the API is scoped, but the rules let staff bypass it)
+### M4: [x] FIXED (committed). Staff write rules have no faculty scope (the API is scoped, but the rules let staff bypass it)
 - `projects` `allow update`: `coordinator`/`faculty_admin`/`program_head`/`administrative_secretary` can rewrite **any field on any project in any faculty** (`supervisorId`, `enrolledStudentIds`, `status`) directly from the SDK.
 - `examinerTokens` `allow get`/`update`: any coordinator-tier role, cross-faculty, can read and rewrite any examiner token, including `opinion`, scores, and `status`.
 - `processFiles`/`processTemplates`: create/update for staff with no faculty scope, and a student can update any field on their own processFile. **No client code touches either collection.**
 **Fix:** lock `processFiles`/`processTemplates` writes to `false`. For `projects`/`examinerTokens`, check what clients still write directly; anything server-mediated → `false`, otherwise add `sameFaculty()` plus an `affectedKeys` allowlist.
+**Applied:** a sweep of web and mobile found no client writes to `projects` (removed from both apps in May 2026), `processFiles` or `processTemplates`. The only `examinerTokens` access is the examiner-access pages, which use the anonymous OTP-gated branch. So: `projects`, `processFiles` and `processTemplates` create/update/delete → `false`, and `examinerTokens` loses its unscoped staff get/update branch (create/delete → `false`). The examiner's OTP branch is unchanged. Reads are untouched. Dry-run compile is clean.
 
 ### M5: App Check is still `monitor` in production
 Live `api` service: `APP_CHECK_ENFORCEMENT_MODE=monitor`, unchanged since 2026-09-30. The API accepts requests from any client that holds a valid ID token, including scripts. Web is ready to enforce. Mobile needs a store build that sends App Check tokens, and that build is blocked on EAS quota until 2026-11-01.
