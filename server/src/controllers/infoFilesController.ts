@@ -10,6 +10,7 @@ import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -127,7 +128,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
     try {
       projectIds = parseProjectIds(req.body?.projectIds);
     } catch (e: any) {
-      return res.status(400).json({ message: e.message });
+      return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
     // A milestone type key matching one of the target project(s)' own
     // milestone docs — not validated against a fixed set here since custom
@@ -149,7 +150,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       degreeTypes = parseScopeArray(req.body?.degreeTypes, VALID_DEGREE_TYPES, 'degreeTypes');
       trackTypes  = parseScopeArray(req.body?.trackTypes, VALID_TRACK_TYPES, 'trackTypes');
     } catch (e: any) {
-      return res.status(400).json({ message: e.message });
+      return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
 
     if (projectIds.length > 0) {

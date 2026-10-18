@@ -4,6 +4,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import dayjs from 'dayjs';
@@ -274,7 +275,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           scoreValue = computed.total;
           criteriaBreakdown = computed.breakdown;
         } catch (err: any) {
-          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+          return res.status(400).json({ message: clientMessage(err, 'Invalid grading criteria.') });
         }
       } else {
         scoreValue = Number(givenScore);
@@ -522,7 +523,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           scoreValue = computed.total;
           criteriaBreakdown = computed.breakdown;
         } catch (err: any) {
-          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+          return res.status(400).json({ message: clientMessage(err, 'Invalid grading criteria.') });
         }
       } else {
         scoreValue = Number(givenScore);
@@ -683,7 +684,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           scoreValue = computed.total;
           criteriaBreakdown = computed.breakdown;
         } catch (err: any) {
-          return res.status(400).json({ message: err.message || 'Invalid grading criteria.' });
+          return res.status(400).json({ message: clientMessage(err, 'Invalid grading criteria.') });
         }
       } else {
         scoreValue = Number(givenScore);
@@ -1044,7 +1045,7 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
     try {
       computed = computeGradingComponentsScore(rubric, scores ?? {});
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
+      return res.status(400).json({ message: clientMessage(err, 'Invalid evaluation scores.') });
     }
 
     // Optional file attached alongside the online rubric (e.g. the completed
@@ -1156,7 +1157,7 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     try {
       computed = computeGradingComponentsScore(rubric, scores ?? {});
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || 'Invalid evaluation scores.' });
+      return res.status(400).json({ message: clientMessage(err, 'Invalid evaluation scores.') });
     }
 
     // Optional file attached alongside the online rubric (e.g. the completed

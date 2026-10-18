@@ -8,6 +8,7 @@ import { AuthenticatedRequest, hasAnyRole, getUserRoles, forgetTokensValidAfter 
 import { enrollStudentInProject } from '../services/projectEnrollment.js';
 import { checkDeletionEligibility, purgeAccount, getEffectiveRoles } from '../services/accountDeletion.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
 import { listPendingLockouts, liftLockout, clearStalePendingIncident } from '../services/loginSecurity.js';
 import { eraseProjectDirectly } from '../services/projectErasure.js';
@@ -1664,7 +1665,7 @@ export const deleteAdminProject = async (req: AuthenticatedRequest, res: Respons
     return res.status(200).json({ success: true, message: 'Project archived.' });
   } catch (error: any) {
     console.error('deleteAdminProject Error:', error);
-    return res.status(400).json({ message: error.message || L(req, 'Failed to erase project.', 'מחיקת הפרויקט נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to erase project.', 'מחיקת הפרויקט נכשלה.')) });
   }
 };
 

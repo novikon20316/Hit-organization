@@ -12,6 +12,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getStudentStatusConfig, updateStudentStatusConfig } from '../services/studentStatuses.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -51,7 +52,7 @@ export const updateStudentStatusOptions = async (req: AuthenticatedRequest, res:
     return res.status(200).json(updated);
   } catch (error: any) {
     console.error('updateStudentStatusOptions error:', error);
-    return res.status(400).json({ message: error.message || L(req, 'Failed to update student status options.', 'עדכון אפשרויות סטטוס הסטודנט נכשל.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to update student status options.', 'עדכון אפשרויות סטטוס הסטודנט נכשל.')) });
   }
 };
 

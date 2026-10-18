@@ -10,6 +10,7 @@ import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/aut
 import { promoteNextExaminer, sendManualExaminerReminder } from '../services/examinerEscalation.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const COORDINATOR_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'system_admin'];
 
@@ -112,7 +113,7 @@ export const remindExaminer = async (req: AuthenticatedRequest, res: Response) =
     await sendManualExaminerReminder(tokenId, req.user.uid, req.user.role);
     return res.status(200).json({ success: true, message: 'Reminder sent.' });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to send reminder.', 'שליחת התזכורת נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to send reminder.', 'שליחת התזכורת נכשלה.')) });
   }
 };
 
@@ -132,6 +133,6 @@ export const promoteNext = async (req: AuthenticatedRequest, res: Response) => {
         : 'No available internal examiner was found — manual assignment is needed.',
     });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to promote the next examiner.', 'קידום הבוחן הבא נכשל.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to promote the next examiner.', 'קידום הבוחן הבא נכשל.')) });
   }
 };

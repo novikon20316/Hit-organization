@@ -8,6 +8,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { readDecisionRelayEnabledMajors, setDecisionRelayEnabledMajors } from '../services/decisionRelayConfig.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 // GET /api/admin/decision-relay-config
 export const getDecisionRelayConfig = async (req: AuthenticatedRequest, res: Response) => {
@@ -33,6 +34,6 @@ export const updateDecisionRelayConfig = async (req: AuthenticatedRequest, res: 
     await setDecisionRelayEnabledMajors(enabledMajors, uid);
     return res.status(200).json({ success: true, enabledMajors });
   } catch (err: any) {
-    return res.status(400).json({ message: err.message || L(req, 'Failed to update decision-relay config.', 'עדכון הגדרות העברת ההחלטות נכשל.') });
+    return res.status(400).json({ message: clientMessage(err, L(req, 'Failed to update decision-relay config.', 'עדכון הגדרות העברת ההחלטות נכשל.')) });
   }
 };

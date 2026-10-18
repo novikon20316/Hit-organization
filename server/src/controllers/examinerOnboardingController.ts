@@ -21,6 +21,7 @@ import {
 import { MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const ALLOWED_MIME_TYPES = new Set(MILESTONE_FILE_TYPES.flatMap((t) => t.mimeTypes));
 
@@ -149,7 +150,7 @@ export const submitExaminerBankDetails = async (req: Request, res: Response) => 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     if (error.message?.includes('already been submitted')) {
-      return res.status(409).json({ message: error.message });
+      return res.status(409).json({ message: clientMessage(error, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
     console.error('submitExaminerBankDetails error:', error);
     return res.status(500).json({ message: L(req, 'Failed to save bank details.', 'שמירת פרטי הבנק נכשלה.') });
@@ -179,7 +180,7 @@ export const submitExaminerTaxDocument = async (req: Request, res: Response) => 
     return res.status(200).json({ success: true });
   } catch (error: any) {
     if (error.message?.includes('already been submitted')) {
-      return res.status(409).json({ message: error.message });
+      return res.status(409).json({ message: clientMessage(error, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
     console.error('submitExaminerTaxDocument error:', error);
     return res.status(502).json({ message: L(req, 'Failed to upload the document.', 'העלאת המסמך נכשלה.') });

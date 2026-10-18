@@ -8,6 +8,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from "../middleware/auth.js";
 import { logProjectRecordEntry } from "../services/projectRecords.js";
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 import { isValidDocId } from '../services/idValidation.js';
 
 // Chat has no projectId of its own (see this file's own header context) —
@@ -201,7 +202,7 @@ export const uploadChatImageMiddleware: RequestHandler = chatImageUpload.single(
 
 export const handleChatImageUploadError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof UnsupportedChatImageTypeError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: clientMessage(err, L(_req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ message: L(_req, 'Image too large — the limit is 10MB.', 'התמונה גדולה מהמותר — המגבלה היא 10MB.') });

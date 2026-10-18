@@ -20,6 +20,7 @@ import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { getUserRoles, matchedRole } from '../middleware/auth.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -749,7 +750,7 @@ export const bulkUpdateMilestoneDueDates = async (req: AuthenticatedRequest, res
   } catch (error: any) {
     console.error('bulkUpdateMilestoneDueDates error:', error);
     if (error.message === 'No matching milestones found.') {
-      return res.status(404).json({ message: error.message });
+      return res.status(404).json({ message: clientMessage(error, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
     return res.status(500).json({ message: L(req, 'Failed to bulk-update milestones.', 'עדכון אבני הדרך בצובר נכשל.') });
   }

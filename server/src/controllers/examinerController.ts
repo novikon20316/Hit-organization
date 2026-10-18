@@ -8,6 +8,7 @@ import { academicYearToHebrew } from '../services/hebrewYear.js';
 import { isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { isStaffMember } from '../services/twoFactorEnforcement.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -217,7 +218,7 @@ export const submitDefenseDates = async (req: AuthenticatedRequest, res: Respons
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitDefenseDates error:', error);
-    return res.status(400).json({ message: error.message || L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.')) });
   }
 };
 

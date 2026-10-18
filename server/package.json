@@ -19,7 +19,7 @@
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "twilio": "^6.0.2",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

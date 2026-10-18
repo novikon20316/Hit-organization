@@ -9,6 +9,7 @@ import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { pauseProjectClock, resumeProjectClock, getProjectClockPauseState, isValidClockPauseReason } from '../services/clockPause.js';
 import type { ClockPause } from '../services/studentProgress.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 function serializePause(p: ClockPause) {
   return {
@@ -40,7 +41,7 @@ export const getClockPauseState = async (req: AuthenticatedRequest, res: Respons
       clockPauseHistory: state.clockPauseHistory.map(serializePause),
     });
   } catch (error: any) {
-    return res.status(404).json({ message: error.message || 'Failed to load clock-pause state.' });
+    return res.status(404).json({ message: clientMessage(error, 'Failed to load clock-pause state.') });
   }
 };
 
@@ -58,7 +59,7 @@ export const pauseClock = async (req: AuthenticatedRequest, res: Response) => {
     const pause = await pauseProjectClock(projectId, reason, note, req.user.uid, req.user.role);
     return res.status(200).json({ success: true, pause: serializePause(pause) });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to pause the deadline clock.' });
+    return res.status(400).json({ message: clientMessage(error, 'Failed to pause the deadline clock.') });
   }
 };
 
@@ -72,6 +73,6 @@ export const resumeClock = async (req: AuthenticatedRequest, res: Response) => {
     const pause = await resumeProjectClock(projectId, req.user.uid, req.user.role);
     return res.status(200).json({ success: true, pause: serializePause(pause) });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Failed to resume the deadline clock.' });
+    return res.status(400).json({ message: clientMessage(error, 'Failed to resume the deadline clock.') });
   }
 };

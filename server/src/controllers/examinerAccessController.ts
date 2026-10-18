@@ -16,6 +16,7 @@ import type { GradingComponentSpec } from '../services/workflowTemplates.js';
 import { maybeFinalizeAutoCalculatedGrade } from './projectController.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -38,7 +39,7 @@ export const requestOtp = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true });
   } catch (error: any) {
     if (error.message === 'Invalid or unknown token.') {
-      return res.status(404).json({ message: error.message });
+      return res.status(404).json({ message: clientMessage(error, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
     console.error('requestOtp error:', error);
     return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
@@ -167,7 +168,7 @@ export const submitExternalDefenseDates = async (req: Request, res: Response) =>
     return res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     console.error('submitExternalDefenseDates error:', error);
-    return res.status(400).json({ message: error.message || L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to submit candidate dates.', 'שליחת התאריכים המוצעים נכשלה.')) });
   }
 };
 
@@ -248,7 +249,7 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
     try {
       computed = computeGradingComponentsScore(rubric, scores ?? {});
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || L(req, 'Invalid evaluation scores.', 'ציוני ההערכה אינם תקינים.') });
+      return res.status(400).json({ message: clientMessage(err, L(req, 'Invalid evaluation scores.', 'ציוני ההערכה אינם תקינים.')) });
     }
 
     const evaluationResult = {

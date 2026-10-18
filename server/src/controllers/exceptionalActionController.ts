@@ -10,6 +10,7 @@ import { AuthenticatedRequest, hasAnyRole, matchedRole } from '../middleware/aut
 import { listPendingExceptionalActions, decideExceptionalAction } from '../services/exceptionalActions.js';
 import { effectiveFacultyIds, type RoleFacultyField } from '../services/scopeAuthorization.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const APPROVER_ROLES = ['program_head', 'faculty_admin', 'grad_school_head', 'system_admin'];
 
@@ -65,6 +66,6 @@ export const decideExceptionalActionRequest = async (req: AuthenticatedRequest, 
     const request = await decideExceptionalAction(id, decision, req.user.uid, req.user.role, reason, approverEffectiveFacultyIds(req));
     return res.status(200).json({ success: true, request });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to decide on this request.', 'ההחלטה על בקשה זו נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to decide on this request.', 'ההחלטה על בקשה זו נכשלה.')) });
   }
 };

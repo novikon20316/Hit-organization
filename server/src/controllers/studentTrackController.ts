@@ -17,6 +17,7 @@ import {
 } from '../services/studentTrack.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 import { specializationsForStudent } from '../config/specialization.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { normalizeCompletedCourses } from '../services/prerequisites.js';
@@ -46,7 +47,7 @@ export const chooseTrack = async (req: AuthenticatedRequest, res: Response) => {
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : L(req, 'Failed to set track.', 'קביעת המסלול נכשלה.');
+    const message = clientMessage(error, L(req, 'Failed to set track.', 'קביעת המסלול נכשלה.'));
     return res.status(400).json({ message });
   }
 };
@@ -81,7 +82,7 @@ export const setStudentThesisEligibility = async (req: AuthenticatedRequest, res
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : L(req, 'Failed to set thesis eligibility.', 'קביעת הזכאות לתזה נכשלה.');
+    const message = clientMessage(error, L(req, 'Failed to set thesis eligibility.', 'קביעת הזכאות לתזה נכשלה.'));
     return res.status(400).json({ message });
   }
 };
@@ -122,7 +123,7 @@ export const setStudentThesisAverage = async (req: AuthenticatedRequest, res: Re
     if (error instanceof StudentTrackError) {
       return res.status(error.status).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn, code: error.code });
     }
-    const message = error instanceof Error ? error.message : L(req, 'Failed to set thesis average.', 'קביעת הממוצע לתזה נכשלה.');
+    const message = clientMessage(error, L(req, 'Failed to set thesis average.', 'קביעת הממוצע לתזה נכשלה.'));
     return res.status(400).json({ message });
   }
 };
@@ -149,7 +150,7 @@ export const overrideStudentTrack = async (req: AuthenticatedRequest, res: Respo
     if (error instanceof StudentTrackError) {
       return res.status(400).json({ message: error.messageEn, messageHe: error.messageHe, messageEn: error.messageEn });
     }
-    const message = error instanceof Error ? error.message : L(req, 'Failed to override track.', 'שינוי המסלול בכפייה נכשל.');
+    const message = clientMessage(error, L(req, 'Failed to override track.', 'שינוי המסלול בכפייה נכשל.'));
     return res.status(400).json({ message });
   }
 };
@@ -204,7 +205,7 @@ export const setStudentSpecialization = async (req: AuthenticatedRequest, res: R
     });
     return res.status(200).json({ success: true, specialization });
   } catch (error) {
-    const message = error instanceof Error ? error.message : L(req, 'Failed to set specialization.', 'עדכון תחום ההתמחות נכשל.');
+    const message = clientMessage(error, L(req, 'Failed to set specialization.', 'עדכון תחום ההתמחות נכשל.'));
     return res.status(400).json({ message });
   }
 };

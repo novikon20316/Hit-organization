@@ -13,6 +13,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { VALID_MAJORS } from '../config/majors.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -70,7 +71,7 @@ export const createFacultyContent = async (req: AuthenticatedRequest, res: Respo
       majors      = parseScopeArray(req.body?.majors, VALID_MAJORS, 'majors');
       degreeTypes = parseScopeArray(req.body?.degreeTypes, VALID_DEGREE_TYPES, 'degreeTypes');
     } catch (e: any) {
-      return res.status(400).json({ message: e.message });
+      return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
 
     const docRef = db.collection('facultyContent').doc();

@@ -6,6 +6,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { getAcademicCalendar, updateAcademicCalendar } from '../services/academicCalendar.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 function isSystemAdmin(req: AuthenticatedRequest): boolean {
   const role = req.user?.role;
@@ -38,6 +39,6 @@ export const updateAcademicCalendarConfig = async (req: AuthenticatedRequest, re
     return res.status(200).json(updated);
   } catch (error: any) {
     console.error('updateAcademicCalendarConfig error:', error);
-    return res.status(400).json({ message: error.message || L(req, 'Failed to update academic calendar.', 'עדכון לוח השנה האקדמי נכשל.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to update academic calendar.', 'עדכון לוח השנה האקדמי נכשל.')) });
   }
 };

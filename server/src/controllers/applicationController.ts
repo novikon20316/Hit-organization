@@ -12,6 +12,7 @@ import { enrollStudentInProject } from '../services/projectEnrollment.js'
 import { resolveEffectiveTrack } from '../config/studentTrack.js'
 import { createMeetingEvent, isCalendarConnected } from '../services/googleCalendarService.js'
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 const db = admin.firestore();
 
@@ -40,7 +41,7 @@ export const uploadDocumentMiddleware: RequestHandler = upload.single('file') as
 
 export const handleUploadDocumentError: import('express').ErrorRequestHandler = (err, _req, res, next) => {
   if (err instanceof UnsupportedFileTypeError) {
-    return res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: clientMessage(err, L(_req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
   }
   if (err?.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ message: L(_req, 'File too large — the limit is 10MB.', 'הקובץ גדול מהמותר — הגבלת הגודל היא 10MB.') });

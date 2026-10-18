@@ -15,6 +15,7 @@ import {
   type RosterDegreeType,
 } from '../services/studentRoster.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 
 // ─── POST /api/admin/student-roster/import ────────────────────────────────────
 export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {
@@ -73,7 +74,7 @@ export const createStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
     return res.status(201).json({ success: true, entry });
   } catch (error: any) {
     console.error('createStudentRosterAdmin error:', error);
-    return res.status(400).json({ success: false, message: error.message || L(req, 'Failed to add the roster entry.', 'הוספת הרשומה לרשימה נכשלה.') });
+    return res.status(400).json({ success: false, message: clientMessage(error, L(req, 'Failed to add the roster entry.', 'הוספת הרשומה לרשימה נכשלה.')) });
   }
 };
 
@@ -91,7 +92,7 @@ export const updateStudentRosterAdmin = async (req: AuthenticatedRequest, res: R
     return res.status(200).json({ success: true });
   } catch (error: any) {
     console.error('updateStudentRosterAdmin error:', error);
-    return res.status(400).json({ success: false, message: error.message || L(req, 'Failed to update the roster entry.', 'עדכון הרשומה ברשימה נכשל.') });
+    return res.status(400).json({ success: false, message: clientMessage(error, L(req, 'Failed to update the roster entry.', 'עדכון הרשומה ברשימה נכשל.')) });
   }
 };
 

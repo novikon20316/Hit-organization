@@ -2,6 +2,11 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import type { AuthenticatedRequest } from './auth.js';
 import { L } from '../utils/localize.js';
+import { FirestoreRateLimitStore } from './firestoreRateLimitStore.js';
+
+// Security-sensitive limiters below count in Firestore (FirestoreRateLimitStore)
+// so the limit holds across every Cloud Run instance; apiLimiter and
+// errorReportLimiter stay in memory (high volume, per-instance is acceptable).
 
 // Runs after verifyToken where available, so authenticated brute-force attempts
 // (e.g. a stolen token trying every TOTP code) are throttled per-account rather
@@ -35,6 +40,8 @@ export const apiLimiter = rateLimit({
 // TOTP validate + recovery request/verify — guessable 6-digit codes.
 // Mount AFTER verifyToken so keyByUserOrIp can key on the account being targeted.
 export const totpLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('totp'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 8,
   standardHeaders: true,
@@ -47,6 +54,8 @@ export const totpLimiter = rateLimit({
 // no Firebase account) — grant codes and access tokens are the only secret,
 // so this is the one place a plain per-IP limiter is the last line of defense.
 export const examinerAccessLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('examinerAccess'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
@@ -58,6 +67,8 @@ export const examinerAccessLimiter = rateLimit({
 // student re-opening/printing their report is a handful of requests; this
 // only needs to make token guessing pointless on top of the 256-bit token.
 export const finalReportLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('finalReport'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 30,
   standardHeaders: true,
@@ -69,6 +80,8 @@ export const finalReportLimiter = rateLimit({
 // tokens — throttle it per-admin-account like totpLimiter above, rather than
 // leaning solely on the blanket apiLimiter.
 export const impersonationLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('impersonation'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
@@ -85,6 +98,8 @@ export const impersonationLimiter = rateLimit({
 // single legitimate integration partner has no reason to need more than a
 // few dozen lookups per window.
 export const integrationLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('integration'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 100,
   standardHeaders: true,
@@ -97,6 +112,8 @@ export const integrationLimiter = rateLimit({
 // someone who isn't signed in. Also protects the report endpoint's live call
 // out to Google's Identity Toolkit from being hammered.
 export const loginSecurityLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('loginSecurity'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: true,
@@ -129,6 +146,8 @@ export const errorReportLimiter = rateLimit({
 // Note: the counter is in-memory per Cloud Run instance, so it's a ceiling
 // per instance, not a strict global one — still caps a runaway loop.
 export const studentsMessageLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('studentsMessage'),
+  passOnStoreError: true,
   windowMs: 60 * 60 * 1000,
   limit: 10,
   standardHeaders: true,
@@ -149,6 +168,8 @@ export const studentsMessageLimiter = rateLimit({
 // stranger's name. Real signups need one or two calls. Mount AFTER
 // verifyTokenOnly so it keys per Firebase account, not per IP.
 export const signupSyncLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('signupSync'),
+  passOnStoreError: true,
   windowMs: 60 * 60 * 1000,
   limit: 10,
   standardHeaders: true,
@@ -164,8 +185,10 @@ export const signupSyncLimiter = rateLimit({
 // files) — each upload costs Cloudinary storage. Separate instance per
 // route so heavy chat-image use doesn't block a student's application.
 // Mount AFTER verifyToken so they key per account.
-function uploadLimiter(limitPerHour: number) {
+function uploadLimiter(prefix: string, limitPerHour: number) {
   return rateLimit({
+    store: new FirestoreRateLimitStore(prefix),
+    passOnStoreError: true,
     windowMs: 60 * 60 * 1000,
     limit: limitPerHour,
     standardHeaders: true,
@@ -176,6 +199,6 @@ function uploadLimiter(limitPerHour: number) {
     }),
   });
 }
-export const applicationUploadLimiter = uploadLimiter(20);
-export const chatImageUploadLimiter = uploadLimiter(30);
-export const projectFileUploadLimiter = uploadLimiter(30);
+export const applicationUploadLimiter = uploadLimiter('applicationUpload', 20);
+export const chatImageUploadLimiter = uploadLimiter('chatImageUpload', 30);
+export const projectFileUploadLimiter = uploadLimiter('projectFileUpload', 30);

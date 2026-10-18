@@ -15,6 +15,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { L } from '../utils/localize.js';
+import { clientMessage } from '../utils/clientError.js';
 import {
   requestProjectErasure,
   listPendingErasureRequests,
@@ -53,7 +54,7 @@ export const requestProjectErasureHandler = async (req: AuthenticatedRequest, re
     });
     return res.status(200).json({ success: true, request });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to request project erasure.', 'בקשת מחיקת הפרויקט נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to request project erasure.', 'בקשת מחיקת הפרויקט נכשלה.')) });
   }
 };
 
@@ -86,7 +87,7 @@ export const decideErasureRequestHandler = async (req: AuthenticatedRequest, res
     const request = await decideErasureRequest(id, decision, req.user.uid, req.user.role, reason, callerEffectiveFacultyIds(req));
     return res.status(200).json({ success: true, request });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to decide on this request.', 'קביעת ההחלטה בבקשה נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to decide on this request.', 'קביעת ההחלטה בבקשה נכשלה.')) });
   }
 };
 
@@ -104,7 +105,7 @@ export const eraseProjectHandler = async (req: AuthenticatedRequest, res: Respon
     await eraseProjectDirectly({ projectId, erasedBy: req.user.uid, erasedByRole: req.user.role, reason });
     return res.status(200).json({ success: true, message: L(req, 'Project archived.', 'הפרויקט הועבר לארכיון.') });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to erase project.', 'מחיקת הפרויקט נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to erase project.', 'מחיקת הפרויקט נכשלה.')) });
   }
 };
 
@@ -137,7 +138,7 @@ export const reassignProjectSupervisorHandler = async (req: AuthenticatedRequest
     });
     return res.status(200).json({ success: true, message: L(req, 'Supervisor reassigned.', 'המנחה הוחלף בהצלחה.') });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to reassign supervisor.', 'החלפת המנחה נכשלה.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to reassign supervisor.', 'החלפת המנחה נכשלה.')) });
   }
 };
 
@@ -158,7 +159,7 @@ export const restoreProjectHandler = async (req: AuthenticatedRequest, res: Resp
     });
     return res.status(200).json({ success: true, message: 'Project restored.' });
   } catch (error: any) {
-    return res.status(400).json({ message: error.message || L(req, 'Failed to restore project.', 'שחזור הפרויקט נכשל.') });
+    return res.status(400).json({ message: clientMessage(error, L(req, 'Failed to restore project.', 'שחזור הפרויקט נכשל.')) });
   }
 };
 
