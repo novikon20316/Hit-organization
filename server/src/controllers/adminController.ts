@@ -32,6 +32,7 @@ import { notifyUser } from '../services/notify.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { validateSystemAdminPassword, validateStandardPassword, computeIsEligible } from './userController.js';
 import { isValidDocId } from '../services/idValidation.js';
+import { mergeUsers, MergeError } from '../services/userMerge.js';
 
 const db = admin.firestore();
 
@@ -2174,5 +2175,45 @@ export const updateStudentCompletedCoursesAsAdmin = async (req: AuthenticatedReq
   } catch (error: any) {
     console.error('updateStudentCompletedCoursesAsAdmin error:', error);
     return res.status(500).json({ message: L(req, 'Failed to update completed courses.', 'עדכון הקורסים שהושלמו נכשל.') });
+  }
+};
+/**
+ * POST /api/admin/users/merge
+ * system_admin only. Combines two accounts of the same person into one —
+ * see services/userMerge.ts. Body: { keepUserId, removeUserId, dryRun }.
+ * keepUserId's login/email survive; removeUserId's login is deleted and
+ * every reference to it is re-pointed at keepUserId. dryRun: true returns
+ * the same summary without writing anything (the web panel's preview step).
+ */
+export const mergeUsersAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
+    await logPermissionDenied(req, 'users', 'merge');
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
+  }
+  const { keepUserId, removeUserId, dryRun } = req.body ?? {};
+  if (!isValidDocId(keepUserId) || !isValidDocId(removeUserId)) {
+    return res.status(400).json({ message: L(req, 'Missing user ids.', 'חסרים מזהי משתמשים.') });
+  }
+  try {
+    const result = await mergeUsers({
+      keepUid: keepUserId,
+      removeUid: removeUserId,
+      dryRun: dryRun !== false,
+      actingAdminUid: req.user!.uid,
+      actingAdminRole: req.user!.role ?? '',
+      actingAdminDisplayName: req.user?.displayName,
+    });
+    return res.status(200).json(result);
+  } catch (error: any) {
+    if (error instanceof MergeError) {
+      const he = {
+        SAME_USER: 'יש לבחור שני משתמשים שונים.',
+        SELF_REMOVE: 'לא ניתן למזג את החשבון שאיתו את/ה מחובר/ת לתוך חשבון אחר — יש לשמור אותו.',
+        NOT_FOUND: 'המשתמש לא נמצא.',
+      }[error.code];
+      return res.status(error.code === 'NOT_FOUND' ? 404 : 400).json({ message: L(req, error.message, he), code: error.code });
+    }
+    console.error('mergeUsersAdmin error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to merge users.', 'מיזוג המשתמשים נכשל.') });
   }
 };

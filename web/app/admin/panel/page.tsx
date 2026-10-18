@@ -26,6 +26,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { VALID_FACULTY_IDS, VALID_ROLES, isStaff, type AppRole } from '@/lib/roles';
 import { UserRow } from './UserRow';
 import { NewUserModal } from './NewUserModal';
+import { MergeUsersModal } from './MergeUsersModal';
 import { EditUserModal } from './EditUserModal';
 import { BulkImportModal } from '@/components/BulkImportModal';
 import { ProjectsTab } from './ProjectsTab';
@@ -99,6 +100,7 @@ function AdminPanelContent() {
   const [facultyFilter, setFacultyFilter] = useState<'all' | FacultyId>('all');
   const [showColorLegend, setShowColorLegend] = useState(false);
   const [showNewUser, setShowNewUser] = useState(false);
+  const [showMergeUsers, setShowMergeUsers] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
   const [statusConfig, setStatusConfig] = useState<StudentStatusConfig>({ primary: [], secondary: [] });
   // Accounts currently disabled by the 3-strikes failed-login flow.
@@ -370,6 +372,13 @@ function AdminPanelContent() {
             >
               🔐 {lang === 'he' ? 'אכיפת 2FA' : 'Enforce 2FA'}
             </button>
+            <button
+              type="button"
+              onClick={() => setShowMergeUsers(true)}
+              className="rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:border-primary"
+            >
+              🔗 {lang === 'he' ? 'מיזוג משתמשים' : 'Merge Users'}
+            </button>
           </div>
 
           {showColorLegend && (
@@ -443,6 +452,7 @@ function AdminPanelContent() {
       )}
 
       <NewUserModal open={showNewUser} onClose={() => setShowNewUser(false)} onCreated={fetchDashboard} />
+      <MergeUsersModal open={showMergeUsers} users={users} onClose={() => setShowMergeUsers(false)} onMerged={fetchDashboard} />
       {editingUser && (
         <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={fetchDashboard} />
       )}

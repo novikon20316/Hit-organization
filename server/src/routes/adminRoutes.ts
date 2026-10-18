@@ -24,6 +24,7 @@ import {
   listDefenseAccessGrants,
   extendDefenseAccessGrant,
   eraseUserBySystemAdmin,
+  mergeUsersAdmin,
   resetUserPasswordAdmin,
   resetUserOnboardingAdmin,
   updateStudentAcademicYear,
@@ -119,6 +120,7 @@ router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaff
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
 router.post('/student-roster', verifyToken, createStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
+router.post('/users/merge', verifyToken, mergeUsersAdmin);
 router.post('/login-security/:code/lift', verifyToken, liftLoginLockout);
 // system_admin (any user) or administrative coordinator (students in their
 // own faculty/major scope only) — gated inside the controller.

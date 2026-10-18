@@ -78,6 +78,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Response of mergeUsers — mirrors server/src/services/userMerge.ts's MergeResult. */
+export interface UserMergeResult {
+  dryRun: boolean;
+  keep: { id: string; email: string; displayName: string; roles: string[]; facultyId: string | null };
+  remove: { id: string; email: string; displayName: string; roles: string[]; facultyId: string | null };
+  referencesByCollection: Record<string, number>;
+  movedDocs: string[];
+  totalDocuments: number;
+  warnings: Array<'BOTH_ACTIVE_PROJECTS' | 'DIFFERENT_FACULTIES' | 'DIFFERENT_NAMES' | 'OVER_ACTIVE_PROJECT_CAP'>;
+  keepAfter: { email: string; role: string; roles: string[] };
+}
+
 /** Shape of a project eraseUserBySystemAdmin's 409 body names when the block
  *  is SUPERVISOR_ACTIVE_PROJECTS — see server/src/services/accountDeletion.ts's
  *  BlockingProject. Cast ApiError.body to this when err.status === 409 and
@@ -752,6 +764,17 @@ export const apiClient = {
 
   async eraseUserBySystemAdmin(userId: string) {
     return request<{ success: boolean; message: string }>(`/api/admin/users/${userId}/erase`, { method: 'POST' });
+  },
+
+  /** POST /api/admin/users/merge — system_admin only. Combines two accounts
+   *  of the same person: keepUserId's login/email survive, removeUserId's
+   *  login is deleted and every reference re-pointed. dryRun: true (the
+   *  preview step) writes nothing. See server/src/services/userMerge.ts. */
+  async mergeUsers(keepUserId: string, removeUserId: string, dryRun: boolean) {
+    return request<UserMergeResult>('/api/admin/users/merge', {
+      method: 'POST',
+      body: { keepUserId, removeUserId, dryRun },
+    });
   },
 
   /** POST /api/projects/:id/reassign-supervisor — system_admin only. Hands a

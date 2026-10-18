@@ -66,6 +66,9 @@ export type AuditAction =
   | 'project_erased_directly'
   | 'project_restored'
   | 'project_supervisor_reassigned'
+  // system_admin combining two accounts of the same person into one — see
+  // services/userMerge.ts.
+  | 'users_merged'
   // Three-rubric final-grade workflow (data_science, or any faculty whose
   // template configures finalGradeComponents) — see supervisorController.ts's
   // decideFinalGrade, gradSchoolHeadController.ts's decideGradeOverride, and
