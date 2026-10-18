@@ -95,10 +95,14 @@ function isAllowedStudentEmailDomain(value: string): boolean {
   return STUDENT_ALLOWED_EMAIL_DOMAINS.includes(domain);
 }
 
+// Every signup field is mandatory — marked with a red asterisk.
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label}>
+        {label}
+        <Text style={styles.requiredMark} accessibilityLabel="required"> *</Text>
+      </Text>
       {children}
     </View>
   );
@@ -343,8 +347,28 @@ export default function ProfileSetup() {
 
   const passwordCheck = getPasswordStrength(password);
 
+  // First AND last name, as on the ID card — the server matches it against
+  // the faculty's approved-students list (server/src/services/
+  // studentNameMatch.ts), so a single word makes a false refusal likelier.
+  const hasFullName = displayName.trim().split(/\s+/).filter((w) => w.length >= 2).length >= 2;
+
+  // Every mandatory field still missing, in form order — listed in the
+  // "missing info" alert so the student knows exactly what to fill in.
+  const missingFields: string[] = [
+    !hasFullName && (lang === 'he' ? 'שם מלא (פרטי ומשפחה)' : 'Full name (first and last)'),
+    !isAllowedStudentEmailDomain(email) && (lang === 'he' ? 'דוא"ל' : 'Email'),
+    !isValidPhoneNumber(phoneNumber) && (lang === 'he' ? 'טלפון' : 'Phone'),
+    !passwordCheck.valid && (lang === 'he' ? 'סיסמה' : 'Password'),
+    !isValidStudentId(studentId) && (lang === 'he' ? 'תעודת זהות' : 'Student ID'),
+    !faculty && (lang === 'he' ? 'פקולטה' : 'Faculty'),
+    !programKey && (lang === 'he' ? 'תוכנית לימודים' : 'Program'),
+    !yearOfStudy && (lang === 'he' ? 'שנת לימודים' : 'Year of study'),
+    trackPolicy === 'signup_choice' && !chosenTrack && (lang === 'he' ? 'מסלול' : 'Track'),
+    specializationOptions.length > 0 && !specialization && (lang === 'he' ? 'תחום התמחות' : 'Specialization'),
+  ].filter((f): f is string => typeof f === 'string');
+
   const canSave =
-    displayName.trim().length > 1 &&
+    hasFullName &&
     isValidPhoneNumber(phoneNumber) &&
     isAllowedStudentEmailDomain(email) &&
     isValidStudentId(studentId) &&
@@ -455,7 +479,11 @@ export default function ProfileSetup() {
         </View>
 
         <View style={styles.card}>
-          <Field label={lang === 'he' ? 'שם מלא' : 'Full Name'}>
+          <Text style={[styles.requiredNote, isRtl && styles.textRight]}>
+            <Text style={styles.requiredMark}>* </Text>
+            {lang === 'he' ? 'שדה חובה. לא ניתן להירשם לפני מילוי כל שדות החובה.' : 'Required field. You can’t sign up until every required field is filled in.'}
+          </Text>
+          <Field label={lang === 'he' ? 'שם מלא (פרטי ומשפחה, כפי שבתעודת הזהות)' : 'Full name (first and last, as on your ID card)'}>
             <TextInput
               value={displayName}
               onChangeText={setDisplayName}
@@ -465,13 +493,13 @@ export default function ProfileSetup() {
                 styles.input,
                 isRtl && styles.textRight,
                 nameFocused && styles.inputFocused,
-                attemptedSubmit && displayName.trim().length <= 1 && styles.inputError,
+                (attemptedSubmit || displayName.trim().length > 0) && !hasFullName && styles.inputError,
               ]}
               accessibilityLabel={lang === 'he' ? 'שם מלא' : 'Full Name'}
             />
           </Field>
-          {attemptedSubmit && displayName.trim().length <= 1 && (
-            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'שדה חובה' : 'Required field'}</ErrorNote>
+          {(attemptedSubmit || displayName.trim().length > 0) && !hasFullName && (
+            <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש להזין שם פרטי ושם משפחה' : 'Please enter your first and last name'}</ErrorNote>
           )}
 
           <Field label={lang === 'he' ? 'דוא"ל' : 'Email'}>
@@ -770,8 +798,11 @@ export default function ProfileSetup() {
             onPress={() => {
               if (!canSave) {
                 setAttemptedSubmit(true);
-                Alert.alert(isRtl ? "חוסר בפרטים" : "Missing Info",
-                            isRtl ? "אנא מלא את כל השדות המסומנים באדום" : "Please fill in the fields marked in red");
+                Alert.alert(
+                  lang === 'he' ? 'חסרים פרטי חובה' : 'Missing required info',
+                  (lang === 'he' ? 'לא ניתן להירשם לפני מילוי כל שדות החובה. חסר:\n' : "You can't sign up until every required field is filled in. Missing:\n")
+                    + missingFields.map((f) => `• ${f}`).join('\n'),
+                );
                 return;
               }
               handleSave();
@@ -883,6 +914,8 @@ const styles = StyleSheet.create({
 
   field: { marginBottom: 14 },
   label: { fontSize: 13, fontWeight: '500', color: colors.ink, marginBottom: 6 },
+  requiredMark: { color: colors.danger },
+  requiredNote: { fontSize: 12, color: colors.muted, marginBottom: 12 },
 
   input: {
     borderWidth: 1,

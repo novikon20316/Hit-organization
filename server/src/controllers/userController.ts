@@ -177,6 +177,14 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     // verified email is trusted now; a body `email` is ignored.
     const email = req.user?.email;
 
+    // Mandatory: the name is matched against the approved-students list
+    // (services/studentNameMatch.ts). Used to silently default to
+    // 'משתמש חדש' when missing.
+    const hasTypedName = [displayName, displayNameHe, displayNameEn].some((n) => typeof n === 'string' && n.trim().length >= 2);
+    if (!hasTypedName) {
+      return res.status(400).json({ error: L(req, 'Full name is required.', 'יש להזין שם מלא.') });
+    }
+
     if (!newUid || !email || !role) {
       return res.status(400).json({ error: L(req, 'Missing required fields: newUid, email, role.', 'שדות חובה חסרים: newUid, email, role.') });
     }

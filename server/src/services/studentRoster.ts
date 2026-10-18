@@ -93,6 +93,14 @@ export async function importApprovedStudentsFromBuffer(
         continue;
       }
 
+      // Mandatory: signup matches the student's typed name against it
+      // (services/studentNameMatch.ts) — without one, knowing the ID number
+      // alone would be enough to register as that student.
+      if (!raw.fullname) {
+        details.push({ row: rowNumber, studentId, status: 'failed', reason: 'FullName is required' });
+        continue;
+      }
+
       const facultyId = (raw.facultyid || opts.restrictFacultyId || '').toLowerCase();
       if (!facultyId || !VALID_FACULTIES.includes(facultyId)) {
         details.push({ row: rowNumber, studentId, status: 'failed', reason: `Invalid FacultyId: "${raw.facultyid}"` });
@@ -119,7 +127,7 @@ export async function importApprovedStudentsFromBuffer(
         facultyId,
         degreeType,
         major: (raw.major || '').toLowerCase() || null,
-        fullName: raw.fullname || '',
+        fullName: raw.fullname,
         used: false,
         usedByUid: null,
         usedAt: null,
@@ -210,7 +218,11 @@ export async function updateApprovedStudentEntry(docId: string, updates: RosterE
   const idChanged = nextStudentId !== current.studentId || nextFacultyId !== current.facultyId || nextDegreeType !== current.degreeType;
 
   const patch: Record<string, unknown> = {};
-  if (updates.fullName !== undefined) patch.fullName = updates.fullName;
+  if (updates.fullName !== undefined) {
+    const fullName = updates.fullName.trim();
+    if (!fullName) throw new Error('Full name is required.');
+    patch.fullName = fullName;
+  }
   if (updates.major !== undefined) patch.major = updates.major ? updates.major.toLowerCase() : null;
   if (updates.used !== undefined) {
     patch.used = updates.used;
@@ -339,9 +351,14 @@ export async function checkStudentEligibility(
   }
   // Knowing someone's ID number alone must not be enough to register as
   // them — see services/studentNameMatch.ts for how tolerant this is. A
-  // roster entry uploaded without a name can't be checked and is let through.
+  // roster entry with no name can't be matched, so it's refused rather than
+  // let through (the name is mandatory on every upload path now; this covers
+  // any older entry).
   const rosterName = typeof data.fullName === 'string' ? data.fullName.trim() : '';
-  if (typedNames && rosterName && !nameMatchesRoster(rosterName, typedNames)) {
+  if (typedNames && !rosterName) {
+    return { eligible: false, reason: 'Your entry on the approved students list has no name. Ask your faculty coordinator to add it, then sign up again.' };
+  }
+  if (typedNames && !nameMatchesRoster(rosterName, typedNames)) {
     return { eligible: false, nameMismatch: true, reason: 'The name you entered does not match the approved students list for this ID number. Check it, or contact your faculty coordinator.' };
   }
   return { eligible: true };

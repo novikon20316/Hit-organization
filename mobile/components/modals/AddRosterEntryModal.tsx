@@ -124,7 +124,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
               maxLength={9}
             />
 
-            <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'שם מלא' : 'Full Name'}</Text>
+            <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'שם מלא *' : 'Full Name *'}</Text>
             <TextInput
               style={ps.input}
               value={fullName}

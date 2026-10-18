@@ -31,7 +31,7 @@ const IMPORT_FORMAT_HELP = {
   he:
     'כותרות העמודות בשורה הראשונה של הקובץ חייבות להיות באנגלית, בדיוק כפי שמופיע כאן — הן ערכים טכניים קבועים ולא טקסט לתרגום:\n\n' +
     '• StudentId — מספר ת.ז., 9 ספרות\n' +
-    '• FullName — שם מלא (מומלץ, לא חובה)\n' +
+    '• FullName — שם מלא (חובה. שורה בלי שם תידחה, כי הסטודנט נבדק מול השם הזה בהרשמה)\n' +
     "• DegreeType — bachelors או masters (ניתן גם 'תואר ראשון' / 'תואר שני')\n" +
     '• Major — מגמה (אופציונלי)\n' +
     '• FacultyId — קוד הפקולטה, בדיוק כך:\n' +
@@ -40,7 +40,7 @@ const IMPORT_FORMAT_HELP = {
   en:
     'The header row must use these exact English column names — they\'re fixed technical tokens the parser matches on:\n\n' +
     '• StudentId — 9-digit ID number\n' +
-    '• FullName — full name (recommended, not required)\n' +
+    '• FullName — full name (required. A row without a name is rejected, because signup checks the student against it)\n' +
     "• DegreeType — bachelors or masters (Hebrew 'תואר ראשון' / 'תואר שני' also accepted)\n" +
     '• Major — optional\n' +
     '• FacultyId — the faculty code, exactly as shown:\n' +
@@ -110,6 +110,10 @@ export function StudentRosterTab() {
     const trimmedId = editStudentId.trim();
     if (!/^\d{9}$/.test(trimmedId)) {
       setRowError(lang === 'he' ? 'מספר ת.ז. חייב להיות בן 9 ספרות' : 'Student ID must be exactly 9 digits');
+      return;
+    }
+    if (!editFullName.trim()) {
+      setRowError(lang === 'he' ? 'שם מלא הוא שדה חובה' : 'Full name is required');
       return;
     }
     setSavingId(entry.id);
@@ -303,7 +307,8 @@ export function StudentRosterTab() {
                   <input
                     value={editFullName}
                     onChange={(e) => setEditFullName(e.target.value)}
-                    placeholder={lang === 'he' ? 'שם מלא' : 'Full name'}
+                    placeholder={lang === 'he' ? 'שם מלא *' : 'Full name *'}
+                    required
                     className={`${inputCls} w-full`}
                   />
                   <input

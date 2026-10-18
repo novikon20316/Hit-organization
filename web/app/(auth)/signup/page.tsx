@@ -120,8 +120,28 @@ export default function SignupPage() {
 
   const passwordCheck = getPasswordStrength(password, lang);
 
+  // First AND last name, as on the ID card — the server matches it against
+  // the faculty's approved-students list (server/src/services/
+  // studentNameMatch.ts), so a single word makes a false refusal likelier.
+  const hasFullName = displayName.trim().split(/\s+/).filter((w) => w.length >= 2).length >= 2;
+
+  // Every mandatory field still missing, in form order — shown under the
+  // (disabled) Sign Up button so the student knows why they can't submit.
+  const missingFields: string[] = [
+    !hasFullName && (lang === 'he' ? 'שם מלא (פרטי ומשפחה)' : 'Full name (first and last)'),
+    !isValidPhoneNumber(phoneNumber) && (lang === 'he' ? 'טלפון' : 'Phone'),
+    !isAllowedStudentEmailDomain(email) && (lang === 'he' ? 'דוא"ל' : 'Email'),
+    !isValidStudentId(studentId) && (lang === 'he' ? 'תעודת זהות' : 'Student ID'),
+    !passwordCheck.valid && (lang === 'he' ? 'סיסמה' : 'Password'),
+    !facultyId && (lang === 'he' ? 'פקולטה' : 'Faculty'),
+    !programKey && (lang === 'he' ? 'תוכנית לימודים' : 'Program'),
+    !yearOfStudy && (lang === 'he' ? 'שנת לימודים' : 'Year of study'),
+    trackPolicy === 'signup_choice' && !chosenTrack && (lang === 'he' ? 'מסלול' : 'Track'),
+    specializationOptions.length > 0 && !specialization && (lang === 'he' ? 'תחום התמחות' : 'Specialization'),
+  ].filter((f): f is string => typeof f === 'string');
+
   const canSave = Boolean(
-    displayName.trim().length > 1 &&
+    hasFullName &&
       isValidPhoneNumber(phoneNumber) &&
       isAllowedStudentEmailDomain(email) &&
       isValidStudentId(studentId) &&
@@ -307,9 +327,26 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSave} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-6 shadow-sm" style={{ '--rail-color': 'var(--primary)' } as React.CSSProperties}>
+            <p className="mb-3 text-xs text-muted">
+              <span className="text-danger" aria-hidden="true">* </span>
+              {lang === 'he' ? 'שדה חובה. לא ניתן להירשם לפני מילוי כל שדות החובה.' : 'Required field. You can’t sign up until every required field is filled in.'}
+            </p>
             <div className="grid gap-3">
-              <Field label={lang === 'he' ? 'שם מלא' : 'Full Name'}>
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputCls} required />
+              <Field label={lang === 'he' ? 'שם מלא (פרטי ומשפחה, כפי שבתעודת הזהות)' : 'Full name (first and last, as on your ID card)'}>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className={inputCls}
+                  required
+                  autoComplete="name"
+                  aria-invalid={displayName.trim().length > 0 && !hasFullName}
+                  aria-describedby={displayName.trim().length > 0 && !hasFullName ? 'name-error' : undefined}
+                />
+                {displayName.trim().length > 0 && !hasFullName && (
+                  <p id="name-error" role="alert" className="mt-1 text-xs text-danger">
+                    {lang === 'he' ? 'יש להזין שם פרטי ושם משפחה' : 'Please enter your first and last name'}
+                  </p>
+                )}
               </Field>
 
               <Field label={lang === 'he' ? 'טלפון (10 ספרות)' : 'Phone (10 digits)'}>
@@ -525,6 +562,12 @@ export default function SignupPage() {
             >
               {saving ? '…' : lang === 'he' ? 'הרשמה' : 'Sign Up'}
             </button>
+            {missingFields.length > 0 && (
+              <p className="mt-2 text-center text-xs text-muted" aria-live="polite">
+                {lang === 'he' ? 'כדי להירשם יש למלא: ' : 'To sign up, fill in: '}
+                {missingFields.join(', ')}
+              </p>
+            )}
           </form>
 
           <button type="button" onClick={() => router.replace('/login')} className="mt-4 w-full text-center text-sm text-primary hover:underline">
@@ -536,10 +579,15 @@ export default function SignupPage() {
   );
 }
 
+// Every signup field is mandatory — marked with a red asterisk (and a
+// screen-reader "required" via each input's own `required` attribute).
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink">
+        {label}
+        <span className="text-danger" aria-hidden="true"> *</span>
+      </span>
       {children}
     </label>
   );

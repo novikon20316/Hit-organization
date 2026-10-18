@@ -104,7 +104,7 @@ export function AddRosterEntryModal({ onClose, onCreated }: AddRosterEntryModalP
             <input dir="ltr" value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls} maxLength={9} required />
           </Field>
 
-          <Field label={lang === 'he' ? 'שם מלא' : 'Full Name'}>
+          <Field label={lang === 'he' ? 'שם מלא *' : 'Full Name *'}>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputCls} required />
           </Field>
 
