@@ -57,7 +57,7 @@ export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedReque
  *  the same regardless of which language the client happens to render — a
  *  security deadline everyone must understand, not something that should
  *  ever be missed because of a language setting. */
-function buildNoticeContent(deadlineLabel: string, graceDays: number, facultyIds: string[], audience: TwoFactorAudience): { title: string; body: string } {
+function buildNoticeContent(deadlineLabel: string, graceDays: number, facultyIds: string[], audience: TwoFactorAudience): { title: string; body: string; whoHe: string; whoEn: string } {
   const daysHe = graceDays === 1 ? 'יום אחד' : `${graceDays} ימים`;
   const daysEn = graceDays === 1 ? '1 Day' : `${graceDays} Days`;
   const title = `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד ${daysHe} / Two-Factor Authentication (2FA) Becomes Mandatory in ${daysEn}`;
@@ -77,7 +77,7 @@ function buildNoticeContent(deadlineLabel: string, graceDays: number, facultyIds
     `Starting ${deadlineLabel}, the system will require two-factor authentication (2FA) for ${whoEn}. ` +
     `We recommend setting it up now, before it becomes mandatory, to avoid any interruption accessing your account.\n` +
     `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code shown using the Google Authenticator app (or any compatible authenticator app) → enter the 6-digit code shown in the app to confirm. That's it — on future logins you'll be asked for a code from the app.`;
-  return { title, body: `${bodyHe}\n\n— — —\n\n${bodyEn}` };
+  return { title, body: `${bodyHe}\n\n— — —\n\n${bodyEn}`, whoHe, whoEn };
 }
 
 // ─── POST /api/admin/system/enforce-2fa ──────────────────────────────────────
@@ -114,7 +114,7 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
   try {
     const status = await activateTwoFactorEnforcement(req.user.uid, graceDays, facultyIds as string[], audience);
     const deadlineLabel = dayjs(status.deadline!.toDate()).format('DD/MM/YYYY');
-    const { title, body } = buildNoticeContent(deadlineLabel, graceDays, status.facultyIds, status.audience);
+    const { title, body, whoHe, whoEn } = buildNoticeContent(deadlineLabel, graceDays, status.facultyIds, status.audience);
 
     let notified = 0;
     let failed = 0;
@@ -138,7 +138,9 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
             titleEn: title,
             bodyHe: body,
             bodyEn: body,
-            emailData: { deadlineDate: deadlineLabel },
+            // The email template builds its subject/body from these — the
+            // real grace period and audience, not a fixed "7 days".
+            emailData: { deadlineDate: deadlineLabel, graceDays: String(graceDays), whoHe, whoEn },
             channels: { inApp: true, email: true, push: true, sms: false, whatsapp: false },
           });
           notified++;

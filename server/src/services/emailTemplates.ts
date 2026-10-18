@@ -76,8 +76,9 @@ export type NotificationType =
   | 'general';
 
 interface EmailTemplate {
-  subjectHe: string;
-  subjectEn: string;
+  /** Plain text, or built from the email's data (e.g. a number of days). */
+  subjectHe: string | ((data: Record<string, string>) => string);
+  subjectEn: string | ((data: Record<string, string>) => string);
   bodyHe:    (data: Record<string, string>) => string;
   bodyEn:    (data: Record<string, string>) => string;
   /** When true, buildEmailHtml sends BOTH language versions in one email
@@ -602,12 +603,15 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
   },
 
   two_factor_enforcement_notice: {
-    subjectHe: '🔐 אימות דו-שלבי יהפוך לחובה בעוד 7 ימים',
-    subjectEn: '🔐 Two-Factor Authentication Becomes Mandatory in 7 Days',
+    // graceDays / whoHe / whoEn come from twoFactorEnforcementController.ts —
+    // the grace period and audience the admin actually chose (this used to
+    // say "7 days" and "every user" no matter what was selected).
+    subjectHe: (d) => `🔐 אימות דו-שלבי יהפוך לחובה בעוד ${d.graceDays === '1' ? 'יום אחד' : `${d.graceDays || '7'} ימים`}`,
+    subjectEn: (d) => `🔐 Two-Factor Authentication Becomes Mandatory in ${d.graceDays === '1' ? '1 Day' : `${d.graceDays || '7'} Days`}`,
     bilingual: true,
     bodyHe: (d) => `
       <p>שלום ${d.name || ''},</p>
-      <p><strong>החל מתאריך ${d.deadlineDate || ''}, המערכת תחייב אימות דו-שלבי (2FA) עבור כל המשתמשים.</strong></p>
+      <p><strong>החל מתאריך ${d.deadlineDate || ''}, המערכת תחייב אימות דו-שלבי (2FA) ${d.whoHe || 'עבור כל המשתמשים'}.</strong></p>
       <p>מומלץ להגדיר זאת כבר עכשיו, לפני שהדבר יהפוך לחובה, כדי להימנע מהפרעה בגישה לחשבונך.</p>
       <p><strong>איך להפעיל אימות דו-שלבי:</strong></p>
       <ol>
@@ -619,7 +623,7 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     `,
     bodyEn: (d) => `
       <p>Hello ${d.name || ''},</p>
-      <p><strong>Starting ${d.deadlineDate || ''}, the system will require two-factor authentication (2FA) for every user.</strong></p>
+      <p><strong>Starting ${d.deadlineDate || ''}, the system will require two-factor authentication (2FA) for ${d.whoEn || 'every user'}.</strong></p>
       <p>We recommend setting it up now, before it becomes mandatory, to avoid any interruption accessing your account.</p>
       <p><strong>How to enable two-factor authentication:</strong></p>
       <ol>
@@ -671,9 +675,12 @@ export function buildEmailHtml(
   // preference yet at account-creation time, so there's no single language
   // to reliably pick. `lang` still picks header/footer/dir for the overall
   // document and which language section reads first.
+  // Subjects are plain text (not HTML), so they get the raw data.
+  const subjectHe = typeof template.subjectHe === 'function' ? template.subjectHe(data) : template.subjectHe;
+  const subjectEn = typeof template.subjectEn === 'function' ? template.subjectEn(data) : template.subjectEn;
   const subject = template.bilingual
-    ? `${template.subjectHe} / ${template.subjectEn}`
-    : (isHe ? template.subjectHe : template.subjectEn);
+    ? `${subjectHe} / ${subjectEn}`
+    : (isHe ? subjectHe : subjectEn);
 
   const templateBody = template.bilingual
     ? `
