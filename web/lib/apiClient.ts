@@ -1315,8 +1315,9 @@ export const apiClient = {
   },
 
   /** GET /api/final-report/:token — PUBLIC, no sign-in. */
+  /** Token in the POST body, never in a URL (server request logs). */
   async getFinalReport(token: string) {
-    return request<FinalReportData>(`/api/final-report/${encodeURIComponent(token)}`, { method: 'GET' });
+    return request<FinalReportData>('/api/final-report', { method: 'POST', body: { token } });
   },
 
   async getPendingApplications() {
@@ -2325,6 +2326,8 @@ export const apiClient = {
    *  projectCoordinatorController.ts's getStudentDetail. */
   async getStudentDetail(studentId: string) {
     return request<{
+      /** Final report link state — drives the staff "revoke link" action. */
+      finalReport?: { hasLink: boolean; canRevoke: boolean };
       student: {
         id: string;
         name: string;
@@ -2410,6 +2413,15 @@ export const apiClient = {
    *  result. */
   /** Coordinator / admin coordinator / system_admin, scoped — see
    *  studentTrackController.ts's setStudentSpecialization. null clears it. */
+  /** Revokes the student's final report link(s) and sends a fresh one —
+   *  server/src/controllers/finalReportController.ts. */
+  async revokeStudentFinalReportLinks(studentId: string) {
+    return request<{ success: boolean; revoked: number; reissued: number }>(
+      `/api/project-coordinator/students/${studentId}/final-report/revoke`,
+      { method: 'POST', body: {} },
+    );
+  },
+
   async setStudentSpecialization(studentId: string, specialization: string | null) {
     return request<{ success: boolean }>(`/api/project-coordinator/students/${studentId}/specialization`, {
       method: 'POST',
@@ -3302,9 +3314,9 @@ export interface FinalReportLinkInfo {
 export interface FinalReportData {
   student: {
     name: string;
+    /** Masked server-side — last 4 digits only. */
     idNumber: string | null;
     email: string | null;
-    phone: string | null;
     facultyId: string;
     major: string | null;
     degreeType: string | null;

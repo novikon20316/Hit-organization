@@ -25,6 +25,7 @@ import { normalizeCompletedCourses, normalizePrerequisites } from '../services/p
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { notifyUser } from '../services/notify.js';
+import { hasFinalReportLinks } from '../services/finalReport.js';
 import admin from 'firebase-admin';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
@@ -51,6 +52,8 @@ const COORDINATOR_STATISTICS_ROLES = ['administrative_secretary', 'coordinator',
 // faculty_admin added for the same reason — already in studentTrackController.ts's
 // THESIS_ELIGIBILITY_ROLES (can call the write endpoints) but missing here.
 const STUDENT_DETAIL_ROLES = ['administrative_secretary', 'coordinator', 'program_head', 'grad_school_head', 'faculty_admin', 'system_admin'];
+// Keep in sync with finalReportController.ts's FINAL_REPORT_REVOKE_ROLES.
+const FINAL_REPORT_REVOKE_ROLES = ['administrative_secretary', 'system_admin'];
 
 // Same "own scoped constant instead of widening PROJECT_COORDINATOR_DASHBOARD_ROLES"
 // precedent as COORDINATOR_STATISTICS_ROLES/STUDENT_DETAIL_ROLES above — the
@@ -765,7 +768,16 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
       }
     }
 
+    // Staff "revoke report link" action — shown only when the student has a
+    // final report link, and only to the roles allowed to revoke it
+    // (finalReportController.ts's revokeStudentFinalReportLinks).
+    const finalReport = {
+      hasLink: await hasFinalReportLinks(studentSnap.id),
+      canRevoke: hasAnyRole(req.user, FINAL_REPORT_REVOKE_ROLES),
+    };
+
     return res.status(200).json({
+      finalReport,
       student: {
         id: studentSnap.id,
         name: studentData.displayName ?? '',

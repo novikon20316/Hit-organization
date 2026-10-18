@@ -33,12 +33,26 @@ import {
 } from './workflowTemplates.js';
 
 const COLLECTION = 'finalReportTokens';
-const LINK_VALIDITY_DAYS = 365;
+// Short-lived: a link sent to the wrong address stops working within a
+// month. The student never loses access — their dashboard card mints a
+// fresh link whenever the old one has expired (listFinalReportLinksForStudent).
+const LINK_VALIDITY_DAYS = 30;
 const AUTO_APPROVED_SIGNER = 'System (auto-approved)';
 
+// The token travels in the URL FRAGMENT (#token=…), which browsers never
+// send to any server or put in a Referer — so it can't land in request logs.
+// The page reads it and POSTs it in the request body (routes/finalReport.ts).
 function reportLink(token: string): string {
   const baseUrl = process.env.EXAMINER_ACCESS_BASE_URL || ''; // same public web origin as examinerAccess.ts
-  return `${baseUrl}/final-report?token=${encodeURIComponent(token)}`;
+  return `${baseUrl}/final-report#token=${encodeURIComponent(token)}`;
+}
+
+/** Only the last 4 digits — enough to identify the document, not enough to
+ *  misuse if the link is forwarded. */
+function maskIdNumber(id: unknown): string | null {
+  if (typeof id !== 'string' || !id.trim()) return null;
+  const digits = id.replace(/\D/g, '');
+  return digits.length > 4 ? `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}` : '****';
 }
 
 /** Only tokens this module minted — 43 base64url chars (32 random bytes). */
@@ -95,25 +109,7 @@ export async function issueFinalReportLinks(milestoneId: string): Promise<void> 
         // A re-approval after an unlock reuses the same link — the student
         // already has it, and the report itself is rendered live.
         if (!created) return;
-        await notifyUser({
-          recipientId: studentId,
-          type: 'final_report_ready',
-          titleHe: '🎓 הדוח המסכם שלך מוכן',
-          titleEn: '🎓 Your final report is ready',
-          bodyHe: 'הדוח המסכם שלך זמין לצפייה ולהדפסה. הקישור נשלח אליך במייל וזמין גם בלוח הבקרה שלך.',
-          bodyEn: 'Your final report is available to view and print. The link was emailed to you and is also on your dashboard.',
-          relatedProjectId: projectId || null,
-          relatedMilestoneId: milestoneId,
-          targetScreen: 'student_grades',
-          emailData: {
-            link: reportLink(token),
-            projectTitle: { he: project.titleHe ?? project.titleEn ?? '', en: project.titleEn ?? project.titleHe ?? '' },
-          },
-          // The link is a bearer credential for this report — kept to email
-          // (the student's own inbox) and the authenticated dashboard, not
-          // SMS/WhatsApp/push text that can surface on a lock screen.
-          channels: { inApp: true, email: true, push: true, sms: false, whatsapp: false },
-        });
+        await sendReportLink(studentId, projectId, milestoneId, token, project, false);
       } catch (err) {
         console.error(`issueFinalReportLinks: failed for student ${studentId}, milestone ${milestoneId}:`, err);
       }
@@ -123,28 +119,103 @@ export async function issueFinalReportLinks(milestoneId: string): Promise<void> 
   }
 }
 
-/** The signed-in student's own links (for their dashboard card). Only
- *  returns links whose grade is still approved. */
+async function sendReportLink(
+  studentId: string,
+  projectId: string,
+  milestoneId: string,
+  token: string,
+  project: FirebaseFirestore.DocumentData,
+  reissued: boolean,
+): Promise<void> {
+  await notifyUser({
+    recipientId: studentId,
+    type: 'final_report_ready',
+    titleHe: reissued ? '🎓 קישור חדש לדוח המסכם שלך' : '🎓 הדוח המסכם שלך מוכן',
+    titleEn: reissued ? '🎓 A new link to your final report' : '🎓 Your final report is ready',
+    bodyHe: reissued
+      ? 'הקישור הקודם לדוח המסכם שלך בוטל. הקישור החדש נשלח אליך במייל וזמין גם בלוח הבקרה שלך.'
+      : 'הדוח המסכם שלך זמין לצפייה ולהדפסה. הקישור נשלח אליך במייל וזמין גם בלוח הבקרה שלך.',
+    bodyEn: reissued
+      ? 'Your previous final report link was revoked. The new link was emailed to you and is also on your dashboard.'
+      : 'Your final report is available to view and print. The link was emailed to you and is also on your dashboard.',
+    relatedProjectId: projectId || null,
+    relatedMilestoneId: milestoneId,
+    targetScreen: 'student_grades',
+    emailData: {
+      link: reportLink(token),
+      projectTitle: { he: project.titleHe ?? project.titleEn ?? '', en: project.titleEn ?? project.titleHe ?? '' },
+    },
+    // The link is a bearer credential for this report — kept to email
+    // (the student's own inbox) and the authenticated dashboard, not
+    // SMS/WhatsApp/push text that can surface on a lock screen.
+    channels: { inApp: true, email: true, push: true, sms: false, whatsapp: false },
+  });
+}
+
+/**
+ * Staff "revoke report link": kills every live link of this student at once
+ * (e.g. one emailed to a wrong address), then — for each report whose grade
+ * is still approved — mints a fresh link and sends it to the student.
+ */
+export async function revokeAndReissueFinalReportLinks(studentId: string, revokedBy: string): Promise<{ revoked: number; reissued: number }> {
+  const snap = await db.collection(COLLECTION).where('studentId', '==', studentId).get();
+  const now = Date.now();
+  const live = snap.docs.filter((d) => !d.data().revoked && (d.data().expiresAt?.toMillis?.() ?? 0) > now);
+  await Promise.all(live.map((d) => d.ref.update({
+    revoked: true,
+    revokedBy,
+    revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })));
+
+  // One fresh link per report (milestone) the student has, whether its old
+  // link was live or had already expired.
+  const milestones = new Map<string, string>();
+  snap.docs.forEach((d) => milestones.set(d.data().milestoneId, d.data().projectId));
+  let reissued = 0;
+  for (const [milestoneId, projectId] of milestones) {
+    const mSnap = await db.collection('milestones').doc(milestoneId).get();
+    if (!mSnap.data()?.gradeApproved) continue;
+    const { token } = await findOrCreateToken(studentId, projectId, milestoneId);
+    const project = (await db.collection('projects').doc(projectId).get()).data() ?? {};
+    await sendReportLink(studentId, projectId, milestoneId, token, project, true);
+    reissued++;
+  }
+  return { revoked: live.length, reissued };
+}
+
+/** Whether this student has ever been issued a final report link — decides
+ *  whether staff see the revoke action at all. */
+export async function hasFinalReportLinks(studentId: string): Promise<boolean> {
+  const snap = await db.collection(COLLECTION).where('studentId', '==', studentId).limit(1).get();
+  return !snap.empty;
+}
+
+/** The signed-in student's own links (for their dashboard card), one per
+ *  report whose grade is still approved. Links are short-lived
+ *  (LINK_VALIDITY_DAYS), so an expired one is replaced with a fresh link
+ *  here, silently — the student is already signed in, so nothing is emailed. */
 export async function listFinalReportLinksForStudent(studentId: string): Promise<Array<{
   link: string; projectId: string; projectTitleHe: string; projectTitleEn: string; expiresAt: string | null;
 }>> {
   const snap = await db.collection(COLLECTION).where('studentId', '==', studentId).get();
-  const now = Date.now();
-  const results = await Promise.all(snap.docs.map(async (d) => {
-    const data = d.data();
-    if (data.revoked || (data.expiresAt?.toMillis?.() ?? 0) <= now) return null;
+  const milestones = new Map<string, string>();
+  snap.docs.forEach((d) => milestones.set(d.data().milestoneId, d.data().projectId));
+
+  const results = await Promise.all([...milestones].map(async ([milestoneId, projectId]) => {
     const [mSnap, pSnap] = await Promise.all([
-      db.collection('milestones').doc(data.milestoneId).get(),
-      db.collection('projects').doc(data.projectId).get(),
+      db.collection('milestones').doc(milestoneId).get(),
+      db.collection('projects').doc(projectId).get(),
     ]);
     if (!mSnap.data()?.gradeApproved) return null;
+    const { token } = await findOrCreateToken(studentId, projectId, milestoneId);
+    const tokenSnap = await db.collection(COLLECTION).doc(token).get();
     const project = pSnap.data() ?? {};
     return {
-      link: reportLink(d.id),
-      projectId: data.projectId as string,
+      link: reportLink(token),
+      projectId,
       projectTitleHe: project.titleHe ?? '',
       projectTitleEn: project.titleEn ?? '',
-      expiresAt: data.expiresAt?.toDate?.().toISOString?.() ?? null,
+      expiresAt: tokenSnap.data()?.expiresAt?.toDate?.().toISOString?.() ?? null,
     };
   }));
   return results.filter((r): r is NonNullable<typeof r> => r !== null);
@@ -162,9 +233,10 @@ export interface FinalReportSignature {
 export interface FinalReport {
   student: {
     name: string;
+    /** Masked — last 4 digits only (maskIdNumber). No phone: the link is a
+     *  bearer credential that may be forwarded. */
     idNumber: string | null;
     email: string | null;
-    phone: string | null;
     facultyId: string;
     major: string | null;
     degreeType: string | null;
@@ -287,9 +359,8 @@ export async function getFinalReportByToken(token: string): Promise<FinalReportL
     report: {
       student: {
         name: student.displayName ?? student.displayNameHe ?? student.displayNameEn ?? '',
-        idNumber: student.studentId ?? null,
+        idNumber: maskIdNumber(student.studentId),
         email: student.email ?? null,
-        phone: student.phoneNumber ?? null,
         facultyId,
         major: student.major ?? project.major ?? null,
         degreeType: project.degreeType ?? student.degreeType ?? null,

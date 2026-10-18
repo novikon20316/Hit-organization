@@ -115,6 +115,7 @@ export default function StudentDetailPage() {
   const [savingAverage, setSavingAverage] = useState(false);
   const [specializationInput, setSpecializationInput] = useState('');
   const [savingSpecialization, setSavingSpecialization] = useState(false);
+  const [revokingReport, setRevokingReport] = useState(false);
 
   const loadDetail = async () => {
     if (!studentId) return;
@@ -171,6 +172,24 @@ export default function StudentDetailPage() {
       alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
     } finally {
       setSavingSpecialization(false);
+    }
+  };
+
+  const handleRevokeReportLink = async () => {
+    const ok = window.confirm(lang === 'he'
+      ? 'לבטל את הקישור הנוכחי לדוח המסכם ולשלוח לסטודנט/ית קישור חדש?'
+      : 'Revoke the current final report link and send the student a new one?');
+    if (!ok) return;
+    setRevokingReport(true);
+    try {
+      const res = await apiClient.revokeStudentFinalReportLinks(studentId);
+      alert(lang === 'he'
+        ? `הקישור בוטל. נשלחו ${res.reissued} קישורים חדשים.`
+        : `Link revoked. ${res.reissued} new link(s) sent.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'הביטול נכשל' : 'Revoke failed');
+    } finally {
+      setRevokingReport(false);
     }
   };
 
@@ -383,6 +402,27 @@ export default function StudentDetailPage() {
             canEdit={canEditCourses}
             onSaved={loadDetail}
           />
+
+          {/* Final report link — revoke (e.g. emailed to a wrong address)
+              and send the student a fresh one. Only once a link exists. */}
+          {data?.finalReport?.hasLink && data.finalReport.canRevoke && (
+            <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+              <p className="text-sm font-semibold text-administrative-coordinator-on-surface">🎓 {lang === 'he' ? 'קישור לדוח המסכם' : 'Final report link'}</p>
+              <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
+                {lang === 'he'
+                  ? 'אם הקישור נשלח לכתובת שגויה או דלף, אפשר לבטל אותו. הקישור הישן יפסיק לעבוד מיד, והסטודנט/ית יקבל/תקבל קישור חדש במייל ובלוח הבקרה.'
+                  : 'If the link was sent to a wrong address or leaked, revoke it. The old link stops working immediately and the student gets a new one by email and on their dashboard.'}
+              </p>
+              <button
+                type="button"
+                disabled={revokingReport}
+                onClick={handleRevokeReportLink}
+                className="mt-3 rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {revokingReport ? '…' : lang === 'he' ? 'בטל קישור ושלח חדש' : 'Revoke link and send a new one'}
+              </button>
+            </div>
+          )}
 
           {/* Communication */}
           <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">

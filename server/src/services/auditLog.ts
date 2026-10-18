@@ -85,6 +85,9 @@ export type AuditAction =
   // (services/studentNameMatch.ts) — a possible attempt to register as
   // someone else.
   | 'signup_name_mismatch'
+  // Staff revoked a student's final report link(s) and sent a fresh one
+  // (services/finalReport.ts's revokeAndReissueFinalReportLinks).
+  | 'final_report_link_revoked'
   | 'student_thesis_eligibility_set'
   | 'student_track_overridden_by_admin'
   // Temporary debug tooling (see config/featureFlags.ts's

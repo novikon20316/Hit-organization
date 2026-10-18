@@ -3,7 +3,7 @@
 // app/final-report/page.tsx
 // Public, VIEW-ONLY final report — no Firebase Auth required, and nothing on
 // this page can sign anyone in. The student receives
-//   https://<web-origin>/final-report?token=<token>
+//   https://<web-origin>/final-report#token=<token>
 // by email once their final grade is approved (see
 // server/src/services/finalReport.ts). The token only ever resolves to this
 // one report; the server re-checks on every load that the grade is still
@@ -15,7 +15,7 @@
 // useSearchParams() forces client-side rendering at the Suspense boundary
 // (same as app/defense-access/page.tsx).
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiClient, ApiError, type FinalReportData } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -46,15 +46,38 @@ function programLabel(facultyId: string, major: string | null, degreeType: strin
 
 function FinalReportContent() {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
   const { lang } = useLanguage();
   const he = lang === 'he';
 
-  const [state, setState] = useState<LoadState>(token ? 'loading' : 'invalid');
+  // New links carry the token in the fragment (#token=…), which the browser
+  // never sends to a server. Links emailed before that change used
+  // ?token=… — still accepted. Either way the token is then wiped from the
+  // address bar, so it doesn't sit in browser history or get copied along
+  // with the URL. Read once on mount (the fragment isn't available during
+  // server rendering).
+  // The ref keeps the token read the first time: React (StrictMode, dev)
+  // re-runs this effect, and by then the address bar was already cleared.
+  const tokenRef = useRef<string | null | undefined>(undefined);
+  const [token, setToken] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (tokenRef.current === undefined) {
+      const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+      tokenRef.current = fromHash || searchParams.get('token');
+      if (tokenRef.current) window.history.replaceState(null, '', window.location.pathname);
+    }
+    setToken(tokenRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [state, setState] = useState<LoadState>('loading');
   const [report, setReport] = useState<FinalReportData | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (token === undefined) return;
+    if (!token) {
+      setState('invalid');
+      return;
+    }
     let cancelled = false;
     apiClient
       .getFinalReport(token)
@@ -105,7 +128,6 @@ function FinalReportContent() {
     [he ? 'שם הסטודנט/ית' : 'Student name', student.name],
     [he ? 'תעודת זהות' : 'ID number', student.idNumber],
     [he ? 'דוא"ל' : 'Email', student.email],
-    [he ? 'טלפון' : 'Phone', student.phone],
     [he ? 'פקולטה' : 'Faculty', faculty[lang]],
     [he ? 'תוכנית לימודים' : 'Program', program],
     ...(specialization ? [[he ? 'מגמה' : 'Specialization', specialization] as [string, string]] : []),
