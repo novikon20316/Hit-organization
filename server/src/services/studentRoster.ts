@@ -16,6 +16,7 @@
 import * as XLSX from 'xlsx';
 import { db } from '../config/firebase.js';
 import { VALID_FACULTIES, MAX_IMPORT_ROWS } from './userImportExport.js';
+import { nameMatchesRoster } from './studentNameMatch.js';
 
 export type RosterDegreeType = 'bachelors' | 'masters';
 
@@ -292,6 +293,8 @@ export async function createApprovedStudentEntry(data: RosterEntryCreate, upload
 export interface EligibilityCheckResult {
   eligible: boolean;
   reason?: string;
+  /** Set when the ID is on the roster but the typed name doesn't match it. */
+  nameMismatch?: boolean;
 }
 
 /**
@@ -307,6 +310,10 @@ export async function checkStudentEligibility(
   // syncData passes its transaction so the check and markRosterEntryUsed
   // are atomic — two concurrent signups with the same ID can't both pass.
   tx?: FirebaseFirestore.Transaction,
+  // The names the student typed at signup. Only syncData passes these —
+  // never the public verify-eligibility pre-check, so that endpoint can't be
+  // used as an oracle for guessing a stranger's name from their ID number.
+  typedNames?: Array<string | null | undefined>,
 ): Promise<EligibilityCheckResult> {
   const normalizedId = normalizeStudentId(studentId);
   const normalizedDegree = normalizeDegreeType(degreeType);
@@ -329,6 +336,13 @@ export async function checkStudentEligibility(
   }
   if (data.major && major && data.major !== major.toLowerCase()) {
     return { eligible: false, reason: 'Your program does not match the approved students list. Contact your faculty coordinator.' };
+  }
+  // Knowing someone's ID number alone must not be enough to register as
+  // them — see services/studentNameMatch.ts for how tolerant this is. A
+  // roster entry uploaded without a name can't be checked and is let through.
+  const rosterName = typeof data.fullName === 'string' ? data.fullName.trim() : '';
+  if (typedNames && rosterName && !nameMatchesRoster(rosterName, typedNames)) {
+    return { eligible: false, nameMismatch: true, reason: 'The name you entered does not match the approved students list for this ID number. Check it, or contact your faculty coordinator.' };
   }
   return { eligible: true };
 }

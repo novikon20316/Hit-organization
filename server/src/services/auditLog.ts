@@ -84,6 +84,10 @@ export type AuditAction =
   | 'student_thesis_eligibility_set'
   | 'student_track_overridden_by_admin'
   // Temporary debug tooling (see config/featureFlags.ts's
+  // Signup refused: ID on the roster, but the typed name didn't match it
+  // (services/studentNameMatch.ts) — a possible attempt to register as
+  // someone else.
+  | 'signup_name_mismatch'
   // IMPERSONATION_ENABLED) — a system_admin signing in as another user from
   // the web Users tab.
   | 'impersonation_started'

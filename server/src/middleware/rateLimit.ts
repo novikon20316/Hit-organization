@@ -142,3 +142,19 @@ export const studentsMessageLimiter = rateLimit({
     ),
   }),
 });
+
+// POST /api/users/sync — student signup. Since the roster name check
+// (services/studentNameMatch.ts), a refused attempt tells the caller "wrong
+// name for this ID", so unlimited retries would let someone guess a
+// stranger's name. Real signups need one or two calls. Mount AFTER
+// verifyTokenOnly so it keys per Firebase account, not per IP.
+export const signupSyncLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: (req: Request) => ({
+    error: L(req, 'Too many registration attempts. Please try again in an hour.', 'יותר מדי ניסיונות הרשמה. יש לנסות שוב בעוד שעה.'),
+  }),
+});

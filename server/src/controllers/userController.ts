@@ -333,13 +333,31 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     const outcome = await db.runTransaction(async (tx) => {
       const existingSnap = await tx.get(userRef);
       if (existingSnap.exists) return { kind: 'exists' as const };
-      const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major, tx);
-      if (!eligibility.eligible) return { kind: 'ineligible' as const, reason: eligibility.reason };
+      const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major, tx, [displayName, displayNameHe, displayNameEn]);
+      if (!eligibility.eligible) return { kind: 'ineligible' as const, reason: eligibility.reason, nameMismatch: !!eligibility.nameMismatch };
       tx.create(userRef, firestoreUserDoc);
       markRosterEntryUsed(studentId, resolvedFacultyId, degreeType, newUid, tx);
       return { kind: 'created' as const };
     });
 
+    if (outcome.kind === 'ineligible' && outcome.nameMismatch) {
+      // Possible attempt to register with someone else's ID number. Logged
+      // with what was typed (never the roster name) for staff to review.
+      await logAuditEvent({
+        userId: newUid,
+        userRole: 'student',
+        action: 'signup_name_mismatch',
+        entityType: 'user',
+        entityId: newUid,
+        newValue: { typedName: displayName ?? null, typedNameHe: displayNameHe ?? null, typedNameEn: displayNameEn ?? null, facultyId: resolvedFacultyId, degreeType },
+        explanation: 'Signup refused: the ID number is on the approved-students list, but the typed name did not match it.',
+      });
+      return res.status(403).json({ error: L(
+        req,
+        'The name you entered does not match the approved students list for this ID number. Please check it, or contact your faculty coordinator.',
+        'השם שהזנת אינו תואם לשם ברשימת הסטודנטים המאושרים עבור מספר תעודת הזהות הזה. יש לבדוק אותו או לפנות לרכז/ת הפקולטה.',
+      ) });
+    }
     if (outcome.kind === 'ineligible') {
       return res.status(403).json({ error: outcome.reason || L(req, 'You are not on the approved students list for this faculty and degree.', 'את/ה לא מופיע/ה ברשימת הסטודנטים המאושרים לפקולטה ולתואר אלו.') });
     }
