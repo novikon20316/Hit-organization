@@ -15,6 +15,7 @@
 // you end one early instead of only ever waiting out its timer.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppVersionSection } from './AppVersionSection';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -326,6 +327,8 @@ export function MaintenanceModal({ onClose, onSaved }: MaintenanceModalProps) {
                   : `🛠️ Activate maintenance for ${platformLabel(platform)}`}
           </button>
         </div>
+
+        <AppVersionSection isHe={isHe} />
       </div>
     </div>
   );

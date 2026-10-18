@@ -27,9 +27,14 @@ function currentMode(): EnforcementMode {
   return raw === 'monitor' || raw === 'enforce' ? raw : 'off';
 }
 
+// Always reachable, even once enforcement is on: an outdated or failing app
+// must still be able to learn that it has to update (services/appVersion.ts).
+const APP_CHECK_EXEMPT_PATHS = new Set(['/api/app-version']);
+
 export const verifyAppCheck = async (req: Request, res: Response, next: NextFunction) => {
   const mode = currentMode();
   if (mode === 'off') return next();
+  if (APP_CHECK_EXEMPT_PATHS.has(req.originalUrl.split('?')[0] ?? '')) return next();
 
   const token = req.headers['x-firebase-appcheck'];
   const rawToken = Array.isArray(token) ? token[0] : token;

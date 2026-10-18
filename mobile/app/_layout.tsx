@@ -12,6 +12,7 @@ import Constants from 'expo-constants';
 import { registerForPushNotificationsAsync } from '@/components/pushNotifications';
 import { NotificationsProvider } from '../src/context/NotificationsContext';
 import { useMaintenanceCheck } from '@/hooks/useMaintenanceCheck';
+import { ForceUpdateGate } from '@/components/ForceUpdateGate';
 import { getHomeRoute, getUserRoles, resolveActiveRole } from '@/firebase/roles'; // ← single source of truth
 import { ActiveRoleProvider, useActiveRole } from '@/contexts/ActiveRoleContext';
 import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
@@ -129,14 +130,18 @@ const publicInfoRoutes = new Set<string>(['/privacy-policy']);
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
 export default function RootLayout() {
+  // Outermost: an install below the server's minimum build sees only the
+  // "update required" screen (components/ForceUpdateGate.tsx).
   return (
-    <ActiveRoleProvider>
-      <OnboardingTourProvider>
-        <FieldGuideProvider>
-          <RootLayoutInner />
-        </FieldGuideProvider>
-      </OnboardingTourProvider>
-    </ActiveRoleProvider>
+    <ForceUpdateGate>
+      <ActiveRoleProvider>
+        <OnboardingTourProvider>
+          <FieldGuideProvider>
+            <RootLayoutInner />
+          </FieldGuideProvider>
+        </OnboardingTourProvider>
+      </ActiveRoleProvider>
+    </ForceUpdateGate>
   );
 }
 

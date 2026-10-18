@@ -993,6 +993,20 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/feedback/admin/${id}/resolve`, { method: 'PATCH' });
   },
 
+  /** Minimum mobile app build per platform (server/src/services/appVersion.ts)
+   *  — system_admin, edited in the maintenance window. Mobile only. */
+  async getAppVersionPolicyAdmin() {
+    return request<{
+      ios: { minBuild: number | null; storeUrl: string };
+      android: { minBuild: number | null; storeUrl: string };
+      updatedAt: string | null;
+    }>('/api/admin/system/app-version', { method: 'GET' });
+  },
+
+  async updateAppVersionPolicy(body: Record<'ios' | 'android', { minBuild: number | null; storeUrl: string }>) {
+    return request<unknown>('/api/admin/system/app-version', { method: 'PUT', body });
+  },
+
   /** GET /api/system/maintenance-status?platform= — current on/off state for
    *  one platform, used by the admin panel to show what's live before/after
    *  toggling (not the same call useMaintenanceCheck makes at login). */
