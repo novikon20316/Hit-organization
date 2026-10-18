@@ -26,6 +26,7 @@ import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { notifyUser } from '../services/notify.js';
 import { hasFinalReportLinks } from '../services/finalReport.js';
+import { getPrivateContact, getPrivateContacts } from '../services/privateContact.js';
 import admin from 'firebase-admin';
 
 const PROJECT_COORDINATOR_DASHBOARD_ROLES = ['administrative_secretary', 'system_admin'];
@@ -187,11 +188,14 @@ export const getProjectCoordinatorDashboard = async (req: AuthenticatedRequest, 
     // actually reach them — email/phoneNumber are already collected at
     // signup (see userImportExport.ts), just never surfaced here before.
     const contactById: Record<string, { email: string; phoneNumber: string | null }> = {};
+    // Phones live in users/{uid}/private/contact (services/privateContact.ts).
+    const profilesById = new Map(userSnaps.filter((s) => s.exists).map((s) => [s.id, s.data()] as const));
+    const privateContacts = await getPrivateContacts([...profilesById.keys()], new Map(profilesById));
     userSnaps.forEach((snap) => {
       if (!snap.exists) return;
       const data = snap.data();
       usersById[snap.id] = data?.displayName ?? 'Unknown';
-      contactById[snap.id] = { email: data?.email ?? '', phoneNumber: data?.phoneNumber ?? null };
+      contactById[snap.id] = { email: data?.email ?? '', phoneNumber: privateContacts.get(snap.id)?.phoneNumber ?? null };
     });
 
     const now = Date.now();
@@ -771,6 +775,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
     // Staff "revoke report link" action — shown only when the student has a
     // final report link, and only to the roles allowed to revoke it
     // (finalReportController.ts's revokeStudentFinalReportLinks).
+    const studentContact = await getPrivateContact(studentSnap.id, studentData);
     const finalReport = {
       hasLink: await hasFinalReportLinks(studentSnap.id),
       canRevoke: hasAnyRole(req.user, FINAL_REPORT_REVOKE_ROLES),
@@ -794,7 +799,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         completedCourses: normalizeCompletedCourses(studentData.completedCourses),
         prerequisiteSubjects: [...prerequisiteSubjects].sort((a, b) => a.localeCompare(b)),
         email: studentData.email ?? '',
-        phoneNumber: studentData.phoneNumber ?? null,
+        phoneNumber: studentContact.phoneNumber,
         yearOfStudy: studentData.yearOfStudy ?? null,
         // Thesis/project track — see config/studentTrack.ts. trackPolicy is
         // re-resolved live (not read off the student's own snapshotted copy)

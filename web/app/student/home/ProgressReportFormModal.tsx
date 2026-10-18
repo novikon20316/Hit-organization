@@ -23,8 +23,7 @@
 //    form has none) so the student can attach the report file itself plus
 //    any supplementary documents.
 import { useEffect, useRef, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -104,9 +103,11 @@ export function ProgressReportFormModal({ milestone, project, onClose, onSubmitt
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const resolved = await Promise.all(studentIds.map(async (uid): Promise<TeammateProfile> => {
-        const userSnap = await getDoc(doc(db, 'users', uid));
-        const u = userSnap.data();
+      // Teammates' details come from the server (phones are server-only).
+      const contacts = await apiClient.getMilestoneStudentContacts(milestone.id).then((r) => r.students).catch(() => []);
+      const byUid = new Map(contacts.map((c) => [c.uid, c]));
+      const resolved = studentIds.map((uid): TeammateProfile => {
+        const u = byUid.get(uid);
         return {
           uid,
           displayName: u?.displayName ?? '',
@@ -114,7 +115,7 @@ export function ProgressReportFormModal({ milestone, project, onClose, onSubmitt
           phoneNumber: u?.phoneNumber ?? null,
           email: u?.email ?? null,
         };
-      }));
+      });
       if (!cancelled) setTeammates(resolved);
     })();
     return () => { cancelled = true; };

@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { isStaffMember } from '../services/twoFactorEnforcement.js';
+import { getPrivateContact } from '../services/privateContact.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
@@ -67,8 +68,7 @@ async function createNotification({
 
 // ─── Get push token for a user ────────────────────────────────────────────────
 async function getUserPushToken(uid: string): Promise<string | null> {
-  const snap = await db.collection('users').doc(uid).get();
-  return snap.data()?.expoPushToken ?? null;
+  return (await getPrivateContact(uid)).expoPushToken;
 }
 
 // Firestore's `in` operator caps at 30 values per query — chunk to stay

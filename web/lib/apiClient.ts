@@ -2413,6 +2413,16 @@ export const apiClient = {
    *  result. */
   /** Coordinator / admin coordinator / system_admin, scoped — see
    *  studentTrackController.ts's setStudentSpecialization. null clears it. */
+  /** The students on one milestone with their contact details — phones are
+   *  server-only (server/src/services/privateContact.ts), so the student
+   *  forms get teammates' details here instead of reading users/{uid}. */
+  async getMilestoneStudentContacts(milestoneId: string) {
+    return request<{ students: Array<{
+      uid: string; displayName: string; studentId: string | null; phoneNumber: string | null;
+      email: string | null; accumulatedCredits: number | null;
+    }> }>(`/api/milestones/${encodeURIComponent(milestoneId)}/student-contacts`, { method: 'GET' });
+  },
+
   /** Revokes the student's final report link(s) and sends a fresh one —
    *  server/src/controllers/finalReportController.ts. */
   async revokeStudentFinalReportLinks(studentId: string) {

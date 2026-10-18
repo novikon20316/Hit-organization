@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
+import { getPrivateContact, writePrivateContact } from './privateContact.js';
 import { sendNotificationEmail } from './emailService.js';
 import { toE164IL, sendSms } from './smsService.js';
 import { sendWhatsapp } from './whatsappService.js';
@@ -191,8 +192,12 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
     }
   }
 
+  // Phone + push token live in users/{uid}/private/contact, not on the
+  // profile (services/privateContact.ts).
+  const contact = await getPrivateContact(recipientId, user);
+
   // ─── Push (Expo) ────────────────────────────────────────────────────────
-  const pushToken: string | undefined = user.expoPushToken;
+  const pushToken: string | null = contact.expoPushToken;
   if (!wantPush || !pushToken) {
     statuses.pushDelivery = 'skipped';
   } else {
@@ -210,7 +215,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       const json: any = await response.json().catch(() => null);
       if (json?.data?.status === 'error') {
         if (json.data.details?.error === 'DeviceNotRegistered') {
-          await db.collection('users').doc(recipientId).update({ expoPushToken: null });
+          await writePrivateContact(recipientId, { expoPushToken: null });
         }
         statuses.pushDelivery = 'failed';
         statuses.pushDeliveryError = String(json.data.message ?? json.data.details?.error ?? 'unknown Expo error');
@@ -225,7 +230,7 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   }
 
   // ─── SMS (Twilio) ───────────────────────────────────────────────────────
-  const phoneRaw: string | undefined = user.phoneNumber;
+  const phoneRaw: string | null = contact.phoneNumber;
   if (!wantSms || !phoneRaw) {
     statuses.smsDelivery = 'skipped';
   } else {

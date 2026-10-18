@@ -11,6 +11,7 @@ import { checkStudentEligibility, markRosterEntryUsed } from '../services/studen
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
+import { writePrivateContact } from '../services/privateContact.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { specializationsFor } from '../config/specialization.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
@@ -282,7 +283,6 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       major:        role === 'student' ? major : null,
       specialization: allowedSpecializations.length > 0 ? specialization : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
-      phoneNumber:  role === 'student' ? (phoneNumber  || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see
       // services/accountDeletion.ts). Defaults to signup time on first sync
       // only; system_admin can correct it per-student for transfers/import
@@ -293,7 +293,6 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       profileComplete: true,
       hasActiveProject:false,
       language:        'he',
-      expoPushToken:   null,
       totp_enabled: false,
       totp_last_verified: null,
       hasSeenOnboardingTour: false,
@@ -344,6 +343,9 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       const eligibility = await checkStudentEligibility(studentId, resolvedFacultyId, degreeType, major, tx, [displayName, displayNameHe, displayNameEn]);
       if (!eligibility.eligible) return { kind: 'ineligible' as const, reason: eligibility.reason, nameMismatch: !!eligibility.nameMismatch };
       tx.create(userRef, firestoreUserDoc);
+      // Phone lives server-only in users/{uid}/private/contact
+      // (services/privateContact.ts), never on the readable profile.
+      writePrivateContact(newUid, { phoneNumber: phoneNumber || null, expoPushToken: null }, tx);
       markRosterEntryUsed(studentId, resolvedFacultyId, degreeType, newUid, tx);
       return { kind: 'created' as const };
     });
@@ -388,10 +390,8 @@ export const updatePushToken = async (req: AuthenticatedRequest, res: Response) 
     if (!uid)   return res.status(401).json({ error: L(req, 'Unauthorized', 'לא מורשה') });
     if (!token) return res.status(400).json({ error: L(req, 'Missing token', 'חסר טוקן') });
 
-    await db.collection('users').doc(uid).update({
-      expoPushToken: token,
-      pushTokenUpdatedAt: new Date().toISOString(),
-    });
+    await writePrivateContact(uid, { expoPushToken: token });
+    await db.collection('users').doc(uid).update({ pushTokenUpdatedAt: new Date().toISOString() });
 
     console.log(`📲 Push token updated for ${uid}`);
     return res.status(200).json({ success: true });
@@ -505,8 +505,8 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     // ─── 1. Universal — clear push token for all roles ────────────────────
+    await writePrivateContact(uid, { expoPushToken: null });
     await userRef.update({
-      expoPushToken: null,
       lastLogoutAt:  now,
       lastLogoutPlatform: resolvePlatform(req.headers['x-client-platform']),
     });

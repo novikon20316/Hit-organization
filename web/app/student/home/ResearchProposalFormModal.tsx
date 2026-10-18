@@ -16,8 +16,7 @@
 // teammate's own profile; studentFormFields only covers what the team fills
 // in TOGETHER, once (project name, abstract, Gantt, etc.).
 import { useEffect, useRef, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -92,12 +91,12 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Teammates' details come from the server (phones are server-only).
+      const contacts = await apiClient.getMilestoneStudentContacts(milestone.id).then((r) => r.students).catch(() => []);
+      const byUid = new Map(contacts.map((c) => [c.uid, c]));
       const resolved = await Promise.all(studentIds.map(async (uid): Promise<TeammateProfile> => {
-        const [userSnap, photoRes] = await Promise.all([
-          getDoc(doc(db, 'users', uid)),
-          apiClient.getUserPhotoUrl(uid).catch(() => ({ photoUrl: null })),
-        ]);
-        const u = userSnap.data();
+        const photoRes = await apiClient.getUserPhotoUrl(uid).catch(() => ({ photoUrl: null }));
+        const u = byUid.get(uid);
         return {
           uid,
           displayName: u?.displayName ?? '',

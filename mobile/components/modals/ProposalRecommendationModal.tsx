@@ -16,8 +16,6 @@ import {
   Modal, View, Text, ScrollView, Pressable,
   TextInput, ActivityIndicator, Image,
 } from 'react-native';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { tx, type Lang } from '../i18n';
@@ -76,12 +74,15 @@ export default function ProposalRecommendationModal({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Teammates' details come from the server (phones are server-only).
+      const contacts: Array<Record<string, any>> = await apiClient
+        .get(`/api/milestones/${m.id}/student-contacts`)
+        .then((r: any) => r.data?.students ?? [])
+        .catch(() => []);
+      const byUid = new Map(contacts.map((c) => [c.uid, c]));
       const resolved = await Promise.all((m.studentIds ?? []).map(async (uid): Promise<TeammateProfile> => {
-        const [userSnap, photoRes] = await Promise.all([
-          getDoc(doc(db, 'users', uid)),
-          apiClient.get(`/api/users/${uid}/photo-url`).catch(() => ({ data: { photoUrl: null } })),
-        ]);
-        const u = userSnap.data();
+        const photoRes = await apiClient.get(`/api/users/${uid}/photo-url`).catch(() => ({ data: { photoUrl: null } }));
+        const u = byUid.get(uid);
         return {
           uid,
           displayName: u?.displayName ?? '',

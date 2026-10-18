@@ -5,6 +5,7 @@ import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/au
 import { softError } from '../middleware/auth.js';
 import { screensForRole } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
+import { getPrivateContact, writePrivateContact } from '../services/privateContact.js';
 
 const db = admin.firestore();
 
@@ -95,9 +96,8 @@ export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res
       chatId:           data?.chatId    || null,
     });
 
-    const userDoc  = await db.collection('users').doc(recipientUid).get();
-    const userData = userDoc.data();
-    const pushToken = userData?.expoPushToken;
+    // Push token lives in users/{uid}/private/contact (services/privateContact.ts).
+    const pushToken = (await getPrivateContact(recipientUid)).expoPushToken;
 
     if (pushToken && pushToken.startsWith('ExponentPushToken')) {
       const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -118,7 +118,7 @@ export const triggerNotificationDispatch = async (req: AuthenticatedRequest, res
         console.error('❌ Expo push delivery error:', expoJson.data.details);
         // Stale token — clear it so we don't keep sending to a dead device
         if (expoJson.data.details?.error === 'DeviceNotRegistered') {
-          await db.collection('users').doc(recipientUid).update({ expoPushToken: null });
+          await writePrivateContact(recipientUid, { expoPushToken: null });
         }
       } else {
         console.log(`📲 Push routed to UID: ${recipientUid}`);

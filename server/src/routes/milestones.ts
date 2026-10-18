@@ -15,6 +15,7 @@ import { submitCommitteeChairDecision, submitExaminerOneSignoff, getParallelSign
 import { verifyFileSignatures } from '../services/fileSignature.js';
 import { resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { isCsPilotMajor } from '../config/csPilot.js';
+import { getMilestoneStudentContacts } from '../controllers/studentContactsController.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -34,6 +35,9 @@ router.get('/:milestoneId/examiner-opinions', verifyToken, getExaminerOpinions)
 // proceed_to_defense/require_corrections/re_judge/add_examiner after examiner opinions are in
 router.post('/:milestoneId/revision-decision', verifyToken, submitRevisionDecision)
 // GET /api/milestones/:id/committee-review — submission + votes so far, for a committee member/chairman
+// GET /api/milestones/:id/student-contacts — teammates' details for the
+// student forms (phones are server-only, see services/privateContact.ts).
+router.get('/:id/student-contacts', verifyToken, getMilestoneStudentContacts)
 router.get('/:id/committee-review', verifyToken, getCommitteeReview)
 // POST /api/milestones/:id/committee-vote — a committee member's own independent opinion
 router.post('/:id/committee-vote', verifyToken, submitCommitteeVote)

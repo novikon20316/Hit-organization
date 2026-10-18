@@ -19,8 +19,7 @@ import {
   Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { ap } from '../../constants/theme';
@@ -91,9 +90,14 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const resolved = await Promise.all(studentIds.map(async (uid): Promise<TeammateProfile> => {
-        const userSnap = await getDoc(doc(db, 'users', uid));
-        const u = userSnap.data();
+      // Teammates' details come from the server (phones are server-only).
+      const contacts: Array<Record<string, any>> = await apiClient
+        .get(`/api/milestones/${milestone.id}/student-contacts`)
+        .then((r: any) => r.data?.students ?? [])
+        .catch(() => []);
+      const byUid = new Map(contacts.map((c) => [c.uid, c]));
+      const resolved = studentIds.map((uid): TeammateProfile => {
+        const u = byUid.get(uid);
         return {
           uid,
           displayName: u?.displayName ?? '',
@@ -101,7 +105,7 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
           phoneNumber: u?.phoneNumber ?? null,
           email: u?.email ?? null,
         };
-      }));
+      });
       if (!cancelled) setTeammates(resolved);
     })();
     return () => { cancelled = true; };

@@ -15,8 +15,6 @@
 // reason) under a form-matching label, not a new status.
 
 import { useEffect, useRef, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
@@ -70,12 +68,12 @@ export function ProposalRecommendationModal({ open, busy, error, milestone: m, o
     if (!open) return;
     let cancelled = false;
     (async () => {
+      // Students' details come from the server (phones are server-only).
+      const contacts = await apiClient.getMilestoneStudentContacts(m.id).then((r) => r.students).catch(() => []);
+      const byUid = new Map(contacts.map((c) => [c.uid, c]));
       const resolved = await Promise.all((m.studentIds ?? []).map(async (uid): Promise<TeammateProfile> => {
-        const [userSnap, photoRes] = await Promise.all([
-          getDoc(doc(db, 'users', uid)),
-          apiClient.getUserPhotoUrl(uid).catch(() => ({ photoUrl: null })),
-        ]);
-        const u = userSnap.data();
+        const photoRes = await apiClient.getUserPhotoUrl(uid).catch(() => ({ photoUrl: null }));
+        const u = byUid.get(uid);
         return {
           uid,
           displayName: u?.displayName ?? '',

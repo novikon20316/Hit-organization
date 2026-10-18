@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import crypto from 'crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, auth } from '../config/firebase.js';
+import { writePrivateContact } from './privateContact.js';
 import { sendNotificationEmail } from './emailService.js';
 import { APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
 
@@ -133,7 +134,6 @@ async function createImportedUserAccount(params: {
     roles: params.roles,
     facultyId: params.facultyId,
     additionalRoles: [],
-    phoneNumber: params.phoneNumber ?? null,
     degreeType: params.degreeType,
     yearOfStudy: params.yearOfStudy,
     major: params.major,
@@ -142,7 +142,6 @@ async function createImportedUserAccount(params: {
     profileComplete: true,
     hasActiveProject: false,
     language: params.lang,
-    expoPushToken: null,
     totp_enabled: false,
     totp_last_verified: null,
     isEligibleForProcess: params.isEligibleForProcess,
@@ -151,6 +150,9 @@ async function createImportedUserAccount(params: {
     createdAt: new Date().toISOString(),
     ...(params.extra ?? {}),
   });
+  // Phone lives server-only in users/{uid}/private/contact
+  // (services/privateContact.ts), never on the readable profile.
+  await writePrivateContact(authUser.uid, { phoneNumber: params.phoneNumber ?? null, expoPushToken: null });
   await setTempPasswordHash(authUser.uid, tempPassword);
 
   try {
