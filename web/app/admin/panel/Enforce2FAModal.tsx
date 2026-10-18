@@ -24,9 +24,14 @@ interface Status {
   announcedAt: string | null;
   deadline: string | null;
   createdBy: string | null;
-  /** Empty/missing = every staff member. */
+  /** Empty/missing = every faculty. */
   facultyIds?: string[];
+  /** Missing = 'staff' (the original behavior). */
+  audience?: Audience;
 }
+
+type Audience = 'staff' | 'students' | 'both';
+const AUDIENCES: Audience[] = ['staff', 'students', 'both'];
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 10, 14, 21, 30];
 
@@ -45,11 +50,16 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
   // Which faculties' staff must set up 2FA. Default: Data Science only — the
   // one faculty with real users today. Clear every box for all staff.
   const [facultyIds, setFacultyIds] = useState<string[]>(['data_science']);
+  const [audience, setAudience] = useState<Audience>('staff');
+  const audienceLabel = (a: Audience | undefined) =>
+    (a ?? 'staff') === 'students' ? (isHe ? 'סטודנטים' : 'students')
+    : a === 'both' ? (isHe ? 'סגל וסטודנטים' : 'staff and students')
+    : (isHe ? 'סגל' : 'staff');
   const toggleFaculty = (key: string) =>
     setFacultyIds((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   const facultyLabel = (key: string) => HIT_FACULTIES.find((f) => f.key === key)?.label[isHe ? 'he' : 'en'] ?? key;
   const scopeLabel = (ids: string[] | undefined) =>
-    ids && ids.length ? ids.map(facultyLabel).join(', ') : (isHe ? 'כל הסגל' : 'all staff');
+    ids && ids.length ? ids.map(facultyLabel).join(', ') : (isHe ? 'כל הפקולטות' : 'all faculties');
   const [activating, setActivating] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState('');
@@ -78,23 +88,23 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
     if (isHe) {
       return (
         `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד ${graceDays} ${graceDays === 1 ? 'יום' : 'ימים'}\n\n` +
-        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) ${facultyIds.length ? `לחשבונות הסגל של ${scopeLabel(facultyIds)}` : 'לכל חשבונות הסגל'} (לא כולל סטודנטים). מומלץ להגדיר זאת כבר עכשיו.\n` +
+        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) ${facultyIds.length ? `לחשבונות ה${audienceLabel(audience)} של ${scopeLabel(facultyIds)}` : `לכל חשבונות ה${audienceLabel(audience)}`}. מומלץ להגדיר זאת כבר עכשיו.\n` +
         `איך להפעיל: היכנסו ל"אימות דו-שלבי" בהגדרות ← סרקו את קוד ה-QR באמצעות Google Authenticator ← הזינו את הקוד בן 6 הספרות.`
       );
     }
     return (
       `🔐 Two-Factor Authentication (2FA) Becomes Mandatory in ${graceDays} ${graceDays === 1 ? 'day' : 'days'}\n\n` +
-      `Starting on the deadline date, the system will require 2FA for ${facultyIds.length ? `staff accounts in ${scopeLabel(facultyIds)}` : 'all staff accounts'} (students are not affected). We recommend setting it up now.\n` +
+      `Starting on the deadline date, the system will require 2FA for ${facultyIds.length ? `${audienceLabel(audience)} accounts in ${scopeLabel(facultyIds)}` : `all ${audienceLabel(audience)} accounts`}. We recommend setting it up now.\n` +
       `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code using Google Authenticator → enter the 6-digit code.`
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graceDays, isHe, facultyIds]);
+  }, [graceDays, isHe, facultyIds, audience]);
 
   const handleActivate = async () => {
     setActivating(true);
     setError('');
     try {
-      await apiClient.activateTwoFactorEnforcement(graceDays, facultyIds);
+      await apiClient.activateTwoFactorEnforcement(graceDays, facultyIds, audience);
       await refreshStatus();
       onSaved?.();
     } catch (err) {
@@ -135,8 +145,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
         </div>
         <p className="mt-1 text-xs text-admin-on-surface-variant">
           {isHe
-            ? 'חשבונות הסגל של הפקולטות שבחרת (לא כולל סטודנטים) יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש. סגל של פקולטות אחרות לא מושפע.'
-            : 'Staff of the faculties you choose (students are not affected) get a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, anyone there who hasn\'t set it up must scan a QR code before continuing. Staff of other faculties are unaffected.'}
+            ? 'מי שבחרת (סגל, סטודנטים או שניהם) בפקולטות שבחרת יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש. כל השאר לא מושפעים.'
+            : 'The people you choose (staff, students or both) in the faculties you choose get a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, anyone there who hasn\'t set it up must scan a QR code before continuing. Everyone else is unaffected.'}
         </p>
 
         <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
@@ -160,7 +170,7 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                   </p>
                 )}
                 <p className="mt-0.5 text-xs text-admin-on-surface-variant">
-                  {isHe ? 'חל על: ' : 'Applies to: '}{scopeLabel(status.facultyIds)}
+                  {isHe ? 'חל על: ' : 'Applies to: '}{audienceLabel(status.audience)} · {scopeLabel(status.facultyIds)}
                 </p>
               </div>
               <button
@@ -175,6 +185,26 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
           ) : (
             <p className="text-sm text-admin-on-surface">{isHe ? 'אין אכיפה פעילה כרגע' : 'No enforcement currently active'}</p>
           )}
+        </div>
+
+        <div className="mt-5 border-t border-admin-outline-variant pt-4">
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">👥 {isHe ? 'על מי זה חל' : 'Who it applies to'}</p>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={isHe ? 'על מי זה חל' : 'Who it applies to'}>
+            {AUDIENCES.map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={audience === a}
+                onClick={() => setAudience(a)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  audience === a ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface'
+                }`}
+              >
+                {audienceLabel(a)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-5 border-t border-admin-outline-variant pt-4">
@@ -199,8 +229,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
           </div>
           <p className="mt-1.5 text-xs text-admin-on-surface-variant">
             {facultyIds.length
-              ? (isHe ? `יחול רק על הסגל של: ${scopeLabel(facultyIds)}` : `Only staff of: ${scopeLabel(facultyIds)}`)
-              : (isHe ? 'לא נבחרה פקולטה — יחול על כל הסגל בכל הפקולטות' : 'No faculty selected — applies to all staff in every faculty')}
+              ? (isHe ? `יחול רק על ה${audienceLabel(audience)} של: ${scopeLabel(facultyIds)}` : `Only ${audienceLabel(audience)} of: ${scopeLabel(facultyIds)}`)
+              : (isHe ? `לא נבחרה פקולטה — יחול על ה${audienceLabel(audience)} בכל הפקולטות` : `No faculty selected — applies to ${audienceLabel(audience)} in every faculty`)}
           </p>
         </div>
 
@@ -246,8 +276,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                   ? `🔄 עדכן ל-${graceDays} ימים ושלח שוב`
                   : `🔄 Update to ${graceDays} days & re-notify`
                 : isHe
-                  ? `🚀 הפעל ושלח ל${facultyIds.length ? 'סגל הפקולטות שנבחרו' : 'כל הסגל'}`
-                  : `🚀 Activate & notify ${facultyIds.length ? 'selected faculties’ staff' : 'all staff'}`}
+                  ? `🚀 הפעל ושלח ל${audienceLabel(audience)}${facultyIds.length ? ' בפקולטות שנבחרו' : ' בכל הפקולטות'}`
+                  : `🚀 Activate & notify ${audienceLabel(audience)}${facultyIds.length ? ' in selected faculties' : ' in all faculties'}`}
           </button>
         </div>
       </div>

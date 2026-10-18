@@ -35,6 +35,15 @@ export function isStaffMember(role: string | undefined, roles: string[] = []): b
   return roles.some((r) => STAFF_ROLES.includes(r));
 }
 
+/** Who the policy covers. 'staff' is the original behavior (and what an
+ *  older client that doesn't send it gets). */
+export type TwoFactorAudience = 'staff' | 'students' | 'both';
+export const TWO_FACTOR_AUDIENCES: readonly TwoFactorAudience[] = ['staff', 'students', 'both'];
+
+export function isStudentAccount(role: string | undefined, roles: string[] = []): boolean {
+  return role === 'student' || roles.includes('student');
+}
+
 export interface TwoFactorEnforcementStatus {
   active: boolean;
   announcedAt: Timestamp | null;
@@ -44,9 +53,10 @@ export interface TwoFactorEnforcementStatus {
    *  facultyMembership.ts). Empty = every staff member, the original
    *  behavior. */
   facultyIds: string[];
+  audience: TwoFactorAudience;
 }
 
-const INACTIVE: TwoFactorEnforcementStatus = { active: false, announcedAt: null, deadline: null, createdBy: null, facultyIds: [] };
+const INACTIVE: TwoFactorEnforcementStatus = { active: false, announcedAt: null, deadline: null, createdBy: null, facultyIds: [], audience: 'staff' };
 
 /** Fails open (reports inactive) on a read error — an unreachable DB should
  *  never turn into every user worldwide getting hard-blocked. */
@@ -62,6 +72,7 @@ export async function readTwoFactorEnforcementStatus(): Promise<TwoFactorEnforce
       deadline: data.deadline ?? null,
       createdBy: data.createdBy ?? null,
       facultyIds: Array.isArray(data.facultyIds) ? data.facultyIds.filter((f: unknown) => typeof f === 'string') : [],
+      audience: TWO_FACTOR_AUDIENCES.includes(data.audience) ? data.audience : 'staff',
     };
   } catch (err) {
     console.error('readTwoFactorEnforcementStatus error:', err);
@@ -69,17 +80,31 @@ export async function readTwoFactorEnforcementStatus(): Promise<TwoFactorEnforce
   }
 }
 
-export async function activateTwoFactorEnforcement(createdBy: string, graceDays: number, facultyIds: string[] = []): Promise<TwoFactorEnforcementStatus> {
+export async function activateTwoFactorEnforcement(
+  createdBy: string,
+  graceDays: number,
+  facultyIds: string[] = [],
+  audience: TwoFactorAudience = 'staff',
+): Promise<TwoFactorEnforcementStatus> {
   const announcedAt = Timestamp.now();
   const deadline = Timestamp.fromMillis(Date.now() + graceDays * 24 * 60 * 60 * 1000);
-  await ENFORCEMENT_DOC.set({ active: true, announcedAt, deadline, createdBy, facultyIds });
-  return { active: true, announcedAt, deadline, createdBy, facultyIds };
+  await ENFORCEMENT_DOC.set({ active: true, announcedAt, deadline, createdBy, facultyIds, audience });
+  return { active: true, announcedAt, deadline, createdBy, facultyIds, audience };
 }
 
-/** Is this user covered by the policy at all (deadline aside)? Staff only;
- *  when the policy names faculties, only staff of those faculties. */
+/** Is this user covered by the policy at all (deadline aside)? By audience
+ *  (staff / students / both — an account holding both a student and a staff
+ *  role counts as both), then, when the policy names faculties, only people
+ *  of those faculties (facultyMembership.ts). */
 export function isSubjectToTwoFactorEnforcement(user: Record<string, any>, status: TwoFactorEnforcementStatus): boolean {
-  if (!isStaffMember(user.role, user.roles ?? [])) return false;
+  const roles: string[] = user.roles ?? [];
+  const staff = isStaffMember(user.role, roles);
+  const student = isStudentAccount(user.role, roles);
+  const inAudience =
+    status.audience === 'both' ? staff || student
+    : status.audience === 'students' ? student
+    : staff;
+  if (!inAudience) return false;
   if (status.facultyIds.length === 0) return true;
   return userBelongsToFaculties(user, status.facultyIds);
 }
@@ -96,9 +121,10 @@ export async function deactivateTwoFactorEnforcement(): Promise<void> {
  * finish 2FA setup" — used both by the real server-side gate
  * (middleware/auth.ts) and by GET /api/users/me's computed
  * `twoFactorSetupRequired` field, which each client's own routing gate reads
- * to decide whether to force the setup screen. Scoped to staff roles only —
- * a student (no staff role in role/roles[]) is never blocked, regardless of
- * enforcement status. Among staff, applies to every role including
+ * to decide whether to force the setup screen. Scoped by the policy's
+ * audience (staff by default; students and/or staff when chosen) and
+ * optional faculty list — see isSubjectToTwoFactorEnforcement. Among those
+ * covered, applies to every role including
  * system_admin, UNLESS a system_admin has explicitly exempted this specific
  * account (users/{uid}.twoFactorExempt — see setTwoFactorExempt) —
  * enforcement itself never spares anyone on its own; only a deliberate admin
@@ -114,12 +140,10 @@ export async function isTwoFactorSetupRequired(
 ): Promise<boolean> {
   if (totpEnabled) return false;
   if (exempt) return false;
-  if (!isStaffMember(role, roles)) return false;
   const status = await readTwoFactorEnforcementStatus();
   if (!status.active || !status.deadline) return false;
   if (Date.now() < status.deadline.toMillis()) return false;
-  if (status.facultyIds.length > 0 && !(user && userBelongsToFaculties(user, status.facultyIds))) return false;
-  return true;
+  return isSubjectToTwoFactorEnforcement(user ?? { role, roles }, status);
 }
 
 /** system_admin-only: discards (exempt=true) or re-enforces (exempt=false)

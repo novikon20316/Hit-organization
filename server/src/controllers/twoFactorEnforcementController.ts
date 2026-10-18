@@ -21,6 +21,8 @@ import {
   setTwoFactorExempt,
   isStaffMember,
   isSubjectToTwoFactorEnforcement,
+  TWO_FACTOR_AUDIENCES,
+  type TwoFactorAudience,
 } from '../services/twoFactorEnforcement.js';
 import { L } from '../utils/localize.js';
 import { MAJORS_BY_FACULTY } from '../config/majors.js';
@@ -42,6 +44,7 @@ export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedReque
       deadline: status.deadline?.toDate?.()?.toISOString() ?? null,
       createdBy: status.createdBy,
       facultyIds: status.facultyIds,
+      audience: status.audience,
     });
   } catch (error: any) {
     console.error('getTwoFactorEnforcementStatusAdmin error:', error);
@@ -54,22 +57,24 @@ export const getTwoFactorEnforcementStatusAdmin = async (req: AuthenticatedReque
  *  the same regardless of which language the client happens to render — a
  *  security deadline everyone must understand, not something that should
  *  ever be missed because of a language setting. */
-function buildNoticeContent(deadlineLabel: string, graceDays: number, facultyIds: string[]): { title: string; body: string } {
+function buildNoticeContent(deadlineLabel: string, graceDays: number, facultyIds: string[], audience: TwoFactorAudience): { title: string; body: string } {
   const daysHe = graceDays === 1 ? 'יום אחד' : `${graceDays} ימים`;
   const daysEn = graceDays === 1 ? '1 Day' : `${graceDays} Days`;
   const title = `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד ${daysHe} / Two-Factor Authentication (2FA) Becomes Mandatory in ${daysEn}`;
+  const groupHe = audience === 'students' ? 'הסטודנטים' : audience === 'both' ? 'הסגל והסטודנטים' : 'הסגל';
+  const groupEn = audience === 'students' ? 'student' : audience === 'both' ? 'staff and student' : 'staff';
   const whoHe = facultyIds.length
-    ? `לחשבונות הסגל של ${facultyIds.map((f) => facultyName(f).he).join(', ')}`
-    : 'לכל חשבונות הסגל';
+    ? `לחשבונות ${groupHe} של ${facultyIds.map((f) => facultyName(f).he).join(', ')}`
+    : `לכל חשבונות ${groupHe}`;
   const whoEn = facultyIds.length
-    ? `staff accounts in ${facultyIds.map((f) => facultyName(f).en).join(', ')}`
-    : 'all staff accounts';
+    ? `${groupEn} accounts in ${facultyIds.map((f) => facultyName(f).en).join(', ')}`
+    : `all ${groupEn} accounts`;
   const bodyHe =
-    `החל מתאריך ${deadlineLabel}, המערכת תחייב אימות דו-שלבי (2FA) ${whoHe} (לא כולל סטודנטים). ` +
+    `החל מתאריך ${deadlineLabel}, המערכת תחייב אימות דו-שלבי (2FA) ${whoHe}. ` +
     `מומלץ להגדיר זאת כבר עכשיו, לפני שהדבר יהפוך לחובה, כדי להימנע מהפרעה בגישה לחשבונך.\n` +
     `איך להפעיל: היכנסו ל"אימות דו-שלבי" בהגדרות ← סרקו את קוד ה-QR המוצג באמצעות אפליקציית Google Authenticator (או כל אפליקציית אימות תואמת) ← הזינו את הקוד בן 6 הספרות שמוצג באפליקציה כדי לאשר. זהו — בכניסות הבאות תתבקשו להזין קוד מהאפליקציה.`;
   const bodyEn =
-    `Starting ${deadlineLabel}, the system will require two-factor authentication (2FA) for ${whoEn} (students are not affected). ` +
+    `Starting ${deadlineLabel}, the system will require two-factor authentication (2FA) for ${whoEn}. ` +
     `We recommend setting it up now, before it becomes mandatory, to avoid any interruption accessing your account.\n` +
     `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code shown using the Google Authenticator app (or any compatible authenticator app) → enter the 6-digit code shown in the app to confirm. That's it — on future logins you'll be asked for a code from the app.`;
   return { title, body: `${bodyHe}\n\n— — —\n\n${bodyEn}` };
@@ -99,10 +104,17 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
     return res.status(400).json({ message: L(req, 'Unknown faculty in the list.', 'ברשימה יש פקולטה לא מוכרת.') });
   }
 
+  // Who it covers — staff (default, the original behavior), students, or both.
+  const audienceRaw: unknown = req.body?.audience ?? 'staff';
+  if (!TWO_FACTOR_AUDIENCES.includes(audienceRaw as TwoFactorAudience)) {
+    return res.status(400).json({ message: L(req, 'Audience must be staff, students or both.', 'קהל היעד חייב להיות סגל, סטודנטים או שניהם.') });
+  }
+  const audience = audienceRaw as TwoFactorAudience;
+
   try {
-    const status = await activateTwoFactorEnforcement(req.user.uid, graceDays, facultyIds as string[]);
+    const status = await activateTwoFactorEnforcement(req.user.uid, graceDays, facultyIds as string[], audience);
     const deadlineLabel = dayjs(status.deadline!.toDate()).format('DD/MM/YYYY');
-    const { title, body } = buildNoticeContent(deadlineLabel, graceDays, status.facultyIds);
+    const { title, body } = buildNoticeContent(deadlineLabel, graceDays, status.facultyIds, status.audience);
 
     let notified = 0;
     let failed = 0;
@@ -115,8 +127,8 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
 
       for (const doc of snap.docs) {
         const userData = doc.data();
-        // Only staff the policy actually covers — never students, and only
-        // the chosen faculties' staff when it's limited to some.
+        // Only the people the policy actually covers — its audience (staff /
+        // students / both), and only the chosen faculties when it names some.
         if (!isSubjectToTwoFactorEnforcement(userData ?? {}, status)) continue;
         try {
           await notifyUser({
@@ -144,6 +156,7 @@ export const activateTwoFactorEnforcementHandler = async (req: AuthenticatedRequ
       success: true,
       deadline: status.deadline!.toDate().toISOString(),
       facultyIds: status.facultyIds,
+      audience: status.audience,
       notified,
       failed,
     });

@@ -730,7 +730,7 @@ export const apiClient = {
   /** GET /api/admin/system/2fa-enforcement-status — current state of the
    *  "enforce 2FA for everyone" policy (see Enforce2FAModal). */
   async getTwoFactorEnforcementStatus() {
-    return request<{ active: boolean; announcedAt: string | null; deadline: string | null; createdBy: string | null; facultyIds?: string[] }>(
+    return request<{ active: boolean; announcedAt: string | null; deadline: string | null; createdBy: string | null; facultyIds?: string[]; audience?: 'staff' | 'students' | 'both' }>(
       '/api/admin/system/2fa-enforcement-status',
       { method: 'GET' },
     );
@@ -739,12 +739,12 @@ export const apiClient = {
   /** POST /api/admin/system/enforce-2fa — announces the deadline and
    *  bulk-notifies every user (in-app + email, bilingual instructions).
    *  graceDays defaults server-side to 7. */
-  async activateTwoFactorEnforcement(graceDays?: number, facultyIds: string[] = []) {
+  async activateTwoFactorEnforcement(graceDays?: number, facultyIds: string[] = [], audience: 'staff' | 'students' | 'both' = 'staff') {
     // facultyIds empty = every staff member; otherwise only those faculties'
     // staff are required and notified (server/src/services/facultyMembership.ts).
     return request<{ success: boolean; deadline: string; notified: number; failed: number; facultyIds?: string[] }>(
       '/api/admin/system/enforce-2fa',
-      { method: 'POST', body: { ...(graceDays ? { graceDays } : {}), facultyIds } },
+      { method: 'POST', body: { ...(graceDays ? { graceDays } : {}), facultyIds, audience } },
     );
   },
 
