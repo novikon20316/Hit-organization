@@ -1208,6 +1208,8 @@ export const adminPanelStyles = StyleSheet.create({
   searchBox: {
     backgroundColor: ap.surfaceContainerLowest,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: ap.outlineVariant,
     paddingHorizontal: 16,
     marginHorizontal: 16,
     marginBottom: 14,
@@ -1227,14 +1229,22 @@ export const adminPanelStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
   },
 
+  // Unselected chips used to sit at ap.surfaceContainerLowest (#FFFFFF) on
+  // top of the near-identical ap.surface (#FAF8FF) page background — only a
+  // 1px border told them apart, so the whole filter row read as blank next
+  // to the colored "all/staff/student" and faculty chips. A visibly darker
+  // fill (ap.surfaceContainer) plus a touch more border weight keeps every
+  // chip legible against the page before it's selected.
   userFilterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: ap.surfaceContainerLowest,
-    borderWidth: 1,
+    backgroundColor: ap.surfaceContainer,
+    borderWidth: 1.5,
     borderColor: ap.outlineVariant,
   },
 
@@ -1264,7 +1274,9 @@ export const adminPanelStyles = StyleSheet.create({
 
   userCard: {
     backgroundColor: ap.surfaceContainerLowest,
-    borderRadius: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: ap.outlineVariant,
     padding: 16,
     marginBottom: 14,
   },
@@ -1321,22 +1333,30 @@ export const adminPanelStyles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Red kept as the admin role-brand accent, not migrated.
+  // Previously a solid red block — every sibling button on the same user
+  // card row (re-enforce 2FA, disable 2FA, erase) already overrides this to
+  // a light-fill-plus-colored-border look, so the plain "Edit"/"Reset
+  // walkthroughs" buttons that used this base style unmodified were the odd
+  // ones out. Matches that established pattern instead of standing out.
   editBtn: {
-    backgroundColor: '#EF4444',
+    backgroundColor: ap.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: ap.outlineVariant,
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 12,
   },
 
   editBtnText: {
-    color: '#fff',
+    color: ap.primary,
     fontWeight: '700',
   },
 
   projectCard: {
     backgroundColor: ap.surfaceContainerLowest,
-    borderRadius: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: ap.outlineVariant,
     padding: 16,
     marginBottom: 14,
     // Matches milestoneCard's accent rail below — project cards had none,
