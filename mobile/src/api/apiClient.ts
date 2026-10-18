@@ -145,6 +145,14 @@ class ApiClient {
           } catch {}
         }
 
+        // 2FA is on but this sign-in session hasn't entered its code yet —
+        // checked by the server (server/src/services/twoFactorSessions.ts).
+        if (error.response?.status === 403 && error.response?.data?.error === 'TWO_FACTOR_VERIFICATION_REQUIRED') {
+          try {
+            router.replace('/(auth)/verify2fa' as any);
+          } catch {}
+        }
+
         // Session signed in before the account's last password change
         // (server/src/middleware/auth.ts's tokensValidAfterMs) — sign out
         // locally and return to login.

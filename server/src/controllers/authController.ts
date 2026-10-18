@@ -8,6 +8,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { reportBiometricExhausted } from '../services/loginSecurity.js';
 import { L } from '../utils/localize.js';
+import { markSessionVerified } from '../services/twoFactorSessions.js';
 
 const RECOVERY_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -82,6 +83,10 @@ export const verify2FA = async (req: AuthenticatedRequest, res: Response) => {
       db.collection('users').doc(user.uid).update({ totp_enabled: true }),
       totpRef(user.uid).set({ secret: secretTemp, secretTemp: FieldValue.delete() }, { merge: true }),
     ]);
+    // The session that just proved the new authenticator counts as verified
+    // (services/twoFactorSessions.ts) — otherwise turning 2FA on (or
+    // re-enrolling after recovery) would immediately lock this session out.
+    await markSessionVerified(user.uid, user.authTime);
 
     res.json({ success: true });
   } catch (error: any) {
@@ -119,6 +124,9 @@ export const login2FA = async (req: AuthenticatedRequest, res: Response) => {
     await db.collection('users').doc(user.uid).update({
       totp_last_verified: FieldValue.serverTimestamp(),
     });
+    // What the server actually checks: THIS sign-in session passed the code
+    // (services/twoFactorSessions.ts, enforced in middleware/auth.ts).
+    await markSessionVerified(user.uid, user.authTime);
 
     res.json({ success: true });
   } catch (error: any) {

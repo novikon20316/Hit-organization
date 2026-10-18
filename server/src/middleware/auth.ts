@@ -7,6 +7,7 @@ import { auth, db } from '../config/firebase.js';
 import type { ScopeRule, CoordinatorScope } from '../config/permissionScopes.js';
 import { resolvePlatform, readMaintenanceStatus } from '../services/maintenanceStatus.js';
 import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
+import { isSessionVerified } from '../services/twoFactorSessions.js';
 import { L } from '../utils/localize.js';
 
 // Routes an account with a forced temp-password change must still be able to
@@ -52,6 +53,25 @@ const MAINTENANCE_BYPASS_ROLES = new Set(['system_admin']);
 // discover the block/sign out in the first place. Deliberately has NO role
 // exemption (unlike maintenance) — the setup flow itself is how any role,
 // including system_admin, catches up.
+// What a session that has NOT yet entered its 2FA code may call (accounts
+// with 2FA on — see services/twoFactorSessions.ts): the code screen itself,
+// recovery, logout, and reading its own profile (also readable directly from
+// Firestore with just the password, and the apps need it to route to the
+// code screen). Deliberately NOT change-password: with only the password,
+// that would hand over the account.
+const TWO_FACTOR_SESSION_ALLOWED_PATHS = new Set([
+  '/api/users/logout',
+  '/api/users/log-login',
+  '/api/users/me',
+  '/api/users/profile',
+  '/api/system/maintenance-status',
+  '/api/auth/2fa/setup',
+  '/api/auth/2fa/verify',
+  '/api/auth/2fa/validate',
+  '/api/auth/2fa/recovery/request',
+  '/api/auth/2fa/recovery/verify',
+]);
+
 const TWO_FACTOR_ALLOWED_PATHS = new Set([
   ...PASSWORD_CHANGE_ALLOWED_PATHS,
   '/api/auth/2fa/setup',
@@ -224,6 +244,14 @@ export const verifyToken = async (
       );
       if (twoFactorRequired) {
         return res.status(403).json({ error: 'TWO_FACTOR_REQUIRED' });
+      }
+    }
+
+    // 2FA on → this sign-in session must have passed the code, checked here
+    // on the server rather than trusted to the login screen.
+    if (userData?.totp_enabled && !TWO_FACTOR_SESSION_ALLOWED_PATHS.has(requestPath)) {
+      if (!(await isSessionVerified(uid, decodedToken.auth_time, userData))) {
+        return res.status(403).json({ error: 'TWO_FACTOR_VERIFICATION_REQUIRED' });
       }
     }
 

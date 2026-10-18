@@ -262,6 +262,12 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     window.location.href = '/setup-2fa';
   }
 
+  // 2FA is on but this sign-in session hasn't entered its code yet — the
+  // server now checks that itself (server/src/services/twoFactorSessions.ts).
+  if (res.status === 403 && data && typeof data === 'object' && (data as { error?: string }).error === 'TWO_FACTOR_VERIFICATION_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/verify-2fa') {
+    window.location.href = '/verify-2fa';
+  }
+
   // This session was signed in before the account's password was last
   // changed (server/src/middleware/auth.ts's tokensValidAfterMs) — e.g. a
   // tab left open on another computer. Sign out locally and go to login.
