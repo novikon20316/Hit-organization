@@ -66,7 +66,7 @@ export const getFullFirestore = async (req: AuthenticatedRequest, res: Response)
     if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
 
     const data = userDoc.data()!;
-    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? []);
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? [], data);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /me error:', error);
@@ -85,7 +85,7 @@ export const getUserProfile = async (req: AuthenticatedRequest, res: Response) =
     if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
 
     const data = userDoc.data()!;
-    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? []);
+    const twoFactorSetupRequired = await isTwoFactorSetupRequired(data.totp_enabled ?? false, data.twoFactorExempt === true, data.role, data.roles ?? [], data);
     return res.status(200).json({ ...withRecomputedEligibility(data), twoFactorSetupRequired });
   } catch (error: any) {
     console.error('GET /profile error:', error);

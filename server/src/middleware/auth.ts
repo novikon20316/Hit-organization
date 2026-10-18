@@ -220,6 +220,7 @@ export const verifyToken = async (
         userData?.twoFactorExempt === true,
         userData?.role,
         userData?.roles ?? [],
+        userData,
       );
       if (twoFactorRequired) {
         return res.status(403).json({ error: 'TWO_FACTOR_REQUIRED' });

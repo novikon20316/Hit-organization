@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { HIT_FACULTIES } from '@/lib/faculties';
 
 interface Enforce2FAModalProps {
   onClose: () => void;
@@ -23,6 +24,8 @@ interface Status {
   announcedAt: string | null;
   deadline: string | null;
   createdBy: string | null;
+  /** Empty/missing = every staff member. */
+  facultyIds?: string[];
 }
 
 const DAY_OPTIONS = [1, 2, 3, 5, 7, 10, 14, 21, 30];
@@ -39,6 +42,14 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
   const [status, setStatus] = useState<Status | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [graceDays, setGraceDays] = useState(7);
+  // Which faculties' staff must set up 2FA. Default: Data Science only — the
+  // one faculty with real users today. Clear every box for all staff.
+  const [facultyIds, setFacultyIds] = useState<string[]>(['data_science']);
+  const toggleFaculty = (key: string) =>
+    setFacultyIds((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  const facultyLabel = (key: string) => HIT_FACULTIES.find((f) => f.key === key)?.label[isHe ? 'he' : 'en'] ?? key;
+  const scopeLabel = (ids: string[] | undefined) =>
+    ids && ids.length ? ids.map(facultyLabel).join(', ') : (isHe ? 'כל הסגל' : 'all staff');
   const [activating, setActivating] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState('');
@@ -67,22 +78,23 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
     if (isHe) {
       return (
         `🔐 אימות דו-שלבי (2FA) יהפוך לחובה בעוד ${graceDays} ${graceDays === 1 ? 'יום' : 'ימים'}\n\n` +
-        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) לכל חשבונות הסגל (לא כולל סטודנטים). מומלץ להגדיר זאת כבר עכשיו.\n` +
+        `החל מהתאריך שנקבע, המערכת תחייב אימות דו-שלבי (2FA) ${facultyIds.length ? `לחשבונות הסגל של ${scopeLabel(facultyIds)}` : 'לכל חשבונות הסגל'} (לא כולל סטודנטים). מומלץ להגדיר זאת כבר עכשיו.\n` +
         `איך להפעיל: היכנסו ל"אימות דו-שלבי" בהגדרות ← סרקו את קוד ה-QR באמצעות Google Authenticator ← הזינו את הקוד בן 6 הספרות.`
       );
     }
     return (
       `🔐 Two-Factor Authentication (2FA) Becomes Mandatory in ${graceDays} ${graceDays === 1 ? 'day' : 'days'}\n\n` +
-      `Starting on the deadline date, the system will require 2FA for all staff accounts (students are not affected). We recommend setting it up now.\n` +
+      `Starting on the deadline date, the system will require 2FA for ${facultyIds.length ? `staff accounts in ${scopeLabel(facultyIds)}` : 'all staff accounts'} (students are not affected). We recommend setting it up now.\n` +
       `How to enable it: open "Two-Factor Authentication" in Settings → scan the QR code using Google Authenticator → enter the 6-digit code.`
     );
-  }, [graceDays, isHe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graceDays, isHe, facultyIds]);
 
   const handleActivate = async () => {
     setActivating(true);
     setError('');
     try {
-      await apiClient.activateTwoFactorEnforcement(graceDays);
+      await apiClient.activateTwoFactorEnforcement(graceDays, facultyIds);
       await refreshStatus();
       onSaved?.();
     } catch (err) {
@@ -123,8 +135,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
         </div>
         <p className="mt-1 text-xs text-admin-on-surface-variant">
           {isHe
-            ? 'כל חשבונות הסגל (לא כולל סטודנטים) יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש.'
-            : 'Every staff account (students are not affected) gets a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, any staff account that hasn\'t set it up will be required to scan a QR code before continuing.'}
+            ? 'חשבונות הסגל של הפקולטות שבחרת (לא כולל סטודנטים) יקבלו הודעה (במערכת + אימייל) בעברית ובאנגלית, עם הסבר כיצד להפעיל. בתום התקופה, מי שלא הגדיר יחויב לסרוק קוד QR לפני המשך שימוש. סגל של פקולטות אחרות לא מושפע.'
+            : 'Staff of the faculties you choose (students are not affected) get a notice (in-app + email) in Hebrew and English explaining how to enable it. Once the deadline passes, anyone there who hasn\'t set it up must scan a QR code before continuing. Staff of other faculties are unaffected.'}
         </p>
 
         <div className="mt-4 rounded-lg bg-admin-surface-container-low p-3">
@@ -147,6 +159,9 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                     {new Date(status.deadline).toLocaleDateString(isHe ? 'he-IL' : 'en-US')}
                   </p>
                 )}
+                <p className="mt-0.5 text-xs text-admin-on-surface-variant">
+                  {isHe ? 'חל על: ' : 'Applies to: '}{scopeLabel(status.facultyIds)}
+                </p>
               </div>
               <button
                 type="button"
@@ -160,6 +175,33 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
           ) : (
             <p className="text-sm text-admin-on-surface">{isHe ? 'אין אכיפה פעילה כרגע' : 'No enforcement currently active'}</p>
           )}
+        </div>
+
+        <div className="mt-5 border-t border-admin-outline-variant pt-4">
+          <p className="mb-1.5 text-sm font-medium text-admin-on-surface">🏛️ {isHe ? 'על אילו פקולטות זה חל' : 'Which faculties'}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {HIT_FACULTIES.map((f) => {
+              const on = facultyIds.includes(f.key);
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => toggleFaculty(f.key)}
+                  aria-pressed={on}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    on ? 'border-admin-primary bg-admin-primary text-admin-on-primary' : 'border-admin-outline-variant bg-admin-surface-container-low text-admin-on-surface'
+                  }`}
+                >
+                  {f.label[isHe ? 'he' : 'en']}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-admin-on-surface-variant">
+            {facultyIds.length
+              ? (isHe ? `יחול רק על הסגל של: ${scopeLabel(facultyIds)}` : `Only staff of: ${scopeLabel(facultyIds)}`)
+              : (isHe ? 'לא נבחרה פקולטה — יחול על כל הסגל בכל הפקולטות' : 'No faculty selected — applies to all staff in every faculty')}
+          </p>
         </div>
 
         <div className="mt-5 border-t border-admin-outline-variant pt-4">
@@ -204,8 +246,8 @@ export function Enforce2FAModal({ onClose, onSaved }: Enforce2FAModalProps) {
                   ? `🔄 עדכן ל-${graceDays} ימים ושלח שוב`
                   : `🔄 Update to ${graceDays} days & re-notify`
                 : isHe
-                  ? `🚀 הפעל ושלח לכל הסגל`
-                  : `🚀 Activate & notify staff`}
+                  ? `🚀 הפעל ושלח ל${facultyIds.length ? 'סגל הפקולטות שנבחרו' : 'כל הסגל'}`
+                  : `🚀 Activate & notify ${facultyIds.length ? 'selected faculties’ staff' : 'all staff'}`}
           </button>
         </div>
       </div>

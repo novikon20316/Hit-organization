@@ -14,6 +14,7 @@
 
 import { db } from '../config/firebase.js';
 import { Timestamp } from 'firebase-admin/firestore';
+import { userBelongsToFaculties } from './facultyMembership.js';
 
 const ENFORCEMENT_DOC = db.collection('system').doc('twoFactorEnforcement');
 
@@ -39,9 +40,13 @@ export interface TwoFactorEnforcementStatus {
   announcedAt: Timestamp | null;
   deadline: Timestamp | null;
   createdBy: string | null;
+  /** Faculties the policy applies to (their staff only — see
+   *  facultyMembership.ts). Empty = every staff member, the original
+   *  behavior. */
+  facultyIds: string[];
 }
 
-const INACTIVE: TwoFactorEnforcementStatus = { active: false, announcedAt: null, deadline: null, createdBy: null };
+const INACTIVE: TwoFactorEnforcementStatus = { active: false, announcedAt: null, deadline: null, createdBy: null, facultyIds: [] };
 
 /** Fails open (reports inactive) on a read error — an unreachable DB should
  *  never turn into every user worldwide getting hard-blocked. */
@@ -56,6 +61,7 @@ export async function readTwoFactorEnforcementStatus(): Promise<TwoFactorEnforce
       announcedAt: data.announcedAt ?? null,
       deadline: data.deadline ?? null,
       createdBy: data.createdBy ?? null,
+      facultyIds: Array.isArray(data.facultyIds) ? data.facultyIds.filter((f: unknown) => typeof f === 'string') : [],
     };
   } catch (err) {
     console.error('readTwoFactorEnforcementStatus error:', err);
@@ -63,11 +69,19 @@ export async function readTwoFactorEnforcementStatus(): Promise<TwoFactorEnforce
   }
 }
 
-export async function activateTwoFactorEnforcement(createdBy: string, graceDays: number): Promise<TwoFactorEnforcementStatus> {
+export async function activateTwoFactorEnforcement(createdBy: string, graceDays: number, facultyIds: string[] = []): Promise<TwoFactorEnforcementStatus> {
   const announcedAt = Timestamp.now();
   const deadline = Timestamp.fromMillis(Date.now() + graceDays * 24 * 60 * 60 * 1000);
-  await ENFORCEMENT_DOC.set({ active: true, announcedAt, deadline, createdBy });
-  return { active: true, announcedAt, deadline, createdBy };
+  await ENFORCEMENT_DOC.set({ active: true, announcedAt, deadline, createdBy, facultyIds });
+  return { active: true, announcedAt, deadline, createdBy, facultyIds };
+}
+
+/** Is this user covered by the policy at all (deadline aside)? Staff only;
+ *  when the policy names faculties, only staff of those faculties. */
+export function isSubjectToTwoFactorEnforcement(user: Record<string, any>, status: TwoFactorEnforcementStatus): boolean {
+  if (!isStaffMember(user.role, user.roles ?? [])) return false;
+  if (status.facultyIds.length === 0) return true;
+  return userBelongsToFaculties(user, status.facultyIds);
 }
 
 /** merge:true so cancelling an enforcement that was never activated (doc
@@ -95,6 +109,8 @@ export async function isTwoFactorSetupRequired(
   exempt: boolean,
   role?: string,
   roles: string[] = [],
+  /** The full user doc — needed when the policy is limited to faculties. */
+  user?: Record<string, any>,
 ): Promise<boolean> {
   if (totpEnabled) return false;
   if (exempt) return false;
@@ -102,6 +118,7 @@ export async function isTwoFactorSetupRequired(
   const status = await readTwoFactorEnforcementStatus();
   if (!status.active || !status.deadline) return false;
   if (Date.now() < status.deadline.toMillis()) return false;
+  if (status.facultyIds.length > 0 && !(user && userBelongsToFaculties(user, status.facultyIds))) return false;
   return true;
 }
 
