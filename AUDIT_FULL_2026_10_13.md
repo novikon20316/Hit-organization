@@ -81,11 +81,11 @@ The original finding was wrong in scope. It listed env var names without checkin
 
 ## Low
 
-1. **Final-report bearer token is in the API path.** `GET /api/final-report/:token` ends up in Cloud Run request logs. The link is valid for 365 days and shows the student's ID number and phone. There's no staff "revoke" UI (`revoked` exists in the data model only). The design is otherwise good: 256-bit token, `no-referrer`, `noindex`, `no-store`, its own rate limiter, and it goes dead if the grade is unlocked. Consider dropping `idNumber`/`phone` from the report and adding a revoke action.
+1. [x] FIXED 2026-10-18 (`0f4c0a1`): 30-day links with automatic renewal on the dashboard, a staff revoke-and-reissue button, phone removed and ID masked to the last 4 digits, token moved to the URL fragment and sent in a POST body. **Original finding:** **Final-report bearer token is in the API path.** `GET /api/final-report/:token` ends up in Cloud Run request logs. The link is valid for 365 days and shows the student's ID number and phone. There's no staff "revoke" UI (`revoked` exists in the data model only). The design is otherwise good: 256-bit token, `no-referrer`, `noindex`, `no-store`, its own rate limiter, and it goes dead if the grade is unlocked. Consider dropping `idNumber`/`phone` from the report and adding a revoke action.
 2. **`xlsx` is pinned to `https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz`** (`server/package.json`). The installed version is the patched 0.20.3, but "latest" makes builds non-reproducible. Pin to the explicit `xlsx-0.20.3` URL.
 3. **Catch-all `400`s still echo `error.message`** (`projectErasureController.ts`, `clockPauseController.ts`, `studentTrackController.ts`, `academicCalendarController.ts`, …). An unexpected Firestore exception inside those `try` blocks returns raw library text. The 10-07 H4 fix deliberately covered only 500s. A typed `UserFacingError` class would separate the two cleanly.
 4. **Dependencies:** server has 0 vulnerabilities. Web has 4 high (`@grpc/grpc-js` via `firebase`, breaking-only fix). **Mobile has 39 (27 high)**, up from 29/11 on 09-17. They're all transitive through Expo tooling and need the `expo@57` upgrade.
-5. **Carry-over (10-07 Low 1):** authenticated upload endpoints with no role/ownership tie. Still open, but the magic-byte check limits the impact.
+5. [x] FIXED 2026-10-18 (`4a26d4e`): application documents are students-only, project files staff-only, and chat images limited to chats the uploader is in, with hourly per-account caps. **Original finding:** **Carry-over (10-07 Low 1):** authenticated upload endpoints with no role/ownership tie. Still open, but the magic-byte check limits the impact.
 
 ---
 
@@ -109,3 +109,8 @@ The original finding was wrong in scope. It listed env var names without checkin
 5. **M7:** rate-limit student messaging.
 6. **M6 / M5:** Secret Manager migration (you run it), then App Check `enforce` after the mobile build ships on or after 11-01.
 7. Lows, in listed order. Plan the `expo@57` upgrade separately.
+
+
+## Follow-up 2026-10-18: phone numbers and push tokens
+
+[x] FIXED (`c5ac32f`). Staff profiles were readable by any signed-in user (14 accounts have a phone saved), and the Expo push token on a profile lets anyone push a notification straight to that phone. Both fields moved to the server-only `users/{uid}/private/contact` (`services/privateContact.ts`). Every server read and write was moved over, with reads falling back to the old profile fields until migrated. A new `GET /api/milestones/:id/student-contacts` serves the three student/coordinator forms. **Requires `scripts/migratePrivateContact.ts --apply` after the deploy.** Mobile forms show teammates without a phone until the next store build.
