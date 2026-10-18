@@ -2918,6 +2918,8 @@ export const apiClient = {
          *  projectRecordNumber.ts), e.g. "ELEC-000042" — null for a project
          *  created before this feature existed and not yet backfilled. */
         recordNumber: string | null;
+        /** Currently enrolled students. */
+        students?: Array<{ id: string; displayName: string | null }>;
       };
       entries: Array<{
         id: string;

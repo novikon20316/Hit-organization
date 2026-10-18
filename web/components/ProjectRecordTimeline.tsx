@@ -95,7 +95,10 @@ function describeEntry(entry: RecordEntry, lang: 'he' | 'en'): string {
 export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
   const { lang } = useLanguage();
   const [entries, setEntries] = useState<RecordEntry[] | null>(null);
-  const [project, setProject] = useState<{ titleHe: string; titleEn: string; recordNumber: string | null } | null>(null);
+  const [project, setProject] = useState<{
+    titleHe: string; titleEn: string; recordNumber: string | null;
+    students?: Array<{ id: string; displayName: string | null }>;
+  } | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -273,6 +276,14 @@ export function ProjectRecordTimeline({ projectId }: { projectId: string }) {
 
       {project && (
         <p className="mt-1 text-sm text-ink">{lang === 'he' ? project.titleHe || project.titleEn : project.titleEn || project.titleHe}</p>
+      )}
+      {project && (
+        <p className="mt-1 text-sm text-ink">
+          <span className="font-semibold">🎓 {lang === 'he' ? 'סטודנטים:' : 'Students:'}</span>{' '}
+          {project.students && project.students.length > 0
+            ? project.students.map((s) => s.displayName || (lang === 'he' ? 'לא ידוע' : 'Unknown')).join(', ')
+            : <span className="text-muted">{lang === 'he' ? 'אין סטודנטים רשומים כרגע' : 'No students currently enrolled'}</span>}
+        </p>
       )}
       <p className="mt-1 text-xs text-muted">
         {canEdit

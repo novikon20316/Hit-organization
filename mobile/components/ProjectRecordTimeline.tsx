@@ -89,7 +89,10 @@ function describeEntry(entry: RecordEntry, lang: Lang): string {
 
 export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; lang: Lang }) {
   const [entries, setEntries] = useState<RecordEntry[] | null>(null);
-  const [project, setProject] = useState<{ titleHe: string; titleEn: string; recordNumber: string | null } | null>(null);
+  const [project, setProject] = useState<{
+    titleHe: string; titleEn: string; recordNumber: string | null;
+    students?: Array<{ id: string; displayName: string | null }>;
+  } | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -265,6 +268,14 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
 
       {!!project && (
         <Text style={{ fontSize: 13, marginTop: 2 }}>{lang === 'he' ? project.titleHe || project.titleEn : project.titleEn || project.titleHe}</Text>
+      )}
+      {!!project && (
+        <Text style={{ fontSize: 13, marginTop: 2 }}>
+          <Text style={{ fontWeight: '600' }}>🎓 {lang === 'he' ? 'סטודנטים:' : 'Students:'} </Text>
+          {project.students && project.students.length > 0
+            ? project.students.map((s) => s.displayName || (lang === 'he' ? 'לא ידוע' : 'Unknown')).join(', ')
+            : <Text style={{ color: '#777' }}>{lang === 'he' ? 'אין סטודנטים רשומים כרגע' : 'No students currently enrolled'}</Text>}
+        </Text>
       )}
       <Text style={{ fontSize: 11, color: '#777', marginTop: 2 }}>
         {canEdit

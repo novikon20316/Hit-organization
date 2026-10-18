@@ -200,6 +200,17 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
         };
       });
 
+    // Currently enrolled students' names, so a staff viewer drilling into a
+    // project can see who it belongs to without reading the timeline.
+    const studentIds: string[] = (project.enrolledStudentIds ?? []).filter((sid: unknown) => typeof sid === 'string' && isValidDocId(sid));
+    const studentSnaps = studentIds.length
+      ? await db.getAll(...studentIds.map((sid) => db.collection('users').doc(sid)))
+      : [];
+    const students = studentSnaps.map((snap) => ({
+      id: snap.id,
+      displayName: (snap.exists ? snap.data()?.displayName : null) ?? null,
+    }));
+
     return res.status(200).json({
       project: {
         id: projectId,
@@ -211,6 +222,7 @@ export const getProjectRecord = async (req: AuthenticatedRequest, res: Response)
         // projectRecordNumber.ts) — null for a project created before this
         // feature existed and not yet covered by the backfill script.
         recordNumber: project.recordNumber ?? null,
+        students,
       },
       entries,
       // Tells the client whether to render the system_admin-only edit/
