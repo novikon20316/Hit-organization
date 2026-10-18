@@ -31,8 +31,10 @@ interface Message {
 // AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1. The server
 // uploads to the same `image/upload` resource type this always used, so
 // CHAT_IMAGE_URL_RE in chatController.ts still matches the result.
-async function uploadChatImage(uri: string): Promise<string> {
+async function uploadChatImage(uri: string, chatId: string): Promise<string> {
   const formData = new FormData();
+  // The server only accepts an image for a chat the sender is in.
+  formData.append('chatId', chatId);
   formData.append('file', { uri, type: 'image/jpeg', name: 'chat-image.jpg' } as any);
   const response = await apiClient.post<{ url: string }>('/api/chats/upload-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -243,7 +245,7 @@ export default function ChatScreen() {
 
     setUploadingImage(true);
     try {
-      const imageUrl = await uploadChatImage(result.assets[0].uri);
+      const imageUrl = await uploadChatImage(result.assets[0].uri, String(chatId));
       await apiClient.post(`/api/chats/${chatId}/messages`, { imageUrl });
       await fetchMessages();
     } catch {} finally {

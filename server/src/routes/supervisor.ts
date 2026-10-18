@@ -18,6 +18,7 @@ import {
 } from '../controllers/supervisorController.js'
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
+import { projectFileUploadLimiter } from '../middleware/rateLimit.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -39,7 +40,7 @@ router.get('/calendar/connect', verifyToken, getCalendarConnectUrl)
 router.get('/calendar/callback', handleCalendarCallback)
 router.post('/calendar/disconnect', verifyToken, disconnectCalendarHandler)
 router.post('/projects', verifyToken, createSupervisorProject)
-router.post('/projects/upload-file', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, uploadProjectFile)
+router.post('/projects/upload-file', verifyToken, projectFileUploadLimiter, uploadMiddleware, handleUploadError, verifyFileSignatures, uploadProjectFile)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
 // Staff record (research_proposal/progress_report, upload-or-form) and the

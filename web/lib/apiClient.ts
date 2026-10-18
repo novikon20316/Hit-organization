@@ -476,8 +476,10 @@ export const apiClient = {
    *  could extract from the client bundle and abuse; see
    *  AUDIT_CODE_QUALITY_BUTTONS_CLOUDINARY_2026_09_24.md finding #1) and
    *  returns the hosted URL to pass to sendChatImageMessage. */
-  async uploadChatImage(file: File): Promise<string> {
+  async uploadChatImage(file: File, chatId: string): Promise<string> {
     const formData = new FormData();
+    // The server only accepts an image for a chat the sender is in.
+    formData.append('chatId', chatId);
     formData.append('file', file);
     const { url } = await request<{ url: string }>('/api/chats/upload-image', { method: 'POST', body: formData, raw: true });
     return url;

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
+import { isStaffMember } from '../services/twoFactorEnforcement.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
@@ -514,6 +515,12 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
 // staff-record/final-grade-decision routes below already use) — takes the
 // first file from `files`.
 export const uploadProjectFile = async (req: AuthenticatedRequest, res: Response) => {
+  // Staff only — every caller is a project-creation screen for staff (see
+  // mobile/components/CreateOwnProjectButton.tsx). Checked before the
+  // Cloudinary upload so a student can't use this as free file storage.
+  if (!isStaffMember(req.user?.role, req.user?.roles ?? [])) {
+    return res.status(403).json({ message: L(req, 'Only staff can upload project files.', 'רק אנשי סגל יכולים להעלות קבצי פרויקט.') });
+  }
   const files = ((req as any).files as Express.Multer.File[]) ?? [];
   const file = files[0];
   if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });

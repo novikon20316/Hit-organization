@@ -1,5 +1,5 @@
 import admin from 'firebase-admin'
-import { AuthenticatedRequest } from '../middleware/auth.js'
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js'
 import { Response, RequestHandler } from 'express'
 import multer from 'multer'
 import { v2 as cloudinary } from 'cloudinary'
@@ -57,6 +57,11 @@ export const handleUploadDocumentError: import('express').ErrorRequestHandler = 
 // used, so the rest of the apply flow (isPdfUrl, transcriptExtractionService)
 // is unaffected — only who's allowed to trigger an upload changed.
 export const uploadApplicationDocument = async (req: AuthenticatedRequest, res: Response) => {
+  // Only students apply (CV / transcript). Checked before the Cloudinary
+  // upload so no other account can use this endpoint as free file storage.
+  if (!hasAnyRole(req.user, ['student'])) {
+    return res.status(403).json({ message: L(req, 'Only students can upload application documents.', 'רק סטודנטים יכולים להעלות מסמכי מועמדות.') });
+  }
   const file = (req as any).file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
 

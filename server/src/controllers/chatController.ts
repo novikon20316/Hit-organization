@@ -8,6 +8,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { AuthenticatedRequest } from "../middleware/auth.js";
 import { logProjectRecordEntry } from "../services/projectRecords.js";
 import { L } from '../utils/localize.js';
+import { isValidDocId } from '../services/idValidation.js';
 
 // Chat has no projectId of its own (see this file's own header context) —
 // resolves one for the project record feature by finding whichever of the
@@ -208,10 +209,39 @@ export const handleChatImageUploadError: import('express').ErrorRequestHandler =
   return next(err);
 };
 
-// POST /api/chats/upload-image
+// POST /api/chats/upload-image   (multipart: file, chatId)
 export const uploadChatImage = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
   const file = (req as any).file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
+
+  // The image must be for a chat the uploader is actually in — checked
+  // before the Cloudinary upload, so this isn't free image hosting for any
+  // signed-in account. Clients send the chatId with the file; the mobile
+  // store build from before this change doesn't, so for that case only
+  // "is in at least one chat" is required (the per-account rate limit on
+  // this route caps it either way). Remove that fallback once every mobile
+  // install sends chatId.
+  const chatId = typeof req.body?.chatId === 'string' ? req.body.chatId : '';
+  try {
+    if (chatId) {
+      if (!isValidDocId(chatId)) return res.status(400).json({ message: L(req, 'Invalid chat.', 'שיחה לא תקינה.') });
+      const chatSnap = await db.collection('chats').doc(chatId).get();
+      const participants: string[] = chatSnap.data()?.participants ?? [];
+      if (!participants.includes(uid)) {
+        return res.status(403).json({ message: L(req, 'You are not part of this chat.', 'אינך משתתף/ת בשיחה זו.') });
+      }
+    } else {
+      const anyChat = await db.collection('chats').where('participants', 'array-contains', uid).limit(1).get();
+      if (anyChat.empty) {
+        return res.status(403).json({ message: L(req, 'You are not part of any chat.', 'אינך משתתף/ת באף שיחה.') });
+      }
+    }
+  } catch (err) {
+    console.error('uploadChatImage chat check error:', err);
+    return res.status(500).json({ message: L(req, 'Image upload failed.', 'העלאת התמונה נכשלה.') });
+  }
 
   try {
     const base64 = file.buffer.toString('base64');

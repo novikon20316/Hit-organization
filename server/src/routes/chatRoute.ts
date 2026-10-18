@@ -15,6 +15,7 @@ import { markChatNotificationsAsRead,
     uploadChatImageMiddleware,
     handleChatImageUploadError,
  } from '../controllers/chatController.js';
+import { chatImageUploadLimiter } from '../middleware/rateLimit.js';
 import { verifyToken } from '../middleware/auth.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
 
@@ -23,7 +24,7 @@ const router = Router();
 // Secure authorization gates
 router.get('/:chatId/messages',  verifyToken, getChatMessages )
 router.post('/:chatId/messages', verifyToken, sendDirectMessage)
-router.post('/upload-image', verifyToken, uploadChatImageMiddleware, handleChatImageUploadError, verifyFileSignatures, uploadChatImage)
+router.post('/upload-image', verifyToken, chatImageUploadLimiter, uploadChatImageMiddleware, handleChatImageUploadError, verifyFileSignatures, uploadChatImage)
 router.get('/:chatId/meta',  verifyToken, getChatMeta)
 router.get('/candidates',    verifyToken, getChatCandidates);
 router.get('/dashboard',     verifyToken, getChatDashboard);

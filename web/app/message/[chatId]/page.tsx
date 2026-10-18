@@ -174,7 +174,7 @@ export default function ChatConversationPage() {
     setUploadingImage(true);
     setSendError('');
     try {
-      const imageUrl = await apiClient.uploadChatImage(file);
+      const imageUrl = await apiClient.uploadChatImage(file, chatId);
       await apiClient.sendChatImageMessage(chatId, imageUrl);
       await fetchMessages();
     } catch {

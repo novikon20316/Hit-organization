@@ -158,3 +158,24 @@ export const signupSyncLimiter = rateLimit({
     error: L(req, 'Too many registration attempts. Please try again in an hour.', 'יותר מדי ניסיונות הרשמה. יש לנסות שוב בעוד שעה.'),
   }),
 });
+
+// Per-account caps on the upload endpoints that aren't tied to a specific
+// project/milestone (application CV/transcript, chat images, new-project
+// files) — each upload costs Cloudinary storage. Separate instance per
+// route so heavy chat-image use doesn't block a student's application.
+// Mount AFTER verifyToken so they key per account.
+function uploadLimiter(limitPerHour: number) {
+  return rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: limitPerHour,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: keyByUserOrIp,
+    message: (req: Request) => ({
+      message: L(req, 'Too many uploads in the last hour. Please try again later.', 'יותר מדי העלאות בשעה האחרונה. יש לנסות שוב מאוחר יותר.'),
+    }),
+  });
+}
+export const applicationUploadLimiter = uploadLimiter(20);
+export const chatImageUploadLimiter = uploadLimiter(30);
+export const projectFileUploadLimiter = uploadLimiter(30);
