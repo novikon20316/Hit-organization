@@ -3,10 +3,12 @@ import type { Request } from 'express';
 import type { AuthenticatedRequest } from './auth.js';
 import { L } from '../utils/localize.js';
 import { FirestoreRateLimitStore } from './firestoreRateLimitStore.js';
+import { BatchedFirestoreRateLimitStore } from './batchedRateLimitStore.js';
 
-// Security-sensitive limiters below count in Firestore (FirestoreRateLimitStore)
-// so the limit holds across every Cloud Run instance; apiLimiter and
-// errorReportLimiter stay in memory (high volume, per-instance is acceptable).
+// Every limiter here is shared across all Cloud Run instances: the
+// security-sensitive ones count each hit in Firestore (FirestoreRateLimitStore);
+// the high-volume apiLimiter and errorReportLimiter count in memory and sync
+// to Firestore in the background (BatchedFirestoreRateLimitStore).
 
 // Runs after verifyToken where available, so authenticated brute-force attempts
 // (e.g. a stolen token trying every TOTP code) are throttled per-account rather
@@ -30,6 +32,10 @@ function keyByUserOrIp(req: Request): string {
 // backstop against blatant scraping/abuse while comfortably absorbing
 // legitimate concurrent shared-IP polling at this system's scale.
 export const apiLimiter = rateLimit({
+  // Shared across Cloud Run instances, synced in the background at most
+  // every 10s per key, so it adds no latency (BatchedFirestoreRateLimitStore).
+  store: new BatchedFirestoreRateLimitStore('api'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 1000,
   standardHeaders: true,
@@ -128,6 +134,8 @@ export const loginSecurityLimiter = rateLimit({
 // purely an abuse/cost backstop, not the anti-spam mechanism — generous
 // enough that one device hitting a real crash loop doesn't lose reports.
 export const errorReportLimiter = rateLimit({
+  store: new BatchedFirestoreRateLimitStore('errorReport'),
+  passOnStoreError: true,
   windowMs: 15 * 60 * 1000,
   limit: 60,
   standardHeaders: true,
