@@ -118,3 +118,9 @@ The original finding was wrong in scope. It listed env var names without checkin
 ## Follow-up 2026-10-18: shared rate-limit counts
 
 [x] FIXED (`4a68379`). The sensitive limiters now count in Firestore via `FirestoreRateLimitStore` (server-only `rateLimits` collection; fails open), so limits hold across all Cloud Run instances. That was 4 instances seen in a week, with max 20. Tested with two separate app instances sharing one 5-request limit: the 6th request was refused. The blanket `apiLimiter` intentionally stays per-instance.
+
+## Follow-up 2026-10-18 (2): general limit, privacy policy, user merge
+
+- [x] `apiLimiter` and `errorReportLimiter` now share counts across instances via `BatchedFirestoreRateLimitStore` (`6d2accd`): in-memory counting plus a background Firestore sync at most every 10s per key, so there is no added latency. Clock-aligned windows; fails open. Two-instance test with a limit of 30 was refused at 34 (previously 60).
+- [x] Privacy policy brought in line with actual processing (`701076a`). It now covers Twilio, Google Calendar, all Anthropic uses (including the supervisor recommendation and auto-deleting feedback noise), US data location, external examiners' bank/tax/identity data, photos, presence, audit logs, mandatory fields, and the Privacy Protection Authority. The public page is bilingual. **Still needs a legal adviser's review.**
+- [ ] `userMerge.ts` (uncommitted, from an earlier session): it now carries the phone number over from `private/contact` when the kept account has none. The feature itself is still unreviewed and uncommitted.
