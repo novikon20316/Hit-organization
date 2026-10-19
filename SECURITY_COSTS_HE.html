@@ -78,6 +78,11 @@
   .total { background: var(--accent-soft); border-radius: 10px; padding: 18px 20px; display: grid; gap: 8px; }
   .total .big { font-family: var(--font-num); font-size: 24px; color: var(--accent); }
   .total ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+  .scen { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .scen > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+  .scen h4 { margin: 0; font-size: 14px; }
+  .scen .row { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+  .scen .row b { font-family: var(--font-num); color: var(--accent); white-space: nowrap; }
   .areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
   .area { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
   .area ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; font-size: 15px; }
@@ -177,7 +182,21 @@
     <div class="total">
       <h3>סיכום עלויות</h3>
       <div class="big">$25 פעם אחת + $99 לשנה</div>
-      <p class="note">ועוד כ-$14–17 לחודש עבור Zoom, רק אם ל-HIT אין רישיון Zoom מוסדי.</p>
+      <div class="scen">
+        <div>
+          <h4>בלי העלויות האופציונליות</h4>
+          <span class="note">Google Play Console + Apple Developer</span>
+          <div class="row"><span>שנה ראשונה</span><b>$124</b></div>
+          <div class="row"><span>כל שנה אחריה</span><b>$99</b></div>
+        </div>
+        <div>
+          <h4>עם העלויות האופציונליות</h4>
+          <span class="note">בנוסף: Zoom Pro (כ-$170–204 לשנה) ודומיין למיילים (כ-$10–20 לשנה)</span>
+          <div class="row"><span>שנה ראשונה</span><b>$304–348</b></div>
+          <div class="row"><span>כל שנה אחריה</span><b>$279–323</b></div>
+        </div>
+      </div>
+      <p class="note">Zoom והדומיין יכולים לעלות ₪0: Zoom אם ל-HIT יש רישיון מוסדי, והדומיין אם מחלקת ה-IT מגדירה כתובת על hit.ac.il. הטווח של Zoom: תשלום שנתי ($14.16 לחודש) או חודשי (כ-$17 לחודש).</p>
       <ul>
         <li><strong>Google Play Console, $25 חד-פעמי:</strong> פותח את App Check באנדרואיד ואת הפרסום ב-Google Play.</li>
         <li><strong>Apple Developer, $99 לשנה:</strong> סוגר שלושה נושאים: App Check ב-iPhone, התחברות עם Apple, והתחברות עם Google ב-iPhone. נדרש ממילא כדי לפרסם ב-App Store.</li>
