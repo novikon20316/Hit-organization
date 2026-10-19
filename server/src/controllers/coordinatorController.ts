@@ -3,7 +3,12 @@ import { Request, Response } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
-import { assignExaminersAndNotify, ExaminerAssignmentInput } from '../services/examinerAccess.js';
+import { assignExaminersAndNotify, createDefenseAccessGrant, ExaminerAssignmentInput } from '../services/examinerAccess.js';
+import { createZoomMeeting, deleteZoomMeeting, getZoomStartUrl, isZoomConfigured, updateZoomMeeting } from '../services/zoomService.js';
+import { sendNotificationEmail } from '../services/emailService.js';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import {
@@ -21,6 +26,9 @@ import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify
 import { targetScreenFor } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
 import { isCsPilotMajor } from '../config/csPilot.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Matches the Firestore project document shape exactly
 interface ProjectDocument {
@@ -1910,15 +1918,27 @@ export const DEFENSE_ALLOWED_BUILDINGS = ['1', '2', '3', '4', '5', '6', '7', '8'
  * POST /api/coordinator/projects/:projectId/assign-defense
  * (also mounted at /api/project-coordinator/... and /api/admin/... for the
  * administrative coordinator and system_admin roles — same handler, same rules)
- * Sets time/room/building for a defense whose DATE has already been locked
- * in by the examiner date-matching flow (services/defenseScheduling.ts) —
- * the coordinator no longer picks the date here, only the logistics.
- * Body: { time: string (HH:mm), room: string, building: string ('1'-'8') }
- * Notifies the student(s), supervisor, and each internal examiner.
+ * Create-or-update for a defense's logistics. First call (milestone at
+ * `defense_date_set`, date already locked in by the examiner date-matching
+ * flow in services/defenseScheduling.ts) moves it to `scheduled`; later calls
+ * (still `scheduled`, nobody graded yet) edit it in place.
+ * Body: {
+ *   mode: 'in_person' | 'zoom' | 'hybrid',
+ *   date?: 'YYYY-MM-DD'      — only to MOVE the agreed date,
+ *   time: 'HH:mm',
+ *   building?, room?         — required for in_person / hybrid,
+ *   durationMinutes?         — default 90,
+ *   manualZoomLink?          — zoom/hybrid when the Zoom API isn't configured,
+ * }
+ * Legacy body { time, room, building, onlineDefenseLink? } (older mobile
+ * builds) is still accepted: no mode → in_person, or hybrid when a link came along.
+ * A Zoom meeting is created/updated/deleted through services/zoomService.ts.
+ * Notifies the student(s), supervisor, internal examiners in-app, and emails
+ * external examiners; a date move also re-issues their defense-day access codes.
  */
 export const assignDefense = async (req: AuthenticatedRequest, res: Response) => {
   const { projectId } = req.params;
-  const { time, room, building, onlineDefenseLink } = req.body;
+  const body = req.body ?? {};
   const coordinatorId = req.user?.uid;
 
   if (!projectId || typeof projectId !== 'string') {
@@ -1937,22 +1957,46 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
   if (!withinCoordinatorScope(req.user, defenseScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', defenseScope)) {
     return res.status(403).json({ message: L(req, 'This project is outside your assigned scope.', 'הפרויקט הזה מחוץ לתחום האחריות שהוקצה לך.') });
   }
-  if (!time || !room || !building) {
-    return res.status(400).json({ message: L(req, 'time, room, and building are all required.', 'יש לציין שעה, חדר ובניין.') });
+
+  // ── Normalize + validate the body ──────────────────────────────────────────
+  const legacyLink = typeof body.onlineDefenseLink === 'string' ? body.onlineDefenseLink.trim() : '';
+  const mode: DefenseMode = DEFENSE_MODES.includes(body.mode) ? body.mode : legacyLink ? 'hybrid' : 'in_person';
+  const time = typeof body.time === 'string' ? body.time.trim() : '';
+  const building = body.building != null ? String(body.building).trim() : '';
+  const room = typeof body.room === 'string' ? body.room.trim() : '';
+  const manualZoomLink = typeof body.manualZoomLink === 'string' && body.manualZoomLink.trim() ? body.manualZoomLink.trim() : legacyLink;
+  const durationMinutes = Number.isInteger(body.durationMinutes) && body.durationMinutes >= 15 && body.durationMinutes <= 480 ? body.durationMinutes : 90;
+  const requestedDate = typeof body.date === 'string' && body.date ? body.date : null;
+  const needsPlace = mode !== 'zoom';
+  const needsOnline = mode !== 'in_person';
+
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    return res.status(400).json({ message: L(req, 'Time must be in HH:MM format.', 'השעה חייבת להיות בפורמט HH:MM.') });
   }
-  if (!DEFENSE_ALLOWED_BUILDINGS.includes(String(building))) {
-    return res.status(400).json({
-      message: L(req, 'Building 9 is under construction and unavailable. Please choose a building from 1-8.', 'בניין 9 נמצא בבנייה ואינו זמין. יש לבחור בניין מתוך 1-8.'),
-    });
-  }
-  // Optional — a remote/hybrid defense may add a meeting link alongside the
-  // physical room; not required since most defenses stay in-person only.
-  if (onlineDefenseLink !== undefined && onlineDefenseLink !== null && onlineDefenseLink !== '') {
-    if (typeof onlineDefenseLink !== 'string' || !/^https?:\/\//i.test(onlineDefenseLink)) {
-      return res.status(400).json({ message: L(req, 'onlineDefenseLink must be a valid http(s) URL.', 'הקישור להגנה המקוונת חייב להיות כתובת URL תקינה (http/https).') });
+  if (needsPlace) {
+    if (!room || !building) {
+      return res.status(400).json({ message: L(req, 'Room and building are required for an in-person or hybrid defense.', 'יש לציין חדר ובניין להגנה פרונטלית או היברידית.') });
+    }
+    if (!DEFENSE_ALLOWED_BUILDINGS.includes(building)) {
+      return res.status(400).json({
+        message: L(req, 'Building 9 is under construction and unavailable. Please choose a building from 1-8.', 'בניין 9 נמצא בבנייה ואינו זמין. יש לבחור בניין מתוך 1-8.'),
+      });
     }
   }
+  if (manualZoomLink && !/^https?:\/\//i.test(manualZoomLink)) {
+    return res.status(400).json({ message: L(req, 'The meeting link must be a valid http(s) URL.', 'הקישור לפגישה חייב להיות כתובת URL תקינה (http/https).') });
+  }
+  if (needsOnline && !isZoomConfigured() && !manualZoomLink) {
+    return res.status(400).json({ message: L(req, 'Automatic Zoom is not configured — please paste a meeting link.', 'יצירת Zoom אוטומטית אינה מוגדרת — יש להדביק קישור לפגישה.') });
+  }
+  if (requestedDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+    return res.status(400).json({ message: L(req, 'Date must be in YYYY-MM-DD format.', 'התאריך חייב להיות בפורמט YYYY-MM-DD.') });
+  }
+  if (requestedDate && dayjs.tz(requestedDate, DEFENSE_TZ).isBefore(dayjs().tz(DEFENSE_TZ).startOf('day'))) {
+    return res.status(400).json({ message: L(req, 'The defense date cannot be in the past.', 'תאריך ההגנה לא יכול להיות בעבר.') });
+  }
 
+  let createdMeetingId: string | null = null;
   try {
     const defenseMilestonesSnap = await db.collection('milestones')
       .where('projectId', '==', projectId)
@@ -1964,6 +2008,74 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
     }
     const defenseMilestoneRef = defenseMilestonesSnap.docs[0]!.ref;
 
+    // Pre-read outside the transaction only to drive the Zoom API calls
+    // (network calls can't run inside a Firestore transaction); the
+    // transaction below re-reads and re-checks the same state.
+    const pre = defenseMilestonesSnap.docs[0]!.data();
+    const preCheck = checkDefenseEditable(pre);
+    if (preCheck) {
+      return res.status(409).json({ message: L(req, preCheck.en, preCheck.he) });
+    }
+    const currentDateISO: string | null = pre.dueDate?.toDate ? dayjs(pre.dueDate.toDate()).tz(DEFENSE_TZ).format('YYYY-MM-DD') : null;
+    const dateISO = requestedDate ?? currentDateISO;
+    if (!dateISO) {
+      return res.status(400).json({ message: L(req, 'The defense has no date yet.', 'להגנה עדיין אין תאריך.') });
+    }
+    const dateChanged = !!currentDateISO && dateISO !== currentDateISO;
+    const isEdit = pre.status === 'scheduled';
+
+    // ── Zoom meeting lifecycle ───────────────────────────────────────────────
+    const existingZoom: DefenseZoomMeeting | null = pre.zoomMeeting ?? null;
+    let zoomMeeting: DefenseZoomMeeting | null = null;
+    let onlineLink: string | null = null;
+    let zoomWarning: string | null = null;
+    if (needsOnline) {
+      if (manualZoomLink) {
+        // Staff pasted their own link — an API meeting we made earlier is now unused.
+        if (existingZoom?.createdBy === 'api' && existingZoom.meetingId) {
+          await deleteZoomMeeting(existingZoom.meetingId).catch((e) => console.error('Zoom delete failed:', e));
+        }
+        zoomMeeting = { meetingId: null, passcode: null, createdBy: 'manual' };
+        onlineLink = manualZoomLink;
+      } else {
+        const projectData = (await db.collection('projects').doc(projectId).get()).data();
+        const meetingInput = {
+          topic: `Defense — ${projectData?.titleEn || projectData?.titleHe || projectId}`,
+          startLocal: `${dateISO}T${time}:00`,
+          durationMin: durationMinutes,
+        };
+        if (existingZoom?.createdBy === 'api' && existingZoom.meetingId) {
+          await updateZoomMeeting(existingZoom.meetingId, meetingInput);
+          zoomMeeting = existingZoom;
+          onlineLink = pre.onlineDefenseLink ?? null;
+        } else {
+          const created = await createZoomMeeting(meetingInput);
+          createdMeetingId = created.meetingId;
+          zoomMeeting = { meetingId: created.meetingId, passcode: created.passcode, createdBy: 'api' };
+          onlineLink = created.joinUrl;
+        }
+      }
+    } else if (existingZoom?.createdBy === 'api' && existingZoom.meetingId) {
+      // Back to in-person — don't leave a dangling meeting in the Zoom account.
+      await deleteZoomMeeting(existingZoom.meetingId).catch((e) => {
+        console.error('Zoom delete failed:', e);
+        zoomWarning = 'zoom_delete_failed';
+      });
+    }
+
+    const newDueDate = admin.firestore.Timestamp.fromDate(dayjs.tz(dateISO, DEFENSE_TZ).startOf('day').toDate());
+    const logistics = {
+      defenseMode: mode,
+      defenseTime: time,
+      defenseRoom: needsPlace ? room : null,
+      defenseBuilding: needsPlace ? building : null,
+      onlineDefenseLink: onlineLink,
+      zoomMeeting,
+      defenseDurationMinutes: durationMinutes,
+    };
+    const text = describeDefenseLogistics({ dateISO, time, mode, room: logistics.defenseRoom, building: logistics.defenseBuilding, link: onlineLink });
+
+    let externalMembers: DefensePanelMember[] = [];
     await db.runTransaction(async (transaction) => {
       const projectRef = db.collection('projects').doc(projectId);
       const projectSnap = await transaction.get(projectRef);
@@ -1972,24 +2084,32 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
 
       const milestoneSnap = await transaction.get(defenseMilestoneRef);
       const milestone = milestoneSnap.data()!;
-      if (milestone.status !== 'defense_date_set') {
-        throw new Error('Cannot set time/room/building before a defense date has been confirmed.');
-      }
+      const check = checkDefenseEditable(milestone);
+      if (check) throw new Error(check.en);
 
       const studentIds: string[] = project.enrolledStudentIds ?? [];
       const supervisorId: string | null = project.supervisorId ?? null;
-      const panel: Array<{ type: 'internal' | 'external'; ref: string; displayName: string }> = milestone.defensePanel ?? [];
+      const panel: DefensePanelMember[] = milestone.defensePanel ?? [];
       const internalExaminerIds = panel.filter((m) => m.type === 'internal').map((m) => m.ref);
       const examinerNames = panel.map((m) => m.displayName);
+      externalMembers = panel.filter((m) => m.type === 'external' && !!m.email);
 
-      const onlineLink: string | null = onlineDefenseLink || null;
+      const historyEntry = {
+        changedBy: coordinatorId,
+        changedAt: admin.firestore.Timestamp.now(),
+        mode,
+        time,
+        room: logistics.defenseRoom,
+        building: logistics.defenseBuilding,
+        date: dateISO,
+        dateChanged,
+        onlineDefenseLink: onlineLink,
+      };
 
       // 1. Stamp logistics onto the project document
       transaction.update(projectRef, {
-        defenseRoom: room,
-        defenseBuilding: building,
-        defenseTime: time,
-        onlineDefenseLink: onlineLink,
+        ...logistics,
+        ...(dateChanged ? { defenseDate: newDueDate } : {}),
         defenseExaminerIds: internalExaminerIds,
         status: 'defense_scheduled',
         defenseSchedulingState: 'scheduled',
@@ -1998,67 +2118,28 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
 
       // 2. Stamp logistics onto the defense milestone
       transaction.update(defenseMilestoneRef, {
-        defenseRoom: room,
-        defenseBuilding: building,
-        defenseTime: time,
-        onlineDefenseLink: onlineLink,
+        ...logistics,
+        ...(dateChanged ? { dueDate: newDueDate, 'dateMatching.finalDate': newDueDate } : {}),
         examinerIds: internalExaminerIds,
         examinerNames,
         status: 'scheduled',
+        defenseLogisticsHistory: admin.firestore.FieldValue.arrayUnion(historyEntry),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      const dateLabel = milestone.dueDate?.toDate?.().toLocaleDateString('en-GB') ?? '';
-      const logisticsLabel = `${time} · ${room}, ${building}${onlineLink ? ` · ${onlineLink}` : ''}`;
-
-      // 3. Notify students
-      studentIds.forEach((studentId) => {
+      // 3. Notify students, supervisor, and each internal examiner in-app
+      //    (external examiners get an email after commit — they have no
+      //    in-app notifications inbox)
+      const recipients = new Set([...studentIds, ...(supervisorId ? [supervisorId] : []), ...internalExaminerIds]);
+      recipients.forEach((recipientId) => {
         transaction.set(db.collection('notifications').doc(), {
-          recipientId: studentId,
+          recipientId,
           type: 'defense_scheduled',
-          priority: 'normal',
-          titleHe: 'פרטי ההגנה עודכנו',
-          titleEn: 'Defense logistics set',
-          bodyHe: `ההגנה שלך ב-${dateLabel} תתקיים בשעה ${time}, חדר ${room}, בניין ${building}.`,
-          bodyEn: `Your defense on ${dateLabel} will be at ${logisticsLabel}.`,
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          relatedProjectId: projectId,
-          relatedMilestoneId: defenseMilestoneRef.id,
-          chatId: null,
-        });
-      });
-
-      // 4. Notify supervisor
-      if (supervisorId) {
-        transaction.set(db.collection('notifications').doc(), {
-          recipientId: supervisorId,
-          type: 'defense_scheduled',
-          priority: 'normal',
-          titleHe: 'פרטי הגנה עודכנו לפרויקט',
-          titleEn: 'Defense logistics set for project',
-          bodyHe: `ההגנה ב-${dateLabel} תתקיים ב${logisticsLabel}.`,
-          bodyEn: `The defense on ${dateLabel} will be at ${logisticsLabel}.`,
-          isRead: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          relatedProjectId: projectId,
-          relatedMilestoneId: defenseMilestoneRef.id,
-          chatId: null,
-        });
-      }
-
-      // 5. Notify each internal examiner (external examiners get this via
-      //    their defense-day access grant email instead — they have no
-      //    in-app notifications inbox before that grant exists)
-      internalExaminerIds.forEach((examinerId) => {
-        transaction.set(db.collection('notifications').doc(), {
-          recipientId: examinerId,
-          type: 'defense_scheduled',
-          priority: 'normal',
-          titleHe: 'פרטי הגנה עודכנו',
-          titleEn: 'Defense logistics set',
-          bodyHe: `ההגנה ב-${dateLabel} תתקיים ב${logisticsLabel}.`,
-          bodyEn: `Defense on ${dateLabel} will be at ${logisticsLabel}.`,
+          priority: dateChanged ? 'high' : 'normal',
+          titleHe: isEdit ? 'פרטי ההגנה שונו' : 'פרטי ההגנה עודכנו',
+          titleEn: isEdit ? 'Defense details changed' : 'Defense logistics set',
+          bodyHe: `${dateChanged ? 'מועד ההגנה הוזז. ' : ''}${text.he}`,
+          bodyEn: `${dateChanged ? 'The defense date was moved. ' : ''}${text.en}`,
           isRead: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           relatedProjectId: projectId,
@@ -2067,13 +2148,141 @@ export const assignDefense = async (req: AuthenticatedRequest, res: Response) =>
         });
       });
     });
+    createdMeetingId = null; // committed — the meeting is now referenced
 
-    return res.status(200).json({ success: true, message: 'Defense logistics saved successfully.' });
+    // Post-commit: external examiners (email can't run inside a transaction).
+    for (const member of externalMembers) {
+      if (dateChanged) {
+        await reissueDefenseAccessGrants(defenseMilestoneRef.id, projectId, member, dateISO)
+          .catch((err) => console.error(`Failed to re-issue defense-day access for ${member.email}:`, err));
+      }
+      await sendNotificationEmail({
+        toEmail: member.email!,
+        type: 'defense_logistics_updated',
+        lang: 'he',
+        data: { name: member.displayName, date: dayjs.tz(dateISO, DEFENSE_TZ).format('DD/MM/YYYY'), time, details: text.heDetails, link: onlineLink ?? '' },
+      }).catch((err) => console.error(`Failed to email defense logistics to ${member.email}:`, err));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Defense logistics saved successfully.',
+      onlineDefenseLink: onlineLink,
+      ...(zoomWarning ? { warning: zoomWarning } : {}),
+    });
   } catch (error: any) {
+    if (createdMeetingId) await deleteZoomMeeting(createdMeetingId).catch((e) => console.error('Zoom rollback delete failed:', e));
     console.error('assignDefense error:', error);
+    if (String(error?.message ?? '').startsWith('Zoom ')) {
+      return res.status(502).json({ message: L(req, 'Could not create the Zoom meeting. Try again, or paste a meeting link instead.', 'לא ניתן היה ליצור את פגישת ה-Zoom. נסו שוב או הדביקו קישור לפגישה.') });
+    }
     return res.status(500).json({ message: L(req, 'Failed to save defense logistics.', 'שמירת פרטי ההגנה נכשלה.') });
   }
 };
+
+/**
+ * GET /api/coordinator/milestones/:milestoneId/zoom-start-url
+ * Fresh Zoom host link for staff ("Open as host") — the start_url carries a
+ * short-lived token, so it's fetched on demand and never stored on a doc
+ * students/examiners can read.
+ */
+export const getDefenseZoomStartUrl = async (req: AuthenticatedRequest, res: Response) => {
+  const { milestoneId } = req.params;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: L(req, 'Invalid or missing milestoneId.', 'מזהה אבן הדרך לא תקין או חסר.') });
+  }
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
+  }
+  const scope = await resolveMilestoneScope(milestoneId);
+  if (!scope) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
+  if (!withinCoordinatorScope(req.user, scope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', scope)) {
+    return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
+  }
+  try {
+    const milestone = (await db.collection('milestones').doc(milestoneId).get()).data();
+    const meetingId: string | null = milestone?.zoomMeeting?.createdBy === 'api' ? milestone.zoomMeeting.meetingId : null;
+    if (!meetingId || !isZoomConfigured()) {
+      return res.status(404).json({ message: L(req, 'This defense has no system-created Zoom meeting.', 'להגנה זו אין פגישת Zoom שנוצרה על ידי המערכת.') });
+    }
+    return res.status(200).json({ startUrl: await getZoomStartUrl(meetingId) });
+  } catch (error) {
+    console.error('getDefenseZoomStartUrl error:', error);
+    return res.status(502).json({ message: L(req, 'Could not reach Zoom.', 'לא ניתן היה להתחבר ל-Zoom.') });
+  }
+};
+
+/** GET /api/coordinator/defense-config — tells the staff form whether to say
+ *  "the meeting is created automatically" or show a paste-a-link field. */
+export const getDefenseConfig = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
+  }
+  return res.status(200).json({ zoomConfigured: isZoomConfigured() });
+};
+
+const DEFENSE_TZ = 'Asia/Jerusalem';
+const DEFENSE_MODES: readonly string[] = ['in_person', 'zoom', 'hybrid'];
+type DefenseMode = 'in_person' | 'zoom' | 'hybrid';
+interface DefenseZoomMeeting { meetingId: string | null; passcode: string | null; createdBy: 'api' | 'manual' }
+interface DefensePanelMember { type: 'internal' | 'external'; ref: string; displayName: string; email?: string }
+
+/** Null when logistics may be (re)set; otherwise the bilingual reason. */
+function checkDefenseEditable(milestone: FirebaseFirestore.DocumentData): { en: string; he: string } | null {
+  if (milestone.status !== 'defense_date_set' && milestone.status !== 'scheduled') {
+    return { en: 'Defense details can only be set after the date is confirmed and before grading starts.', he: 'ניתן לקבוע את פרטי ההגנה רק לאחר אישור התאריך ולפני תחילת מתן הציונים.' };
+  }
+  const grading = milestone.examinerGrading ?? {};
+  if (Object.values(grading).some((g: any) => g?.gradedAt)) {
+    return { en: 'An examiner has already graded this defense — its details can no longer be changed.', he: 'בוחן כבר נתן ציון להגנה זו — לא ניתן עוד לשנות את פרטיה.' };
+  }
+  return null;
+}
+
+/** One place for the mode-aware notification text, so HE and EN stay in sync. */
+function describeDefenseLogistics(p: { dateISO: string; time: string; mode: DefenseMode; room: string | null; building: string | null; link: string | null }) {
+  const date = dayjs.tz(p.dateISO, DEFENSE_TZ).format('DD/MM/YYYY');
+  const placeHe = `חדר ${p.room ?? ''}, בניין ${p.building ?? ''}`;
+  const placeEn = `room ${p.room ?? ''}, building ${p.building ?? ''}`;
+  const heDetails = p.mode === 'zoom'
+    ? 'ההגנה תתקיים בזום.'
+    : p.mode === 'hybrid'
+      ? `ההגנה תתקיים ב${placeHe}, עם אפשרות להשתתפות בזום.`
+      : `ההגנה תתקיים ב${placeHe}.`;
+  const enDetails = p.mode === 'zoom'
+    ? 'The defense will be held on Zoom.'
+    : p.mode === 'hybrid'
+      ? `The defense will be held in ${placeEn}, with the option to join on Zoom.`
+      : `The defense will be held in ${placeEn}.`;
+  const linkSuffix = p.link ? ` ${p.link}` : '';
+  return {
+    he: `ההגנה ב-${date} בשעה ${p.time}. ${heDetails}${linkSuffix}`,
+    en: `Defense on ${date} at ${p.time}. ${enDetails}${linkSuffix}`,
+    heDetails,
+  };
+}
+
+/** Date moved → the external examiner's defense-day code for the old day is
+ *  useless (and would open on the wrong day); revoke it and issue a new one
+ *  (createDefenseAccessGrant also emails the new link). */
+async function reissueDefenseAccessGrants(milestoneId: string, projectId: string, member: DefensePanelMember, dateISO: string): Promise<void> {
+  const existing = await db.collection('defenseAccessGrants')
+    .where('milestoneId', '==', milestoneId)
+    .where('originExaminerTokenCode', '==', member.ref)
+    .get();
+  await Promise.all(existing.docs
+    .filter((d) => d.data().status !== 'revoked')
+    .map((d) => d.ref.update({ status: 'revoked', revokedAt: new Date().toISOString(), revokedReason: 'defense_date_changed' })));
+  await createDefenseAccessGrant({
+    originExaminerTokenCode: member.ref,
+    projectId,
+    milestoneId,
+    examinerName: member.displayName,
+    examinerEmail: member.email!,
+    examinerLanguage: 'he',
+    defenseDateISO: dateISO,
+  });
+}
 
 /**
  * POST /api/coordinator/milestones/:milestoneId/resolve-date-conflict

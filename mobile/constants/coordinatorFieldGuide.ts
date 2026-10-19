@@ -3,14 +3,30 @@
 // seenFieldGuides carries across platforms.
 import type { FieldGuideStep } from '@/components/guidance/types';
 
-export const DEFENSE_LOGISTICS_GUIDE_KEY = 'coordinator-defense-logistics';
+export const DEFENSE_LOGISTICS_GUIDE_KEY = 'coordinator-defense-logistics-v2';
 export const DEFENSE_LOGISTICS_FIELD_GUIDE: FieldGuideStep[] = [
+  {
+    key: 'mode',
+    label: { he: 'אופן ההגנה', en: 'Defense format' },
+    description: {
+      he: 'פרונטלי (בניין וחדר), Zoom (פגישה מקוונת בלבד) או היברידי (חדר + Zoom למשתתפים מרחוק).',
+      en: 'In person (building and room), Zoom (online only) or hybrid (a room plus Zoom for remote participants).',
+    },
+  },
+  {
+    key: 'date',
+    label: { he: 'תאריך', en: 'Date' },
+    description: {
+      he: 'התאריך שנקבע מול הבוחנים. ניתן לשנותו — כל המשתתפים יקבלו עדכון, ובוחנים חיצוניים יקבלו קוד גישה חדש.',
+      en: 'The date agreed with the examiners. You can change it — everyone is notified and external examiners get a new access code.',
+    },
+  },
   {
     key: 'time',
     label: { he: 'שעה', en: 'Time' },
     description: {
-      he: 'שעת ההגנה, ביום שכבר נקבע בתהליך התאמת התאריכים מול הבוחנים.',
-      en: 'The defense time, on the date already locked in by the examiner date-matching flow.',
+      he: 'שעת תחילת ההגנה.',
+      en: 'The defense start time.',
     },
   },
   {
@@ -31,10 +47,10 @@ export const DEFENSE_LOGISTICS_FIELD_GUIDE: FieldGuideStep[] = [
   },
   {
     key: 'onlineLink',
-    label: { he: 'קישור להגנה מקוונת', en: 'Online defense link' },
+    label: { he: 'פגישת Zoom', en: 'Zoom meeting' },
     description: {
-      he: 'אופציונלי — קישור לפגישה מקוונת (Zoom וכו׳), למשתתפים שלא יגיעו פיזית.',
-      en: 'Optional — a link to an online meeting (Zoom, etc.) for participants who won\'t attend in person.',
+      he: 'להגנה בזום או היברידית — הפגישה נוצרת אוטומטית ומתעדכנת כשמשנים תאריך/שעה. ניתן גם להדביק קישור קיים.',
+      en: 'For a Zoom or hybrid defense — the meeting is created automatically and follows date/time changes. You can also paste an existing link.',
     },
   },
 ];

@@ -63,6 +63,7 @@ export type NotificationType =
   | 'defense_dates_requested'
   | 'defense_date_matched'
   | 'defense_day_access_link'
+  | 'defense_logistics_updated'
   | 'totp_recovery_code'
   | 'biometric_setup_code'
   | 'login_security_alert'
@@ -465,6 +466,25 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>This link grants app access only on the day of the defense — <strong>${d.date || ''}</strong>, until midnight.</p>
       <p><a href="${d.link || ''}">Tap here for defense-day access</a></p>
       <p>After midnight this link stops working. If you missed the window, contact the faculty coordinator.</p>
+    `,
+  },
+
+  // Sent to external examiners (no in-app inbox) whenever staff set or edit
+  // a defense's format/time/place — see coordinatorController.ts's assignDefense.
+  defense_logistics_updated: {
+    subjectHe: '📍 פרטי ההגנה עודכנו',
+    subjectEn: '📍 Defense details updated',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>פרטי ההגנה עודכנו: <strong>${d.date || ''}</strong> בשעה <strong>${d.time || ''}</strong>.</p>
+      <p>${d.details || ''}</p>
+      ${d.link ? `<p><a href="${d.link}">הצטרפות לפגישת Zoom</a></p>` : ''}
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>The defense details were updated: <strong>${d.date || ''}</strong> at <strong>${d.time || ''}</strong>.</p>
+      <p>${d.details || ''}</p>
+      ${d.link ? `<p><a href="${d.link}">Join the Zoom meeting</a></p>` : ''}
     `,
   },
 

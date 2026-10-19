@@ -12,6 +12,8 @@
 // as one design.
 
 import React, { useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/utils/defenseDisplay';
+import type { DefenseMode, DefenseZoomMeeting } from '@/utils/defenseDisplay';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { ROLE_LABELS, type AppRole } from '@/components/i18n';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
@@ -35,6 +37,8 @@ export interface RoadmapMilestone {
   defenseBuilding?: string | null;
   defenseTime?: string | null;
   onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
   examinerIds?: string[];
   /** The milestone's approval chain, snapshotted from its workflow template
    *  at enrollment, and the index of the stage currently awaiting action.
@@ -306,13 +310,17 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
               <Text style={[s.defenseText, isRtl && s.textRight]}>
                 🎓 {formatDate(m.defenseDate, lang)}
                 {m.defenseTime ? `  ·  🕐 ${m.defenseTime}` : ''}
-                {m.defenseBuilding ? `  ·  🏢 ${m.defenseBuilding}` : ''}
-                {m.defenseRoom ? `  ·  🏛️ ${m.defenseRoom}` : ''}
+                {m.defenseTime ? `  ·  ${defenseModeIcon(resolveDefenseMode(m))} ${defenseModeLabel(resolveDefenseMode(m), lang)}` : ''}
+                {showsDefensePlace(m) && m.defenseBuilding ? `  ·  🏢 ${m.defenseBuilding}` : ''}
+                {showsDefensePlace(m) && m.defenseRoom ? `  ·  🏛️ ${m.defenseRoom}` : ''}
               </Text>
             )}
-            {isDefense && !!m.onlineDefenseLink && (
+            {isDefense && showsDefenseLink(m) && (
               <Pressable onPress={() => Linking.openURL(m.onlineDefenseLink!)} accessibilityRole="link">
-                <Text style={[s.linkText, isRtl && s.textRight]}>💻 {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}</Text>
+                <Text style={[s.linkText, isRtl && s.textRight]}>
+                  💻 {lang === 'he' ? 'הצטרפות לזום' : 'Join Zoom'}
+                  {m.zoomMeeting?.passcode ? ` (${lang === 'he' ? 'סיסמה' : 'passcode'} ${m.zoomMeeting.passcode})` : ''}
+                </Text>
               </Pressable>
             )}
 

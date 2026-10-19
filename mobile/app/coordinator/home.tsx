@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert,
@@ -63,9 +65,6 @@ import {
 
 function assignGuideEntry(key: string) {
   return ASSIGN_EXAMINERS_FIELD_GUIDE.find((s) => s.key === key)!;
-}
-function logisticsGuideEntry(key: string) {
-  return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
 }
 
 // ─── Students Report tab ────────────────────────────────────────────────────
@@ -342,10 +341,6 @@ export default function CoordinatorHome() {
   const [selectedProjectForDefense, setSelectedProjectForDefense] = useState<Project | null>(null);
   const [selectedDefenseMilestone, setSelectedDefenseMilestone] = useState<AssignedMilestone | null>(null);
   const [defenseModal,     setDefenseModal]     = useState(false);
-  const [defenseTime,      setDefenseTime]      = useState('');
-  const [defenseRoom,      setDefenseRoom]      = useState('');
-  const [defenseBuilding,  setDefenseBuilding]  = useState('');
-  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
 
   // Date-conflict resolution modal (no common date found between examiners)
   const [conflictModal, setConflictModal] = useState(false);
@@ -988,43 +983,9 @@ export default function CoordinatorHome() {
 
   // ── Set defense logistics (time/room/building) — the date itself was
   //    already locked in by the examiner date-matching flow ─────────────────
-  const handleSetDefense = async () => {
-    if (!selectedProjectForDefense || !defenseTime.trim() || !defenseRoom.trim() || !defenseBuilding.trim()) {
-      Alert.alert(
-        lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא שעה, חדר ובניין' : 'Time, room, and building are all required'
-      );
-      return;
-    }
-    try {
-      setSaving(true);
-      await apiClient.post(`/api/coordinator/projects/${selectedProjectForDefense.id}/assign-defense`, {
-        time: defenseTime.trim(),
-        room: defenseRoom.trim(),
-        building: defenseBuilding.trim(),
-        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
-      });
-
-      setDefenseModal(false);
-      setDefenseTime('');
-      setDefenseRoom('');
-      setDefenseBuilding('');
-      setOnlineDefenseLink('');
-      Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
-      fetchCoordinatorDashboard();
-    } catch (err) {
-      Alert.alert('Error', (err as any).response?.data?.message || 'Failed to save defense logistics');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const openDefenseLogisticsModal = (project: Project, milestone: AssignedMilestone) => {
     setSelectedProjectForDefense(project);
     setSelectedDefenseMilestone(milestone);
-    setDefenseTime('');
-    setDefenseRoom('');
-    setDefenseBuilding('');
     setDefenseModal(true);
   };
 
@@ -1911,7 +1872,7 @@ export default function CoordinatorHome() {
                 <FacultyBadge facultyId={project.facultyId} lang={lang} />
               </View>
               <Text style={[styles.cardMeta, { color: '#10B981', fontWeight: '700' }]}>
-                📅 {lang === 'he' ? 'מועד הגנה אושר — יש לקבוע שעה, חדר ובניין' : 'Defense date confirmed — set time, room & building'}
+                📅 {lang === 'he' ? 'מועד הגנה אושר — יש לקבוע אופן הגנה, שעה ומקום' : 'Defense date confirmed — set format, time & place'}
                 {card.daysLeft !== null ? ` (${card.daysLeft}${lang === 'he' ? ' ימים' : 'd'})` : ''}
               </Text>
               <Pressable style={styles.approveBtn} onPress={() => openDefenseLogisticsModal(project, milestone)} accessibilityRole="button">
@@ -1944,13 +1905,19 @@ export default function CoordinatorHome() {
                   <Text style={styles.defenseDateText}>
                     📅 {defenseDateObj.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
                     {milestone.defenseTime ? ` ${milestone.defenseTime}` : ''}
-                    {milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
+                    {showsDefensePlace(milestone) && milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
                   </Text>
                 </View>
               )}
+              <Text style={styles.cardMeta}>
+                {defenseModeIcon(resolveDefenseMode(milestone))} {defenseModeLabel(resolveDefenseMode(milestone), lang)}
+              </Text>
               <Text style={[styles.cardMeta, { color: getDefenseAccent(card), fontWeight: '700' }]}>
                 ⏳ {card.daysLeft} {lang === 'he' ? 'ימים להגנה' : card.daysLeft === 1 ? 'day left' : 'days left'}
               </Text>
+              <Pressable style={styles.cancelBtn} onPress={() => openDefenseLogisticsModal(project, milestone)} accessibilityRole="button">
+                <Text style={styles.cancelBtnText}>✏️ {lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit defense details'}</Text>
+              </Pressable>
             </View>
           );
         }
@@ -2690,101 +2657,22 @@ export default function CoordinatorHome() {
         </ScrollView>
       </Modal>
 
-      {/* ── Defense logistics modal — date already confirmed by examiners,
-             coordinator sets time/room/building only ── */}
-      <Modal visible={defenseModal} animationType="slide" presentationStyle="formSheet">
-        <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
-          {defenseModal && <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />}
-          <Text style={styles.modalTitle}>
-            {lang === 'he' ? '📍 פרטי ההגנה' : '📍 Defense Logistics'}
-          </Text>
-          {selectedDefenseMilestone?.defenseDate ? (
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'תאריך שנקבע:' : 'Confirmed date:'} {selectedDefenseMilestone.defenseDate}
-            </Text>
-          ) : null}
-
-          <FieldGuideTarget fieldKey="time">
-          <View>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'שעה' : 'Time'}
-            </Text>
-            <InfoTooltip textHe={logisticsGuideEntry('time').description.he} textEn={logisticsGuideEntry('time').description.en} />
-          </View>
-          <TextInput
-            style={styles.input}
-            value={defenseTime}
-            onChangeText={setDefenseTime}
-            placeholder="HH:MM"
-          />
-          </View>
-          </FieldGuideTarget>
-
-          <FieldGuideTarget fieldKey="room">
-          <View>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'חדר' : 'Room'}
-            </Text>
-            <InfoTooltip textHe={logisticsGuideEntry('room').description.he} textEn={logisticsGuideEntry('room').description.en} />
-          </View>
-          <TextInput
-            style={styles.input}
-            value={defenseRoom}
-            onChangeText={setDefenseRoom}
-            placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'}
-          />
-          </View>
-          </FieldGuideTarget>
-
-          <FieldGuideTarget fieldKey="building">
-          <View>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'בניין' : 'Building'}
-            </Text>
-            <InfoTooltip textHe={logisticsGuideEntry('building').description.he} textEn={logisticsGuideEntry('building').description.en} />
-          </View>
-          <DefenseBuildingPicker value={defenseBuilding} onChange={setDefenseBuilding} lang={lang} />
-          </View>
-          </FieldGuideTarget>
-
-          <FieldGuideTarget fieldKey="onlineLink">
-          <View>
-          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center' }}>
-            <Text style={styles.fieldLabel}>
-              {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
-            </Text>
-            <InfoTooltip textHe={logisticsGuideEntry('onlineLink').description.he} textEn={logisticsGuideEntry('onlineLink').description.en} />
-          </View>
-          <TextInput
-            style={styles.input}
-            value={onlineDefenseLink}
-            onChangeText={setOnlineDefenseLink}
-            placeholder="https://zoom.us/j/..."
-            autoCapitalize="none"
-          />
-          </View>
-          </FieldGuideTarget>
-
-          <Pressable
-            style={[styles.submitBtn, saving && { opacity: 0.6 }]}
-            onPress={handleSetDefense}
-            disabled={saving}
-            accessibilityRole="button"
-          >
-            {saving
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.submitBtnText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
-            }
-          </Pressable>
-
-          <Pressable style={styles.cancelBtn} onPress={() => setDefenseModal(false)} accessibilityRole="button">
-            <Text style={styles.cancelBtnText}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>
-          </Pressable>
-        </ScrollView>
-      </Modal>
+      {/* ── Defense logistics modal — set or edit format/date/time/place/Zoom ── */}
+      <ScheduleDefenseModal
+        visible={defenseModal}
+        basePath="coordinator"
+        projectId={selectedProjectForDefense?.id ?? null}
+        projectTitle={selectedProjectForDefense ? (lang === 'he' ? selectedProjectForDefense.titleHe : selectedProjectForDefense.titleEn) : undefined}
+        milestoneId={selectedDefenseMilestone?.id ?? null}
+        confirmedDate={selectedDefenseMilestone ? parseServerDate(selectedDefenseMilestone.dueDate) : null}
+        initial={selectedDefenseMilestone?.status === 'scheduled' ? selectedDefenseMilestone : undefined}
+        lang={lang}
+        isRtl={isRtl}
+        guideKey={DEFENSE_LOGISTICS_GUIDE_KEY}
+        guideSteps={DEFENSE_LOGISTICS_FIELD_GUIDE}
+        onClose={() => setDefenseModal(false)}
+        onSaved={fetchCoordinatorDashboard}
+      />
 
       {/* ── Date-conflict resolution modal ── */}
       <Modal visible={conflictModal} animationType="slide" presentationStyle="pageSheet">

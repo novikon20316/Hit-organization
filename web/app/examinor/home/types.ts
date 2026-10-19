@@ -1,4 +1,5 @@
 // app/examinor/home/types.ts
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 
 export interface GradeWeights {
   supervisorWeight: number;
@@ -83,6 +84,9 @@ export interface AssignedMilestone {
   defenseRoom: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
+  onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
   defensePanel?: DefensePanelMember[];
   dateMatching?: DefenseDateMatching;
   milestoneHistory: MilestoneHistoryEntry[];

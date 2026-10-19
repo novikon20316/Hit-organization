@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
-  ActivityIndicator, Modal, TextInput, Alert} from 'react-native';
+  ActivityIndicator, Modal, TextInput, Alert, Linking} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
@@ -237,6 +238,9 @@ export default function ExaminerHome() {
               defenseRoom: live.defenseRoom ?? null,
               defenseBuilding: live.defenseBuilding ?? null,
               defenseTime: live.defenseTime ?? null,
+              onlineDefenseLink: live.onlineDefenseLink ?? null,
+              defenseMode: live.defenseMode ?? null,
+              zoomMeeting: live.zoomMeeting ?? null,
               defensePanel: live.defensePanel ?? m.defensePanel,
               dateMatching: live.dateMatching ?? m.dateMatching,
               supervisorScore: live.supervisorScore ?? null,
@@ -778,7 +782,7 @@ export default function ExaminerHome() {
                     {m.defenseDate && (
                       <View style={styles.defensePill}>
                         <Text style={styles.defensePillText}>
-                          📅 {m.defenseDate} {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
+                          📅 {m.defenseDate} {m.defenseTime ? ` · ${m.defenseTime} ${defenseModeIcon(resolveDefenseMode(m))}` : ''}{showsDefensePlace(m) && m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
                         </Text>
                       </View>
                     )}
@@ -1152,7 +1156,27 @@ export default function ExaminerHome() {
                         </View>
                       ) : null}
 
-                      {m.defenseRoom ? (
+                      {m.defenseTime ? (
+                        <View style={styles.scheduleChip}>
+                          <Text style={styles.scheduleChipLabel}>
+                            {lang === 'he' ? 'אופן' : 'Format'}
+                          </Text>
+                          <Text style={styles.scheduleChipValue}>
+                            {defenseModeIcon(resolveDefenseMode(m))} {defenseModeLabel(resolveDefenseMode(m), lang)}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {showsDefensePlace(m) && m.defenseBuilding ? (
+                        <View style={styles.scheduleChip}>
+                          <Text style={styles.scheduleChipLabel}>
+                            {lang === 'he' ? 'בניין' : 'Building'}
+                          </Text>
+                          <Text style={styles.scheduleChipValue}>{m.defenseBuilding}</Text>
+                        </View>
+                      ) : null}
+
+                      {showsDefensePlace(m) && m.defenseRoom ? (
                         <View style={styles.scheduleChip}>
                           <Text style={styles.scheduleChipLabel}>
                             {lang === 'he' ? 'חדר' : 'Room'}
@@ -1161,6 +1185,14 @@ export default function ExaminerHome() {
                         </View>
                       ) : null}
                     </View>
+                    {showsDefenseLink(m) && (
+                      <Pressable onPress={() => Linking.openURL(m.onlineDefenseLink!)} accessibilityRole="link" style={styles.scheduleChip}>
+                        <Text style={[styles.scheduleChipValue, { color: '#2563EB' }]}>
+                          💻 {lang === 'he' ? 'הצטרפות לזום' : 'Join Zoom'}
+                          {m.zoomMeeting?.passcode ? ` (${lang === 'he' ? 'סיסמה' : 'passcode'} ${m.zoomMeeting.passcode})` : ''}
+                        </Text>
+                      </Pressable>
+                    )}
 
                   </View>
                 );

@@ -9,6 +9,7 @@ import { auth, appCheck } from './firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { signOut } from 'firebase/auth';
 import { reportClientError, reportTransportFailure } from './errorReporting';
+import type { DefenseLogisticsPayload, DefenseMode, DefenseStaffBasePath, DefenseZoomMeeting } from './defenseDisplay';
 
 // No timeout existed anywhere in this client before — a hung request (dead
 // server, bad network) would leave a fetch() pending forever with no
@@ -576,7 +577,7 @@ export const apiClient = {
   // recomputed server-side; this is never trusted/cached client-side. ───────
   async getDefenseAccessStatus(grantCode: string) {
     return request<{
-      status: 'not_yet_active' | 'active' | 'expired';
+      status: 'not_yet_active' | 'active' | 'expired' | 'revoked';
       examinerName?: string;
       defenseDateISO?: string;
       activatesAt?: string;
@@ -587,6 +588,8 @@ export const apiClient = {
       building?: string | null;
       time?: string | null;
       onlineDefenseLink?: string | null;
+      defenseMode?: DefenseMode | null;
+      zoomMeeting?: DefenseZoomMeeting | null;
     }>(`/api/examiner-access/defense/${encodeURIComponent(grantCode)}`, { method: 'GET' });
   },
 
@@ -2434,6 +2437,8 @@ export const apiClient = {
         defenseBuilding: string | null;
         defenseTime: string | null;
         onlineDefenseLink: string | null;
+        defenseMode?: DefenseMode | null;
+        zoomMeeting?: DefenseZoomMeeting | null;
         examinerNames: string[];
         examinerIds: string[];
       }>;
@@ -2590,11 +2595,22 @@ export const apiClient = {
   /** Shared by coordinator, administrative coordinator, and system_admin — all
    *  three route to the same assignDefense controller (coordinatorController.ts),
    *  just mounted under different base paths ('admin' for the admin panel). */
-  async assignDefenseLogistics(basePath: 'admin' | 'coordinator' | 'project-coordinator', projectId: string, payload: { time: string; room: string; building: string; onlineDefenseLink?: string }) {
-    return request<{ success: boolean; message: string }>(`/api/${basePath}/projects/${projectId}/assign-defense`, {
+  async assignDefenseLogistics(basePath: DefenseStaffBasePath, projectId: string, payload: DefenseLogisticsPayload) {
+    return request<{ success: boolean; message: string; onlineDefenseLink: string | null; warning?: string }>(`/api/${basePath}/projects/${projectId}/assign-defense`, {
       method: 'POST',
       body: payload,
     });
+  },
+
+  /** Whether the server can create Zoom meetings itself (Zoom env configured)
+   *  — otherwise the staff form asks for a pasted meeting link. */
+  async getDefenseConfig(basePath: DefenseStaffBasePath) {
+    return request<{ zoomConfigured: boolean }>(`/api/${basePath}/defense-config`, { method: 'GET' });
+  },
+
+  /** Fresh Zoom host link for a system-created defense meeting (staff only). */
+  async getDefenseZoomStartUrl(basePath: DefenseStaffBasePath, milestoneId: string) {
+    return request<{ startUrl: string }>(`/api/${basePath}/milestones/${encodeURIComponent(milestoneId)}/zoom-start-url`, { method: 'GET' });
   },
 
   /** Shared by coordinator / administrative coordinator / system_admin. Same

@@ -21,6 +21,8 @@
 // chain only for legacy milestones that have no routing.
 
 import { useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
@@ -65,6 +67,8 @@ export interface MilestoneData {
   defenseBuilding?: string | null;
   defenseTime?: string | null;
   onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
   examinerNames?: string[];
   examinerIds?: string[];
   /** The milestone's approval chain, snapshotted from its workflow template
@@ -378,14 +382,16 @@ function MilestoneCard({
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink">
               🎓 {formatDate(milestone.defenseDate, lang, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               {milestone.defenseTime ? <>· 🕐 {milestone.defenseTime}</> : ''}
-              {milestone.defenseBuilding ? <>· 🏢 {milestone.defenseBuilding}</> : ''}
-              {milestone.defenseRoom ? <>· 🏛️ {milestone.defenseRoom}</> : ''}
-              {milestone.onlineDefenseLink ? (
+              {milestone.defenseTime ? <>· {defenseModeIcon(resolveDefenseMode(milestone))} {defenseModeLabel(resolveDefenseMode(milestone), lang)}</> : ''}
+              {showsDefensePlace(milestone) && milestone.defenseBuilding ? <>· 🏢 {lang === 'he' ? 'בניין' : 'Building'} {milestone.defenseBuilding}</> : ''}
+              {showsDefensePlace(milestone) && milestone.defenseRoom ? <>· 🏛️ {milestone.defenseRoom}</> : ''}
+              {showsDefenseLink(milestone) ? (
                 <>
                   {' · 💻 '}
-                  <a href={milestone.onlineDefenseLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    {lang === 'he' ? 'הצטרפות מקוונת' : 'Join online'}
+                  <a href={milestone.onlineDefenseLink!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    {lang === 'he' ? 'הצטרפות לזום' : 'Join Zoom'}
                   </a>
+                  {milestone.zoomMeeting?.meetingId ? ` (${lang === 'he' ? 'מזהה' : 'ID'} ${milestone.zoomMeeting.meetingId}${milestone.zoomMeeting.passcode ? `, ${lang === 'he' ? 'סיסמה' : 'passcode'} ${milestone.zoomMeeting.passcode}` : ''})` : ''}
                 </>
               ) : ''}
             </p>

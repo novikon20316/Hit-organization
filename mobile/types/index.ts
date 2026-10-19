@@ -16,6 +16,7 @@
  */
 
 import type { Timestamp } from 'firebase/firestore';
+import type { DefenseMode, DefenseZoomMeeting } from '@/utils/defenseDisplay';
 import type { AppRole } from '../components/i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -540,6 +541,17 @@ export interface ProjectRecord {
   projectTypes?: string[];
   academicYear: string;
   enrolledStudentIds: string[];
+  // Defense logistics mirrored onto the project by assignDefense (the admin
+  // dashboard spreads the raw doc, so the date is a serialized Timestamp).
+  defenseDate?: string | { _seconds?: number } | null;
+  defenseSchedulingState?: string;
+  defenseMode?: DefenseMode | null;
+  defenseTime?: string | null;
+  defenseBuilding?: string | null;
+  defenseRoom?: string | null;
+  onlineDefenseLink?: string | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
 }
 
 export interface AssignedMilestone {
@@ -645,6 +657,11 @@ export interface AssignedMilestone {
   // action here at all. A plain one-shot approval, not a score.
   preGradeSignoffs?: { committee?: boolean; examinerOne?: boolean } | null;
   examinerOneSignoff?: { approvedBy: string } | null;
+  // Defense logistics (see coordinatorController.ts's assignDefense)
+  onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
 }
 
 // Mirrors GradingComponentSpec in server/src/services/workflowTemplates.ts.
@@ -950,6 +967,9 @@ export interface Milestone {
   defenseRoom: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
+  onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
   defensePanel?: DefensePanelMember[];
   dateMatching?: DefenseDateMatching;
   examinerNames: string[];

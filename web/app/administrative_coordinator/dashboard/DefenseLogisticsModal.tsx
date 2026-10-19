@@ -1,19 +1,15 @@
 'use client';
 
 // app/administrative_coordinator/dashboard/DefenseLogisticsModal.tsx
-import { useRef, useState } from 'react';
+// Set-or-edit a defense's logistics — fields live in the shared
+// components/DefenseLogisticsForm.tsx, under the 'project-coordinator' base path.
+import { useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient } from '@/lib/apiClient';
-import { DefenseBuildingPicker } from '@/components/DefenseBuildingPicker';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { DefenseLogisticsForm } from '@/components/DefenseLogisticsForm';
 import type { ProjectGroup } from './types';
-import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY } from './fieldGuide';
-
-function logisticsGuideEntry(key: string) {
-  return DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)!;
-}
 
 interface DefenseLogisticsModalProps {
   group: ProjectGroup;
@@ -23,39 +19,13 @@ interface DefenseLogisticsModalProps {
 
 export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogisticsModalProps) {
   const { lang, t } = useLanguage();
-  const [time, setTime] = useState('');
-  const [room, setRoom] = useState('');
-  const [building, setBuilding] = useState('');
-  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalRef, true, onClose);
 
-  const handleSave = async () => {
-    if (!time.trim() || !room.trim() || !building) {
-      setError(lang === 'he' ? 'יש למלא שעה, חדר ובניין' : 'Time, room, and building are all required');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      await apiClient.assignDefenseLogistics('project-coordinator', group.id, {
-        time: time.trim(),
-        room: room.trim(),
-        building,
-        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
-      });
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : lang === 'he' ? 'שמירת פרטי ההגנה נכשלה' : 'Failed to save defense logistics');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const inputCls = 'w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:bg-administrative-coordinator-surface-container-lowest focus:outline-none';
+  // The project doc mirrors the logistics once set (see assignDefense), so a
+  // stored time means this is an edit of an already-scheduled defense.
+  const isEdit = !!group.defenseTime;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -64,11 +34,13 @@ export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogist
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 shadow-lg outline-none"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 text-administrative-coordinator-on-surface shadow-lg outline-none"
       >
         <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">🛡 {lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}</h2>
+          <h2 className="text-lg font-semibold text-administrative-coordinator-on-surface">
+            🛡 {isEdit ? (lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit Defense Details') : lang === 'he' ? 'תאם הגנה' : 'Schedule Defense'}
+          </h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">
             ✕
           </button>
@@ -84,53 +56,20 @@ export function DefenseLogisticsModal({ group, onClose, onSaved }: DefenseLogist
           )}
         </div>
 
-        <label data-field-guide-id="time" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
-            {t('defenseTime')}
-            <InfoTooltip text={logisticsGuideEntry('time').description} />
-          </span>
-          <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="HH:MM" className={inputCls} />
-        </label>
-
-        <label data-field-guide-id="room" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
-            {t('defenseRoom')}
-            <InfoTooltip text={logisticsGuideEntry('room').description} />
-          </span>
-          <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'} className={inputCls} />
-        </label>
-
-        <div data-field-guide-id="building" className="mt-4">
-          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
-            {lang === 'he' ? 'בניין' : 'Building'}
-            <InfoTooltip text={logisticsGuideEntry('building').description} />
-          </span>
-          <DefenseBuildingPicker value={building} onChange={setBuilding} />
-        </div>
-
-        <label data-field-guide-id="onlineLink" className="mt-4 block">
-          <span className="mb-1.5 block text-sm font-medium text-administrative-coordinator-on-surface">
-            {lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}
-            <InfoTooltip text={logisticsGuideEntry('onlineLink').description} />
-          </span>
-          <input
-            value={onlineDefenseLink}
-            onChange={(e) => setOnlineDefenseLink(e.target.value)}
-            placeholder="https://zoom.us/j/..."
-            className={inputCls}
-          />
-        </label>
-
-        {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
-
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="mt-4 w-full rounded-lg bg-administrative-coordinator-primary py-2.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
-        >
-          {saving ? '…' : lang === 'he' ? 'שמור' : 'Save'}
-        </button>
+        <DefenseLogisticsForm
+          basePath="project-coordinator"
+          projectId={group.id}
+          milestoneId={null}
+          confirmedDate={group.defenseDate ? new Date(group.defenseDate) : null}
+          initial={isEdit ? group : undefined}
+          inputClassName={inputCls}
+          primaryButtonClassName="w-full rounded-lg bg-administrative-coordinator-primary py-2.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
+          tooltip={(key) => DEFENSE_LOGISTICS_FIELD_GUIDE.find((s) => s.key === key)?.description}
+          onSaved={() => {
+            onSaved();
+            onClose();
+          }}
+        />
       </div>
     </div>
   );

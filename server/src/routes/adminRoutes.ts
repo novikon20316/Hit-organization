@@ -38,7 +38,7 @@ import {
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
 import { impersonationLimiter } from '../middleware/rateLimit.js';
-import { assignDefense } from '../controllers/coordinatorController.js';
+import { assignDefense, getDefenseZoomStartUrl, getDefenseConfig } from '../controllers/coordinatorController.js';
 import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile } from '../controllers/infoFilesController.js';
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
@@ -114,6 +114,8 @@ router.post('/projects/:projectId/enroll', authenticateUser, enrollStudentToProj
 router.post('/users/:id/disable-2fa', verifyToken, disableUser2FA);
 router.post('/defense-access-grants/:grantCode/extend', verifyToken, extendDefenseAccessGrant);
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
+router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl);
+router.get('/defense-config', verifyToken, getDefenseConfig);
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
 router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);

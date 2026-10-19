@@ -15,6 +15,7 @@ import { PendingMilestoneCard } from './PendingMilestoneCard';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { DateConflictModal } from './DateConflictModal';
 import type { AssignedMilestone, CoordinatorPendingMilestone, ExaminerUser, Project } from './types';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
 
 // The matched defense date lives on the milestone's `dueDate` field (set by
 // the date-matching flow), not `defenseDate` — and it can arrive either as
@@ -390,7 +391,8 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
                   {dayCards.map((c) => {
                     const accent = getDefenseAccent(c);
                     const title = lang === 'he' ? c.titleHe : c.titleEn;
-                    const clickable = c.kind === 'dateSet' && c.project && c.milestone;
+                    // dateSet = set logistics; scheduledUpcoming = edit them.
+                    const clickable = (c.kind === 'dateSet' || c.kind === 'scheduledUpcoming') && c.project && c.milestone;
                     return (
                       <button
                         key={c.key}
@@ -520,7 +522,7 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
                 <div key={card.key} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: accent }}>
                   {Header}
                   <p className="mt-1 text-xs font-semibold text-success">
-                    📅 {lang === 'he' ? 'מועד הגנה אושר — יש לקבוע שעה, חדר ובניין' : 'Defense date confirmed — set time, room & building'}
+                    📅 {lang === 'he' ? 'מועד הגנה אושר — יש לקבוע אופן הגנה, שעה ומקום' : 'Defense date confirmed — set format, time & place'}
                     {card.daysLeft !== null ? ` (${card.daysLeft}${lang === 'he' ? ' ימים' : 'd'})` : ''}
                   </p>
                   <button
@@ -547,12 +549,22 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
                     <p className="mt-1.5 rounded-full bg-paper px-2.5 py-1 text-xs text-ink">
                       📅 {d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
                       {milestone.defenseTime ? ` ${milestone.defenseTime}` : ''}
-                      {milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
+                      {showsDefensePlace(milestone) && milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
                     </p>
                   )}
+                  <p className="mt-1.5 text-xs text-muted">
+                    {defenseModeIcon(resolveDefenseMode(milestone))} {defenseModeLabel(resolveDefenseMode(milestone), lang)}
+                  </p>
                   <p className="mt-1.5 text-xs font-semibold" style={{ color: accent }}>
                     ⏳ {card.daysLeft} {lang === 'he' ? 'ימים להגנה' : card.daysLeft === 1 ? 'day left' : 'days left'}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setLogisticsTarget({ project, milestone })}
+                    className="mt-3 w-full rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-primary hover:text-primary"
+                  >
+                    ✏️ {lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit defense details'}
+                  </button>
                 </div>
               );
             }

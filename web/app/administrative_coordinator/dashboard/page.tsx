@@ -12,6 +12,7 @@
 // fix applied to coordinator/home, faculty_admin/dashboard, etc.).
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
@@ -568,7 +569,9 @@ function AdministrativeCoordinatorDashboardContent() {
                 {group.defenseDate ? (
                   <p className="mt-2 rounded-lg bg-paper px-2.5 py-1.5 text-xs font-medium text-ink">
                     🛡 {t('defenseDate')} {new Date(group.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
-                    {group.defenseRoom ? ` · ${group.defenseRoom}` : ''}
+                    {group.defenseTime ? ` · ${group.defenseTime}` : ''}
+                    {showsDefensePlace(group) && group.defenseRoom ? ` · ${group.defenseRoom}` : ''}
+                    {group.defenseTime ? ` · ${defenseModeIcon(resolveDefenseMode(group))} ${defenseModeLabel(resolveDefenseMode(group), lang)}` : ''}
                   </p>
                 ) : (
                   <p className="mt-2 text-xs text-muted">📅 {t('defenseNotScheduled')}</p>
@@ -663,7 +666,7 @@ function AdministrativeCoordinatorDashboardContent() {
                     onClick={() => setDefenseModalGroup(group)}
                     className="flex-1 rounded-lg border border-success px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success-bg"
                   >
-                    🛡 {t('scheduleDefense')}
+                    🛡 {group.defenseTime ? (lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit defense') : t('scheduleDefense')}
                   </button>
                   <button
                     type="button"

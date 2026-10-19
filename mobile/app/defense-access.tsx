@@ -10,6 +10,7 @@
 // access on its own.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { defenseModeLabel, resolveDefenseMode, type DefenseMode, type DefenseZoomMeeting } from '@/utils/defenseDisplay';
 import { View, Text, ActivityIndicator, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -17,7 +18,7 @@ import { apiClient } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { DefenseAccessStyles } from '../constants/styles';
 
-type GateStatus = 'loading' | 'invalid' | 'not_yet_active' | 'active' | 'expired' | 'error';
+type GateStatus = 'loading' | 'invalid' | 'not_yet_active' | 'active' | 'expired' | 'revoked' | 'error';
 
 interface DefenseAccessInfo {
   examinerName: string;
@@ -30,6 +31,8 @@ interface DefenseAccessInfo {
   building?: string | null;
   time?: string | null;
   onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
 }
 
 export default function DefenseAccessScreen() {
@@ -108,7 +111,23 @@ export default function DefenseAccessScreen() {
     );
   }
 
+  // Staff moved the defense date — a new link for the new day went out by email.
+  if (status === 'revoked') {
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={s.centered}>
+          <Text style={s.emoji}>📅</Text>
+          <Text style={s.title}>{L('מועד ההגנה שונה', 'The defense date changed')}</Text>
+          <Text style={s.sub}>
+            {L('קישור זה אינו תקף עוד. קישור חדש ליום ההגנה החדש נשלח אליך בדוא"ל.', 'This link is no longer valid. A new link for the new defense day was sent to your email.')}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // ── active ──────────────────────────────────────────────────────────────
+  const mode = resolveDefenseMode({ defenseMode: info?.defenseMode, defenseRoom: info?.room, onlineDefenseLink: info?.onlineDefenseLink });
   return (
     <SafeAreaView style={s.root}>
       <View style={s.content}>
@@ -120,13 +139,15 @@ export default function DefenseAccessScreen() {
           <InfoRow label={L('כותרת העבודה', 'Thesis')} value={lang === 'he' ? info?.projectTitleHe : info?.projectTitleEn} />
           <InfoRow label={L('תאריך', 'Date')} value={info?.defenseDateISO} />
           <InfoRow label={L('שעה', 'Time')} value={info?.time ?? L('טרם נקבע', 'Not set yet')} />
-          <InfoRow label={L('חדר', 'Room')} value={info?.room ?? L('טרם נקבע', 'Not set yet')} />
-          <InfoRow label={L('בניין', 'Building')} value={info?.building ?? L('טרם נקבע', 'Not set yet')} />
+          {info?.time ? <InfoRow label={L('אופן ההגנה', 'Format')} value={defenseModeLabel(mode, lang)} /> : null}
+          {mode !== 'zoom' && <InfoRow label={L('חדר', 'Room')} value={info?.room ?? L('טרם נקבע', 'Not set yet')} />}
+          {mode !== 'zoom' && <InfoRow label={L('בניין', 'Building')} value={info?.building ?? L('טרם נקבע', 'Not set yet')} />}
+          {mode !== 'in_person' && info?.zoomMeeting?.passcode ? <InfoRow label={L('סיסמת Zoom', 'Zoom passcode')} value={info.zoomMeeting.passcode} /> : null}
         </View>
 
-        {info?.onlineDefenseLink && (
+        {mode !== 'in_person' && info?.onlineDefenseLink && (
           <Pressable style={s.card} onPress={() => Linking.openURL(info.onlineDefenseLink!)} accessibilityRole="link">
-            <Text style={[s.title, { fontSize: 16 }]}>💻 {L('הצטרפות להגנה המקוונת', 'Join the online defense')}</Text>
+            <Text style={[s.title, { fontSize: 16 }]}>💻 {L('הצטרפות להגנה בזום', 'Join the Zoom defense')}</Text>
           </Pressable>
         )}
 

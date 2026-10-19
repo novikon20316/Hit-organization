@@ -4,7 +4,7 @@ import {
   getCoordinatorStatistics, exportCoordinatorStatistics, updateSupervisorPaymentRates,
 } from '../controllers/projectCoordinatorController.js';
 import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization, setStudentCompletedCourses } from '../controllers/studentTrackController.js';
-import { assignDefense } from '../controllers/coordinatorController.js';
+import { assignDefense, getDefenseZoomStartUrl, getDefenseConfig } from '../controllers/coordinatorController.js';
 import { studentsMessageLimiter } from '../middleware/rateLimit.js';
 import { revokeStudentFinalReportLinks } from '../controllers/finalReportController.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -31,5 +31,7 @@ router.get('/statistics', verifyToken, getCoordinatorStatistics);
 router.get('/statistics/export', verifyToken, exportCoordinatorStatistics);
 router.put('/supervisor-payment-rates', verifyToken, updateSupervisorPaymentRates);
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
+router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl);
+router.get('/defense-config', verifyToken, getDefenseConfig);
 
 export default router;

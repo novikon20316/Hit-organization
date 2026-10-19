@@ -1,4 +1,5 @@
 // app/student/home/types.ts
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 
 export type StudentState = 'loading' | 'ineligible' | 'awaiting_grade' | 'no_project' | 'choose_supervisor' | 'active';
 export type DegreeType = 'bachelors' | 'masters';
@@ -151,6 +152,9 @@ export interface Milestone {
   defenseRoom: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
+  onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
   examinerNames: string[];
   examinerIds: string[];
   rejectionReason?: string | null;

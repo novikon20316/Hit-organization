@@ -80,6 +80,8 @@ function toRoadmapMilestone(raw: Record<string, unknown> & { id: string }): Road
     defenseBuilding: typeof raw.defenseBuilding === 'string' ? raw.defenseBuilding : null,
     defenseTime: typeof raw.defenseTime === 'string' ? raw.defenseTime : null,
     onlineDefenseLink: typeof raw.onlineDefenseLink === 'string' ? raw.onlineDefenseLink : null,
+    defenseMode: raw.defenseMode === 'in_person' || raw.defenseMode === 'zoom' || raw.defenseMode === 'hybrid' ? raw.defenseMode : null,
+    zoomMeeting: raw.zoomMeeting && typeof raw.zoomMeeting === 'object' ? (raw.zoomMeeting as any) : null,
     examinerIds: Array.isArray(raw.examinerIds) ? (raw.examinerIds as string[]) : [],
     routing: Array.isArray(raw.routing) ? (raw.routing as RoutingStage[]) : undefined,
     currentStageIndex: typeof raw.currentStageIndex === 'number' ? raw.currentStageIndex : undefined,

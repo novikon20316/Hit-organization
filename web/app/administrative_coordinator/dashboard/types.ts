@@ -1,5 +1,6 @@
 // app/administrative_coordinator/dashboard/types.ts
 
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 export interface MemberMilestoneGrade {
   type: string;
   /** Snapshotted from the workflow template at enrollment — the only real
@@ -31,6 +32,12 @@ export interface ProjectGroup {
   primaryStatus: string;
   defenseDate: string | null;
   defenseRoom: string | null;
+  defenseBuilding?: string | null;
+  defenseTime?: string | null;
+  defenseMode?: DefenseMode | null;
+  onlineDefenseLink?: string | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
   submissionsCount: number;
   overdueCount: number;
   isOverdue: boolean;

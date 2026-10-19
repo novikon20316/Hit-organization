@@ -4,6 +4,7 @@
 // Ported from mobile/app/examinor/home.tsx.
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
 import { useSearchParams } from 'next/navigation';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
@@ -100,6 +101,9 @@ function ExaminerHomeContent() {
               defenseRoom: live.defenseRoom ?? null,
               defenseBuilding: live.defenseBuilding ?? null,
               defenseTime: live.defenseTime ?? null,
+              onlineDefenseLink: live.onlineDefenseLink ?? null,
+              defenseMode: live.defenseMode ?? null,
+              zoomMeeting: live.zoomMeeting ?? null,
               defensePanel: live.defensePanel ?? m.defensePanel,
               dateMatching: live.dateMatching ?? m.dateMatching,
               supervisorScore: live.supervisorScore ?? null,
@@ -207,13 +211,35 @@ function ExaminerHomeContent() {
                       {isValid ? defDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                     </span>
                   </span>
-                  {isValid && (
+                  {m.defenseTime && (
                     <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
                       <span className="block text-[10px] text-examinor-on-surface-variant">{t('time')}</span>
-                      <span className="font-medium text-examinor-on-surface">{defDate.toLocaleTimeString(lang === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                      <span className="font-medium text-examinor-on-surface">{m.defenseTime}</span>
                     </span>
                   )}
-                  {m.defenseRoom && (
+                  {m.defenseTime && (
+                    <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
+                      <span className="block text-[10px] text-examinor-on-surface-variant">{lang === 'he' ? 'אופן' : 'Format'}</span>
+                      <span className="font-medium text-examinor-on-surface">{defenseModeIcon(resolveDefenseMode(m))} {defenseModeLabel(resolveDefenseMode(m), lang)}</span>
+                    </span>
+                  )}
+                  {showsDefensePlace(m) && m.defenseBuilding && (
+                    <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
+                      <span className="block text-[10px] text-examinor-on-surface-variant">{lang === 'he' ? 'בניין' : 'Building'}</span>
+                      <span className="font-medium text-examinor-on-surface">{m.defenseBuilding}</span>
+                    </span>
+                  )}
+                  {showsDefenseLink(m) && (
+                    <a
+                      href={m.onlineDefenseLink!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-examinor-primary px-2.5 py-1.5 font-semibold text-examinor-on-primary hover:opacity-90"
+                    >
+                      💻 {lang === 'he' ? 'הצטרפות לזום' : 'Join Zoom'}
+                    </a>
+                  )}
+                  {showsDefensePlace(m) && m.defenseRoom && (
                     <span className="rounded-lg bg-examinor-surface-container-low px-2.5 py-1.5">
                       <span className="block text-[10px] text-examinor-on-surface-variant">{lang === 'he' ? 'חדר' : 'Room'}</span>
                       <span className="font-medium text-examinor-on-surface">{m.defenseRoom}</span>

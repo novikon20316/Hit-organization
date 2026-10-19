@@ -17,12 +17,13 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { defenseModeLabel, resolveDefenseMode, type DefenseMode, type DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import { useSearchParams } from 'next/navigation';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
-type GateStatus = 'loading' | 'invalid' | 'not_yet_active' | 'active' | 'expired' | 'error';
+type GateStatus = 'loading' | 'invalid' | 'not_yet_active' | 'active' | 'expired' | 'revoked' | 'error';
 
 interface DefenseAccessInfo {
   examinerName?: string;
@@ -35,6 +36,8 @@ interface DefenseAccessInfo {
   building?: string | null;
   time?: string | null;
   onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
 }
 
 function DefenseAccessContent() {
@@ -90,6 +93,19 @@ function DefenseAccessContent() {
     );
   }
 
+  // Staff moved the defense date — a new link for the new day went out by email.
+  if (status === 'revoked') {
+    return (
+      <div className="max-w-sm text-center">
+        <span className="text-4xl">📅</span>
+        <h1 className="mt-2 text-xl font-semibold text-ink">{lang === 'he' ? 'מועד ההגנה שונה' : 'The defense date changed'}</h1>
+        <p className="mt-1 text-sm text-muted">
+          {lang === 'he' ? 'קישור זה אינו תקף עוד. קישור חדש ליום ההגנה החדש נשלח אליך בדוא"ל.' : 'This link is no longer valid. A new link for the new defense day was sent to your email.'}
+        </p>
+      </div>
+    );
+  }
+
   if (status === 'expired') {
     return (
       <div className="max-w-sm text-center">
@@ -103,6 +119,7 @@ function DefenseAccessContent() {
   // ── active ──────────────────────────────────────────────────────────────
   const thesisTitle = lang === 'he' ? info?.projectTitleHe : info?.projectTitleEn;
   const notSet = t('defenseAccessNotSetYet');
+  const mode = resolveDefenseMode({ defenseMode: info?.defenseMode, defenseRoom: info?.room, onlineDefenseLink: info?.onlineDefenseLink });
 
   return (
     <div className="w-full max-w-sm text-center">
@@ -119,18 +136,20 @@ function DefenseAccessContent() {
         <InfoRow label={t('projectTitle')} value={thesisTitle} />
         <InfoRow label={t('date')} value={info?.defenseDateISO} />
         <InfoRow label={t('time')} value={info?.time ?? notSet} />
-        <InfoRow label={t('defenseRoom')} value={info?.room ?? notSet} />
-        <InfoRow label={t('defenseBuilding')} value={info?.building ?? notSet} />
+        {info?.time && <InfoRow label={lang === 'he' ? 'אופן ההגנה' : 'Format'} value={defenseModeLabel(mode, lang)} />}
+        {mode !== 'zoom' && <InfoRow label={t('defenseRoom')} value={info?.room ?? notSet} />}
+        {mode !== 'zoom' && <InfoRow label={t('defenseBuilding')} value={info?.building ?? notSet} />}
+        {mode !== 'in_person' && info?.zoomMeeting?.passcode && <InfoRow label={lang === 'he' ? 'סיסמת Zoom' : 'Zoom passcode'} value={info.zoomMeeting.passcode} />}
       </div>
 
-      {info?.onlineDefenseLink && (
+      {mode !== 'in_person' && info?.onlineDefenseLink && (
         <a
           href={info.onlineDefenseLink}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover"
         >
-          💻 {lang === 'he' ? 'הצטרפות להגנה המקוונת' : 'Join the online defense'}
+          💻 {lang === 'he' ? 'הצטרפות להגנה בזום' : 'Join the Zoom defense'}
         </a>
       )}
 

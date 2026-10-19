@@ -5,6 +5,8 @@ import {
   coordinatorApproveMilestone,
   coordinatorRejectMilestone,
   assignDefense,
+  getDefenseZoomStartUrl,
+  getDefenseConfig,
   resolveDefenseDateConflict,
   getCoordinatorExaminerRecommendations,
   approveExaminerRecommendation,
@@ -35,6 +37,8 @@ router.post('/examiner-recommendations/:id/reject', verifyToken, rejectExaminerR
 router.post('/:milestoneId/approve', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, coordinatorApproveMilestone)
 router.post('/:milestoneId/reject', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, coordinatorRejectMilestone)
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense)
+router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl)
+router.get('/defense-config', verifyToken, getDefenseConfig)
 router.post('/milestones/:milestoneId/resolve-date-conflict', verifyToken, resolveDefenseDateConflict)
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffCoordinator);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterCoordinator);

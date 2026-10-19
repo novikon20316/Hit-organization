@@ -4,6 +4,8 @@
 // open groups, assign students, schedule defenses, track submissions.
 
 import React, { useState, useEffect, useCallback } from 'react';
+import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace, type DefenseMode, type DefenseZoomMeeting } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Alert, RefreshControl,
@@ -70,6 +72,14 @@ interface ProjectGroup {
   primaryStatus:   string;
   defenseDate:     string | null;
   defenseRoom:     string | null;
+  // Rest of the mirrored logistics, so the Schedule Defense modal can
+  // prefill itself as an edit form.
+  defenseBuilding?: string | null;
+  defenseTime?:     string | null;
+  defenseMode?:     DefenseMode | null;
+  onlineDefenseLink?: string | null;
+  zoomMeeting?:     DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
   submissionsCount:number;
   overdueCount:    number;
   isOverdue:       boolean;
@@ -415,156 +425,6 @@ function SendExaminerModal({
                   ? (lang === 'he' ? 'שלח שוב' : 'Send again')
                   : (lang === 'he' ? '📧 שלח בקשה' : '📧 Send Request')}
               </Text>
-          }
-        </Pressable>
-
-        <Pressable style={m.btnCancel} onPress={handleClose} accessibilityRole="button">
-          <Text style={m.btnCancelText}>{tx('cancel', lang)}</Text>
-        </Pressable>
-      </ScrollView>
-    </Modal>
-  );
-}
-
-// ─── Defense Logistics Modal ────────────────────────────────────────────────
-interface DefenseLogisticsModalProps {
-  visible: boolean;
-  group:   ProjectGroup | null;
-  lang:    Lang;
-  onClose: () => void;
-  onSaved: () => void;
-}
-
-function DefenseLogisticsModal({ visible, group, lang, onClose, onSaved }: DefenseLogisticsModalProps) {
-  const [time,     setTime]     = useState('');
-  const [room,     setRoom]     = useState('');
-  const [building, setBuilding] = useState('');
-  const [onlineDefenseLink, setOnlineDefenseLink] = useState('');
-  const [saving,   setSaving]   = useState(false);
-
-  const reset = () => { setTime(''); setRoom(''); setBuilding(''); setOnlineDefenseLink(''); };
-  const handleClose = () => { reset(); onClose(); };
-
-  const handleSave = async () => {
-    if (!group) return;
-    if (!time.trim() || !room.trim() || !building) {
-      Alert.alert(
-        lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא שעה, חדר ובניין' : 'Time, room, and building are all required',
-      );
-      return;
-    }
-    setSaving(true);
-    try {
-      await apiClient.post(`/api/project-coordinator/projects/${group.id}/assign-defense`, {
-        time: time.trim(),
-        room: room.trim(),
-        building,
-        ...(onlineDefenseLink.trim() ? { onlineDefenseLink: onlineDefenseLink.trim() } : {}),
-      });
-      Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
-      reset();
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to save defense logistics');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const isRtl = lang === 'he';
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <ScrollView style={m.modal} contentContainerStyle={m.modalContent}>
-        {visible && <FieldGuideOverlay guideKey={DEFENSE_LOGISTICS_GUIDE_KEY} steps={DEFENSE_LOGISTICS_FIELD_GUIDE} />}
-        <Text style={m.modalTitle}>
-          🛡 {tx('scheduleDefense', lang)}
-        </Text>
-
-        {group && (
-          <View style={m.contextCard}>
-            <Text style={m.contextTitle}>{group.projectTitle}</Text>
-            <Text style={m.contextSub}>
-              👥 {group.members.map(mem => mem.name).join(', ')}
-            </Text>
-            {group.defenseDate && (
-              <Text style={m.contextSub}>
-                📅 {tx('defenseDate', lang)} {group.defenseDate}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <FieldGuideTarget fieldKey="time">
-        <View style={m.fieldWrap}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={m.fieldLabel}>{tx('defenseTime', lang)}</Text>
-            <InfoTooltip textHe={logisticsGuideEntry('time').description.he} textEn={logisticsGuideEntry('time').description.en} />
-          </View>
-          <TextInput
-            style={[m.input, isRtl && { textAlign: 'right' }]}
-            value={time}
-            onChangeText={setTime}
-            placeholder="HH:MM"
-            placeholderTextColor={ap.onSurfaceVariant}
-          />
-        </View>
-        </FieldGuideTarget>
-
-        <FieldGuideTarget fieldKey="room">
-        <View style={m.fieldWrap}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={m.fieldLabel}>{tx('defenseRoom', lang)}</Text>
-            <InfoTooltip textHe={logisticsGuideEntry('room').description.he} textEn={logisticsGuideEntry('room').description.en} />
-          </View>
-          <TextInput
-            style={[m.input, isRtl && { textAlign: 'right' }]}
-            value={room}
-            onChangeText={setRoom}
-            placeholder={lang === 'he' ? 'חדר 101' : 'Room 101'}
-            placeholderTextColor={ap.onSurfaceVariant}
-          />
-        </View>
-        </FieldGuideTarget>
-
-        <FieldGuideTarget fieldKey="building">
-        <View style={m.fieldWrap}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={m.fieldLabel}>{tx('defenseBuilding', lang)}</Text>
-            <InfoTooltip textHe={logisticsGuideEntry('building').description.he} textEn={logisticsGuideEntry('building').description.en} />
-          </View>
-          <DefenseBuildingPicker value={building} onChange={setBuilding} lang={lang} />
-        </View>
-        </FieldGuideTarget>
-
-        <FieldGuideTarget fieldKey="onlineLink">
-        <View style={m.fieldWrap}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={m.fieldLabel}>{lang === 'he' ? 'קישור להגנה מקוונת (אופציונלי)' : 'Online defense link (optional)'}</Text>
-            <InfoTooltip textHe={logisticsGuideEntry('onlineLink').description.he} textEn={logisticsGuideEntry('onlineLink').description.en} />
-          </View>
-          <TextInput
-            style={[m.input, isRtl && { textAlign: 'right' }]}
-            value={onlineDefenseLink}
-            onChangeText={setOnlineDefenseLink}
-            placeholder="https://zoom.us/j/..."
-            placeholderTextColor={ap.onSurfaceVariant}
-            autoCapitalize="none"
-          />
-        </View>
-        </FieldGuideTarget>
-
-        <Pressable
-          style={[m.btnSend, saving && { opacity: 0.6 }]}
-          onPress={handleSave}
-          disabled={saving}
-          accessibilityRole="button"
-        >
-          {saving
-            ? <ActivityIndicator color={ap.onPrimary} />
-            : <Text style={m.btnSendText}>{lang === 'he' ? 'שמור' : 'Save'}</Text>
           }
         </Pressable>
 
@@ -1719,7 +1579,9 @@ export default function ProjectCoordinatorDashboard() {
                 <View style={s.defensePill}>
                   <Text style={s.defensePillText}>
                     🛡 {tx('defenseDate', lang)} {group.defenseDate}
-                    {group.defenseRoom ? `  ·  ${group.defenseRoom}` : ''}
+                    {group.defenseTime ? `  ·  ${group.defenseTime}` : ''}
+                    {showsDefensePlace(group) && group.defenseRoom ? `  ·  ${group.defenseRoom}` : ''}
+                    {group.defenseTime ? `  ·  ${defenseModeIcon(resolveDefenseMode(group))} ${defenseModeLabel(resolveDefenseMode(group), lang)}` : ''}
                   </Text>
                 </View>
               ) : (
@@ -1748,7 +1610,7 @@ export default function ProjectCoordinatorDashboard() {
                   accessibilityRole="button"
                 >
                   <Text style={[s.actionBtnText, { color: '#065F46' }]}>
-                    🛡 {tx('scheduleDefense', lang)}
+                    🛡 {group.defenseTime ? (lang === 'he' ? 'עריכת הגנה' : 'Edit defense') : tx('scheduleDefense', lang)}
                   </Text>
                 </Pressable>
 
@@ -1782,10 +1644,17 @@ export default function ProjectCoordinatorDashboard() {
       />
 
       {/* Defense logistics modal */}
-      <DefenseLogisticsModal
+      <ScheduleDefenseModal
         visible={!!defenseModalGroup}
-        group={defenseModalGroup}
+        basePath="project-coordinator"
+        projectId={defenseModalGroup?.id ?? null}
+        projectTitle={defenseModalGroup?.projectTitle}
+        confirmedDate={defenseModalGroup?.defenseDate ? new Date(defenseModalGroup.defenseDate) : null}
+        initial={defenseModalGroup?.defenseTime ? defenseModalGroup : undefined}
         lang={lang}
+        isRtl={lang === 'he'}
+        guideKey={DEFENSE_LOGISTICS_GUIDE_KEY}
+        guideSteps={DEFENSE_LOGISTICS_FIELD_GUIDE}
         onClose={() => setDefenseModalGroup(null)}
         onSaved={fetchData}
       />

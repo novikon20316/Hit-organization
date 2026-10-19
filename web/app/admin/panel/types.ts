@@ -1,4 +1,5 @@
 // app/admin/panel/types.ts
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import type { AppRole, FacultyId } from '@/lib/roles';
 import type { ScopeRule, CoordinatorScope } from '@/lib/permissions';
 
@@ -106,6 +107,17 @@ export interface AdminProjectRecord {
   enrolledStudentIds?: string[];
   academicYear?: string;
   createdAt?: string;
+  // Defense logistics mirrored onto the project by assignDefense (raw doc
+  // spread, so the date arrives as a serialized Admin-SDK Timestamp).
+  defenseDate?: string | { _seconds?: number } | null;
+  defenseSchedulingState?: string;
+  defenseMode?: DefenseMode | null;
+  defenseTime?: string | null;
+  defenseBuilding?: string | null;
+  defenseRoom?: string | null;
+  onlineDefenseLink?: string | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
 }
 
 export interface AdminMilestoneRecord {

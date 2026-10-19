@@ -327,7 +327,11 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
     const activatesAt = dayjs(grant.activatesAt);
     const expiresAt = dayjs(grant.expiresAt);
 
-    const status = grant.status === 'admin_extended' && now.isBefore(dayjs(grant.adminExtension?.newExpiresAt))
+    // 'revoked' = staff moved the defense date and a new grant was issued
+    // for the new day (coordinatorController.ts's reissueDefenseAccessGrants).
+    const status = grant.status === 'revoked'
+      ? 'revoked'
+      : grant.status === 'admin_extended' && now.isBefore(dayjs(grant.adminExtension?.newExpiresAt))
       ? 'active'
       : now.isBefore(activatesAt)
         ? 'not_yet_active'
@@ -379,6 +383,8 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
       building: milestone?.defenseBuilding ?? null,
       onlineDefenseLink: milestone?.onlineDefenseLink ?? null,
       time: milestone?.defenseTime ?? null,
+      defenseMode: milestone?.defenseMode ?? null,
+      zoomMeeting: milestone?.zoomMeeting ?? null,
     });
   } catch (error: any) {
     console.error('getDefenseAccessStatus error:', error);

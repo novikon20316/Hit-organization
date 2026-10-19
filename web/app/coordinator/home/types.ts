@@ -1,4 +1,5 @@
 // app/coordinator/home/types.ts
+import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import type { FacultyId } from '@/lib/i18n';
 import type { ChainStage } from '@/app/workflow-templates/types';
 
@@ -39,6 +40,11 @@ export interface AssignedMilestone {
   defenseDate?: string | null;
   defenseRoom?: string | null;
   defenseTime?: string | null;
+  defenseBuilding?: string | null;
+  onlineDefenseLink?: string | null;
+  defenseMode?: DefenseMode | null;
+  zoomMeeting?: DefenseZoomMeeting | null;
+  defenseDurationMinutes?: number | null;
   defensePanel?: DefensePanelMember[];
   examinerGrading?: Record<string, { gradedAt?: string | null }>;
   /** Position among this project's own milestones, snapshotted from the

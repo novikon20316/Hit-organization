@@ -298,7 +298,6 @@ export default function PanelScreen() {
   const [addingStudent, setAddingStudent] = useState(false);
   // ── Schedule defense state ─────────────────────────────────────────────────────
   const [defenseProject, setDefenseProject] = useState<ProjectRecord | null>(null);
-  const [schedulingDefense, setSchedulingDefense] = useState(false);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   //-----------------------------------------------------------------------------------
   const unsubUsersRef      = useRef<(() => void) | null>(null);
@@ -931,28 +930,6 @@ export default function PanelScreen() {
         },
       ]
     );
-  };
-
-  const handleScheduleDefense = async (fields: { time: string; room: string; building: string }) => {
-    if (!defenseProject) return;
-    if (!fields.time || !fields.room || !fields.building) {
-      Alert.alert(
-        lang === 'he' ? 'שגיאה' : 'Error',
-        lang === 'he' ? 'יש למלא שעה, חדר ובניין' : 'Time, room, and building are all required',
-      );
-      return;
-    }
-    try {
-      setSchedulingDefense(true);
-      await apiClient.post(`/api/admin/projects/${defenseProject.id}/assign-defense`, fields);
-      Alert.alert('✅', lang === 'he' ? 'פרטי ההגנה נשמרו בהצלחה' : 'Defense logistics saved successfully');
-      setDefenseProject(null);
-      fetchAllDashboardData();
-    } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.message || 'Failed to save defense logistics');
-    } finally {
-      setSchedulingDefense(false);
-    }
   };
 
   const stats: SystemStats = useMemo(() => {
@@ -2626,12 +2603,15 @@ export default function PanelScreen() {
       {/* ── Schedule Defense Modal ── */}
       <ScheduleDefenseModal
         visible={!!defenseProject}
-        project={defenseProject}
+        basePath="admin"
+        projectId={defenseProject?.id ?? null}
+        projectTitle={defenseProject ? (lang === 'he' ? defenseProject.titleHe : defenseProject.titleEn) : undefined}
+        confirmedDate={parseProjectDefenseDate(defenseProject?.defenseDate)}
+        initial={defenseProject?.defenseSchedulingState === 'scheduled' ? defenseProject : undefined}
         lang={lang}
         isRtl={isRtl}
-        saving={schedulingDefense}
         onClose={() => setDefenseProject(null)}
-        onSave={handleScheduleDefense}
+        onSaved={fetchAllDashboardData}
       />
       <BulkDueDateModal
         visible={showBulkDueDate}
@@ -2727,3 +2707,12 @@ export default function PanelScreen() {
 }
 
 const styles = adminPanelStyles;
+
+function parseProjectDefenseDate(value: ProjectRecord['defenseDate']): Date | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return typeof value._seconds === 'number' ? new Date(value._seconds * 1000) : null;
+}

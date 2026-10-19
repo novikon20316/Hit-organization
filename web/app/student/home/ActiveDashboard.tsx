@@ -4,6 +4,7 @@
 // Ported from mobile/app/(tabs)/Activedashboard.tsx.
 
 import { useEffect, useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
@@ -362,10 +363,21 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                           <span>
                             📅 {t('defenseDate')} {toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                           </span>
-                          {m.defenseRoom && (
+                          {m.defenseTime && (
+                            <span>
+                              {defenseModeIcon(resolveDefenseMode(m))} {defenseModeLabel(resolveDefenseMode(m), lang)} · 🕐 {m.defenseTime}
+                            </span>
+                          )}
+                          {showsDefensePlace(m) && m.defenseRoom && (
                             <span>
                               🏫 {t('defenseRoom')} {m.defenseRoom}
+                              {m.defenseBuilding ? ` · ${lang === 'he' ? 'בניין' : 'Building'} ${m.defenseBuilding}` : ''}
                             </span>
+                          )}
+                          {showsDefenseLink(m) && (
+                            <a href={m.onlineDefenseLink!} target="_blank" rel="noopener noreferrer" className="font-semibold text-student-primary hover:underline">
+                              💻 {lang === 'he' ? 'הצטרפות להגנה בזום' : 'Join the Zoom defense'}
+                            </a>
                           )}
                           {m.examinerNames?.length > 0 && (
                             <span>
@@ -742,13 +754,32 @@ function DefenseDetails({ milestone: m }: { milestone: Milestone }) {
     ? defenseDate.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : notSetYet;
 
-  const rows = [
+  const mode = resolveDefenseMode(m);
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: lang === 'he' ? 'בוחן 1' : 'Examiner 1', value: m.examinerNames?.[0] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet') },
     { label: lang === 'he' ? 'בוחן 2' : 'Examiner 2', value: m.examinerNames?.[1] ?? (lang === 'he' ? 'טרם שובץ' : 'Not assigned yet') },
     { label: lang === 'he' ? 'תאריך' : 'Date', value: formattedDate },
     { label: t('time'), value: m.defenseTime ?? notSetYet },
-    { label: lang === 'he' ? 'בניין' : 'Building', value: m.defenseBuilding ?? notSetYet },
-    { label: lang === 'he' ? 'חדר' : 'Room', value: m.defenseRoom ?? notSetYet },
+    ...(m.defenseTime ? [{ label: lang === 'he' ? 'אופן ההגנה' : 'Format', value: `${defenseModeIcon(mode)} ${defenseModeLabel(mode, lang)}` }] : []),
+    ...(showsDefensePlace(m)
+      ? [
+          { label: lang === 'he' ? 'בניין' : 'Building', value: m.defenseBuilding ?? notSetYet },
+          { label: lang === 'he' ? 'חדר' : 'Room', value: m.defenseRoom ?? notSetYet },
+        ]
+      : []),
+    ...(showsDefenseLink(m)
+      ? [
+          {
+            label: 'Zoom',
+            value: (
+              <a href={m.onlineDefenseLink!} target="_blank" rel="noopener noreferrer" className="text-student-primary hover:underline">
+                {lang === 'he' ? 'הצטרפות' : 'Join'}
+                {m.zoomMeeting?.passcode ? ` · ${lang === 'he' ? 'סיסמה' : 'passcode'} ${m.zoomMeeting.passcode}` : ''}
+              </a>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (

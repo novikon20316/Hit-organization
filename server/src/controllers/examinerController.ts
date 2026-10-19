@@ -166,6 +166,8 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           defenseBuilding: milestoneData.defenseBuilding ?? null,
           defenseTime: milestoneData.defenseTime ?? null,
           onlineDefenseLink: milestoneData.onlineDefenseLink ?? null,
+          defenseMode: milestoneData.defenseMode ?? null,
+          zoomMeeting: milestoneData.zoomMeeting ?? null,
           defensePanel: milestoneData.defensePanel ?? [],
           dateMatching: milestoneData.dateMatching ?? null,
           // Independent parallel signoff (see workflowTemplates.ts's

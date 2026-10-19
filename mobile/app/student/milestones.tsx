@@ -11,6 +11,7 @@
 // file-chip list where a "N files submitted" text line used to be.)
 
 import React, { useState } from 'react';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/utils/defenseDisplay';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '@/src/api/apiClient';
@@ -297,10 +298,23 @@ export default function StudentMilestones() {
                                   🎓 {toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                                   {m.defenseTime ? `  •  ${m.defenseTime}` : ''}
                                 </Text>
-                                {(m.defenseBuilding || m.defenseRoom) && (
+                                {!!m.defenseTime && (
                                   <Text style={[mt.requirementsText, isRtl && styles.textRight]}>
-                                    🏫 {m.defenseBuilding ?? ''} {m.defenseRoom ?? ''}
+                                    {defenseModeIcon(resolveDefenseMode(m))} {defenseModeLabel(resolveDefenseMode(m), lang)}
                                   </Text>
+                                )}
+                                {showsDefensePlace(m) && (m.defenseBuilding || m.defenseRoom) && (
+                                  <Text style={[mt.requirementsText, isRtl && styles.textRight]}>
+                                    🏫 {m.defenseBuilding ? `${lang === 'he' ? 'בניין' : 'Building'} ${m.defenseBuilding}` : ''} {m.defenseRoom ?? ''}
+                                  </Text>
+                                )}
+                                {showsDefenseLink(m) && (
+                                  <Pressable onPress={() => Linking.openURL(m.onlineDefenseLink!)} accessibilityRole="link">
+                                    <Text style={[mt.requirementsText, isRtl && styles.textRight, { color: '#2563EB', fontWeight: '700' }]}>
+                                      💻 {lang === 'he' ? 'הצטרפות להגנה בזום' : 'Join the Zoom defense'}
+                                      {m.zoomMeeting?.passcode ? ` (${lang === 'he' ? 'סיסמה' : 'passcode'} ${m.zoomMeeting.passcode})` : ''}
+                                    </Text>
+                                  </Pressable>
                                 )}
                                 {m.examinerNames?.length > 0 && (
                                   <Text style={[mt.requirementsText, isRtl && styles.textRight]}>

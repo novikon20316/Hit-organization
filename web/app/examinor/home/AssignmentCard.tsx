@@ -2,6 +2,7 @@
 
 // app/examinor/home/AssignmentCard.tsx
 import { useState } from 'react';
+import { defenseModeIcon, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
@@ -233,7 +234,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
         {m.defenseDate && (
           <p className="mt-1.5 inline-block rounded-full bg-examinor-surface-container-low px-2.5 py-1 text-xs font-medium text-examinor-on-surface">
             📅 {new Date(m.defenseDate).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US')}
-            {m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
+            {m.defenseTime ? ` · ${m.defenseTime}` : ''}
+            {m.defenseTime ? ` · ${defenseModeIcon(resolveDefenseMode(m))}` : ''}
+            {showsDefensePlace(m) && m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
           </p>
         )}
       </button>
