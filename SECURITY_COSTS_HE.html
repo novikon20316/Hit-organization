@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אבטחה ועלויות: מערכת הפרויקטים</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  /* Layout: a single readable column; summary figures first, then the cost table, then what is already covered. */
+  :root {
+    --bg: #f5f7f8;
+    --surface: #ffffff;
+    --ink: #17232b;
+    --muted: #55656f;
+    --line: #d7dfe3;
+    --accent: #0d5c63;
+    --accent-soft: #e2f0f1;
+    --paid: #9a3b12;
+    --paid-soft: #fbe9df;
+    --free: #1f6b3a;
+    --free-soft: #e3f3e8;
+    --wait: #6b5a12;
+    --wait-soft: #f6f0d6;
+    --font-display: "Frank Ruhl Libre", "David", "Times New Roman", serif;
+    --font-body: "Assistant", "Segoe UI", Arial, sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10181d; --surface: #172229; --ink: #e6eef1; --muted: #9db0b9; --line: #2b3a42;
+      --accent: #6cc3c9; --accent-soft: #173a3d;
+      --paid: #f2a07a; --paid-soft: #3d2418; --free: #84d39d; --free-soft: #173323; --wait: #e2cf7c; --wait-soft: #35301a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10181d; --surface: #172229; --ink: #e6eef1; --muted: #9db0b9; --line: #2b3a42;
+    --accent: #6cc3c9; --accent-soft: #173a3d;
+    --paid: #f2a07a; --paid-soft: #3d2418; --free: #84d39d; --free-soft: #173323; --wait: #e2cf7c; --wait-soft: #35301a;
+    color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+  .page {
+    max-width: 980px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 64px;
+    display: grid; gap: 44px;
+  }
+  header { display: grid; gap: 10px; }
+  .eyebrow { font-size: 13px; letter-spacing: .04em; color: var(--accent); font-weight: 700; }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 0; text-wrap: balance; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 26px; margin: 0; text-wrap: balance; }
+  h3 { font-size: 17px; margin: 0; }
+  p { margin: 0; max-width: 70ch; }
+  .lead { color: var(--muted); font-size: 17px; }
+  section { display: grid; gap: 16px; }
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .figure { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 4px; }
+  .figure .num { font-family: var(--font-num); font-size: 30px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .figure .num.paid { color: var(--paid); }
+  .figure .label { color: var(--muted); font-size: 14px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; min-width: 760px; }
+  th, td { text-align: right; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 13px; color: var(--muted); font-weight: 700; background: var(--bg); }
+  tr:last-child td { border-bottom: 0; }
+  td.cost { font-family: var(--font-num); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.paid { background: var(--paid-soft); color: var(--paid); }
+  .pill.free { background: var(--free-soft); color: var(--free); }
+  .pill.wait { background: var(--wait-soft); color: var(--wait); }
+  .sev { font-size: 13px; color: var(--muted); }
+  .sev.high { color: var(--paid); font-weight: 700; }
+  .total { background: var(--accent-soft); border-radius: 10px; padding: 18px 20px; display: grid; gap: 8px; }
+  .total .big { font-family: var(--font-num); font-size: 24px; color: var(--accent); }
+  .total ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+  .areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .area { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .area ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; font-size: 15px; }
+  .where { font-family: var(--font-num); font-size: 11px; color: var(--muted); letter-spacing: .02em; }
+  .note { font-size: 14px; color: var(--muted); }
+  .sources { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+  .sources a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main class="page" dir="rtl" lang="he">
+  <header>
+    <span class="eyebrow">מערכת פרויקטי גמר ותזות · HIT · 19.10.2026</span>
+    <h1>אבטחה ועלויות: מה כבר מוגן ומה עוד חסר</h1>
+    <p class="lead">סיכום לפגישה. רוב העבודה כבר נעשתה ללא עלות. מה שנשאר פתוח תלוי בעיקר בשני חשבונות מפתחים (Google ו-Apple), בהחלטות ובגורמים חיצוניים.</p>
+  </header>
+
+  <section aria-labelledby="sum">
+    <h2 id="sum">במספרים</h2>
+    <div class="figures">
+      <div class="figure"><span class="num">27</span><span class="label">תיקוני אבטחה שבוצעו, כולם באוויר</span></div>
+      <div class="figure"><span class="num">7</span><span class="label">נושאים פתוחים, אף אחד מהם אינו פרצה פתוחה כרגע</span></div>
+      <div class="figure"><span class="num paid">$25 + $99/שנה</span><span class="label">התשלום המינימלי שסוגר את כל הנושאים שתלויים בכסף</span></div>
+      <div class="figure"><span class="num">0</span><span class="label">חולשות ידועות בספריות של השרת ושל האתר</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="open">
+    <h2 id="open">מה עוד פתוח, וכמה זה עולה</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>נושא</th><th>חומרה</th><th>עלות</th><th>למה עוד פתוח</th><th>מה צריך לקרות</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>App Check בשרת ובאפליקציה</strong><br><span class="note">חוסם סקריפטים שמתחזים לאפליקציה וקוראים לשרת עם חשבון אמיתי</span></td>
+            <td class="sev">בינונית</td>
+            <td class="cost"><span class="pill paid">$25 חד-פעמי</span><br><span class="pill paid">$99 לשנה</span></td>
+            <td>באתר זה כבר פעיל. באפליקציה צריך חשבון Google Play Console (לאנדרואיד) וחשבון Apple Developer (ל-iPhone). בלעדיהם האפליקציה לא יכולה להוכיח שהיא האפליקציה האמיתית</td>
+            <td>רישום לשני החשבונות, הגדרה בקונסולות, גרסת חנות חדשה (כבר כוללת מסך "חובה לעדכן"), ואז הפעלה מלאה. התוכנית מוכנה</td>
+          </tr>
+          <tr>
+            <td><strong>התחברות עם Apple</strong></td>
+            <td class="sev">–</td>
+            <td class="cost"><span class="pill paid">כלול ב-$99 של Apple</span></td>
+            <td>נדרש לאישור האפליקציה ב-App Store. הקוד קיים, חסרות הגדרות בחשבון Apple</td>
+            <td>אחרי פתיחת חשבון Apple Developer: הגדרה בחשבון וב-Firebase</td>
+          </tr>
+          <tr>
+            <td><strong>התחברות עם Google ב-iPhone</strong></td>
+            <td class="sev">–</td>
+            <td class="cost"><span class="pill paid">כלול ב-$99 של Apple</span></td>
+            <td>יצירת המזהה ב-Google Cloud חינמית, אבל רלוונטית רק כשיש גרסת iPhone, שדורשת את חשבון Apple</td>
+            <td>יצירת מזהה OAuth ל-iOS והוספתו לאפליקציה</td>
+          </tr>
+          <tr>
+            <td><strong>דומיין מאומת לשליחת מיילים</strong> (SPF/DKIM)<br><span class="note">מונע זיוף מיילים בשם המערכת, ומשפר הגעה ל-Gmail (היום רק כחצי מגיעים)</span></td>
+            <td class="sev">בינונית</td>
+            <td class="cost"><span class="pill free">₪0 דרך מחלקת ה-IT</span><br><span class="note">או כ-$10–20 לשנה לדומיין עצמאי (הערכה)</span></td>
+            <td>המיילים יוצאים היום מכתובת gmail לא מאומתת</td>
+            <td>מחלקת ה-IT של HIT מוסיפה רשומות DNS כדי ש-Brevo ישלח מכתובת כמו projects@hit.ac.il. התוכנית החינמית של Brevo (300 מיילים ביום) מספיקה כרגע</td>
+          </tr>
+          <tr>
+            <td><strong>בדיקה משפטית של מדיניות הפרטיות</strong></td>
+            <td class="sev">בינונית</td>
+            <td class="cost"><span class="pill free">₪0 דרך הלשכה המשפטית</span><br><span class="note">עורך דין חיצוני: לפי הצעת מחיר</span></td>
+            <td>המדיניות עודכנה כך שתתאים בדיוק למה שהמערכת עושה, אבל לא נבדקה על ידי גורם משפטי</td>
+            <td>לבדוק: ממונה הגנת פרטיות, העברת מידע לארה"ב, רישום מאגר מידע, ושימוש בבינה מלאכותית בהמלצה על מועמדים</td>
+          </tr>
+          <tr>
+            <td><strong>כיבוי פיצ'ר ההתחזות</strong> (כניסת מנהל בשם משתמש אחר)</td>
+            <td class="sev high">גבוהה לפני השקה</td>
+            <td class="cost"><span class="pill free">₪0</span></td>
+            <td>משמש לבדיקות בפקולטות שעוד לא עלו לאוויר. במדעי הנתונים, שבה המשתמשים אמיתיים, הוא כבר חסום</td>
+            <td>החלטה על מועד. הכיבוי עצמו הוא שינוי של שורה אחת</td>
+          </tr>
+          <tr>
+            <td><strong>26 התראות בספריות של האפליקציה</strong> (ירד מ-39)</td>
+            <td class="sev">נמוכה</td>
+            <td class="cost"><span class="pill wait">₪0, ממתין</span></td>
+            <td>לשתי הספריות שנשארו עוד אין גרסה מתוקנת מהיוצרים. הן בכלי הבנייה, לא בקוד שרץ בטלפון</td>
+            <td>לעדכן כשתצא גרסה מתוקנת. שינוי של שורה לכל ספרייה</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="total">
+      <h3>סיכום עלויות</h3>
+      <div class="big">$25 פעם אחת + $99 לשנה</div>
+      <ul>
+        <li><strong>Google Play Console, $25 חד-פעמי:</strong> פותח את App Check באנדרואיד ואת הפרסום ב-Google Play.</li>
+        <li><strong>Apple Developer, $99 לשנה:</strong> סוגר שלושה נושאים: App Check ב-iPhone, התחברות עם Apple, והתחברות עם Google ב-iPhone. נדרש ממילא כדי לפרסם ב-App Store.</li>
+        <li><strong>אופציונלי, Expo EAS Starter, $19 לחודש:</strong> בניית גרסאות חנות בלי לחכות למכסה החינמית שמתאפסת פעם בחודש. לא חובה.</li>
+        <li><strong>כל השאר בחינם:</strong> דרך מחלקת ה-IT והלשכה המשפטית של המוסד, או החלטה פנימית.</li>
+      </ul>
+      <p class="note">המחירים בדולרים כפי שפורסמו באוקטובר 2026. כדאי לאשר בדפי הרישום הרשמיים לפני התשלום.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="done">
+    <h2 id="done">מה כבר מוגן</h2>
+    <p class="lead">27 תיקונים בסבב האבטחה של 13–19.10, ועוד מנגנונים שהיו קיימים לפניו. כל מה שכאן פועל בייצור.</p>
+    <div class="areas">
+      <div class="area">
+        <h3>התחברות וזיהוי</h3>
+        <span class="where">אתר · אפליקציה · שרת</span>
+        <ul>
+          <li>סיסמאות מוצפנות אצל Google, עם מדיניות סיסמה חזקה</li>
+          <li>אימות אימייל לפני פתיחת חשבון</li>
+          <li>הרשמה רק לסטודנטים ברשימה המאושרת, עם התאמת שם (גם עברית מול אנגלית)</li>
+          <li>נעילה אחרי 3 ניסיונות כושלים, עם התראה</li>
+          <li>אימות דו-שלבי (2FA). השרת בודק בכל בקשה שהקוד באמת הוזן</li>
+          <li>חובת 2FA פעילה לסגל ולסטודנטים של מדעי הנתונים, עד 28.10</li>
+          <li>החלפת סיסמה מנתקת את כל שאר המכשירים תוך דקה</li>
+          <li>כניסה ביומטרית ואחסון מוצפן בטלפון</li>
+        </ul>
+      </div>
+      <div class="area">
+        <h3>הרשאות</h3>
+        <span class="where">שרת · מסד נתונים</span>
+        <ul>
+          <li>התפקיד נקבע בשרת, לא באפליקציה</li>
+          <li>כל איש סגל רואה רק את הפקולטה והתחום שלו</li>
+          <li>ציונים מוסתרים מהסטודנט עד שחרורם</li>
+          <li>כל הכתיבה למסד הנתונים עוברת דרך השרת</li>
+          <li>ת"ז וטלפון לא נחשפים למשתמשים אחרים</li>
+          <li>אי אפשר להתחזות למשתמשי מדעי הנתונים</li>
+          <li>יומן ביקורת לכל פעולה רגישה</li>
+        </ul>
+      </div>
+      <div class="area">
+        <h3>גישה חיצונית</h3>
+        <span class="where">אתר · שרת</span>
+        <ul>
+          <li>בוחנים חיצוניים: קישור חד-פעמי וקוד במייל, תקף ל-10 דקות</li>
+          <li>קישור לדוח מסכם: תקף 30 יום, עם כפתור ביטול לסגל</li>
+          <li>בדוח: ת"ז מוסתרת ואין טלפון, והקישור לא נשמר ביומני השרת</li>
+        </ul>
+      </div>
+      <div class="area">
+        <h3>השרת</h3>
+        <span class="where">שרת</span>
+        <ul>
+          <li>כל התקשורת מוצפנת (HTTPS)</li>
+          <li>הגבלות קצב משותפות לכל עותקי השרת</li>
+          <li>העלאת קבצים: בדיקת סוג קובץ אמיתי, בדיקת הרשאה ומגבלה לשעה</li>
+          <li>הודעות שגיאה לא חושפות פרטים טכניים</li>
+          <li>כל הסודות והמפתחות ב-Secret Manager</li>
+          <li>App Check פעיל באתר</li>
+          <li>אפס חולשות ידועות בספריות של השרת והאתר</li>
+        </ul>
+      </div>
+      <div class="area">
+        <h3>פרטיות</h3>
+        <span class="where">אתר · אפליקציה · שרת</span>
+        <ul>
+          <li>טלפונים ומזהי התראות נשמרים במקום שרק השרת קורא</li>
+          <li>התראות בטלפון לא מציגות ציונים על מסך הנעילה</li>
+          <li>מחיקה אוטומטית של חשבונות אחרי סיום הלימודים</li>
+          <li>מדיניות פרטיות מעודכנת, בעברית ובאנגלית</li>
+        </ul>
+      </div>
+      <div class="area">
+        <h3>האפליקציה</h3>
+        <span class="where">אפליקציה</span>
+        <ul>
+          <li>מסך "חובה לעדכן" לפי גרסה מינימלית, מגרסת החנות הבאה</li>
+          <li>עדכונים מרחוק מוכנים, מגרסת החנות הבאה</li>
+          <li>מספר ההתראות בספריות ירד מ-39 ל-26</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="src">
+    <h2 id="src">מקורות למחירים</h2>
+    <div class="sources">
+      <span>Google Play Console, $25 חד-פעמי: <a href="https://afkarsoftware.com/en/blog-detail/google-play-console-account-2026-one-time-25-fee/">afkarsoftware.com</a>, <a href="https://primetestlab.com/blog/google-play-developer-fee">primetestlab.com</a></span>
+      <span>Apple Developer, $99 לשנה: <a href="https://studio.adalo.com/blog/apple-developer-program-guide">adalo.com</a>, <a href="https://magora-systems.com/apple-developer-fee/">magora-systems.com</a></span>
+      <span>Expo EAS, $19 לחודש: <a href="https://docs.expo.dev/billing/plans/">docs.expo.dev</a></span>
+      <span>Brevo, תוכנית חינמית של 300 מיילים ביום: <a href="https://dreamlit.ai/blog/brevo-review">dreamlit.ai</a>, <a href="https://www.omnisend.com/blog/brevo-pricing/">omnisend.com</a></span>
+    </div>
+  </section>
+</main>
+</body>
+</html>
