@@ -90,6 +90,10 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
   }
 }
 
+// Mirror of the server's ROLE_AGNOSTIC_SCREENS — dedicated pages (e.g.
+// /committees) any role can be notified into, so they pass every role filter.
+const ROLE_AGNOSTIC_SCREENS = ['committees', 'relay_tasks', 'login_security'];
+
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',
   'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict',
@@ -112,5 +116,5 @@ export function screensForRole(role: AppRole | string | undefined | null): strin
 export function notifMatchesRole(targetScreen: string | null | undefined, role: AppRole | undefined): boolean {
   if (!targetScreen) return true;
   if (!role) return true;
-  return screensForRole(role).includes(targetScreen);
+  return ROLE_AGNOSTIC_SCREENS.includes(targetScreen) || screensForRole(role).includes(targetScreen);
 }

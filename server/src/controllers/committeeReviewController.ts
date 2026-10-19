@@ -621,6 +621,12 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
       const committee = applyCommitteeSubstitutions(rawCommittee, mergedCommitteeSubstitutions(project, m));
       if (!committee.memberIds.includes(uid)) return null;
       const memberVotes = ((m.committeeVotes ?? []) as CommitteeVote[]).filter((v) => v.memberId !== committee.chairmanId);
+      const isChairman = committee.chairmanId === uid;
+      // A member who already voted has nothing left to do here — it's no
+      // longer "pending" for them, so it leaves their list. The chairman
+      // never votes, and keeps it until their final decision clears
+      // currentCommitteeId.
+      if (!isChairman && memberVotes.some((v) => v.memberId === uid)) return null;
       return {
         milestoneId: doc.id,
         type: m.type,
@@ -628,7 +634,7 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
         projectTitleHe: project?.titleHe ?? '',
         projectTitleEn: project?.titleEn ?? '',
         committeeId: m.currentCommitteeId,
-        isChairman: committee.chairmanId === uid,
+        isChairman,
         alreadyVoted: memberVotes.some((v) => v.memberId === uid),
         voteCount: memberVotes.length,
         // Voters only — the chairman decides rather than votes.

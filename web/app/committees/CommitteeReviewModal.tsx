@@ -78,8 +78,11 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
     setError('');
     try {
       await apiClient.submitCommitteeVote(milestoneId, myVote, myComment.trim());
-      load();
+      // A saved vote is final from the member's side — close, and the
+      // refetch drops this review from their pending list (see the server's
+      // getMyPendingCommitteeReviews).
       onActed();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'שמירת ההצבעה נכשלה' : 'Failed to save your vote');
     } finally {

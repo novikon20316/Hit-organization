@@ -172,6 +172,7 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         href: '/committees',
         label: { he: 'ועדות', en: 'Committees' },
         isActive: (pathname) => pathname === '/committees',
+        badgeTargetScreens: ['committees'],
       },
       {
         key: 'records',

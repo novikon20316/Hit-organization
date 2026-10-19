@@ -169,22 +169,6 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/reports',
       },
       {
-        key: 'committees',
-        icon: '🧑‍⚖️',
-        href: '/committees',
-        label: { he: 'ועדות', en: 'Committees' },
-        description: {
-          he: 'ועדות שאתה חבר/ה בהן, וסקירות הממתינות לך.',
-          en: "Committees you're a member of, and any reviews waiting on you.",
-        },
-        isActive: (pathname) => pathname === '/committees',
-        // Only shown to someone actually on a committee — most roles are
-        // never routed into one at all (depends entirely on whether their
-        // faculty/major's workflow template uses the 'committee' ChainRole).
-        // See NotificationsContext.tsx's isOnAnyCommittee.
-        visible: (_userData, live) => live.isOnAnyCommittee,
-      },
-      {
         key: 'relay_tasks',
         icon: '📨',
         href: '/relay-tasks',

@@ -3,7 +3,7 @@ import { Response } from 'express';
 import admin from 'firebase-admin';
 import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
 import { softError } from '../middleware/auth.js';
-import { screensForRole } from '../services/notificationTargets.js';
+import { screensForRole, ROLE_AGNOSTIC_SCREENS } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
 import { getPrivateContact, writePrivateContact } from '../services/privateContact.js';
 
@@ -28,7 +28,7 @@ function resolveRoleFilter(req: AuthenticatedRequest): string | undefined {
 function matchesRoleFilter(targetScreen: unknown, role: string | undefined): boolean {
   if (!role) return true;
   if (typeof targetScreen !== 'string' || !targetScreen) return true;
-  return screensForRole(role).includes(targetScreen);
+  return ROLE_AGNOSTIC_SCREENS.includes(targetScreen) || screensForRole(role).includes(targetScreen);
 }
 
 /**
