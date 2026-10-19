@@ -297,6 +297,10 @@ export default function CoordinatorHome() {
   }, [activeTab, unreadByTargetScreen, markTabSeen]);
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
+  // Committee reviews/chair decisions waiting on the signed-in user — the
+  // Urgent Actions feed's 4th bucket. Mobile has no committees screen yet,
+  // so these render as a non-clickable reminder (review happens on web).
+  const [committeeTasks, setCommitteeTasks] = useState<{ id: string; titleHe: string; titleEn: string; isChairman: boolean }[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   const [pendingMilestones, setPendingMilestones] = useState<PendingMilestone[]>([]);
@@ -763,6 +767,24 @@ export default function CoordinatorHome() {
       }
     };
     fetchDeadlines();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'overview') return;
+    (async () => {
+      const [reviews, chair] = await Promise.allSettled([
+        apiClient.get('/api/committees/mine/pending-reviews'),
+        apiClient.get('/api/committees/mine/pending-chair-decisions'),
+      ]);
+      setCommitteeTasks([
+        ...(reviews.status === 'fulfilled' ? reviews.value.data.reviews ?? [] : []).map((r: any) => ({
+          id: r.milestoneId, titleHe: r.projectTitleHe ?? '', titleEn: r.projectTitleEn ?? '', isChairman: !!r.isChairman,
+        })),
+        ...(chair.status === 'fulfilled' ? chair.value.data.reviews ?? [] : []).map((r: any) => ({
+          id: `chair-${r.milestoneId}`, titleHe: r.projectTitleHe ?? '', titleEn: r.projectTitleEn ?? '', isChairman: true,
+        })),
+      ]);
+    })();
   }, [activeTab]);
 
   // ── Approve milestone (research_proposal or progress_report) ─────────────
@@ -1396,7 +1418,7 @@ export default function CoordinatorHome() {
 
               <View style={apStyles.sectionCard}>
                 <Text style={apStyles.sectionTitle}>⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}</Text>
-                {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 ? (
+                {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 ? (
                   <Text style={apStyles.emptyText}>✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}</Text>
                 ) : (
                   <>
@@ -1454,6 +1476,16 @@ export default function CoordinatorHome() {
                         <View key={key} style={[apStyles.feedItem, apStyles.feedItemAlert]}>{row}</View>
                       );
                     })}
+                    {/* 4. Committee reviews / chair decisions waiting on
+                        this user personally (reviewed on web's /committees). */}
+                    {committeeTasks.slice(0, 3).map((c) => (
+                      <View key={c.id} style={apStyles.feedItem}>
+                        <Text style={apStyles.feedBadge}>
+                          {c.isChairman ? (lang === 'he' ? 'החלטת יו"ר ועדה' : 'Committee Chair Decision') : (lang === 'he' ? 'בדיקת ועדה' : 'Committee Review')}
+                        </Text>
+                        <Text style={apStyles.feedTitle}>{lang === 'he' ? c.titleHe : c.titleEn}</Text>
+                      </View>
+                    ))}
                   </>
                 )}
               </View>

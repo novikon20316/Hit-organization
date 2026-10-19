@@ -106,6 +106,9 @@ function CoordinatorHomeContent() {
   const [recommendations, setRecommendations] = useState<ExaminerRecommendation[]>([]);
   const [inProgressProjects, setInProgressProjects] = useState<InProgressProject[]>([]);
   const [deadlines, setDeadlines] = useState<CoordinatorDeadline[]>([]);
+  // Committee reviews/chair decisions waiting on the signed-in user — the
+  // Urgent Actions feed's 4th bucket (same lists app/committees/page.tsx shows).
+  const [committeeTasks, setCommitteeTasks] = useState<{ id: string; titleHe: string; titleEn: string; isChairman: boolean }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [assigningMilestone, setAssigningMilestone] = useState<CoordinatorPendingMilestone | null>(null);
@@ -127,10 +130,12 @@ function CoordinatorHomeContent() {
       // depends on another's result, so there's no reason to make the whole
       // dashboard wait for them one after another; Promise.allSettled still
       // lets each one fail independently without aborting the rest.
-      const [recsResult, activeResult, deadlinesResult] = await Promise.allSettled([
+      const [recsResult, activeResult, deadlinesResult, committeeReviewsResult, chairDecisionsResult] = await Promise.allSettled([
         apiClient.getCoordinatorExaminerRecommendations(),
         apiClient.getActiveProjects(),
         firebaseUser ? apiClient.getStaffDeadlines(firebaseUser.uid) : Promise.resolve(null),
+        apiClient.getMyPendingCommitteeReviews(),
+        apiClient.getMyPendingChairDecisions(),
       ]);
 
       setRecommendations(
@@ -147,6 +152,14 @@ function CoordinatorHomeContent() {
           ? ((deadlinesResult.value.deadlines ?? []) as unknown as CoordinatorDeadline[])
           : []
       );
+      setCommitteeTasks([
+        ...(committeeReviewsResult.status === 'fulfilled' ? committeeReviewsResult.value.reviews : []).map((r) => ({
+          id: r.milestoneId, titleHe: r.projectTitleHe, titleEn: r.projectTitleEn, isChairman: r.isChairman,
+        })),
+        ...(chairDecisionsResult.status === 'fulfilled' ? chairDecisionsResult.value.reviews : []).map((r) => ({
+          id: `chair-${r.milestoneId}`, titleHe: r.projectTitleHe, titleEn: r.projectTitleEn, isChairman: true,
+        })),
+      ]);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת לוח הבקרה נכשלה' : 'Failed to load the dashboard');
     } finally {
@@ -442,7 +455,7 @@ function CoordinatorHomeContent() {
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-coordinator-on-surface">
               ⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}
             </h3>
-            {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 ? (
+            {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 ? (
               <p className="text-sm text-coordinator-on-surface-variant">
                 ✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}
               </p>
@@ -486,6 +499,20 @@ function CoordinatorHomeContent() {
                     badgeClassName="bg-coordinator-error-container text-coordinator-error"
                     badge={lang === 'he' ? 'הגשה באיחור' : 'Late Submission'}
                     title={`${d.studentName ?? ''}${d.projectTitle ? ` — ${d.projectTitle}` : ''}`}
+                  />
+                ))}
+                {/* 4. Committee reviews / chair decisions waiting on this
+                    user personally — always clickable: /committees is their
+                    own work, not a coordinator-only fix screen. */}
+                {committeeTasks.slice(0, 3).map((c) => (
+                  <UrgentActionRow
+                    key={c.id}
+                    href="/committees"
+                    clickable
+                    accent="default"
+                    badgeClassName="bg-[#EDE9FE] text-primary"
+                    badge={c.isChairman ? (lang === 'he' ? 'החלטת יו"ר ועדה' : 'Committee Chair Decision') : (lang === 'he' ? 'בדיקת ועדה' : 'Committee Review')}
+                    title={lang === 'he' ? c.titleHe : c.titleEn}
                   />
                 ))}
               </ul>
