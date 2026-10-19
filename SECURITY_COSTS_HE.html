@@ -100,7 +100,7 @@
     <h2 id="sum">במספרים</h2>
     <div class="figures">
       <div class="figure"><span class="num">28</span><span class="label">תיקוני אבטחה שבוצעו, כולם באוויר</span></div>
-      <div class="figure"><span class="num">7</span><span class="label">נושאים פתוחים, אף אחד מהם אינו פרצה פתוחה כרגע</span></div>
+      <div class="figure"><span class="num">8</span><span class="label">נושאים פתוחים, אף אחד מהם אינו פרצה פתוחה כרגע (כולל Zoom, שעוד בפיתוח)</span></div>
       <div class="figure"><span class="num paid">$25 + $99/שנה</span><span class="label">התשלום המינימלי שסוגר את כל הנושאים שתלויים בכסף</span></div>
       <div class="figure"><span class="num">0</span><span class="label">חולשות ידועות בספריות של השרת ושל האתר</span></div>
     </div>
@@ -163,6 +163,13 @@
             <td>לשתי הספריות שנשארו עוד אין גרסה מתוקנת מהיוצרים. הן בכלי הבנייה, לא בקוד שרץ בטלפון</td>
             <td>לעדכן כשתצא גרסה מתוקנת. שינוי של שורה לכל ספרייה</td>
           </tr>
+          <tr>
+            <td><strong>פגישות Zoom להגנות</strong> (בפיתוח, עוד לא באוויר)<br><span class="note">המערכת תיצור לבד פגישת Zoom לכל הגנה ותשלח את הקישור לסטודנט, למנחה ולבוחנים</span></td>
+            <td class="sev">בינונית</td>
+            <td class="cost"><span class="pill free">₪0 עם רישיון Zoom מוסדי</span><br><span class="pill paid">כ-$14–17 לחודש</span><br><span class="note">לרישיון Pro אחד, אם אין רישיון מוסדי</span></td>
+            <td>בחשבון Zoom חינמי פגישה נקטעת אחרי 40 דקות, והגנה נמשכת כ-90. חיבור ה-API עצמו חינמי. מארח אחד יכול לנהל רק פגישה אחת בכל רגע, כך ששתי הגנות במקביל ידרשו רישיון נוסף</td>
+            <td>לברר מול ה-IT אם יש רישיון מוסדי. לפני העלייה: מפתחות ב-Secret Manager, קישור מארח רק בשרת, חדר המתנה וסיסמה (כבר בקוד), הקלטה בענן כבויה, והוספת Zoom למדיניות הפרטיות</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -170,10 +177,12 @@
     <div class="total">
       <h3>סיכום עלויות</h3>
       <div class="big">$25 פעם אחת + $99 לשנה</div>
+      <p class="note">ועוד כ-$14–17 לחודש עבור Zoom, רק אם ל-HIT אין רישיון Zoom מוסדי.</p>
       <ul>
         <li><strong>Google Play Console, $25 חד-פעמי:</strong> פותח את App Check באנדרואיד ואת הפרסום ב-Google Play.</li>
         <li><strong>Apple Developer, $99 לשנה:</strong> סוגר שלושה נושאים: App Check ב-iPhone, התחברות עם Apple, והתחברות עם Google ב-iPhone. נדרש ממילא כדי לפרסם ב-App Store.</li>
         <li><strong>אופציונלי, Expo EAS Starter, $19 לחודש:</strong> בניית גרסאות חנות בלי לחכות למכסה החינמית שמתאפסת פעם בחודש. לא חובה.</li>
+        <li><strong>Zoom להגנות, ₪0 או כ-$14–17 לחודש:</strong> חינם אם ל-HIT יש רישיון Zoom מוסדי. אחרת רישיון Pro אחד (עוד אחד לכל הגנה שמתקיימת במקביל).</li>
         <li><strong>גיבויים למסד הנתונים, כמה סנטים לחודש:</strong> כבר פעילים מ-19.10 (גיבוי יומי ל-14 שבועות ושחזור לכל דקה ב-7 הימים האחרונים). העלות לפי נפח, והמסד קטן.</li>
         <li><strong>כל השאר בחינם:</strong> דרך מחלקת ה-IT והלשכה המשפטית של המוסד, או החלטה פנימית.</li>
       </ul>
@@ -272,6 +281,7 @@
       <span>Google Play Console, $25 חד-פעמי: <a href="https://afkarsoftware.com/en/blog-detail/google-play-console-account-2026-one-time-25-fee/">afkarsoftware.com</a>, <a href="https://primetestlab.com/blog/google-play-developer-fee">primetestlab.com</a></span>
       <span>Apple Developer, $99 לשנה: <a href="https://studio.adalo.com/blog/apple-developer-program-guide">adalo.com</a>, <a href="https://magora-systems.com/apple-developer-fee/">magora-systems.com</a></span>
       <span>Expo EAS, $19 לחודש: <a href="https://docs.expo.dev/billing/plans/">docs.expo.dev</a></span>
+      <span>Zoom Workplace Pro, כ-$14.16 למשתמש לחודש בתשלום שנתי (כ-$17 חודשי), והגבלת 40 דקות בחינם: <a href="https://pricingsaas.com/companies/zoom/diffs/2026W10">pricingsaas.com</a>, <a href="https://tldv.io/blog/zoom-pricing/">tldv.io</a>, <a href="https://www.eesel.ai/en/blog/zoom-pricing">eesel.ai</a></span>
       <span>Brevo, תוכנית חינמית של 300 מיילים ביום: <a href="https://dreamlit.ai/blog/brevo-review">dreamlit.ai</a>, <a href="https://www.omnisend.com/blog/brevo-pricing/">omnisend.com</a></span>
     </div>
   </section>
