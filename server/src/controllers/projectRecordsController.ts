@@ -22,6 +22,8 @@ import {
 } from '../services/projectRecords.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { L } from '../utils/localize.js';
+import * as XLSX from 'xlsx';
+import { facultyName } from '../services/studentProgress.js';
 
 type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 
@@ -653,5 +655,163 @@ export const updateProjectRecordNumber = async (req: AuthenticatedRequest, res: 
   } catch (error) {
     console.error('updateProjectRecordNumber error:', error);
     return res.status(500).json({ message: L(req, 'Failed to update record number.', 'עדכון מספר הרשומה נכשל.') });
+  }
+};
+
+// ─── Excel export ────────────────────────────────────────────────────────────
+// GET /api/project-records/export?facultyId=&from=YYYY-MM-DD&to=YYYY-MM-DD
+// Every record the caller may already see on the records screens
+// (callerRecordScope + projectWithinScope — same rule), as an .xlsx the
+// college can analyse over time. Two sheets: one row per project with
+// summary counts (submissions, rejections, resubmissions, approvals, first
+// and last activity), and one row per record. Soft-deleted entries are left
+// out for everyone. Filters are optional; the date range applies to the
+// records' own timestamps.
+
+const RECORD_TYPE_HE: Record<string, string> = {
+  student_joined_project: 'סטודנט הצטרף לפרויקט',
+  milestone_submitted: 'אבן דרך הוגשה',
+  milestone_resubmitted: 'אבן דרך הוגשה מחדש',
+  milestone_approved: 'אבן דרך אושרה',
+  milestone_rejected: 'אבן דרך נדחתה',
+  grade_submitted: 'ציון הוזן',
+  grade_changed: 'ציון עודכן',
+  final_grade_approved: 'ציון סופי אושר',
+  examiner_assigned: 'בוחן/ת שובץ/ה',
+  examiner_removed: 'בוחן/ת הוסר/ה',
+  message_sent: 'הודעה נשלחה',
+  defense_date_resolved: 'תאריך הגנה נקבע',
+  project_status_changed: 'סטטוס הפרויקט השתנה',
+  supervisor_reassigned: 'מנחה הוחלף/ה',
+};
+
+const ROLE_HE: Record<string, string> = {
+  student: 'סטודנט/ית', supervisor: 'מנחה', secondary_supervisor: 'מנחה משני/ה', coordinator: 'רכז/ת',
+  administrative_secretary: 'רכז/ת אדמיניסטרטיבי/ת', faculty_admin: 'מנהל/ת פקולטה', program_head: 'ראש תוכנית',
+  grad_school_head: 'ראש בית ספר לתארים מתקדמים', dean: 'דיקן/ית', school_head: 'ראש בית ספר', division_head: 'ראש חטיבה',
+  internal_examiner: 'בוחן/ת', system_admin: 'מנהל/ת מערכת', system: 'מערכת',
+};
+
+function recordDetails(data: unknown): string {
+  if (!data || typeof data !== 'object') return '';
+  return Object.entries(data as Record<string, unknown>)
+    // Internal document ids (supervisorId, milestoneId, ...) mean nothing in a spreadsheet.
+    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && !/Ids?$/.test(k))
+    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .join(' | ')
+    .slice(0, 2000);
+}
+
+function parseDay(v: unknown, endOfDay: boolean): number | null {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const ms = Date.parse(`${v}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export const exportProjectRecords = async (req: AuthenticatedRequest, res: Response) => {
+  const requester = req.user;
+  if (!requester) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAnyRole(requester, STAFF_RECORD_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
+  }
+  const scope = callerRecordScope(requester);
+  const facultyFilter = typeof req.query.facultyId === 'string' && req.query.facultyId ? req.query.facultyId : null;
+  if (facultyFilter && (!(facultyFilter in MAJORS_BY_FACULTY) || !facultyWithinScope(scope, facultyFilter))) {
+    return res.status(403).json({ message: L(req, 'This faculty is outside your scope.', 'פקולטה זו אינה בתחום האחריות שלך.') });
+  }
+  const fromMs = parseDay(req.query.from, false);
+  const toMs = parseDay(req.query.to, true);
+
+  try {
+    const projectsSnap = facultyFilter
+      ? await db.collection('projects').where('facultyId', '==', facultyFilter).get()
+      : await db.collection('projects').get();
+    const projects = projectsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }) as { id: string; facultyId?: string; major?: string; degreeType?: string; [k: string]: any })
+      .filter((p) => projectWithinScope(scope, p));
+
+    // Records for those projects ('in' takes at most 30 ids per query).
+    const entriesByProject = new Map<string, Array<Record<string, any>>>();
+    for (let i = 0; i < projects.length; i += 30) {
+      const ids = projects.slice(i, i + 30).map((p) => p.id);
+      const snap = await db.collection('projectRecordEntries').where('projectId', 'in', ids).get();
+      snap.docs.forEach((d) => {
+        const e = d.data();
+        if (e.deleted === true) return;
+        const ts = e.timestamp?.toMillis?.() ?? null;
+        if (fromMs !== null && (ts === null || ts < fromMs)) return;
+        if (toMs !== null && (ts === null || ts > toMs)) return;
+        const list = entriesByProject.get(e.projectId) ?? [];
+        list.push({ ...e, _ms: ts });
+        entriesByProject.set(e.projectId, list);
+      });
+    }
+
+    const supervisorIds = [...new Set(projects.map((p) => p.supervisorId).filter((s): s is string => typeof s === 'string' && isValidDocId(s)))];
+    const supervisorSnaps = supervisorIds.length ? await db.getAll(...supervisorIds.map((id) => db.collection('users').doc(id))) : [];
+    const supervisorName = new Map(supervisorSnaps.map((s) => [s.id, (s.data()?.displayName as string | undefined) ?? '']));
+    // Israel time, sortable text ("2026-10-17 20:31").
+    const iso = (ms: number | null) => (ms ? new Date(ms).toLocaleString('sv-SE', { timeZone: 'Asia/Jerusalem' }).slice(0, 16) : '');
+
+    const included = projects.filter((p) => (entriesByProject.get(p.id) ?? []).length > 0 || (fromMs === null && toMs === null));
+    const projectRows = included.map((p) => {
+      const list = (entriesByProject.get(p.id) ?? []).sort((a, b) => (a._ms ?? 0) - (b._ms ?? 0));
+      const count = (t: string) => list.filter((e) => e.type === t).length;
+      return {
+        'מספר רישום': p.recordNumber ?? '',
+        'פקולטה': facultyName(p.facultyId ?? '').he,
+        'מגמה': p.major ?? '',
+        'תואר': p.degreeType === 'masters' ? 'תואר שני' : p.degreeType === 'bachelors' ? 'תואר ראשון' : (p.degreeType ?? ''),
+        'סוג': p.projectType === 'thesis' ? 'תזה' : p.projectType === 'project' ? 'פרויקט' : (p.projectType ?? ''),
+        'שם הפרויקט': p.titleHe || p.titleEn || '',
+        'מנחה': supervisorName.get(p.supervisorId) ?? '',
+        'סטטוס': p.status ?? '',
+        'מספר רשומות': list.length,
+        'הגשות': count('milestone_submitted'),
+        'הגשות חוזרות': count('milestone_resubmitted'),
+        'אישורים': count('milestone_approved'),
+        'דחיות': count('milestone_rejected'),
+        'ציון סופי אושר': count('final_grade_approved') > 0 ? 'כן' : 'לא',
+        'פעילות ראשונה': iso(list[0]?._ms ?? null),
+        'פעילות אחרונה': iso(list[list.length - 1]?._ms ?? null),
+      };
+    });
+
+    const recordRows = included.flatMap((p) =>
+      (entriesByProject.get(p.id) ?? []).map((e) => ({
+        'מספר רישום': p.recordNumber ?? '',
+        'שם הפרויקט': p.titleHe || p.titleEn || '',
+        'פקולטה': facultyName(p.facultyId ?? '').he,
+        'תאריך': iso(e._ms),
+        'אירוע': RECORD_TYPE_HE[e.type] ?? e.type ?? '',
+        'בוצע על ידי (תפקיד)': ROLE_HE[e.actorRole] ?? e.actorRole ?? '',
+        'בוצע על ידי (שם)': e.actorDisplayName ?? '',
+        'פרטים': recordDetails(e.data),
+      })),
+    ).sort((a, b) => String(a['מספר רישום']).localeCompare(String(b['מספר רישום'])) || a['תאריך'].localeCompare(b['תאריך']));
+
+    const wb = XLSX.utils.book_new();
+    (wb as any).Workbook = { Views: [{ RTL: true }] };
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(projectRows), 'פרויקטים');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(recordRows), 'רשומות');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    await logAuditEvent({
+      userId: requester.uid,
+      userRole: requester.role,
+      action: 'project_records_exported',
+      entityType: 'project',
+      entityId: facultyFilter ?? 'all',
+      newValue: { facultyId: facultyFilter, from: req.query.from ?? null, to: req.query.to ?? null, projects: projectRows.length, records: recordRows.length },
+      userDisplayName: requester.displayName,
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="project-records.xlsx"');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error('exportProjectRecords error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to export project records.', 'ייצוא רישומי הפרויקטים נכשל.') });
   }
 };

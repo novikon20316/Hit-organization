@@ -10,6 +10,7 @@ import {
   deleteProjectRecordEntry,
   restoreProjectRecordEntry,
   updateProjectRecordNumber,
+  exportProjectRecords,
 } from '../controllers/projectRecordsController.js';
 
 const router = Router();
@@ -22,6 +23,9 @@ router.get('/supervisors', verifyToken, getScopedSupervisors);
 router.get('/supervisors/:supervisorId/projects', verifyToken, getSupervisorProjectRecords);
 // GET /api/project-records/my-projects
 router.get('/my-projects', verifyToken, getMyProjectRecords);
+// GET /api/project-records/export?facultyId=&from=&to= — .xlsx of every
+// record the caller may see. Must stay above '/:projectId'.
+router.get('/export', verifyToken, exportProjectRecords);
 
 // system_admin-only break-glass corrections — see projectRecordsController.ts's
 // own header comment on each handler.

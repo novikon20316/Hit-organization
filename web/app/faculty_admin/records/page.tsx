@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { RecordsExportButton } from '@/components/RecordsExportButton';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -40,6 +41,7 @@ export default function FacultyAdminRecordsPage() {
   return (
     <DashboardShell title={lang === 'he' ? 'רישומי פרויקטים' : 'Project Records'} showBackButton={false}>
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <RecordsExportButton />
         <p className="mb-4 text-sm text-faculty-admin-on-surface-variant">
           {lang === 'he'
             ? 'בחר/י מנחה כדי לראות את הפרויקטים שלו/שלה עם רישום קבוע וקריאה בלבד.'

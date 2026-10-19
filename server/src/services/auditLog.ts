@@ -91,6 +91,8 @@ export type AuditAction =
   // Staff revoked a student's final report link(s) and sent a fresh one
   // (services/finalReport.ts's revokeAndReissueFinalReportLinks).
   | 'final_report_link_revoked'
+  // Project records downloaded as Excel (projectRecordsController.ts).
+  | 'project_records_exported'
   | 'student_thesis_eligibility_set'
   | 'student_track_overridden_by_admin'
   // Temporary debug tooling (see config/featureFlags.ts's
