@@ -82,7 +82,7 @@
   .scen > div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
   .scen h4 { margin: 0; font-size: 14px; }
   .scen .row { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
-  .scen .row b { font-family: var(--font-num); color: var(--accent); white-space: nowrap; }
+  .scen .row b { font-family: var(--font-num); color: var(--accent); white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
   .areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
   .area { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
   .area ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; font-size: 15px; }
@@ -209,6 +209,28 @@
     </div>
   </section>
 
+  <section aria-labelledby="ops">
+    <h2 id="ops">עלויות תפעול נוספות: SMS ו-WhatsApp</h2>
+    <p class="lead">לא חובה לאבטחה, אבל משפרות את התהליך: ההודעות מגיעות מהר יותר ולא נתקעות בספאם. התשלום לפי שימוש. היום ההתראות יוצאות במייל ובהתראות באפליקציה ובטלפון, בחינם. קודי 2FA לא נשלחים ב-SMS.</p>
+    <div class="scen">
+      <div>
+        <h4>WhatsApp (מומלץ להתחיל בו)</h4>
+        <span class="note">הקוד מוכן וכבוי. חסר מספר WhatsApp עסקי</span>
+        <div class="row"><span>להודעה</span><b>$0.01</b></div>
+        <div class="row"><span>לכל 1,000 הודעות</span><b>$10</b></div>
+        <span class="note">Meta בישראל (כ-$0.005) + Twilio ($0.005). האימות העסקי ב-Meta חינמי, אבל דורש מסמכי מוסד, מספר טלפון ייעודי ואישור תבניות הודעה</span>
+      </div>
+      <div>
+        <h4>SMS</h4>
+        <span class="note">פעיל, אבל יוצא ממספר אמריקאי שספקיות בישראל עלולות לחסום</span>
+        <div class="row"><span>להודעה בעברית</span><b>$0.50–0.77</b></div>
+        <div class="row"><span>לכל 1,000 הודעות</span><b>$500–770</b></div>
+        <span class="note">Twilio גובה כ-$0.26 לכל 70 תווים בעברית, והודעה רגילה היא 2–3 מקטעים. מומלץ: שם שולח "HIT" (בלי עלות נוספת) והצעת מחיר מספק SMS ישראלי, שבדרך כלל זול משמעותית</span>
+      </div>
+    </div>
+    <p class="note">WhatsApp זול פי 50 עד 75 מ-SMS. המחירים לפי Twilio ו-Meta באוקטובר 2026, ו-Meta מעדכנת אותם פעם ברבעון.</p>
+  </section>
+
   <section aria-labelledby="done">
     <h2 id="done">מה כבר מוגן</h2>
     <p class="lead">28 תיקונים בסבב האבטחה של 13–19.10, ועוד מנגנונים שהיו קיימים לפניו. כל מה שכאן פועל בייצור.</p>
@@ -301,6 +323,8 @@
       <span>Apple Developer, $99 לשנה: <a href="https://studio.adalo.com/blog/apple-developer-program-guide">adalo.com</a>, <a href="https://magora-systems.com/apple-developer-fee/">magora-systems.com</a></span>
       <span>Expo EAS, $19 לחודש: <a href="https://docs.expo.dev/billing/plans/">docs.expo.dev</a></span>
       <span>Zoom Workplace Pro, כ-$14.16 למשתמש לחודש בתשלום שנתי (כ-$17 חודשי), והגבלת 40 דקות בחינם: <a href="https://pricingsaas.com/companies/zoom/diffs/2026W10">pricingsaas.com</a>, <a href="https://tldv.io/blog/zoom-pricing/">tldv.io</a>, <a href="https://www.eesel.ai/en/blog/zoom-pricing">eesel.ai</a></span>
+      <span>Twilio SMS לישראל, $0.2575 למקטע: <a href="https://www.twilio.com/en-us/sms/pricing/il">twilio.com</a>, <a href="https://www.twilio.com/guidelines/il/sms">הנחיות Twilio לישראל</a></span>
+      <span>WhatsApp Business, מחיר להודעה לפי מדינה וסוג תבנית: <a href="https://developers.facebook.com/docs/whatsapp/pricing">Meta</a>, <a href="https://sleekflow.io/en-us/blog/whatsapp-business-price">sleekflow.io</a></span>
       <span>Brevo, תוכנית חינמית של 300 מיילים ביום: <a href="https://dreamlit.ai/blog/brevo-review">dreamlit.ai</a>, <a href="https://www.omnisend.com/blog/brevo-pricing/">omnisend.com</a></span>
     </div>
   </section>
