@@ -539,12 +539,14 @@ class ApiClient {
       decision: 'approve' | 'reject'; comment: string;
       milestoneNameHe: string; milestoneNameEn: string;
       projectTitleHe: string; projectTitleEn: string;
-      decidedByName: string; createdAt: string | { seconds: number } | null;
+      decidedByName: string; recipientRole: string; createdAt: string | { seconds: number } | null;
+      canReturnToCommittee: boolean; canReturnToSupervisor: boolean;
     }> };
   }
 
-  async resolveRelayTask(id: string) {
-    const response = await this.api.post(`/api/relay-tasks/${id}/resolve`, {});
+  // action 'committee'/'supervisor' — administrative coordinator only, comment required.
+  async resolveRelayTask(id: string, action: 'student' | 'committee' | 'supervisor' = 'student', comment = '') {
+    const response = await this.api.post(`/api/relay-tasks/${id}/resolve`, { action, comment });
     return response.data as { success: boolean };
   }
 }
@@ -602,4 +604,3 @@ export interface DecisionRecipientCandidate {
   name: string;
   role: 'supervisor' | 'secondary_supervisor' | 'coordinator' | 'administrative_secretary' | 'program_head';
 }
-
