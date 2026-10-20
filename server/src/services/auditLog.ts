@@ -121,7 +121,12 @@ export type AuditAction =
   // An administrative coordinator sent a relayed committee decision back to
   // the committee or the supervisor instead of passing it on to the student
   // (see relayTaskController.ts's resolveRelayTask).
-  | 'relay_decision_returned';
+  | 'relay_decision_returned'
+  // Stuck-milestone escalation (see services/stuckMilestones.ts) — a
+  // system_admin changed the per-milestone day limits, or a scoped staff
+  // member nudged whoever a stuck milestone is waiting on.
+  | 'stuck_limits_updated'
+  | 'stuck_milestone_reminder_sent';
 
 export interface AuditLogEntry {
   userId: string;

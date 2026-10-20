@@ -469,6 +469,11 @@ export default function GradSchoolHeadDashboard() {
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
         extraMenuItems={[
           {
+            key: 'stuck-milestones', icon: '⏳',
+            label: lang === 'he' ? 'אבני דרך תקועות' : 'Stuck Milestones',
+            onPress: () => router.push({ pathname: '/stuck-milestones', params: { lang } } as any),
+          },
+          {
             key: 'new-project', icon: '📁',
             label: lang === 'he' ? 'פרסום פרויקט חדש' : 'Post New Project',
             onPress: () => setShowNewProject(true),

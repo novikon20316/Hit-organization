@@ -138,7 +138,7 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
  *  hold any staff role. Never role-specific, so they always pass a role
  *  filter; without this a committee member's review request was dropped
  *  from their bell, feed and sidebar badge under whatever role was active. */
-export const ROLE_AGNOSTIC_SCREENS = ['committees', 'relay_tasks', 'login_security'];
+export const ROLE_AGNOSTIC_SCREENS = ['committees', 'relay_tasks', 'login_security', 'stuck_milestones'];
 
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',

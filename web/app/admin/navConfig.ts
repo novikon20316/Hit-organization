@@ -175,6 +175,21 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         badgeTargetScreens: ['committees'],
       },
       {
+        key: 'stuck_milestones',
+        icon: '⏳',
+        href: '/stuck-milestones',
+        label: { he: 'אבני דרך תקועות', en: 'Stuck Milestones' },
+        isActive: (pathname) => pathname === '/stuck-milestones',
+        badgeTargetScreens: ['stuck_milestones'],
+      },
+      {
+        key: 'stuck_limits',
+        icon: '⏱️',
+        href: '/admin/stuck-limits',
+        label: { he: 'מגבלות זמן לאבני דרך', en: 'Milestone Time Limits' },
+        isActive: (pathname) => pathname === '/admin/stuck-limits',
+      },
+      {
         key: 'records',
         icon: '📜',
         href: '/admin/records',

@@ -279,6 +279,11 @@ export default function ProgramHeadDashboard() {
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
         extraMenuItems={[
           {
+            key: 'stuck-milestones', icon: '⏳',
+            label: lang === 'he' ? 'אבני דרך תקועות' : 'Stuck Milestones',
+            onPress: () => router.push({ pathname: '/stuck-milestones', params: { lang } } as any),
+          },
+          {
             key: 'project-records', icon: '📜',
             label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records',
             onPress: () => router.push({ pathname: '/program_head/records', params: { lang } } as any),

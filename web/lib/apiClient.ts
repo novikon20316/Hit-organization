@@ -3175,6 +3175,25 @@ export const apiClient = {
     return request<{ enabled: boolean; candidates: DecisionRecipientCandidate[] }>(`/api/milestones/${milestoneId}/committee-decision-recipients`, { method: 'GET' });
   },
 
+  // ─── Stuck-milestone escalation — see server's services/stuckMilestones.ts ──
+  async getStuckMilestones() {
+    return request<{ milestones: StuckMilestoneRow[] }>('/api/stuck-milestones', { method: 'GET' });
+  },
+
+  async remindStuckMilestone(milestoneId: string) {
+    return request<{ success: boolean; reminded: number }>(`/api/stuck-milestones/${milestoneId}/remind`, { method: 'POST' });
+  },
+
+  /** system_admin only. */
+  async getStuckLimits() {
+    return request<{ templates: StuckLimitsTemplate[] }>('/api/stuck-milestones/limits', { method: 'GET' });
+  },
+
+  /** system_admin only. A null/0 value removes that milestone's limit. */
+  async setStuckLimits(payload: { facultyId: string; processType: StuckLimitsTemplate['processType']; major: string | null; limits: Record<string, number | null> }) {
+    return request<{ success: boolean; limits: Record<string, number> }>('/api/stuck-milestones/limits', { method: 'PUT', body: payload });
+  },
+
   async getMyRelayTasks() {
     return request<{ tasks: RelayTask[] }>('/api/relay-tasks/mine', { method: 'GET' });
   },
@@ -3338,6 +3357,37 @@ export interface RelayTask {
   // Administrative-coordinator recipients only — see server's relayTaskController.ts.
   canReturnToCommittee: boolean;
   canReturnToSupervisor: boolean;
+}
+
+/** Who a stuck milestone is waiting on — 'student' or a chain role. */
+export type StuckWaitingRole =
+  | 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary'
+  | 'grad_school_head' | 'school_head' | 'program_head' | 'division_head' | 'dean' | 'committee';
+
+export interface StuckMilestoneRow {
+  milestoneId: string;
+  projectId: string | null;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string | null;
+  studentNames: string[];
+  waitingRole: StuckWaitingRole | null;
+  waitingNames: string[];
+  daysStuck: number;
+  limitDays: number | null;
+  since: string | null;
+  lastManualReminderAt: string | null;
+}
+
+export interface StuckLimitsTemplate {
+  templateId: string;
+  facultyId: string;
+  processType: 'msc_thesis' | 'msc_project' | 'bsc_project';
+  major: string | null;
+  milestones: Array<{ type: string; nameHe: string; nameEn: string; order: number }>;
+  limits: Record<string, number>;
 }
 
 export type RelayTaskAction = 'student' | 'committee' | 'supervisor';

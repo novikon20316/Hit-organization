@@ -119,6 +119,18 @@ export function buildProgramHeadNavSections(roles: string[]): SidebarSection[] {
           badgeTargetScreens: ['committees'],
         },
         {
+          key: 'stuck_milestones',
+          icon: '⏳',
+          href: '/stuck-milestones',
+          label: { he: 'אבני דרך תקועות', en: 'Stuck Milestones' },
+          description: {
+            he: 'אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה — שלחו תזכורת לגורם המעכב.',
+            en: 'Milestones waiting on one step longer than their limit — remind whoever is holding them up.',
+          },
+          isActive: (pathname: string) => pathname === '/stuck-milestones',
+          badgeTargetScreens: ['stuck_milestones'],
+        },
+        {
           key: 'relay_tasks',
           icon: '📨',
           href: '/relay-tasks',

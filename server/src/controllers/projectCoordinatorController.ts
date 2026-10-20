@@ -20,6 +20,7 @@ import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { computeMedianGrade } from '../services/gradeEngine.js';
 import { resolveTrackPolicy, resolveEffectiveTrack, type StudentTrack } from '../config/studentTrack.js';
+import { resolveEnrolledTrack } from '../services/studentTrack.js';
 import { specializationsForStudent } from '../config/specialization.js';
 import { normalizeCompletedCourses, normalizePrerequisites } from '../services/prerequisites.js';
 import { isValidDocId } from '../services/idValidation.js';
@@ -353,22 +354,6 @@ function resolveSignupDate(data: FirebaseFirestore.DocumentData): Date | null {
 }
 
 export type StudentReportStatus = 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
-
-/** Which track (project vs thesis) a student is actually doing in `project`.
- *  Enrollment doesn't store it per student — a project open to a single
- *  track can only be that one; one open to both was applied to under the
- *  student's own fixed track (applicationController.ts enforces
- *  selectedProjectType === resolveEffectiveTrack), with the project's
- *  primary projectType as the manual-assignment fallback, same as
- *  projectEnrollment.ts's resolvedProjectType. */
-function resolveEnrolledTrack(project: any, student: any): StudentTrack {
-  const types: string[] = (project.projectTypes ?? (project.projectType ? [project.projectType] : []))
-    .filter((t: string) => t === 'project' || t === 'thesis');
-  if (types.length === 1) return types[0] as StudentTrack;
-  const own = resolveEffectiveTrack(student);
-  if (types.length === 0 || types.includes(own)) return own;
-  return project.projectType === 'thesis' ? 'thesis' : 'project';
-}
 
 /**
  * GET /api/project-coordinator/students-report

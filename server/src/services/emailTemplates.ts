@@ -56,6 +56,11 @@ export type NotificationType =
   // sendStudentsMessage) — unlike 'broadcast', the subject carries the
   // coordinator's own title, not a generic "system broadcast" line.
   | 'coordinator_message'
+  // Stuck-milestone escalation (services/stuckMilestones.ts): the alert to
+  // the scoped administrative coordinator / program head / grad school
+  // head, and the nudge they can send to whoever it's waiting on.
+  | 'milestone_stuck'
+  | 'milestone_stuck_reminder'
   | 'new_message'
   | 'account_created'
   | 'examiner_access_link'
@@ -335,6 +340,20 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>${(d.message || '').replace(/\n/g, '<br/>')}</p>
       ${d.senderName ? `<p style="color:#777">— ${d.senderName}</p>` : ''}
     `,
+  },
+
+  milestone_stuck: {
+    subjectHe: '⏳ אבן דרך תקועה — נדרשת התערבות',
+    subjectEn: '⏳ Milestone stuck — action needed',
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>${d.message || ''}</p>`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>${d.message || ''}</p>`,
+  },
+
+  milestone_stuck_reminder: {
+    subjectHe: '🔔 תזכורת: אבן דרך ממתינה לטיפולך',
+    subjectEn: '🔔 Reminder: a milestone is waiting on you',
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>${d.message || ''}</p>`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>${d.message || ''}</p>`,
   },
 
   new_message: {

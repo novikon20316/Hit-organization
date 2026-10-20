@@ -74,7 +74,7 @@ export interface ClockPause {
 
 /** Sum of each pause's overlap with [windowStartMs, windowEndMs] — an
  *  unresumed pause's open end is clamped to windowEndMs (i.e. "now"). */
-function totalPausedMs(pauses: ClockPause[], windowStartMs: number, windowEndMs: number): number {
+export function totalPausedMs(pauses: ClockPause[], windowStartMs: number, windowEndMs: number): number {
   return pauses.reduce((sum, p) => {
     const pauseStart = p.pausedAt.toDate().getTime();
     const pauseEnd = p.resumedAt?.toDate?.().getTime() ?? windowEndMs;
@@ -90,7 +90,7 @@ function totalPausedMs(pauses: ClockPause[], windowStartMs: number, windowEndMs:
  * controllers (submitMilestone, coordinatorApproveMilestone, gradeMilestone,
  * coordinatorRejectMilestone) never set it, only their own specific *_At field.
  */
-function stageEnteredAt(milestone: MilestoneDoc): FirebaseFirestore.Timestamp | null {
+export function stageEnteredAt(milestone: MilestoneDoc): FirebaseFirestore.Timestamp | null {
   return (
     milestone.stageEnteredAt ??
     milestone.gradedAt ??

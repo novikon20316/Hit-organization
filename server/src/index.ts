@@ -8,6 +8,7 @@ import userRoutes         from './routes/users.js';
 import applicationRoutes  from './routes/applications.js';
 import milestoneRoutes    from './routes/milestones.js';
 import relayTaskRoutes    from './routes/relayTasks.js';
+import stuckMilestoneRoutes from './routes/stuckMilestones.js';
 import decisionRelayConfigRoutes from './routes/decisionRelayConfig.js';
 import notificationRoutes from './routes/notifications.js';
 import projectRoutes      from './routes/projectRoutes.js';
@@ -53,6 +54,7 @@ import { getStudentStatusOptions } from './controllers/studentStatusController.j
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders, sendSupervisorPendingReviewReminders } from './services/notificationScheduler.js';
+import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
@@ -190,6 +192,7 @@ app.use(legalRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/milestones',    milestoneRoutes);
 app.use('/api/relay-tasks',   relayTaskRoutes);
+app.use('/api/stuck-milestones', stuckMilestoneRoutes);
 app.use('/api/admin/decision-relay-config', decisionRelayConfigRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/feedback',      feedbackRoutes);
@@ -285,6 +288,11 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 setInterval(() => {
   sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
+}, ONE_HOUR_MS);
+// Stuck-milestone escalation — see services/stuckMilestones.ts. Hourly so a
+// link change is picked up (and the clock restarted) within the hour.
+setInterval(() => {
+  sweepStuckMilestones().catch((err) => console.error('sweepStuckMilestones sweep failed:', err));
 }, ONE_HOUR_MS);
 setInterval(() => {
   sendSupervisorPendingReviewReminders().catch((err) => console.error('sendSupervisorPendingReviewReminders sweep failed:', err));

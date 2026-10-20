@@ -991,6 +991,11 @@ export default function ProjectCoordinatorDashboard() {
         onToggleLang={() => setLang(l => l === 'he' ? 'en' : 'he')}
         extraMenuItems={[
           {
+            key: 'stuck-milestones', icon: '⏳',
+            label: lang === 'he' ? 'אבני דרך תקועות' : 'Stuck Milestones',
+            onPress: () => router.push({ pathname: '/stuck-milestones', params: { lang } } as any),
+          },
+          {
             key: 'relay-tasks', icon: '📨',
             label: lang === 'he' ? 'החלטות להעברה' : 'Decisions to Relay',
             onPress: () => router.push('/relay-tasks' as any),

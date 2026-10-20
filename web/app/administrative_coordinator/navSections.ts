@@ -186,6 +186,18 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         visible: (_userData, live) => live.hasOpenRelayTasks,
       },
       {
+        key: 'stuck_milestones',
+        icon: '⏳',
+        href: '/stuck-milestones',
+        label: { he: 'אבני דרך תקועות', en: 'Stuck Milestones' },
+        description: {
+          he: 'אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה — שלחו תזכורת לגורם המעכב.',
+          en: 'Milestones waiting on one step longer than their limit — remind whoever is holding them up.',
+        },
+        isActive: (pathname) => pathname === '/stuck-milestones',
+        badgeTargetScreens: ['stuck_milestones'],
+      },
+      {
         key: 'records',
         icon: '📜',
         href: '/administrative_coordinator/records',
