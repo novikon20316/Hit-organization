@@ -131,7 +131,9 @@ function SidebarNavSections({
   // Whichever item is currently open gets its badge cleared — as soon as
   // the count goes from 0 to >0 while already sitting on that tab (a new
   // notification streaming in live) it clears right back to 0 too, same as
-  // reading a chat that's already open.
+  // reading a chat that's already open. Still-open tasks are the exception:
+  // marking them read doesn't clear them, so the badge stays until the work
+  // is done (server/src/services/pendingTasks.ts).
   const allItems = [...visibleSections.flatMap((s) => s.items), ...(visibleQuickActions?.items ?? [])];
   const activeItem = allItems.find((item) => item.isActive(pathname, searchParams));
   const activeBadgeCount = activeItem ? badgeCountFor(activeItem) : 0;

@@ -427,6 +427,10 @@ export const apiClient = {
     });
   },
 
+  async reconcileTasks() {
+    return request<{ success: boolean; resolved: number }>('/api/notifications/reconcile-tasks', { method: 'POST' });
+  },
+
   // ─── 3b. CHAT ───────────────────────────────────────────────────────────────
   async getChatDashboard() {
     return request<{ chats: Array<Record<string, unknown> & { chatId: string }>; unreadTotal: number }>('/api/chats/dashboard', {

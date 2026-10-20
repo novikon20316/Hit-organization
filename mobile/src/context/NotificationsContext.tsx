@@ -80,6 +80,17 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // badge total below, same split the old single refresh() had.
   const unreadMessagesRef = useRef(0);
   const unsubUnread = useRef<Unsubscribe | null>(null);
+  // Per-tab badges = unread notifications ∪ still-open tasks (read or not —
+  // see server/src/services/pendingTasks.ts), each doc counted once. Same
+  // merge as web's NotificationsContext.
+  const unreadScreens = useRef<Map<string, string>>(new Map());
+  const pendingTaskScreens = useRef<Map<string, string>>(new Map());
+  const recomputeTabBadges = useCallback(() => {
+    const merged = new Map([...unreadScreens.current, ...pendingTaskScreens.current]);
+    const byScreen: Record<string, number> = {};
+    merged.forEach((screen) => { byScreen[screen] = (byScreen[screen] ?? 0) + 1; });
+    setUnreadByTargetScreen(byScreen);
+  }, []);
   const [liveEventTick, setLiveEventTick] = useState(0);
   const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
   const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
@@ -167,12 +178,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         const roleFiltered = alertDocs.filter((d) => notifMatchesRole(d.data().targetScreen, activeRole));
         setUnreadCount(roleFiltered.length);
         setNativeBadge(roleFiltered.length + unreadMessagesRef.current);
-        const byScreen: Record<string, number> = {};
+        const screens = new Map<string, string>();
         for (const doc of alertDocs) {
           const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') byScreen[targetScreen] = (byScreen[targetScreen] ?? 0) + 1;
+          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
         }
-        setUnreadByTargetScreen(byScreen);
+        unreadScreens.current = screens;
+        recomputeTabBadges();
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
@@ -181,7 +193,36 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return () => {
       if (unsubUnread.current) { unsubUnread.current(); unsubUnread.current = null; }
     };
-  }, [isLoggedIn, activeRole]);
+  }, [isLoggedIn, activeRole, recomputeTabBadges]);
+
+  // Still-open tasks keep their tab's badge lit even after the tab was
+  // opened (which only marks them read) — until the work is actually done
+  // and the server flips pendingTask off (server/src/services/pendingTasks.ts).
+  // Asks the server to re-check them once on sign-in.
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!isLoggedIn || !uid) {
+      pendingTaskScreens.current = new Map();
+      return;
+    }
+    apiClient.reconcileTasks().catch(() => {});
+    const q = query(collection(db, 'notifications'), where('recipientId', '==', uid), where('pendingTask', '==', true));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const screens = new Map<string, string>();
+        for (const doc of snapshot.docs) {
+          const targetScreen = doc.data().targetScreen;
+          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+        }
+        pendingTaskScreens.current = screens;
+        recomputeTabBadges();
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+      }
+    );
+  }, [isLoggedIn, recomputeTabBadges]);
 
   // Substituted onto an open committee review in place of a conflicted
   // member — same query as web's NotificationsContext.

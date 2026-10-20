@@ -102,6 +102,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
   const unsubSubstitutions = useRef<Unsubscribe | null>(null);
   const unsubUnread = useRef<Unsubscribe | null>(null);
+  const unsubPendingTasks = useRef<Unsubscribe | null>(null);
+  // Per-tab badges = unread notifications ∪ still-open tasks (read or not —
+  // see server/src/services/pendingTasks.ts), each doc counted once. Kept
+  // as id → targetScreen maps from the two listeners below and merged here.
+  const unreadScreens = useRef<Map<string, string>>(new Map());
+  const pendingTaskScreens = useRef<Map<string, string>>(new Map());
+  const recomputeTabBadges = useCallback(() => {
+    const merged = new Map([...unreadScreens.current, ...pendingTaskScreens.current]);
+    const byScreen: Record<string, number> = {};
+    merged.forEach((screen) => { byScreen[screen] = (byScreen[screen] ?? 0) + 1; });
+    setUnreadByTargetScreen(byScreen);
+  }, []);
   const unsubRelayTasks = useRef<Unsubscribe | null>(null);
   const unsubCommittees = useRef<Unsubscribe | null>(null);
 
@@ -176,19 +188,52 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // offered), so they're inherently scoped without needing this.
         const roleFiltered = snapshot.docs.filter((doc) => notifMatchesRole(doc.data().targetScreen, activeRole));
         setUnreadCount(roleFiltered.length);
-        const byScreen: Record<string, number> = {};
+        const screens = new Map<string, string>();
         for (const doc of snapshot.docs) {
           const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') byScreen[targetScreen] = (byScreen[targetScreen] ?? 0) + 1;
+          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
         }
-        setUnreadByTargetScreen(byScreen);
+        unreadScreens.current = screens;
+        recomputeTabBadges();
       },
       (err: any) => {
         if (err?.code === 'permission-denied') return; // expected during sign-out
       }
     );
     return () => cancel(unsubUnread);
-  }, [firebaseUser, activeRole]);
+  }, [firebaseUser, activeRole, recomputeTabBadges]);
+
+  // Still-open tasks keep their tab's badge lit even after the tab was
+  // opened (which only marks them read) — until the work is actually done
+  // and the server flips pendingTask off (server/src/services/pendingTasks.ts).
+  // Asks the server to re-check them once on sign-in, so nothing finished
+  // elsewhere lingers.
+  useEffect(() => {
+    cancel(unsubPendingTasks);
+    if (!firebaseUser) return;
+    apiClient.reconcileTasks().catch(() => {});
+    const q = query(
+      collection(db, 'notifications'),
+      where('recipientId', '==', firebaseUser.uid),
+      where('pendingTask', '==', true)
+    );
+    unsubPendingTasks.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const screens = new Map<string, string>();
+        for (const doc of snapshot.docs) {
+          const targetScreen = doc.data().targetScreen;
+          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+        }
+        pendingTaskScreens.current = screens;
+        recomputeTabBadges();
+      },
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+      }
+    );
+    return () => cancel(unsubPendingTasks);
+  }, [firebaseUser, recomputeTabBadges]);
 
   // Live "do I currently owe a relay" flag — checked in the background from
   // the moment the user is signed in, independent of role (a committee

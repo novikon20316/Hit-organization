@@ -7,6 +7,7 @@ import {
   markNotificationsReadForScreens,
   markNotificationRead,
   getNotificationBadgeCount,
+  reconcileMyTasks,
 } from '../controllers/notificationController.js'
 import { verifyToken } from '../middleware/auth.js';
 
@@ -24,5 +25,6 @@ router.post('/trigger', verifyToken, triggerNotificationDispatch);
 // 💡 The missing link! Maps the route to your batch controller function
 router.post('/mark-all-read', verifyToken, markAllNotificationsAsRead);
 router.post('/mark-read', verifyToken, markNotificationsReadForScreens);
+router.post('/reconcile-tasks', verifyToken, reconcileMyTasks);
 
 export default router;

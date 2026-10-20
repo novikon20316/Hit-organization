@@ -6,6 +6,7 @@ import { softError } from '../middleware/auth.js';
 import { screensForRole, ROLE_AGNOSTIC_SCREENS } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
 import { getPrivateContact, writePrivateContact } from '../services/privateContact.js';
+import { reconcileUserTasks } from '../services/pendingTasks.js';
 
 const db = admin.firestore();
 
@@ -226,6 +227,11 @@ export const markNotificationsReadForScreens = async (req: AuthenticatedRequest,
       return res.status(400).json({ error: L(req, 'targetScreens accepts at most 10 values.', 'targetScreens מקבל לכל היותר 10 ערכים.') });
     }
 
+    // Opening a tab is also a good moment to re-check which of this user's
+    // tasks are actually done (services/pendingTasks.ts) — marking read
+    // below never clears a still-open task's tab badge on its own.
+    await reconcileUserTasks(uid).catch((err) => console.error('reconcileUserTasks failed:', err));
+
     const unreadSnap = await db.collection('notifications')
       .where('recipientId', '==', uid)
       .where('isRead', '==', false)
@@ -308,3 +314,18 @@ export const getNotificationBadgeCount = async (req: AuthenticatedRequest, res: 
   }
 };
 
+
+// POST /api/notifications/reconcile-tasks
+// Re-checks every still-open task notification of the caller against the
+// real state of what it points at (services/pendingTasks.ts) — called by
+// the clients on start so a badge never outlives work finished elsewhere.
+export const reconcileMyTasks = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized user context.', 'הקשר משתמש לא מורשה.') });
+    const resolved = await reconcileUserTasks(uid);
+    return res.status(200).json({ success: true, resolved });
+  } catch (error: any) {
+    return softError(res, 'Failed to reconcile tasks.', error);
+  }
+};

@@ -7,6 +7,7 @@ import { sendWhatsapp } from './whatsappService.js';
 import type { NotificationType } from './emailTemplates.js';
 import { targetScreenFor, type NotificationTaskKind } from './notificationTargets.js';
 import { resolveNotificationLinks } from './notificationLinks.js';
+import { pendingTaskFields, taskModeFor } from './pendingTasks.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -150,7 +151,13 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   let notifRef: FirebaseFirestore.DocumentReference | null = null;
   if (wantInApp) {
     notifRef = db.collection('notifications').doc();
+    // Actionable notifications stay "to do" (tab badge lit) until the work
+    // is actually done, not just seen — see services/pendingTasks.ts.
+    const taskFields = targetScreen
+      ? await pendingTaskFields(taskModeFor({ type, taskKind, targetScreenOverride, relatedMilestoneId, relatedProjectId }), relatedMilestoneId).catch(() => ({}))
+      : {};
     await notifRef.set({
+      ...taskFields,
       recipientId,
       type: inAppType ?? type,
       titleHe, titleEn, bodyHe, bodyEn,

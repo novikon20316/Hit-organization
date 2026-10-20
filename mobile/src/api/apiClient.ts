@@ -286,6 +286,11 @@ class ApiClient {
     return response.data;
   }
 
+  async reconcileTasks() {
+    const response = await this.api.post('/api/notifications/reconcile-tasks');
+    return response.data;
+  }
+
   // ─── 4. LOGIN SECURITY ENDPOINTS ─────────────────────────────────────────
   // All three are public/unauthenticated server-side (see server/src/routes/
   // loginSecurity.ts) — a failed login has no token to attach.

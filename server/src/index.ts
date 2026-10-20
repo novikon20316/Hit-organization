@@ -46,7 +46,8 @@ import permissionsRoutes from './routes/permissions.js';
 import committeesRoutes from './routes/committees.js';
 import integrationsRoutes from './routes/integrations.js';
 import systemErrorRoutes from './routes/systemErrorRoutes.js';
-import { verifyToken } from './middleware/auth.js';
+import { verifyToken, type AuthenticatedRequest } from './middleware/auth.js';
+import { resolveTasksAfterMutation } from './services/pendingTasks.js';
 import { verifyAppCheck } from './middleware/appCheck.js';
 import { getInfoFiles } from './controllers/infoFilesController.js';
 import { getFacultyContent, dismissFacultyContent } from './controllers/facultyContentController.js';
@@ -182,6 +183,21 @@ cloudinary.config({
 
 app.use((req, res, next) => {
   console.log(`📥 Incoming: ${req.method} ${req.url}`);
+  next();
+});
+
+// After every successful write, close out whichever task notifications it
+// finished (services/pendingTasks.ts) — req.user is set later by the
+// route's own verifyToken, but is there by the time the response finishes.
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'OPTIONS' || req.method === 'HEAD' || req.originalUrl.startsWith('/api/notifications')) return next();
+  res.on('finish', () => {
+    const uid = (req as AuthenticatedRequest).user?.uid;
+    if (!uid || res.statusCode >= 400) return;
+    let body = '';
+    try { body = JSON.stringify(req.body ?? {}).slice(0, 20_000); } catch { /* unserializable body — URL alone */ }
+    resolveTasksAfterMutation(uid, `${req.originalUrl} ${body}`).catch((err) => console.error('resolveTasksAfterMutation failed:', err));
+  });
   next();
 });
 
