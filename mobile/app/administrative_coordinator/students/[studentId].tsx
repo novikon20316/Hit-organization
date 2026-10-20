@@ -17,6 +17,7 @@ import { majorsForFaculty } from '@/constants/permissions';
 import { specializationLabel, SPECIALIZATION_LABELS } from '@/constants/specialization';
 import { MilestoneRoadmap, type RoadmapMilestone } from '@/components/MilestoneRoadmap';
 import { ap } from '@/constants/theme';
+import { auth } from '@/src/firebase/firebase';
 
 interface StudentDetail {
   student: {
@@ -57,6 +58,14 @@ interface StudentDetail {
    *  was. */
   milestoneRoadmap?: RoadmapMilestone[];
 }
+
+// More tabs are expected here later — add a key + label and a branch below.
+// Mirrors web's students/[studentId]/page.tsx DETAIL_TABS.
+type DetailTab = 'personal' | 'messages';
+const DETAIL_TABS: Array<{ key: DetailTab; icon: string; he: string; en: string }> = [
+  { key: 'personal', icon: '👤', he: 'פרטים אישיים', en: 'Personal Data' },
+  { key: 'messages', icon: '💬', he: 'הודעות', en: 'Messages' },
+];
 
 const MILESTONE_STATUS_LABEL: Record<string, { he: string; en: string }> = {
   pending:               { he: 'טרם הוגש',      en: 'Not submitted yet' },
@@ -115,6 +124,7 @@ export default function StudentDetailScreen() {
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [savingEligibility, setSavingEligibility] = useState(false);
   const [savingSpecialization, setSavingSpecialization] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('personal');
 
   const loadDetail = () => {
     if (!studentId) return;
@@ -197,6 +207,33 @@ export default function StudentDetailScreen() {
         )}
 
         {!loading && !error && student && (
+          <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }} accessibilityRole="tablist">
+            {DETAIL_TABS.map((t) => {
+              const active = activeTab === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => setActiveTab(t.key)}
+                  style={{
+                    borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
+                    borderColor: active ? ap.primary : ap.outlineVariant,
+                    backgroundColor: active ? ap.primary : 'transparent',
+                  }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : ap.onSurface }}>{t.icon} {t[lang]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {!loading && !error && student && activeTab === 'messages' && (
+          <StudentMessagesSection studentId={student.id} studentName={student.name} lang={lang} />
+        )}
+
+        {!loading && !error && student && activeTab === 'personal' && (
           <View style={{ gap: 12 }}>
             {/* Student profile */}
             <View style={styles.card}>
@@ -568,6 +605,116 @@ function CompletedCoursesCard({
           <Text style={{ fontSize: 12, color: ap.onSurfaceVariant }}>{lang === 'he' ? 'בטל שינויים' : 'Discard changes'}</Text>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+interface ChatMessage {
+  id: string;
+  type: 'text' | 'image';
+  text: string;
+  imageUrl: string | null;
+  senderId: string;
+  createdAt: string | null;
+}
+
+/** The staff member's own direct conversation with this student — the same
+ *  thread as the Chats tab on the notifications screen (including messages
+ *  sent from the Students Report's "Send message"). Shown inline here; the
+ *  button opens the regular chat screen to reply. */
+function StudentMessagesSection({ studentId, studentName, lang }: { studentId: string; studentName: string; lang: 'he' | 'en' }) {
+  const router = useRouter();
+  const isRtl = lang === 'he';
+  const myUid = auth.currentUser?.uid;
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get('/api/chats/dashboard');
+        const chat = (res.data?.chats ?? []).find((c: any) => c.otherUid === studentId && (c.type ?? 'direct') === 'direct');
+        if (cancelled) return;
+        setChatId(chat?.chatId ?? null);
+        if (chat?.chatId) {
+          const msgs = await apiClient.get(`/api/chats/${chat.chatId}/messages`);
+          if (!cancelled) setMessages(Array.isArray(msgs.data?.messages) ? msgs.data.messages : Array.isArray(msgs.data) ? msgs.data : []);
+        }
+      } catch {
+        if (!cancelled) setError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [studentId, lang]);
+
+  const openChat = (id: string) => {
+    router.push({ pathname: '/message/[chatId]', params: { chatId: id, otherName: studentName, otherRole: 'student', lang } } as any);
+  };
+
+  // Only creates the chat when staff explicitly asks to start one.
+  const startChat = async () => {
+    setStarting(true);
+    try {
+      const res = await apiClient.post('/api/chats', { recipientId: studentId });
+      openChat(res.data.chatId);
+    } catch (err: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', err?.response?.data?.message || (lang === 'he' ? 'פתיחת השיחה נכשלה' : 'Could not start the conversation'));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  if (loading) return <ActivityIndicator style={{ marginTop: 24 }} />;
+
+  return (
+    <View style={styles.card}>
+      {!!error && <Text style={{ color: '#EF4444', fontSize: 13, marginBottom: 8 }}>{error}</Text>}
+      {!chatId || messages.length === 0 ? (
+        <Text style={[styles.cardSub, { textAlign: isRtl ? 'right' : 'left' }]}>
+          💬 {lang === 'he' ? 'עדיין לא נשלחו הודעות לסטודנט/ית זה/זו.' : 'No messages with this student yet.'}
+        </Text>
+      ) : (
+        <View style={{ gap: 6 }}>
+          {messages.map((m) => {
+            const mine = m.senderId === myUid;
+            return (
+              <View key={m.id} style={{ alignItems: mine ? 'flex-end' : 'flex-start' }}>
+                <View style={{ maxWidth: '85%', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: mine ? ap.primary : ap.surfaceContainer }}>
+                  {m.type === 'image' && m.imageUrl ? (
+                    <Pressable onPress={() => Linking.openURL(m.imageUrl!)} accessibilityRole="link">
+                      <Text style={{ fontSize: 13, color: mine ? '#fff' : ap.onSurface }}>🖼️ {lang === 'he' ? 'תמונה' : 'Image'}</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={{ fontSize: 13, color: mine ? '#fff' : ap.onSurface }}>{m.text}</Text>
+                  )}
+                </View>
+                {!!m.createdAt && (
+                  <Text style={{ fontSize: 10, color: ap.onSurfaceVariant, marginTop: 2 }}>
+                    {new Date(m.createdAt).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+      <Pressable
+        disabled={starting}
+        onPress={() => (chatId ? openChat(chatId) : startChat())}
+        style={{ marginTop: 12, backgroundColor: ap.primary, borderRadius: 8, paddingVertical: 10, alignItems: 'center', opacity: starting ? 0.6 : 1 }}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: starting }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+          {starting ? '…' : chatId ? (lang === 'he' ? 'פתיחת השיחה' : 'Open conversation') : (lang === 'he' ? 'התחלת שיחה' : 'Start a conversation')}
+        </Text>
+      </Pressable>
     </View>
   );
 }

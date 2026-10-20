@@ -22,6 +22,7 @@ import { academicYearToHebrew, currentHebrewYear } from '@/lib/hebrewYear';
 import type { AppRole } from '@/lib/roles';
 import { majorCellText } from '../../StudentsReportTab';
 import { SPECIALIZATION_LABELS } from '@/lib/specialization';
+import { ChatConversation } from '@/components/ChatConversation';
 
 // Widened to include 'coordinator' — the plain faculty coordinator role is
 // who actually grants thesis eligibility for a coordinator_gated student
@@ -52,6 +53,13 @@ const COMPLETED_COURSES_ROLES: AppRole[] = ['coordinator', 'administrative_secre
 const THESIS_AVERAGE_ROLES: AppRole[] = ['program_head', 'administrative_secretary', 'grad_school_head', 'faculty_admin', 'system_admin'];
 
 type StudentDetail = Awaited<ReturnType<typeof apiClient.getStudentDetail>>;
+
+// More tabs are expected here later — add a key + label and a branch below.
+type DetailTab = 'personal' | 'messages';
+const DETAIL_TABS: Array<{ key: DetailTab; icon: string; he: string; en: string }> = [
+  { key: 'personal', icon: '👤', he: 'פרטים אישיים', en: 'Personal Data' },
+  { key: 'messages', icon: '💬', he: 'הודעות', en: 'Messages' },
+];
 
 const MILESTONE_STATUS_LABEL: Record<string, { he: string; en: string }> = {
   pending:               { he: 'טרם הוגש',      en: 'Not submitted yet' },
@@ -116,6 +124,7 @@ export default function StudentDetailPage() {
   const [specializationInput, setSpecializationInput] = useState('');
   const [savingSpecialization, setSavingSpecialization] = useState(false);
   const [revokingReport, setRevokingReport] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('personal');
 
   const loadDetail = async () => {
     if (!studentId) return;
@@ -233,6 +242,31 @@ export default function StudentDetailPage() {
       {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
       {!loadingData && !error && student && (
+        <div role="tablist" className="mt-4 flex flex-wrap gap-1.5">
+          {DETAIL_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                activeTab === t.key ? 'border-administrative-coordinator-primary bg-administrative-coordinator-primary text-administrative-coordinator-on-primary' : 'border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest text-administrative-coordinator-on-surface'
+              }`}
+            >
+              {t.icon} {t[lang]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!loadingData && !error && student && activeTab === 'messages' && (
+        <div className="mt-4">
+          <StudentMessagesTab studentId={student.id} studentName={student.name} />
+        </div>
+      )}
+
+      {!loadingData && !error && student && activeTab === 'personal' && (
         <div className="mt-4 grid gap-4">
           {/* Student profile */}
           <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
@@ -537,6 +571,71 @@ export default function StudentDetailPage() {
         <p className="mt-4 text-sm text-administrative-coordinator-on-surface-variant">{lang === 'he' ? 'הסטודנט לא נמצא' : 'Student not found'}</p>
       )}
     </DashboardShell>
+  );
+}
+
+/** The staff member's own direct conversation with this student — the same
+ *  thread as the Chats tab on /notifications (including messages sent from
+ *  the Students Report's "Send message"), embedded instead of linked. */
+function StudentMessagesTab({ studentId, studentName }: { studentId: string; studentName: string }) {
+  const { lang } = useLanguage();
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getChatDashboard()
+      .then((res) => {
+        if (cancelled) return;
+        const chat = (res.chats ?? []).find((c) => c.otherUid === studentId && (c.type ?? 'direct') === 'direct');
+        setChatId(chat?.chatId ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setError(lang === 'he' ? 'טעינת השיחות נכשלה' : 'Failed to load conversations');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, lang]);
+
+  // Only creates the chat when she explicitly asks to start one — just
+  // opening the tab never writes anything.
+  const startChat = async () => {
+    setStarting(true);
+    setError('');
+    try {
+      const res = await apiClient.findOrCreateDirectChat(studentId);
+      setChatId(res.chatId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'פתיחת השיחה נכשלה' : 'Could not start the conversation');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  if (loading) return <p className="text-sm text-administrative-coordinator-on-surface-variant" role="status">{lang === 'he' ? 'טוען…' : 'Loading…'}</p>;
+  if (chatId) return <ChatConversation key={chatId} chatId={chatId} initialName={studentName} initialRole="student" embedded />;
+  return (
+    <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+      {error && <p className="mb-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+      <p className="text-sm text-administrative-coordinator-on-surface-variant">
+        💬 {lang === 'he' ? 'עדיין לא נשלחו הודעות לסטודנט/ית זה/זו.' : 'No messages with this student yet.'}
+      </p>
+      <button
+        type="button"
+        disabled={starting}
+        onClick={startChat}
+        className="mt-3 rounded-lg bg-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
+      >
+        {starting ? '…' : lang === 'he' ? 'התחלת שיחה' : 'Start a conversation'}
+      </button>
+    </div>
   );
 }
 

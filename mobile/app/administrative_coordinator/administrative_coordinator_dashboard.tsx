@@ -124,7 +124,9 @@ interface StudentReportRow {
   id: string;
   name: string;
   status: StudentStatus;
-  appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+  appliedProjects: Array<{ titleHe: string; titleEn: string; projectType?: 'project' | 'thesis' }>;
+  /** Project vs thesis the student is actually doing — set while enrolled. */
+  projectType?: 'project' | 'thesis' | null;
   projectTitleHe: string | null;
   projectTitleEn: string | null;
   supervisorName: string | null;
@@ -159,10 +161,23 @@ const STUDENT_STATUS_COLOR: Record<StudentStatus, string> = {
   finished:         '#10B981',
 };
 
+// While enrolled, "In project/thesis" becomes "In project" or "In thesis";
+// an application lists each one as "<track>: <title>". Mirrors web's
+// StudentsReportTab.tsx statusText.
 function studentStatusText(row: StudentReportRow, lang: Lang): string {
+  if (row.status === 'in_project' && row.projectType) {
+    return row.projectType === 'thesis' ? (lang === 'he' ? 'בתזה' : 'In thesis') : (lang === 'he' ? 'בפרויקט' : 'In project');
+  }
   const base = STUDENT_STATUS_LABEL[row.status][lang];
   if (row.status === 'applied' && row.appliedProjects.length > 0) {
-    const names = row.appliedProjects.map((p) => (lang === 'he' ? p.titleHe : p.titleEn) || '—').join(', ');
+    const names = row.appliedProjects
+      .map((p) => {
+        const title = (lang === 'he' ? p.titleHe : p.titleEn) || '—';
+        if (!p.projectType) return title;
+        const track = p.projectType === 'thesis' ? (lang === 'he' ? 'תזה' : 'thesis') : (lang === 'he' ? 'פרויקט' : 'project');
+        return `${track}: ${title}`;
+      })
+      .join('; ');
     return `${base} ${names}`;
   }
   return base;

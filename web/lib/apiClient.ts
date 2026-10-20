@@ -2344,7 +2344,9 @@ export const apiClient = {
         degreeType: 'bachelors' | 'masters' | null;
         status: 'not_in_project' | 'applied' | 'in_project' | 'awaiting_defense' | 'finished';
         /** Only populated when status === 'applied'. */
-        appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+        appliedProjects: Array<{ titleHe: string; titleEn: string; projectType: 'project' | 'thesis' }>;
+        /** Project vs thesis the student is doing — null when not enrolled. */
+        projectType: 'project' | 'thesis' | null;
         projectTitleHe: string | null;
         projectTitleEn: string | null;
         supervisorName: string | null;

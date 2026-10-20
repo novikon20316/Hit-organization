@@ -23,7 +23,9 @@ interface StudentReportRow {
   id: string;
   name: string;
   status: StudentStatus;
-  appliedProjects: Array<{ titleHe: string; titleEn: string }>;
+  appliedProjects: Array<{ titleHe: string; titleEn: string; projectType?: 'project' | 'thesis' }>;
+  /** Project vs thesis the student is actually doing — set while enrolled. */
+  projectType?: 'project' | 'thesis' | null;
   projectTitleHe: string | null;
   projectTitleEn: string | null;
   supervisorName: string | null;
@@ -64,10 +66,25 @@ const STATUS_COLOR: Record<StudentStatus, string> = {
   finished: '#10B981',
 };
 
-function statusText(row: StudentReportRow, lang: 'he' | 'en'): string {
+const TRACK_LABEL: Record<'project' | 'thesis', { he: string; en: string }> = {
+  project: { he: 'פרויקט', en: 'project' },
+  thesis: { he: 'תזה', en: 'thesis' },
+};
+
+// While enrolled, "In project/thesis" becomes "In project" or "In thesis";
+// an application lists each one as "<track>: <title>".
+export function statusText(row: Pick<StudentReportRow, 'status' | 'appliedProjects' | 'projectType'>, lang: 'he' | 'en'): string {
+  if (row.status === 'in_project' && row.projectType) {
+    return row.projectType === 'thesis' ? (lang === 'he' ? 'בתזה' : 'In thesis') : (lang === 'he' ? 'בפרויקט' : 'In project');
+  }
   const base = STATUS_LABEL[row.status][lang];
   if (row.status === 'applied' && row.appliedProjects.length > 0) {
-    const names = row.appliedProjects.map((p) => (lang === 'he' ? p.titleHe : p.titleEn) || '—').join(lang === 'he' ? ', ' : ', ');
+    const names = row.appliedProjects
+      .map((p) => {
+        const title = (lang === 'he' ? p.titleHe : p.titleEn) || '—';
+        return p.projectType ? `${TRACK_LABEL[p.projectType][lang]}: ${title}` : title;
+      })
+      .join('; ');
     return `${base} ${names}`;
   }
   return base;
