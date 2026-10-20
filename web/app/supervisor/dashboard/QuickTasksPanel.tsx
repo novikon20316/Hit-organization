@@ -10,8 +10,17 @@
 // form directly (same modal ProjectWorkflowSection's own "Grade" button
 // opens), the other two rows switch to the tab that shows them, since
 // there's no single project/application card to deep-link to on the page.
+// One exception to "no new API calls": committee reviews, fetched here only
+// for a supervisor with no higher role who's been substituted onto a
+// committee (see lib/roles.ts's isSupervisorWithoutHigherRole).
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationsContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { apiClient, type CommitteePendingReview } from '@/lib/apiClient';
+import { isSupervisorWithoutHigherRole } from '@/lib/roles';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
@@ -42,6 +51,17 @@ interface QuickTasksPanelProps {
 
 export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
+  const { userData } = useAuth();
+  const { isCommitteeSubstitute } = useNotifications();
+  const showCommittee = isCommitteeSubstitute && isSupervisorWithoutHigherRole(userData);
+  const [committeeReviews, setCommitteeReviews] = useState<CommitteePendingReview[]>([]);
+
+  const fetchCommitteeReviews = useCallback(() => {
+    if (!showCommittee) return;
+    apiClient.getMyPendingCommitteeReviews().then((r) => setCommitteeReviews(r.reviews)).catch(() => setCommitteeReviews([]));
+  }, [showCommittee]);
+  useEffect(fetchCommitteeReviews, [fetchCommitteeReviews]);
+  useLiveRefresh(fetchCommitteeReviews);
 
   // Oldest submission first — the longer it's sat waiting, the more urgent.
   const gradesAwaitingReview = pendingGrades
@@ -57,6 +77,17 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
     .sort((a, b) => toMs(a.submittedAt) - toMs(b.submittedAt));
 
   const items = [
+    // A committee review someone else is waiting on (the chairman can't
+    // decide until every member voted) — listed first.
+    ...(showCommittee ? committeeReviews : []).map((r) => ({
+      key: `c-${r.milestoneId}`,
+      icon: '🧑‍⚖️',
+      color: URGENCY_TEXT.red,
+      label: lang === 'he' ? 'בדיקת ועדה ממתינה' : 'Committee review pending',
+      title: lang === 'he' ? r.projectTitleHe : r.projectTitleEn,
+      sub: lang === 'he' ? `${r.voteCount}/${r.memberCount} הצביעו` : `${r.voteCount}/${r.memberCount} voted`,
+      href: '/committees',
+    })),
     ...gradesAwaitingReview.map((m) => ({
       key: `g-${m.id}`,
       icon: URGENCY_ICON.red,

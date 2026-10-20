@@ -213,6 +213,24 @@ export function getUserRoles(userData: { role?: AppRole; roles?: AppRole[] } | n
   return Array.from(set);
 }
 
+/** Roles whose own sidebar always carries the "Committees" tab (see each
+ *  role's navSections.ts). */
+export const COMMITTEE_TAB_ROLES: AppRole[] = [
+  'coordinator', 'faculty_admin', 'program_head', 'division_head', 'dean',
+  'grad_school_head', 'school_head', 'system_admin',
+];
+
+/** True for a supervisor who holds no role above supervisor — the only case
+ *  a supervisor sees committee UI at all (and then only while substituted
+ *  onto a committee, see NotificationsContext's isCommitteeSubstitute). A
+ *  supervisor who also holds a higher role reaches /committees from that
+ *  role's own menu instead. */
+export function isSupervisorWithoutHigherRole(userData: { role?: AppRole; roles?: AppRole[] } | null | undefined): boolean {
+  const roles = getUserRoles(userData);
+  return (roles.includes('supervisor') || roles.includes('secondary_supervisor'))
+    && !roles.some((r) => COMMITTEE_TAB_ROLES.includes(r));
+}
+
 /** Seniority order for auto-resolving which of a multi-role user's dashboards
  *  they see (no manual switching — see resolveActiveRole below). Grounded in
  *  the permission matrix above, not an explicit source: system_admin bypasses

@@ -36,6 +36,11 @@ interface NotificationsContextValue {
    *  gate) for every role except system_admin, who manages committees
    *  faculty-wide regardless of their own membership. */
   isOnAnyCommittee: boolean;
+  /** Live — true while the signed-in user is substituted onto an open
+   *  milestone's committee in place of a conflicted member (see server's
+   *  substituteCommitteeMember). Gates the supervisor-only Committees tab
+   *  and Quick Tasks entry (see lib/roles.ts's isSupervisorWithoutHigherRole). */
+  isCommitteeSubstitute: boolean;
   /** Bumps every time a NEW notification lands for the signed-in user
    *  (never on the initial load). Screens watch it through
    *  hooks/useLiveRefresh.ts to refetch their own data the moment something
@@ -55,6 +60,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   unreadByTargetScreen: {},
   hasOpenRelayTasks: false,
   isOnAnyCommittee: false,
+  isCommitteeSubstitute: false,
   liveEventTick: 0,
   markTabSeen: async () => {},
   refresh: async () => {},
@@ -238,6 +244,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unreadByTargetScreen: firebaseUser ? unreadByTargetScreen : {},
     hasOpenRelayTasks: firebaseUser ? hasOpenRelayTasks : false,
     isOnAnyCommittee: firebaseUser ? isOnAnyCommittee : false,
+    isCommitteeSubstitute: firebaseUser ? isCommitteeSubstitute : false,
     liveEventTick,
     markTabSeen,
     refresh,

@@ -6,6 +6,7 @@
 // circular import — same split as app/coordinator/navSections.ts.
 
 import type { SidebarSection } from '@/components/dashboard/SidebarShell';
+import { isSupervisorWithoutHigherRole } from '@/lib/roles';
 
 export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
   {
@@ -57,6 +58,23 @@ export const SUPERVISOR_NAV_SECTIONS: SidebarSection[] = [
           en: 'Shared reference documents and guidelines for your faculty.',
         },
         isActive: (pathname) => pathname === '/info-files',
+      },
+      {
+        key: 'committees',
+        icon: '🧑‍⚖️',
+        href: '/committees',
+        label: { he: 'ועדות', en: 'Committees' },
+        description: {
+          he: 'בדיקות ועדה שבהן מונית כמחליף/ה לחבר ועדה.',
+          en: "Committee reviews you've been substituted onto.",
+        },
+        isActive: (pathname) => pathname === '/committees',
+        badgeTargetScreens: ['committees'],
+        // Committees are a coordinator-and-above tab. The one exception: a
+        // supervisor with no higher role who was substituted onto a
+        // committee (conflict-of-interest swap) — otherwise they'd have no
+        // menu path to the review they were asked to do.
+        visible: (userData, live) => live.isCommitteeSubstitute && isSupervisorWithoutHigherRole(userData),
       },
       {
         key: 'relay_tasks',
