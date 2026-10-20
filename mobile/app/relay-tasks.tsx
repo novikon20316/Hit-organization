@@ -6,10 +6,13 @@
 // decisionRelay.ts), not one specific role. Lists every open relay task
 // assigned to the caller: a committee chairman routed a decision to them
 // instead of the student (CS-enabled only, for now), and they're
-// responsible for passing the outcome on to the student themselves.
+// responsible for passing the outcome on to the student themselves. An
+// administrative coordinator recipient gets a dropdown instead of the single
+// button — she can also send the decision back to the committee or the
+// supervisor if something's wrong (mirrors web's RelayActionPicker).
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, FlatList, RefreshControl } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, FlatList, RefreshControl, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
@@ -24,7 +27,12 @@ interface RelayTask {
   projectTitleHe: string;
   projectTitleEn: string;
   decidedByName: string;
+  recipientRole: string;
+  canReturnToCommittee: boolean;
+  canReturnToSupervisor: boolean;
 }
+
+type RelayAction = 'student' | 'committee' | 'supervisor';
 
 export default function RelayTasksScreen() {
   const router = useRouter();
@@ -51,12 +59,14 @@ export default function RelayTasksScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleResolve = async (id: string) => {
+  const handleResolve = async (id: string, action: RelayAction = 'student', comment = '') => {
     setResolvingId(id);
     try {
-      await apiClient.resolveRelayTask(id);
+      await apiClient.resolveRelayTask(id, action, comment);
       setTasks((prev) => prev.filter((t) => t.id !== id));
-    } catch {} finally {
+    } catch (err: any) {
+      Alert.alert(L('שגיאה', 'Error'), err?.response?.data?.message ?? L('הפעולה נכשלה', 'Action failed'));
+    } finally {
       setResolvingId(null);
     }
   };
@@ -113,24 +123,109 @@ export default function RelayTasksScreen() {
               <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 4, textAlign: isRtl ? 'right' : 'left' }}>
                 {L(`הוחלט על ידי ${item.decidedByName}`, `Decided by ${item.decidedByName}`)}
               </Text>
-              <Pressable
-                onPress={() => handleResolve(item.id)}
-                disabled={resolvingId === item.id}
-                accessibilityRole="button"
-                style={{ marginTop: 10, backgroundColor: '#2E86FF', borderRadius: 20, paddingVertical: 8, alignItems: 'center', opacity: resolvingId === item.id ? 0.6 : 1 }}
-              >
-                {resolvingId === item.id ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-                    {L("עברתי לסטודנט/ית ✓", "I've informed the student ✓")}
-                  </Text>
-                )}
-              </Pressable>
+              {item.recipientRole === 'administrative_secretary' ? (
+                <RelayActionPicker
+                  task={item}
+                  lang={lang}
+                  busy={resolvingId === item.id}
+                  onSubmit={(action, comment) => handleResolve(item.id, action, comment)}
+                />
+              ) : (
+                <Pressable
+                  onPress={() => handleResolve(item.id)}
+                  disabled={resolvingId === item.id}
+                  accessibilityRole="button"
+                  style={{ marginTop: 10, backgroundColor: '#2E86FF', borderRadius: 20, paddingVertical: 8, alignItems: 'center', opacity: resolvingId === item.id ? 0.6 : 1 }}
+                >
+                  {resolvingId === item.id ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
+                      {L("עברתי לסטודנט/ית ✓", "I've informed the student ✓")}
+                    </Text>
+                  )}
+                </Pressable>
+              )}
             </View>
           )}
         />
       )}
     </SafeAreaView>
+  );
+}
+
+function RelayActionPicker({ task, lang, busy, onSubmit }: {
+  task: RelayTask;
+  lang: Lang;
+  busy: boolean;
+  onSubmit: (action: RelayAction, comment: string) => void;
+}) {
+  const isRtl = lang === 'he';
+  const L = (he: string, en: string) => (lang === 'he' ? he : en);
+  const [action, setAction] = useState<RelayAction>('student');
+  const [open, setOpen] = useState(false);
+  const [comment, setComment] = useState('');
+  const needsReason = action !== 'student';
+
+  const options: Array<{ value: RelayAction; label: string; disabled: boolean }> = [
+    { value: 'student', label: L('העברה לסטודנט/ית', 'Pass on to the student'), disabled: false },
+    { value: 'committee', label: L('החזרה לוועדה (לדיון חוזר)', 'Return to the committee (reconsider)'), disabled: !task.canReturnToCommittee },
+    { value: 'supervisor', label: L('החזרה למנחה (לבדיקה חוזרת)', 'Return to the supervisor (re-check)'), disabled: !task.canReturnToSupervisor },
+  ];
+  const selected = options.find((o) => o.value === action)!;
+  const canSubmit = !busy && (!needsReason || !!comment.trim());
+
+  return (
+    <View style={{ marginTop: 10, gap: 8 }}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel={L('מה לעשות עם ההחלטה', 'What to do with this decision')}
+        style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}
+      >
+        <Text style={{ fontSize: 13, color: '#1A1F36' }}>{selected.label}</Text>
+        <Text style={{ fontSize: 12, color: '#8899BB' }}>{open ? '▲' : '▼'}</Text>
+      </Pressable>
+      {open && (
+        <View style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+          {options.map((o) => (
+            <Pressable
+              key={o.value}
+              onPress={() => { setAction(o.value); setOpen(false); }}
+              disabled={o.disabled}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: o.disabled, selected: o.value === action }}
+              style={{ paddingHorizontal: 10, paddingVertical: 9, backgroundColor: o.value === action ? '#EEF4FF' : '#fff', opacity: o.disabled ? 0.4 : 1 }}
+            >
+              <Text style={{ fontSize: 13, color: '#1A1F36', textAlign: isRtl ? 'right' : 'left' }}>{o.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {needsReason && (
+        <TextInput
+          value={comment}
+          onChangeText={setComment}
+          multiline
+          placeholder={L('סיבת ההחזרה (חובה)', 'Reason for sending it back (required)')}
+          style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, minHeight: 60, fontSize: 13, textAlign: isRtl ? 'right' : 'left', textAlignVertical: 'top' }}
+        />
+      )}
+      <Pressable
+        onPress={() => onSubmit(action, comment.trim())}
+        disabled={!canSubmit}
+        accessibilityRole="button"
+        style={{ backgroundColor: '#2E86FF', borderRadius: 20, paddingVertical: 8, alignItems: 'center', opacity: canSubmit ? 1 : 0.6 }}
+      >
+        {busy ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
+            {action === 'student' ? L('עברתי לסטודנט/ית ✓', "I've informed the student ✓") : L('החזרה', 'Send back')}
+          </Text>
+        )}
+      </Pressable>
+    </View>
   );
 }

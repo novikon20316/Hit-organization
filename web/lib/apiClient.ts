@@ -3177,8 +3177,9 @@ export const apiClient = {
     return request<{ tasks: RelayTask[] }>('/api/relay-tasks/mine', { method: 'GET' });
   },
 
-  async resolveRelayTask(id: string) {
-    return request<{ success: boolean }>(`/api/relay-tasks/${id}/resolve`, { method: 'POST', body: {} });
+  // action 'committee'/'supervisor' — administrative coordinator only, comment required.
+  async resolveRelayTask(id: string, action: RelayTaskAction = 'student', comment = '') {
+    return request<{ success: boolean }>(`/api/relay-tasks/${id}/resolve`, { method: 'POST', body: { action, comment } });
   },
 
   // system_admin-only — which majors the chairman recipient-choice feature
@@ -3330,8 +3331,14 @@ export interface RelayTask {
   projectTitleHe: string;
   projectTitleEn: string;
   decidedByName: string;
+  recipientRole: string;
   createdAt: string | { seconds: number } | null;
+  // Administrative-coordinator recipients only — see server's relayTaskController.ts.
+  canReturnToCommittee: boolean;
+  canReturnToSupervisor: boolean;
 }
+
+export type RelayTaskAction = 'student' | 'committee' | 'supervisor';
 
 // See server/src/services/revisionDecisions.ts (P1 #13).
 export type RevisionDecisionType = 'proceed_to_defense' | 'require_corrections' | 're_judge' | 'add_examiner';

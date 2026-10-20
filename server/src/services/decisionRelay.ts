@@ -73,6 +73,9 @@ export interface CreateRelayTaskParams {
   recipientRole: DecisionRecipientCandidate['role'];
   projectId: string;
   milestoneId: string;
+  /** The committee stage (ChainStage.id) that made this decision — what
+   *  "return to the committee" routes the milestone back to. */
+  committeeStageId: string;
   studentIds: string[];
   decision: 'approve' | 'reject';
   comment: string;
@@ -88,7 +91,7 @@ export interface CreateRelayTaskParams {
  *  routed a terminal decision to a non-student recipient. */
 export async function createRelayTask(params: CreateRelayTaskParams): Promise<void> {
   const {
-    recipientId, recipientRole, projectId, milestoneId, studentIds, decision, comment,
+    recipientId, recipientRole, projectId, milestoneId, committeeStageId, studentIds, decision, comment,
     milestoneNameHe, milestoneNameEn, projectTitleHe, projectTitleEn, decidedByName,
   } = params;
 
@@ -97,6 +100,7 @@ export async function createRelayTask(params: CreateRelayTaskParams): Promise<vo
     recipientRole,
     projectId,
     milestoneId,
+    committeeStageId,
     studentIds,
     decision,
     comment,

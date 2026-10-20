@@ -117,7 +117,11 @@ export type AuditAction =
   | 'project_record_entry_edited'
   | 'project_record_entry_deleted'
   | 'project_record_entry_restored'
-  | 'project_record_number_changed';
+  | 'project_record_number_changed'
+  // An administrative coordinator sent a relayed committee decision back to
+  // the committee or the supervisor instead of passing it on to the student
+  // (see relayTaskController.ts's resolveRelayTask).
+  | 'relay_decision_returned';
 
 export interface AuditLogEntry {
   userId: string;

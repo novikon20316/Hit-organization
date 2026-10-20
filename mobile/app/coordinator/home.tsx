@@ -298,8 +298,7 @@ export default function CoordinatorHome() {
   const [defenseSort, setDefenseSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [deadlines, setDeadlines] = useState<any[]>([]);
   // Committee reviews/chair decisions waiting on the signed-in user — the
-  // Urgent Actions feed's 4th bucket. Mobile has no committees screen yet,
-  // so these render as a non-clickable reminder (review happens on web).
+  // Urgent Actions feed's 4th bucket (opens app/committees.tsx).
   const [committeeTasks, setCommitteeTasks] = useState<{ id: string; titleHe: string; titleEn: string; isChairman: boolean }[]>([]);
   const [loadingDeadlines, setLoadingDeadlines] = useState(false);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
@@ -1477,14 +1476,16 @@ export default function CoordinatorHome() {
                       );
                     })}
                     {/* 4. Committee reviews / chair decisions waiting on
-                        this user personally (reviewed on web's /committees). */}
+                        this user personally — always tappable: the
+                        committees screen is their own work, not a
+                        coordinator-only fix screen. */}
                     {committeeTasks.slice(0, 3).map((c) => (
-                      <View key={c.id} style={apStyles.feedItem}>
+                      <Pressable key={c.id} style={apStyles.feedItem} onPress={() => router.push('/committees' as any)} accessibilityRole="button">
                         <Text style={apStyles.feedBadge}>
                           {c.isChairman ? (lang === 'he' ? 'החלטת יו"ר ועדה' : 'Committee Chair Decision') : (lang === 'he' ? 'בדיקת ועדה' : 'Committee Review')}
                         </Text>
                         <Text style={apStyles.feedTitle}>{lang === 'he' ? c.titleHe : c.titleEn}</Text>
-                      </View>
+                      </Pressable>
                     ))}
                   </>
                 )}

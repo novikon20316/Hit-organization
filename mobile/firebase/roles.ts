@@ -278,6 +278,22 @@ export function getUserRoles(userData: { role?: AppRole; roles?: AppRole[] } | n
   return Array.from(set);
 }
 
+/** Roles that always get the "Committees" menu entry (mirrors web's
+ *  lib/roles.ts COMMITTEE_TAB_ROLES). */
+export const COMMITTEE_TAB_ROLES: AppRole[] = [
+  'coordinator', 'faculty_admin', 'program_head', 'division_head', 'dean',
+  'grad_school_head', 'school_head', 'system_admin',
+];
+
+/** True for a supervisor who holds no role above supervisor — the only case
+ *  a supervisor sees committee UI at all, and then only while substituted
+ *  onto a committee (NotificationsContext's isCommitteeSubstitute). Mirrors
+ *  web's lib/roles.ts isSupervisorWithoutHigherRole. */
+export function isSupervisorWithoutHigherRole(roles: AppRole[]): boolean {
+  return (roles.includes('supervisor') || roles.includes('secondary_supervisor'))
+    && !roles.some((r) => COMMITTEE_TAB_ROLES.includes(r));
+}
+
 /** Seniority order for auto-resolving which of a multi-role user's dashboards
  *  they see (no manual switching — see resolveActiveRole below). Mirrors
  *  web/lib/roles.ts's ROLE_RANK — grounded in the permission matrix above,

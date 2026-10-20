@@ -486,6 +486,48 @@ class ApiClient {
     return response.data as { success: boolean; message: string };
   }
 
+  // ─── COMMITTEES — see server's committeeReviewController.ts /
+  // parallelSignoffController.ts. Same endpoints web's /committees uses ────
+  async getMyCommittees() {
+    const response = await this.api.get('/api/committees/mine');
+    return response.data as { committees: CommitteeRecord[] };
+  }
+
+  async getMyPendingCommitteeReviews() {
+    const response = await this.api.get('/api/committees/mine/pending-reviews');
+    return response.data as { reviews: CommitteePendingReview[] };
+  }
+
+  async getMyPendingChairDecisions() {
+    const response = await this.api.get('/api/committees/mine/pending-chair-decisions');
+    return response.data as { reviews: ChairDecisionPendingReview[] };
+  }
+
+  async getCommitteeReview(milestoneId: string) {
+    const response = await this.api.get(`/api/milestones/${milestoneId}/committee-review`);
+    return response.data as CommitteeReviewDetail;
+  }
+
+  async submitCommitteeVote(milestoneId: string, vote: 'approve' | 'reject', comment: string) {
+    const response = await this.api.post(`/api/milestones/${milestoneId}/committee-vote`, { vote, comment });
+    return response.data as { success: boolean };
+  }
+
+  async submitCommitteeDecision(milestoneId: string, decision: 'approve' | 'reject', comment: string, recipientId?: string) {
+    const response = await this.api.post(`/api/milestones/${milestoneId}/committee-decision`, { decision, comment, ...(recipientId ? { recipientId } : {}) });
+    return response.data as { success: boolean; message: string };
+  }
+
+  async getCommitteeDecisionRecipients(milestoneId: string) {
+    const response = await this.api.get(`/api/milestones/${milestoneId}/committee-decision-recipients`);
+    return response.data as { enabled: boolean; candidates: DecisionRecipientCandidate[] };
+  }
+
+  async submitCommitteeChairDecision(milestoneId: string, decision: 'continue' | 'not_continue', reason: string) {
+    const response = await this.api.post(`/api/milestones/${milestoneId}/committee-chair-decision`, { decision, reason });
+    return response.data as { success: boolean };
+  }
+
   // ─── RELAY TASKS — see server/src/services/decisionRelay.ts. A committee
   // chairman (CS-enabled only, for now) can route a terminal decision to
   // someone other than the student; that person is responsible for passing
@@ -508,3 +550,56 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+// Committee shapes — mirror web's lib/apiClient.ts.
+export interface CommitteeRecord {
+  id: string;
+  facultyId: string;
+  major: string;
+  degreeLevel: 'bachelors' | 'masters';
+  type: 'thesis' | 'final_project';
+  chairmanId: string | null;
+  memberIds: string[];
+}
+
+export interface CommitteePendingReview {
+  milestoneId: string;
+  type: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  committeeId: string;
+  isChairman: boolean;
+  alreadyVoted: boolean;
+  voteCount: number;
+  memberCount: number;
+}
+
+export interface ChairDecisionPendingReview {
+  milestoneId: string;
+  type: string;
+  nameHe: string;
+  nameEn: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  studentNames: string[];
+  submittedAt: string | null;
+}
+
+export interface CommitteeReviewDetail {
+  milestoneId: string;
+  type: string;
+  submissionNote: string;
+  fileUrls: string[];
+  committee: { id: string; chairmanId: string | null; memberIds: string[]; memberNames: Record<string, string> };
+  isChairman: boolean;
+  votes: { memberId: string; vote: 'approve' | 'reject'; comment: string; votedAt: string }[];
+}
+
+export interface DecisionRecipientCandidate {
+  id: string;
+  name: string;
+  role: 'supervisor' | 'secondary_supervisor' | 'coordinator' | 'administrative_secretary' | 'program_head';
+}
+

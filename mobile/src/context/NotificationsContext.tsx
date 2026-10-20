@@ -32,6 +32,11 @@ interface NotificationsContextValue {
    *  data the moment something happens to them (a supervisor's rejection,
    *  a new submission, a conflict-of-interest hold), no manual refresh. */
   liveEventTick: number;
+  /** Live — true while the signed-in user is substituted onto an open
+   *  milestone's committee (see server's substituteCommitteeMember). Gates
+   *  the supervisor-only Committees menu entry (TopBar). Mirrors web's
+   *  NotificationsContext.isCommitteeSubstitute. */
+  isCommitteeSubstitute: boolean;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue>({
@@ -41,6 +46,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   markTabSeen: async () => {},
   refresh: async () => {},
   liveEventTick: 0,
+  isCommitteeSubstitute: false,
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
@@ -55,6 +61,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const unreadMessagesRef = useRef(0);
   const unsubUnread = useRef<Unsubscribe | null>(null);
   const [liveEventTick, setLiveEventTick] = useState(0);
+  const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
 
    // Track auth state
   useEffect(() => {
@@ -138,6 +145,21 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     };
   }, [isLoggedIn, activeRole]);
 
+  // Substituted onto an open committee review in place of a conflicted
+  // member — same query as web's NotificationsContext.
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!isLoggedIn || !uid) { setIsCommitteeSubstitute(false); return; }
+    const q = query(collection(db, 'milestones'), where('committeeSubstituteIds', 'array-contains', uid));
+    return onSnapshot(
+      q,
+      (snapshot) => setIsCommitteeSubstitute(snapshot.docs.some((d) => !!d.data().currentCommitteeId)),
+      (err: any) => {
+        if (err?.code === 'permission-denied') return; // expected during sign-out
+      }
+    );
+  }, [isLoggedIn]);
+
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
       await apiClient.markNotificationsRead(targetScreens);
@@ -152,8 +174,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // every consumer (e.g. one only reading markTabSeen) on every unread-count
   // tick from the live listener above.
   const value = useMemo<NotificationsContextValue>(() => ({
-    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick,
-  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick]);
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, isCommitteeSubstitute,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, isCommitteeSubstitute]);
 
   return (
     <NotificationsContext.Provider value={value}>

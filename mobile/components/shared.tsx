@@ -14,6 +14,9 @@ import type { Lang } from './i18n';
 import { apiClient } from '../src/api/apiClient';
 import HeaderMenu, { type HeaderMenuItem } from './HeaderMenu';
 import { useNotifications } from '../src/context/NotificationsContext';
+import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { COMMITTEE_TAB_ROLES, isSupervisorWithoutHigherRole } from '../firebase/roles';
+import type { AppRole } from './i18n';
 import {
   TopBarStyles, HeaderMenuStyles, StatCardStyles, SectionHeaderStyles, FacultyBadgeStyles,
   StatusBadgeStyles, SecurityModalStyles,
@@ -581,7 +584,14 @@ export function TopBar({
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadByTargetScreen, isCommitteeSubstitute, markTabSeen } = useNotifications();
+  const { roles } = useActiveRole();
+  // Committees (app/committees.tsx): every coordinator-and-above role, plus
+  // a supervisor with no higher role only while substituted onto a
+  // committee — same rule as web's sidebar (navSections.ts).
+  const isSupervisorView = role === 'supervisor' || role === 'secondary_supervisor';
+  const showCommittees = COMMITTEE_TAB_ROLES.includes(role as AppRole)
+    || (isSupervisorView && isCommitteeSubstitute && isSupervisorWithoutHigherRole(roles));
 
   // SECURITY FIX: only student screens ever passed onBeforeSignOut wired up
   // to call POST /api/users/logout (which clears expoPushToken server-side)
@@ -617,7 +627,15 @@ export function TopBar({
       label: lang === 'he' ? 'מצב תחזוקה' : 'Maintenance mode',
       onPress: () => onMaintenance?.(),
     }] : []),
-    ...(extraMenuItems ?? []).map((item, i) => ({ ...item, dividerBefore: i === 0 })),
+    ...[
+      ...(showCommittees ? [{
+        key: 'committees', icon: '🧑‍⚖️',
+        label: lang === 'he' ? 'ועדות' : 'Committees',
+        badge: unreadByTargetScreen.committees ?? 0,
+        onPress: () => { markTabSeen(['committees']); router.push('/committees' as any); },
+      }] : []),
+      ...(extraMenuItems ?? []),
+    ].map((item, i) => ({ ...item, dividerBefore: i === 0 })),
     {
       key: 'sign-out', icon: '🚪', danger: true, dividerBefore: true,
       label: lang === 'he' ? 'יציאה' : 'Sign Out',

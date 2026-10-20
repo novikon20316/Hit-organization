@@ -7,13 +7,15 @@
 // dashboard tree. Lists every open relay task assigned to the caller: a
 // committee chairman routed a decision to them instead of the student (CS-
 // enabled only, for now), and they're responsible for passing the outcome
-// on to the student themselves.
+// on to the student themselves. An administrative coordinator recipient
+// gets a dropdown instead of the single button — she can also send the
+// decision back to the committee or the supervisor if something's wrong.
 
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, type RelayTask } from '@/lib/apiClient';
+import { apiClient, type RelayTask, type RelayTaskAction } from '@/lib/apiClient';
 import { STAFF_ROLES } from '@/lib/roles';
 
 export default function RelayTasksPage() {
@@ -42,10 +44,10 @@ export default function RelayTasksPage() {
     if (isAllowed) fetchAll();
   }, [isAllowed, fetchAll]);
 
-  const handleResolve = async (id: string) => {
+  const handleResolve = async (id: string, action: RelayTaskAction = 'student', comment = '') => {
     setResolvingId(id);
     try {
-      await apiClient.resolveRelayTask(id);
+      await apiClient.resolveRelayTask(id, action, comment);
       setTasks((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : lang === 'he' ? 'הפעולה נכשלה' : 'Action failed');
@@ -91,18 +93,73 @@ export default function RelayTasksPage() {
               <p className="mt-1 text-xs text-muted">
                 {lang === 'he' ? `הוחלט על ידי ${t.decidedByName}` : `Decided by ${t.decidedByName}`}
               </p>
-              <button
-                type="button"
-                onClick={() => handleResolve(t.id)}
-                disabled={resolvingId === t.id}
-                className="mt-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
-              >
-                {resolvingId === t.id ? '…' : lang === 'he' ? 'עברתי לסטודנט/ית ✓' : "I've informed the student ✓"}
-              </button>
+              {t.recipientRole === 'administrative_secretary' ? (
+                <RelayActionPicker task={t} busy={resolvingId === t.id} onSubmit={(action, comment) => handleResolve(t.id, action, comment)} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleResolve(t.id)}
+                  disabled={resolvingId === t.id}
+                  className="mt-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+                >
+                  {resolvingId === t.id ? '…' : lang === 'he' ? 'עברתי לסטודנט/ית ✓' : "I've informed the student ✓"}
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+function RelayActionPicker({ task, busy, onSubmit }: {
+  task: RelayTask;
+  busy: boolean;
+  onSubmit: (action: RelayTaskAction, comment: string) => void;
+}) {
+  const { lang } = useLanguage();
+  const he = lang === 'he';
+  const [action, setAction] = useState<RelayTaskAction>('student');
+  const [comment, setComment] = useState('');
+  const needsReason = action !== 'student';
+
+  const options: Array<{ value: RelayTaskAction; label: string; disabled?: boolean }> = [
+    { value: 'student', label: he ? 'העברה לסטודנט/ית' : 'Pass on to the student' },
+    { value: 'committee', label: he ? 'החזרה לוועדה (לדיון חוזר)' : 'Return to the committee (reconsider)', disabled: !task.canReturnToCommittee },
+    { value: 'supervisor', label: he ? 'החזרה למנחה (לבדיקה חוזרת)' : 'Return to the supervisor (re-check)', disabled: !task.canReturnToSupervisor },
+  ];
+
+  return (
+    <div className="mt-2 space-y-2">
+      <select
+        value={action}
+        onChange={(e) => setAction(e.target.value as RelayTaskAction)}
+        disabled={busy}
+        aria-label={he ? 'מה לעשות עם ההחלטה' : 'What to do with this decision'}
+        className="w-full rounded-md border border-line bg-surface px-2 py-1.5 text-xs text-ink"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+        ))}
+      </select>
+      {needsReason && (
+        <textarea
+          rows={2}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder={he ? 'סיבת ההחזרה (חובה)' : 'Reason for sending it back (required)'}
+          className="w-full rounded-md border border-line bg-surface px-2 py-1.5 text-xs text-ink"
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => onSubmit(action, comment.trim())}
+        disabled={busy || (needsReason && !comment.trim())}
+        className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
+      >
+        {busy ? '…' : action === 'student' ? (he ? 'עברתי לסטודנט/ית ✓' : "I've informed the student ✓") : (he ? 'החזרה' : 'Send back')}
+      </button>
+    </div>
   );
 }

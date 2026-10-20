@@ -522,6 +522,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
           recipientRole: effectiveRecipient.role,
           projectId: milestone.projectId ?? '',
           milestoneId,
+          committeeStageId: stage.id,
           studentIds,
           decision,
           comment: typeof comment === 'string' ? comment.trim() : '',
