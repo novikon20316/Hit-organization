@@ -48,12 +48,15 @@ export const REPORT_TYPES = [
 ] as const;
 type ReportType = typeof REPORT_TYPES[number];
 
-function parseFilters(req: AuthenticatedRequest, resolvedFacultyId: string | undefined): ReportFilters {
+function parseFilters(req: AuthenticatedRequest, scope: ResolvedScope): ReportFilters {
   const q = req.query as Record<string, string | undefined>;
   return {
-    facultyId: resolvedFacultyId,
+    facultyId: scope.facultyId,
+    facultyIds: scope.facultyIds,
     startYear: q.startYear ? Number(q.startYear) : undefined,
-    degreeType: q.degreeType || undefined,
+    // A scope-pinned degree (grad_school_head: masters only) overrides
+    // whatever the client asked for.
+    degreeType: scope.degreeType ?? (q.degreeType || undefined),
     projectType: q.projectType || undefined,
     processStatus: q.processStatus || undefined,
     advisorId: q.advisorId || undefined,
@@ -83,8 +86,15 @@ async function runReport(type: ReportType, filters: ReportFilters) {
   }
 }
 
+interface ResolvedScope {
+  facultyId?: string | undefined;
+  facultyIds?: string[] | undefined;
+  degreeType?: string | undefined;
+  error?: { status: number; message: string } | undefined;
+}
+
 /** Resolves the effective facultyId scope, or a 403/400 if the request is out of bounds. */
-function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | undefined; error?: { status: number; message: string } | undefined } {
+function resolveFacultyScope(req: AuthenticatedRequest): ResolvedScope {
   const role = matchedRole(req.user, REPORT_ROLES);
   if (!role) {
     return { error: { status: 403, message: L(req, 'You do not have permission to view reports.', 'אין לך הרשאה לצפות בדוחות.') } };
@@ -105,10 +115,17 @@ function resolveFacultyScope(req: AuthenticatedRequest): { facultyId?: string | 
   const field = REPORT_ROLE_FACULTY_FIELD[role];
   if (field) {
     const eff = effectiveFacultyIds(req.user!, field);
-    if (eff === 'all') return { facultyId: requested };
-    if (requested && !eff.includes(requested)) {
+    if (requested && eff !== 'all' && !eff.includes(requested)) {
       return { error: { status: 403, message: L(req, 'You may only view reports for your own assigned faculties.', 'ניתן לצפות בדוחות רק לפקולטות המוקצות לך.') } };
     }
+    // grad_school_head oversees masters only, across every faculty granted
+    // to her (the Reports UI has no faculty picker for this role, so with
+    // nothing requested she gets all of them, not just her own facultyId).
+    if (role === 'grad_school_head') {
+      if (requested || eff === 'all') return { facultyId: requested, degreeType: 'masters' };
+      return { facultyIds: eff, degreeType: 'masters' };
+    }
+    if (eff === 'all') return { facultyId: requested };
     return { facultyId: requested ?? req.user?.facultyId };
   }
 
@@ -163,7 +180,7 @@ export const getReportProjects = async (req: AuthenticatedRequest, res: Response
   if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
 
   try {
-    const filters = parseFilters(req, scope.facultyId);
+    const filters = parseFilters(req, scope);
     const projects = await projectListReport(filters);
     return res.status(200).json({ projects });
   } catch (error) {
@@ -183,7 +200,7 @@ export const getReport = async (req: AuthenticatedRequest, res: Response) => {
   if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
 
   try {
-    const filters = parseFilters(req, scope.facultyId);
+    const filters = parseFilters(req, scope);
     const data = await runReport(reportType as ReportType, filters);
     return res.status(200).json({ reportType, filters, data });
   } catch (error: any) {
@@ -203,7 +220,7 @@ export const exportReport = async (req: AuthenticatedRequest, res: Response) => 
   if (scope.error) return res.status(scope.error.status).json({ message: scope.error.message });
 
   try {
-    const filters = parseFilters(req, scope.facultyId);
+    const filters = parseFilters(req, scope);
     const data = await runReport(reportType as ReportType, filters);
     // Excel export defaults to English (the original behavior for every
     // role); the administrative coordinator's project-first flow

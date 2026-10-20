@@ -45,7 +45,10 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
     // that specific role (see effectiveFacultyIds) — grad_school_head used
     // to be unconditionally cross-faculty via the plain facultyId==='all'
     // check alone.
-    const escalationField = ESCALATION_FACULTY_FIELD[matchedRole(req.user, COORDINATOR_ROLES) ?? req.user.role];
+    const escalationRole = matchedRole(req.user, COORDINATOR_ROLES) ?? req.user.role;
+    const escalationField = ESCALATION_FACULTY_FIELD[escalationRole];
+    // grad_school_head's role covers masters projects only.
+    const mastersOnly = escalationRole === 'grad_school_head';
     let escalationScope: 'all' | string[];
     if (escalationField) {
       escalationScope = effectiveFacultyIds(req.user, escalationField);
@@ -77,10 +80,14 @@ export const getExaminerEscalations = async (req: AuthenticatedRequest, res: Res
       if (t.status !== 'declined' && !isOverdue) return null;
 
       let facultyId = '';
+      let degreeTypes: string[] = [];
       if (t.projectId) {
         const projectSnap = await db.collection('projects').doc(t.projectId).get();
-        facultyId = projectSnap.data()?.facultyId ?? '';
+        const p = projectSnap.data();
+        facultyId = p?.facultyId ?? '';
+        degreeTypes = p?.degreeTypes ?? (p?.degreeType ? [p.degreeType] : []);
       }
+      if (mastersOnly && !degreeTypes.includes('masters')) return null;
       const withinScope = escalationScope === 'all' || (Array.isArray(escalationScope) ? escalationScope.includes(facultyId) : escalationScope === facultyId);
       if (!withinScope) return null;
 

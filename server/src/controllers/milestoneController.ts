@@ -776,6 +776,10 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
   // getExaminerDashboard already scopes this way for her real dashboard;
   // this endpoint had never been given the same treatment.
   let examinerUid: string | undefined;
+  // Set only for grad_school_head below — her role covers masters only.
+  // Milestones carry no degree field, so this is applied after the query
+  // via each milestone's project.
+  let mastersOnly = false;
 
   // This endpoint previously trusted these filters completely, so any
   // authenticated user (e.g. a student) could call it with no params at all
@@ -835,6 +839,7 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     // internal_examiner below.
     const eff = effectiveFacultyIds(requester, 'gradSchoolHeadFacultyIds');
     if (eff !== 'all') facultyIdIn = eff;
+    mastersOnly = true;
   } else if (requesterRoles.includes('internal_examiner')) {
     // Scoped to her own assignments, not her whole faculty — see
     // examinerUid's declaration above. Previously used the same
@@ -875,8 +880,18 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
     console.log('🎯 Milestone query params:', { projectId, studentId, supervisorId, facultyId });
     const snap = await q.get();
     console.log('🎯 Milestones found:', snap.docs.length);
+    let docs = snap.docs;
+    if (mastersOnly) {
+      const projectIds = [...new Set<string>(docs.map((d: any) => d.data().projectId).filter(Boolean))];
+      const projectSnaps = await Promise.all(projectIds.map((id) => db.collection('projects').doc(id).get()));
+      const mastersIds = new Set(projectSnaps.filter((p) => {
+        const data = p.data();
+        return data && (data.degreeTypes ?? (data.degreeType ? [data.degreeType] : [])).includes('masters');
+      }).map((p) => p.id));
+      docs = docs.filter((d: any) => mastersIds.has(d.data().projectId));
+    }
     const viewerRoles = requester.roles?.length ? requester.roles : [requester.role];
-    const milestones = snap.docs.map((d: any) => {
+    const milestones = docs.map((d: any) => {
       const data = d.data();
       console.log('  📌 Milestone:', d.id, {
         studentIds: data.studentIds,

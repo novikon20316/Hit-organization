@@ -21,6 +21,10 @@ import {
 
 export interface ReportFilters {
   facultyId?: string | undefined;
+  /** Several faculties at once — a grad_school_head granted more than one
+   *  faculty (see reportsController.ts's resolveFacultyScope). Takes
+   *  precedence over `facultyId` when set. */
+  facultyIds?: string[] | undefined;
   startYear?: number | undefined;
   degreeType?: string | undefined;   // 'bachelors' | 'masters'
   projectType?: string | undefined;  // 'project' | 'thesis'
@@ -84,7 +88,8 @@ const CLOSED_STATUSES = new Set(['completed', 'withdrawn', 'admin_closed']);
  */
 export async function gatherEngagements(filters: ReportFilters = {}): Promise<EngagementRecord[]> {
   let projectsQuery: FirebaseFirestore.Query = db.collection('projects');
-  if (filters.facultyId) projectsQuery = projectsQuery.where('facultyId', '==', filters.facultyId);
+  if (filters.facultyIds) projectsQuery = projectsQuery.where('facultyId', 'in', filters.facultyIds);
+  else if (filters.facultyId) projectsQuery = projectsQuery.where('facultyId', '==', filters.facultyId);
   if (filters.advisorId) projectsQuery = projectsQuery.where('supervisorId', '==', filters.advisorId);
   if (filters.processStatus) projectsQuery = projectsQuery.where('status', '==', filters.processStatus);
 
@@ -260,14 +265,20 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
   // per-token round-trip meant a facultyId-filtered report with N tokens
   // took N sequential round-trips instead of one parallel batch.
   const projectFacultyById: Record<string, string | undefined> = {};
-  if (filters.facultyId) {
+  const projectDegreesById: Record<string, string[]> = {};
+  if (filters.facultyId || filters.facultyIds || filters.degreeType) {
     const projectIds = new Set<string>();
     tokensSnap.docs.forEach((doc) => {
       const pid = doc.data().projectId;
       if (pid) projectIds.add(pid);
     });
     const projectSnaps = await Promise.all([...projectIds].map((id) => db.collection('projects').doc(id).get()));
-    projectSnaps.forEach((snap) => { if (snap.exists) projectFacultyById[snap.id] = snap.data()?.facultyId; });
+    projectSnaps.forEach((snap) => {
+      if (!snap.exists) return;
+      const p = snap.data()!;
+      projectFacultyById[snap.id] = p.facultyId;
+      projectDegreesById[snap.id] = p.degreeTypes ?? (p.degreeType ? [p.degreeType] : []);
+    });
   }
 
   const tokenProjectIdFilter = filters.projectIds && filters.projectIds.length > 0
@@ -276,7 +287,10 @@ export async function examinerTrackingReport(filters: ReportFilters): Promise<Ex
 
   for (const doc of tokensSnap.docs) {
     const t = doc.data();
-    if (filters.facultyId && projectFacultyById[t.projectId] !== filters.facultyId) continue;
+    if (filters.facultyIds) {
+      if (!filters.facultyIds.includes(projectFacultyById[t.projectId] ?? '')) continue;
+    } else if (filters.facultyId && projectFacultyById[t.projectId] !== filters.facultyId) continue;
+    if (filters.degreeType && !(projectDegreesById[t.projectId] ?? []).includes(filters.degreeType)) continue;
     if (tokenProjectIdFilter && !tokenProjectIdFilter.has(t.projectId)) continue;
     const invitedAt = t.createdAt ? new Date(t.createdAt) : null;
     const daysElapsed = invitedAt ? Math.floor((now - invitedAt.getTime()) / 86_400_000) : null;
