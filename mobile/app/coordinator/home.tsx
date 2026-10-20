@@ -39,6 +39,7 @@ import { ap } from '@/constants/theme';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import {
   ASSIGN_EXAMINERS_FIELD_GUIDE, ASSIGN_EXAMINERS_GUIDE_KEY,
   DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
@@ -602,10 +603,13 @@ export default function CoordinatorHome() {
 
 
   // ── 1. Unified Fetch Loop ───────────────────────────────────────────
-  const fetchCoordinatorDashboard = async () => {
+  // `silent` — a background live refresh (useLiveRefresh below) must never
+  // flash the full-screen spinner or pop an error alert over whatever the
+  // coordinator is doing; same split as supervisor/dashboard.tsx.
+  const fetchCoordinatorDashboard = async (silent = false) => {
     try {
       if (!auth.currentUser) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       // 🚀 Replaced all multi-collection snapshots with one optimized backend matrix call
       const [profileRes, dashboardRes, examinersRes] = await Promise.all([
@@ -664,6 +668,7 @@ export default function CoordinatorHome() {
         setExaminerRecs(recsRes.data.recommendations ?? []);
       } catch (_) { /* non-fatal */ }
     } catch (err) {
+      if (silent) return;
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'טעינת לוח הבקרה נכשלה.' : 'Failed to load the dashboard.',
@@ -680,6 +685,10 @@ export default function CoordinatorHome() {
   useEffect(() => {
     fetchCoordinatorDashboard();
   }, []);
+
+  // New notification (e.g. a student just submitted a milestone) → reload
+  // the dashboard in place — see hooks/useLiveRefresh.ts.
+  useLiveRefresh(() => fetchCoordinatorDashboard(true));
 
   // ── Import / export faculty roster (Excel) ──────────────────────────────────
   // Scoped server-side to this coordinator's own facultyId — rows in the
@@ -2005,7 +2014,7 @@ export default function CoordinatorHome() {
         {activeTab === 'inProgress' && (
           <>
             <FieldGuideOverlay guideKey={IN_PROGRESS_TAB_GUIDE_KEY} steps={IN_PROGRESS_TAB_FIELD_GUIDE} />
-            <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={fetchCoordinatorDashboard} />
+            <CreateOwnProjectButton lang={lang} isRtl={isRtl} onCreated={() => fetchCoordinatorDashboard()} />
             {inProgressProjects.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>📁</Text>
@@ -2719,7 +2728,7 @@ export default function CoordinatorHome() {
         guideKey={DEFENSE_LOGISTICS_GUIDE_KEY}
         guideSteps={DEFENSE_LOGISTICS_FIELD_GUIDE}
         onClose={() => setDefenseModal(false)}
-        onSaved={fetchCoordinatorDashboard}
+        onSaved={() => fetchCoordinatorDashboard()}
       />
 
       {/* ── Date-conflict resolution modal ── */}

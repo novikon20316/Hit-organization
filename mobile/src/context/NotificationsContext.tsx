@@ -32,11 +32,29 @@ interface NotificationsContextValue {
    *  data the moment something happens to them (a supervisor's rejection,
    *  a new submission, a conflict-of-interest hold), no manual refresh. */
   liveEventTick: number;
+  /** The newest notification that arrived live while signed in (never the
+   *  initial backlog) — what components/LiveEventToast.tsx pops on screen
+   *  so a new submission/decision is visible the moment it happens, on
+   *  whatever screen the user is on. Chat messages excluded (they have
+   *  their own unread counter). Mirrors web's NotificationsContext. */
+  liveEvent: LiveEvent | null;
+  dismissLiveEvent: () => void;
   /** Live — true while the signed-in user is substituted onto an open
    *  milestone's committee (see server's substituteCommitteeMember). Gates
    *  the supervisor-only Committees menu entry (TopBar). Mirrors web's
    *  NotificationsContext.isCommitteeSubstitute. */
   isCommitteeSubstitute: boolean;
+}
+
+export interface LiveEvent {
+  id: string;
+  type: string;
+  titleHe: string;
+  titleEn: string;
+  bodyHe: string;
+  bodyEn: string;
+  targetScreen: string | null;
+  targetRole: string | null;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue>({
@@ -46,6 +64,8 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   markTabSeen: async () => {},
   refresh: async () => {},
   liveEventTick: 0,
+  liveEvent: null,
+  dismissLiveEvent: () => {},
   isCommitteeSubstitute: false,
 });
 
@@ -61,6 +81,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const unreadMessagesRef = useRef(0);
   const unsubUnread = useRef<Unsubscribe | null>(null);
   const [liveEventTick, setLiveEventTick] = useState(0);
+  const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
+  const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
 
    // Track auth state
@@ -68,6 +90,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     const unsub = onAuthStateChanged(auth, (user) => {
       setIsLoggedIn(!!user);
       if (!user) {
+        setLiveEvent(null);
         setUnreadCount(0);   // ← clear on logout
         setUnreadChats(0);
         setNativeBadge(0);
@@ -115,8 +138,23 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       (snapshot) => {
         // The first snapshot is the existing backlog — only later 'added'
         // changes are genuinely new events worth a refetch.
-        if (!initialSnapshot && snapshot.docChanges().some((c) => c.type === 'added')) {
-          setLiveEventTick((n) => n + 1);
+        if (!initialSnapshot) {
+          const added = snapshot.docChanges().filter((c) => c.type === 'added');
+          if (added.length) setLiveEventTick((n) => n + 1);
+          const newest = added.map((c) => c.doc).filter((d) => d.data().type !== 'new_message').pop();
+          if (newest) {
+            const d = newest.data();
+            setLiveEvent({
+              id: newest.id,
+              type: d.type ?? '',
+              titleHe: d.titleHe ?? '',
+              titleEn: d.titleEn ?? '',
+              bodyHe: d.bodyHe ?? '',
+              bodyEn: d.bodyEn ?? '',
+              targetScreen: d.targetScreen ?? null,
+              targetRole: d.targetRole ?? null,
+            });
+          }
         }
         initialSnapshot = false;
         const alertDocs = snapshot.docs.filter((d) => d.data().type !== 'new_message');
@@ -174,8 +212,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // every consumer (e.g. one only reading markTabSeen) on every unread-count
   // tick from the live listener above.
   const value = useMemo<NotificationsContextValue>(() => ({
-    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, isCommitteeSubstitute,
-  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, isCommitteeSubstitute]);
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute]);
 
   return (
     <NotificationsContext.Provider value={value}>

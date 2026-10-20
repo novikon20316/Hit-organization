@@ -47,11 +47,31 @@ interface NotificationsContextValue {
    *  happens to them — a supervisor's rejection, a new submission, a
    *  committee decision — instead of waiting for a manual page refresh. */
   liveEventTick: number;
+  /** The newest notification that arrived live while signed in (never the
+   *  initial backlog) — what components/LiveEventToast.tsx pops on screen
+   *  so a new submission/decision is visible the moment it happens, on
+   *  whatever page the user is on. Chat messages excluded (they have their
+   *  own unread counter). Cleared via dismissLiveEvent. */
+  liveEvent: LiveEvent | null;
+  dismissLiveEvent: () => void;
   /** Bulk-marks read every unread notification whose targetScreen is one
    *  of `targetScreens` — called once when the user opens a tab that has
    *  a badge, so it clears immediately. */
   markTabSeen: (targetScreens: string[]) => Promise<void>;
   refresh: () => Promise<void>;
+}
+
+export interface LiveEvent {
+  id: string;
+  type: string;
+  titleHe: string;
+  titleEn: string;
+  bodyHe: string;
+  bodyEn: string;
+  targetScreen: string | null;
+  targetRole: string | null;
+  relatedProjectId: string | null;
+  relatedMilestoneId: string | null;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue>({
@@ -62,6 +82,8 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   isOnAnyCommittee: false,
   isCommitteeSubstitute: false,
   liveEventTick: 0,
+  liveEvent: null,
+  dismissLiveEvent: () => {},
   markTabSeen: async () => {},
   refresh: async () => {},
 });
@@ -76,6 +98,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
   const isOnAnyCommittee = isOnFormalCommittee || isCommitteeSubstitute;
   const [liveEventTick, setLiveEventTick] = useState(0);
+  const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
+  const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
   const unsubSubstitutions = useRef<Unsubscribe | null>(null);
   const unsubUnread = useRef<Unsubscribe | null>(null);
   const unsubRelayTasks = useRef<Unsubscribe | null>(null);
@@ -122,8 +146,25 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       (snapshot) => {
         // The first snapshot is just the existing backlog — only later
         // 'added' changes are genuinely new events worth a refetch.
-        if (!initialSnapshot && snapshot.docChanges().some((c) => c.type === 'added')) {
-          setLiveEventTick((n) => n + 1);
+        if (!initialSnapshot) {
+          const added = snapshot.docChanges().filter((c) => c.type === 'added');
+          if (added.length) setLiveEventTick((n) => n + 1);
+          const newest = added.map((c) => c.doc).filter((d) => d.data().type !== 'new_message').pop();
+          if (newest) {
+            const d = newest.data();
+            setLiveEvent({
+              id: newest.id,
+              type: d.type ?? '',
+              titleHe: d.titleHe ?? '',
+              titleEn: d.titleEn ?? '',
+              bodyHe: d.bodyHe ?? '',
+              bodyEn: d.bodyEn ?? '',
+              targetScreen: d.targetScreen ?? null,
+              targetRole: d.targetRole ?? null,
+              relatedProjectId: d.relatedProjectId ?? null,
+              relatedMilestoneId: d.relatedMilestoneId ?? null,
+            });
+          }
         }
         initialSnapshot = false;
         // The bell count reflects "unread notifications for the role I'm
@@ -246,6 +287,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     isOnAnyCommittee: firebaseUser ? isOnAnyCommittee : false,
     isCommitteeSubstitute: firebaseUser ? isCommitteeSubstitute : false,
     liveEventTick,
+    liveEvent: firebaseUser ? liveEvent : null,
+    dismissLiveEvent,
     markTabSeen,
     refresh,
   };

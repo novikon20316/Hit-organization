@@ -18,6 +18,7 @@ import { ActiveRoleProvider, useActiveRole } from '@/contexts/ActiveRoleContext'
 import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
 import { FieldGuideProvider } from '@/contexts/FieldGuideContext';
 import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOverlay';
+import { LiveEventToast } from '@/components/LiveEventToast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { isBiometricEnabled } from '@/src/auth/biometricStorage';
 import { isSessionUnlocked } from '@/src/auth/biometricAuth';
@@ -652,6 +653,7 @@ function RootLayoutInner() {
           <StatusBar style="auto" />
           <Stack screenOptions={{ headerShown: false }} />
           <OnboardingTourOverlay />
+          <LiveEventToast />
         </NotificationsProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

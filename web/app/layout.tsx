@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
+import { LiveEventToast } from "@/components/LiveEventToast";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 
 // One family for the whole product, Hebrew + Latin both — switching
@@ -40,7 +41,10 @@ export default function RootLayout({
         <LanguageProvider>
           <AuthProvider>
             <ImpersonationBanner />
-            <NotificationsProvider>{children}</NotificationsProvider>
+            <NotificationsProvider>
+              {children}
+              <LiveEventToast />
+            </NotificationsProvider>
           </AuthProvider>
         </LanguageProvider>
       </body>
