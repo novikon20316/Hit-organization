@@ -94,7 +94,8 @@ export const getMyRelayTasks = async (req: AuthenticatedRequest, res: Response) 
 
 /** POST /api/relay-tasks/:id/resolve — closes the recipient's task. Only the
  *  assigned recipient may resolve their own task.
- *    action 'student' (default) — they've passed the outcome on to the student.
+ *    action 'student' (default) — the outcome is passed on to the student,
+ *      who is also notified of it directly.
  *    action 'committee' | 'supervisor' — administrative coordinator only, with
  *      a mandatory comment: undoes the decision's effect on the milestone and
  *      routes it back to that committee stage / the chain's supervisor stage. */
@@ -129,6 +130,32 @@ export const resolveRelayTask = async (req: AuthenticatedRequest, res: Response)
 
     if (action === 'student') {
       await ref.update(resolution);
+      // The student gets the same notice they'd have received had the
+      // chairman sent the decision to them directly (see
+      // committeeReviewController.ts's submitCommitteeDecision).
+      const approved = data.decision === 'approve';
+      const studentIds: string[] = data.studentIds ?? [];
+      await Promise.all(studentIds.map(async (studentId) => {
+        try {
+          await notifyUser({
+            recipientId: studentId,
+            type: 'general',
+            inAppType: approved ? 'milestone_coordinator_approved' : 'milestone_coordinator_rejected',
+            titleHe: approved ? 'אבן דרך אושרה על ידי הוועדה' : 'אבן דרך נדחתה על ידי הוועדה',
+            titleEn: approved ? 'Milestone approved by the committee' : 'Milestone rejected by the committee',
+            bodyHe: approved
+              ? `הוועדה אישרה את "${data.milestoneNameHe ?? ''}".`
+              : `הוועדה דחתה את "${data.milestoneNameHe ?? ''}". סיבה: ${data.comment ?? ''}`,
+            bodyEn: approved
+              ? `The committee approved "${data.milestoneNameEn ?? ''}".`
+              : `The committee rejected "${data.milestoneNameEn ?? ''}". Reason: ${data.comment ?? ''}`,
+            relatedProjectId: data.projectId ?? null,
+            relatedMilestoneId: data.milestoneId ?? null,
+          });
+        } catch (err) {
+          console.error(`resolveRelayTask: student notify failed for ${studentId}:`, err);
+        }
+      }));
       return res.status(200).json({ success: true });
     }
 

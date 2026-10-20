@@ -222,7 +222,7 @@ function RelayActionPicker({ task, lang, busy, onSubmit }: {
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-            {action === 'student' ? L('עברתי לסטודנט/ית ✓', "I've informed the student ✓") : L('החזרה', 'Send back')}
+            {action === 'student' ? L('שליחה לסטודנט/ית ✓', 'Send to the student ✓') : L('החזרה', 'Send back')}
           </Text>
         )}
       </Pressable>

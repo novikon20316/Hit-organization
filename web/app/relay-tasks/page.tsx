@@ -158,7 +158,7 @@ function RelayActionPicker({ task, busy, onSubmit }: {
         disabled={busy || (needsReason && !comment.trim())}
         className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
       >
-        {busy ? '…' : action === 'student' ? (he ? 'עברתי לסטודנט/ית ✓' : "I've informed the student ✓") : (he ? 'החזרה' : 'Send back')}
+        {busy ? '…' : action === 'student' ? (he ? 'שליחה לסטודנט/ית ✓' : 'Send to the student ✓') : (he ? 'החזרה' : 'Send back')}
       </button>
     </div>
   );
