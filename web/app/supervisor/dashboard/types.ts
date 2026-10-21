@@ -134,6 +134,9 @@ export interface SupervisorPendingMilestone {
   // the per-student "individual grade" component on group projects (see
   // GradeMilestoneModal.tsx's individual-score fields).
   studentIds: string[];
+  // The project's maxStudents — > 1 only when it was created as a team
+  // project; gates GradeMilestoneModal's individual-score section.
+  teamSize?: number;
   fileUrls: string[];
   submissionNote: string;
   facultyId: FacultyId;

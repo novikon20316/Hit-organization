@@ -2035,6 +2035,7 @@ export default function SupervisorHome() {
       <GradeMilestoneModal
         visible={gradeModal}
         milestone={gradeMilestone}
+        teamSize={myProjects.find((p) => p.id === gradeMilestone?.projectId)?.NumberOfStudents ?? 1}
         lang={lang}
         isRtl={isRtl}
         activeFields={activeFields}

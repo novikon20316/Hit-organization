@@ -236,6 +236,11 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       };
     });
 
+    const teamSizeByProjectId = new Map(projectDocs.map((doc) => {
+      const p = doc.data();
+      return [doc.id, p.maxStudents ?? p.NumberOfStudents ?? 1];
+    }));
+
     const pendingGrades = milestoneDocs.map(doc => {
       const data = doc.data();
       return {
@@ -259,6 +264,11 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         // endpoint; added here so the web port has a real id to submit
         // against too, without duplicating that Firestore read client-side.
         studentIds:     data.studentIds     ?? [],
+        // The project's "for a team of students" setting (TeamSizeField in
+        // the New/Edit Project modals) — GradeMilestoneModal only offers the
+        // per-student individual score on team projects, not merely because
+        // a milestone happens to list more than one student.
+        teamSize:       teamSizeByProjectId.get(data.projectId) ?? 1,
         fileUrls:       data.fileUrls       ?? [],
         submissionNote: data.submissionNote ?? '',
         facultyId:      data.facultyId      ?? '',

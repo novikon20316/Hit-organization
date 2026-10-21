@@ -63,6 +63,9 @@ export interface GradeMilestoneModalMilestone {
 interface Props {
   visible: boolean;
   milestone: GradeMilestoneModalMilestone | null;
+  /** The milestone's project maxStudents — > 1 only for a team project,
+   *  which is the only case the individual-score section shows. */
+  teamSize?: number;
   lang: 'he' | 'en';
   isRtl: boolean;
   activeFields: GradeMilestoneModalField[];
@@ -125,12 +128,14 @@ function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string 
 
 export function GradeMilestoneModal({
   visible, milestone, lang, isRtl, activeFields,
-  criteria, onCriteriaChange, individualScores, onIndividualScoreChange,
+  teamSize, criteria, onCriteriaChange, individualScores, onIndividualScoreChange,
   comment, onCommentChange, attachedFiles, onPickFile, onRemoveFile,
   totalScore, submitting, onClose, onSubmit, onApprove, onReject,
 }: Props) {
   const router = useRouter();
-  const isGroupProject = (milestone?.studentIds.length ?? 0) > 1;
+  // Driven by the project's own team setting, not the milestone's student
+  // count — a non-team project can still list several students.
+  const isGroupProject = (teamSize ?? 1) > 1 && (milestone?.studentIds.length ?? 0) > 1;
   // Dynamic denominator — every existing rubric happens to sum its weights
   // to 100, so this is a no-op everywhere except a rubric that legitimately
   // sums higher (e.g. Industrial Engineering & Management's 1-105 rubric).

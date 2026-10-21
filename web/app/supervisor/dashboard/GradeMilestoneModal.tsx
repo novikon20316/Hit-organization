@@ -90,7 +90,7 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
     Object.fromEntries(activeFields.map((f) => [f.key, '']))
   );
   const [comment, setComment] = useState('');
-  // Group projects only (studentIds.length > 1) — optional per-student score
+  // Team projects only (see isGroupProject) — optional per-student score
   // layered on top of the shared group score above, keyed by studentId.
   const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
   // Optional — never required to grade, or to approve/reject. Accepts PDF/Word,
@@ -117,7 +117,9 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
   // to 100, so this is a no-op everywhere except a rubric that legitimately
   // sums higher (e.g. Industrial Engineering & Management's 1-105 rubric).
   const maxTotal = activeFields.reduce((sum, f) => sum + f.weight, 0);
-  const isGroupProject = m.studentIds.length > 1;
+  // Driven by the project's own team setting, not the milestone's student
+  // count — a non-team project can still list several students.
+  const isGroupProject = (m.teamSize ?? 1) > 1 && m.studentIds.length > 1;
 
   const handleSubmit = async () => {
     setSubmitting(true);
