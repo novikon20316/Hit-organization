@@ -22,7 +22,7 @@ import { facultyName } from './studentProgress.js';
 export interface EvaluationSignature {
   signerUid: string;
   signerName: string;
-  role: 'supervisor' | 'examiner';
+  role: 'supervisor' | 'examiner' | 'coordinator';
   positionHe: string;
   positionEn: string;
   facultyId: string;
@@ -129,7 +129,7 @@ export async function signEvaluation(params: {
   milestoneId: string;
   signerUid: string;
   signerName: string;
-  role: 'supervisor' | 'examiner';
+  role: 'supervisor' | 'examiner' | 'coordinator';
   positionHe: string;
   positionEn: string;
   facultyId: string;

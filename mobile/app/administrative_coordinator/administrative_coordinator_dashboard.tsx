@@ -216,6 +216,8 @@ interface GradeOverrideRow {
   gradeOverrideFileUrls: string[];
   /** Per-student evaluation form — one computed/proposed grade per student. */
   perStudent?: boolean;
+  milestoneNameHe?: string;
+  milestoneNameEn?: string;
   students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
 }
 
@@ -1120,6 +1122,9 @@ export default function ProjectCoordinatorDashboard() {
               overrides.map((r) => (
                 <View key={r.milestoneId} style={[s.card, { borderLeftColor: '#F59E0B' }]}>
                   <Text style={s.cardTitle}>{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</Text>
+                  {r.perStudent && !!(r.milestoneNameHe || r.milestoneNameEn) && (
+                    <Text style={[s.cardSub, { fontWeight: '700', color: '#00236F' }]}>{lang === 'he' ? r.milestoneNameHe : r.milestoneNameEn}</Text>
+                  )}
                   <Text style={s.cardSub}>👤 {r.studentNames.join(', ')}</Text>
 
                   {r.perStudent && (

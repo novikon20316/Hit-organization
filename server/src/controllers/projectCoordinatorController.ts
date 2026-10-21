@@ -996,6 +996,10 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
         // one computed and one proposed grade per student; the client shows
         // these per student and links to the full signed form.
         perStudent: !!m.finalGradeComponents?.perStudent,
+        // A form split across milestones (M.Sc. project: book +
+        // presentation) puts several rows per project in this queue.
+        milestoneNameHe: m.nameHe ?? '',
+        milestoneNameEn: m.nameEn ?? '',
         students: (m.studentIds ?? []).map((sid: string) => ({
           id: sid,
           name: studentNameById[sid] ?? sid,

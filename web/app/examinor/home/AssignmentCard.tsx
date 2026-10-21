@@ -435,7 +435,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           >
             {graded
               ? `✅ ${lang === 'he' ? 'הטופס נחתם — צפייה/עדכון' : 'Form signed — view/update'}`
-              : isBeforeDefense
+              : m.type === 'defense' && isBeforeDefense
                 ? `🕐 ${lang === 'he' ? 'צפייה בטופס ההערכה (נפתח למילוי ביום ההגנה)' : 'View the evaluation form (opens on the defense day)'}`
                 : `📝 ${lang === 'he' ? 'מלא/י וחתום/י טופס הערכה' : 'Fill in & sign the evaluation form'}`}
           </button>

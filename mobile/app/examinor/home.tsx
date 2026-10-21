@@ -1011,7 +1011,7 @@ export default function ExaminerHome() {
                         <Text style={graded ? styles.gradedBadgeText : styles.gradeBtnText}>
                           {graded
                             ? `✅ ${lang === 'he' ? 'הטופס נחתם — צפייה/עדכון' : 'Form signed — view/update'}`
-                            : isBeforeDefense(m.defenseDate)
+                            : m.type === 'defense' && isBeforeDefense(m.defenseDate)
                               ? `🕐 ${lang === 'he' ? 'צפייה בטופס (נפתח למילוי ביום ההגנה)' : 'View the form (opens on the defense day)'}`
                               : `📝 ${lang === 'he' ? 'מלא/י וחתום/י טופס הערכה' : 'Fill in & sign the evaluation form'}`}
                         </Text>

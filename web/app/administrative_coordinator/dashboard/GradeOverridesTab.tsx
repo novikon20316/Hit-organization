@@ -32,6 +32,8 @@ interface GradeOverrideRow {
   examinerDefenseFileUrls: string[];
   gradeOverrideFileUrls: string[];
   perStudent?: boolean;
+  milestoneNameHe?: string;
+  milestoneNameEn?: string;
   students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
 }
 
@@ -97,6 +99,9 @@ export function GradeOverridesTab() {
       {rows.map((r) => (
         <div key={r.milestoneId} className="role-rail rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
           <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
+          {r.perStudent && (r.milestoneNameHe || r.milestoneNameEn) && (
+            <p className="text-xs font-medium text-administrative-coordinator-primary">{lang === 'he' ? r.milestoneNameHe : r.milestoneNameEn}</p>
+          )}
           <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">👤 {r.studentNames.join(', ')}</p>
 
           {r.perStudent ? (

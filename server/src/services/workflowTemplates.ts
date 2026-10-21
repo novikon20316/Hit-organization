@@ -99,7 +99,10 @@ export interface FormFieldSpec {
     // the defense milestone's agreed date (only once isDefenseDateConfirmed —
     // blank before that, never the plain target date). Resolved server-side
     // by evaluationForm.ts's resolveHeaderFields.
-    | 'projectStartDate' | 'academicYear' | 'defenseDate';
+    | 'projectStartDate' | 'academicYear' | 'defenseDate'
+    // The primary supervisor plus the secondary one, if any (the paper
+    // forms' "שם המנחה/ים").
+    | 'supervisorNames';
   /** Only meaningful alongside autoFill — true means the value can never be
    *  edited by the student, even as a fallback when the auto-filled source is
    *  empty (e.g. a not-yet-computed accumulatedCredits shows a "pending"
@@ -513,6 +516,20 @@ export interface WorkflowMilestoneSpec {
      *  project title, examiners...) — resolved server-side. Only used by the
      *  perStudent form view. */
     headerFields?: FormFieldSpec[];
+    /** Milestones of the same project that share this value are ONE paper
+     *  form split across several milestones (e.g. Electrical M.Sc. project:
+     *  the project book and the presentation/defense, each with its own
+     *  submission, graders and approval) — the form view shows every
+     *  milestone of the group as its own section. Omitted: a standalone form. */
+    formGroup?: string;
+    /** How each section's total row is shown: 'points' (default — raw points
+     *  out of the rubric maxima, e.g. B.Sc. "out of 75") or 'weighted' (each
+     *  rubric's share of the project's final grade, for forms whose
+     *  components are 0-100 scores weighted by percent). */
+    totalsDisplay?: 'points' | 'weighted';
+    /** The examiners' lines on the paper form, by panel position (e.g.
+     *  "בוחן I", "בוחן II"). Omitted: "בוחן 1 / יו\"ר", "בוחן 2", ... */
+    examinerLabels?: Array<{ he: string; en: string }>;
   };
   /** How much this milestone counts toward the project's OVERALL final
    *  grade (0-100), validated to sum to 100 across every milestone in the

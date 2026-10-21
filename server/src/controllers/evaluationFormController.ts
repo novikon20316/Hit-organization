@@ -4,7 +4,11 @@
 // finalGradeComponents.perStudent) — first built for Electrical
 // Engineering's B.Sc. "טופס הערכת פרויקט גמר הנדסי", whose paper version has
 // one score column per student and a "נותן ההערכה" column saying which rows
-// the supervisor fills and which the examiners fill.
+// the supervisor fills and which the examiners fill. Also serves forms split
+// across several milestones (finalGradeComponents.formGroup — Electrical's
+// M.Sc. project form covers the project book AND the presentation/defense,
+// each its own milestone with its own submission, graders and approval):
+// the form view shows each milestone of the group as a section.
 //
 // Storage reuses the three-rubric workflow's existing fields so everything
 // downstream (maybeFinalizeAutoCalculatedGrade's completeness check, the
@@ -57,9 +61,22 @@ function signedScoresFrom(entries: Array<StoredRubricEval | undefined>): SignedS
   return out;
 }
 
-function examinerPosition(index: number): { he: string; en: string } {
+/** What a grade decision signs: studentId -> { grade }. */
+export function gradesAsSignedScores(map: Record<string, number> | null | undefined): SignedScores {
+  return Object.fromEntries(Object.entries(map ?? {}).map(([sid, g]) => [sid, { grade: g }]));
+}
+
+export function examinerPosition(index: number, labels?: Array<{ he: string; en: string }>): { he: string; en: string } {
+  const configured = labels?.[index];
+  if (configured) return configured;
   if (index === 0) return { he: 'בוחן 1 / יו"ר', en: 'Examiner 1 / Chair' };
   return { he: `בוחן ${index + 1}`, en: `Examiner ${index + 1}` };
+}
+
+/** Signer's faculty for a signature — their own, or the milestone's for an
+ *  account with none of its own (e.g. a cross-faculty 'all' account). */
+export function signerFacultyFor(signer: FirebaseFirestore.DocumentData, fallbackFacultyId: string): string {
+  return signer.facultyId && signer.facultyId !== 'all' ? signer.facultyId : fallbackFacultyId;
 }
 
 function iso(ts: any): string | null {
@@ -103,14 +120,49 @@ async function loadPerStudentMilestone(req: AuthenticatedRequest, res: Response)
     return null;
   }
   const data = snap.data()!;
-  if (data.type !== 'defense' || !data.finalGradeComponents?.perStudent) {
+  if (!data.finalGradeComponents?.perStudent) {
     res.status(400).json({ message: L(req, 'This milestone does not use the per-student evaluation form.', 'אבן דרך זו אינה משתמשת בטופס ההערכה לפי סטודנט.') });
     return null;
   }
   return { milestoneId, ref, data };
 }
 
+/** Whether a grader may fill their part of this milestone's form right now,
+ *  and if not, why. A defense milestone opens to examiners on the agreed
+ *  defense day (same gate as submitExaminerEvaluation) and to the supervisor
+ *  any time; any other milestone opens to both once the student has
+ *  submitted it and its pre-check chain (if it has one) is complete. Nobody
+ *  can edit once the grade has been computed. */
+export function evaluationGate(data: FirebaseFirestore.DocumentData, role: 'supervisor' | 'examiner'): { open: true } | { open: false; he: string; en: string } {
+  if (data.gradeApproved || data.autoCalculatedFinalGrade != null) {
+    return { open: false, he: 'כל ההערכות הוגשו והציון חושב — הטופס נעול.', en: 'All evaluations are in and the grade was computed — the form is locked.' };
+  }
+  if (data.type === 'defense') {
+    if (role === 'supervisor') return { open: true };
+    if (!data.dueDate || !isDefenseDateConfirmed(data.status)) {
+      return { open: false, he: 'ההערכה תיפתח רק לאחר שנקבע מועד הגנה.', en: 'Evaluation opens once a defense date has been agreed and set.' };
+    }
+    const defenseDay = dayjs(data.dueDate.toDate()).tz(TZ).startOf('day');
+    if (dayjs().tz(TZ).isBefore(defenseDay)) {
+      return { open: false, he: `ההערכה תיפתח במועד ההגנה (${defenseDay.format('DD/MM/YYYY')}).`, en: `Evaluation opens on the defense date (${defenseDay.format('DD/MM/YYYY')}).` };
+    }
+    return { open: true };
+  }
+  if (!data.submittedAt) {
+    return { open: false, he: 'ההערכה תיפתח לאחר שהסטודנט/ית יגיש/תגיש את אבן הדרך.', en: 'Evaluation opens once the student submits this milestone.' };
+  }
+  const routing: Array<{ role: string }> = data.routing ?? [];
+  if (routing.length > 0 && !routing.some((s) => s.role === 'examiner') && !data.chainPrecheckComplete) {
+    return { open: false, he: 'ההערכה תיפתח לאחר אישור ההגשה בבדיקה המקדימה.', en: 'Evaluation opens once the submission passes its pre-check approvals.' };
+  }
+  return { open: true };
+}
+
 // ─── GET /api/projects/milestones/:milestoneId/evaluation-form ───────────────
+// The whole paper form — every milestone sharing this one's formGroup as a
+// section of its own (a standalone form is a single section), plus the
+// project-level header, students, the other milestones' share of the grade
+// and each student's weighted final grade.
 export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
@@ -124,176 +176,206 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
     const project = projectSnap.exists ? projectSnap.data()! : {};
     const scope = { facultyId: project.facultyId ?? data.facultyId ?? '', major: project.major || undefined, degreeLevel: project.degreeType || undefined, processType: project.projectType || undefined };
 
-    const examinerIds: string[] = data.examinerIds ?? [];
+    const siblingsSnap = await db.collection('milestones').where('projectId', '==', data.projectId ?? '').get();
+    const siblings = siblingsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as FirebaseFirestore.DocumentData & { id: string }));
+    const studentIds: string[] = data.studentIds ?? [];
+    const fgc = data.finalGradeComponents;
+    const formGroup: string | undefined = fgc.formGroup;
+    const sectionDocs = (formGroup
+      ? siblings.filter((m) => m.finalGradeComponents?.perStudent && m.finalGradeComponents.formGroup === formGroup)
+      : siblings.filter((m) => m.id === milestoneId)
+    ).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    // Access: the project's supervisors, anyone examining any section, or
+    // coordinator/admin-tier staff in scope.
+    const allExaminerIds = [...new Set(sectionDocs.flatMap((m) => (m.examinerIds ?? []) as string[]))];
     const isSupervisor = data.supervisorId === uid || data.secondarySupervisorId === uid;
-    const examinerIndex = examinerIds.indexOf(uid);
-    const isExaminer = examinerIndex !== -1;
+    const isAnyExaminer = allExaminerIds.includes(uid);
     const isStaff = hasAnyRole(req.user, STAFF_VIEW_ROLES) && (
       withinCoordinatorScope(req.user, scope) || hasActionGrant(req.user, 'approve_grades', scope) || req.user?.facultyId === scope.facultyId
     );
-    if (!isSupervisor && !isExaminer && !isStaff) {
+    if (!isSupervisor && !isAnyExaminer && !isStaff) {
       return res.status(403).json({ message: L(req, 'You do not have access to this evaluation form.', 'אין לך גישה לטופס הערכה זה.') });
     }
 
-    const studentIds: string[] = data.studentIds ?? [];
-    const people = await userNames([...studentIds, data.supervisorId, ...examinerIds]);
-    const rubrics = data.finalGradeComponents;
+    const people = await userNames([...studentIds, data.supervisorId, data.secondarySupervisorId, ...allExaminerIds]);
+    const templateMilestones = await resolveProjectTemplateMilestones(project);
+    const percentOf = (type: string) => templateMilestones.find((m) => m.type === type)?.percentOfFinalGrade ?? (type === 'defense' ? 100 : 0);
 
     // ── Header (every line an autoFill field) ──
     const projectStartDate = iso(project.projectStartDate);
-    const defenseDate = isDefenseDateConfirmed(data.status) ? iso(data.dueDate) : null;
+    // "Exam/defense date": a defense milestone's agreed date (only once
+    // confirmed); for a form group with no defense milestone, the last
+    // section's own scheduled date (the M.Sc. presentation's date).
+    const defenseDoc = sectionDocs.find((m) => m.type === 'defense');
+    const lastSection = sectionDocs[sectionDocs.length - 1] ?? data;
+    const examDate = defenseDoc
+      ? (isDefenseDateConfirmed(defenseDoc.status) ? iso(defenseDoc.dueDate) : null)
+      : iso(lastSection.dueDate);
     const resolveHeader = (f: FormFieldSpec): string | null => {
       switch (f.autoFill) {
         case 'projectStartDate': return formatDate(projectStartDate);
         case 'academicYear': return academicYearToHebrew(project.academicYear ?? null) ?? academicYearFromDate(projectStartDate);
-        case 'defenseDate': return formatDate(defenseDate);
+        case 'defenseDate': return formatDate(examDate);
         case 'supervisorName': return people[data.supervisorId]?.name ?? null;
+        case 'supervisorNames': return [data.supervisorId, data.secondarySupervisorId].filter(Boolean).map((id: string) => people[id]?.name).filter(Boolean).join(', ') || null;
         case 'projectNameHe': return project.titleHe || null;
         case 'projectNameEn': return project.titleEn || null;
-        case 'examinerNames': return examinerIds.map((id) => people[id]?.name).filter(Boolean).join(', ') || null;
+        case 'examinerNames': return allExaminerIds.map((id) => people[id]?.name).filter(Boolean).join(', ') || null;
         case 'studentName': return studentIds.map((id) => people[id]?.name).join(', ');
         default: return null;
       }
     };
-    const header = ((rubrics.headerFields ?? []) as FormFieldSpec[]).map((f) => ({ key: f.key, labelHe: f.labelHe, labelEn: f.labelEn, value: resolveHeader(f) }));
+    const header = ((fgc.headerFields ?? []) as FormFieldSpec[]).map((f) => ({ key: f.key, labelHe: f.labelHe, labelEn: f.labelEn, value: resolveHeader(f) }));
 
-    // ── Who may see which scores ──
     // Same policy as milestoneVisibility.ts: an examiner's scores are visible
     // to that examiner and to coordinator/admin-tier staff only; the
-    // supervisor's to the supervisor and staff. Signatures are visible to
+    // supervisor's to the supervisors and staff. Signatures are visible to
     // everyone who can open the form — that's what they're for.
     const canSeeSupervisorScores = isSupervisor || isStaff;
-    const canSeeExaminerScores = (id: string) => id === uid || isStaff;
-    const scoresOnly = (entries: Array<StoredRubricEval | undefined>) => signedScoresFrom(entries);
+    const verified = async (forMilestone: string, sig: EvaluationSignature | undefined, scores: SignedScores) =>
+      sig ? { ...sig, digest: undefined, valid: await verifyEvaluationSignature(forMilestone, sig, scores) } : null;
 
-    const supEval = data.supervisorEvaluation as (StoredRubricEval & { signature?: EvaluationSignature }) | null;
-    const supervisor = {
-      uid: data.supervisorId,
-      name: people[data.supervisorId]?.name ?? '',
-      submitted: !!supEval,
-      submittedAt: iso(supEval?.submittedAt),
-      scores: supEval && canSeeSupervisorScores ? scoresOnly([supEval]) : null,
-      comment: supEval && canSeeSupervisorScores ? supEval.comment ?? '' : null,
-      signature: supEval?.signature
-        ? { ...supEval.signature, digest: undefined, valid: await verifyEvaluationSignature(milestoneId, supEval.signature, scoresOnly([supEval])) }
-        : null,
-    };
+    const sections = await Promise.all(sectionDocs.map(async (m) => {
+      const rubrics = m.finalGradeComponents;
+      const examinerIds: string[] = m.examinerIds ?? [];
+      const examinerIndex = examinerIds.indexOf(uid);
+      const percent = percentOf(m.type);
 
-    const examiners = await Promise.all(examinerIds.map(async (id, index) => {
-      const entry = data.examinerEvaluations?.[id] as { project?: StoredRubricEval; defense?: StoredRubricEval; signature?: EvaluationSignature } | undefined;
-      const position = examinerPosition(index);
-      const submitted = !!(entry?.project && entry?.defense);
-      const signed = scoresOnly([entry?.project, entry?.defense]);
+      const supEval = m.supervisorEvaluation as (StoredRubricEval & { signature?: EvaluationSignature }) | null;
+      const supervisor = {
+        uid: m.supervisorId,
+        name: people[m.supervisorId]?.name ?? '',
+        submitted: !!supEval,
+        submittedAt: iso(supEval?.submittedAt),
+        scores: supEval && canSeeSupervisorScores ? signedScoresFrom([supEval]) : null,
+        comment: supEval && canSeeSupervisorScores ? supEval.comment ?? '' : null,
+        signature: await verified(m.id, supEval?.signature, signedScoresFrom([supEval ?? undefined])),
+      };
+
+      const examiners = await Promise.all(examinerIds.map(async (id, index) => {
+        const entry = m.examinerEvaluations?.[id] as { project?: StoredRubricEval; defense?: StoredRubricEval; signature?: EvaluationSignature } | undefined;
+        const position = examinerPosition(index, rubrics.examinerLabels);
+        const submitted = !!(entry?.project && entry?.defense);
+        const signed = signedScoresFrom([entry?.project, entry?.defense]);
+        const canSee = id === uid || isStaff;
+        return {
+          uid: id,
+          name: people[id]?.name ?? '',
+          positionHe: position.he,
+          positionEn: position.en,
+          submitted,
+          submittedAt: iso(entry?.project?.submittedAt),
+          scores: submitted && canSee ? signed : null,
+          comment: submitted && canSee ? entry?.defense?.comment ?? '' : null,
+          signature: await verified(m.id, entry?.signature, signed),
+        };
+      }));
+
+      const allExaminersSubmitted = examinerIds.length > 0 && examiners.every((e) => e.submitted);
+      const showTotals = isStaff || (isSupervisor && m.autoCalculatedFinalGradeByStudent != null);
+      const totals = studentIds.map((studentId) => {
+        const sup = rawPoints(supEval ?? undefined, studentId, rubrics.supervisorEvaluation.components);
+        const avgExaminer = (sub: 'project' | 'defense', components: GradingComponentSpec[]) => {
+          if (!allExaminersSubmitted) return null;
+          const each = examinerIds.map((id) => rawPoints(m.examinerEvaluations?.[id]?.[sub], studentId, components) ?? 0);
+          return each.reduce((a, b) => a + b, 0) / each.length;
+        };
+        const defense = avgExaminer('defense', rubrics.examinerDefenseEvaluation.components);
+        const projectBook = avgExaminer('project', rubrics.examinerProjectEvaluation.components);
+        const points = sup != null && defense != null && projectBook != null ? Math.round((sup + defense + projectBook) * 10) / 10 : null;
+        const milestoneGrade: number | null = m.finalGradeByStudent?.[studentId] ?? m.autoCalculatedFinalGradeByStudent?.[studentId] ?? null;
+        return {
+          studentId,
+          points: showTotals ? points : null,
+          maxPoints: RUBRIC_ORDER.reduce((sum, k) => sum + maxPoints(rubrics[k].components), 0),
+          milestoneGrade: showTotals ? milestoneGrade : null,
+          // This milestone's share of the project grade, in grade points.
+          contribution: showTotals && milestoneGrade != null ? Math.round(milestoneGrade * percent) / 100 : null,
+        };
+      });
+
+      // What this viewer may do in THIS section.
+      const myRole: 'supervisor' | 'examiner' | null = m.supervisorId === uid ? 'supervisor' : examinerIndex !== -1 ? 'examiner' : null;
+      const gate = myRole ? evaluationGate(m, myRole) : null;
+      const position = myRole === 'supervisor' ? { he: 'מנחה', en: 'Supervisor' } : myRole === 'examiner' ? examinerPosition(examinerIndex, rubrics.examinerLabels) : null;
+
       return {
-        uid: id,
-        name: people[id]?.name ?? '',
-        positionHe: position.he,
-        positionEn: position.en,
-        submitted,
-        submittedAt: iso(entry?.project?.submittedAt),
-        scores: submitted && canSeeExaminerScores(id) ? signed : null,
-        comment: submitted && canSeeExaminerScores(id) ? entry?.defense?.comment ?? '' : null,
-        signature: entry?.signature
-          ? { ...entry.signature, digest: undefined, valid: await verifyEvaluationSignature(milestoneId, entry.signature, signed) }
-          : null,
+        milestoneId: m.id,
+        nameHe: m.nameHe ?? '',
+        nameEn: m.nameEn ?? '',
+        type: m.type,
+        percent,
+        totalsDisplay: rubrics.totalsDisplay ?? 'points',
+        rubrics: RUBRIC_ORDER.map((kind) => {
+          const share = (percent * rubrics[kind].weight) / 100;
+          const giver: 'supervisor' | 'examiner' = kind === 'supervisorEvaluation' ? 'supervisor' : 'examiner';
+          return {
+            kind,
+            giver,
+            weight: rubrics[kind].weight,
+            // This rubric's share of the project's final grade, and each
+            // grader's part of it (an examiner rubric is split equally).
+            percentOfTotal: Math.round(share * 100) / 100,
+            percentPerGrader: Math.round((giver === 'examiner' && examinerIds.length > 0 ? share / examinerIds.length : share) * 100) / 100,
+            components: rubrics[kind].components as GradingComponentSpec[],
+          };
+        }).filter((r) => r.components.length > 0),
+        viewer: {
+          role: myRole,
+          canEdit: !!gate?.open,
+          lockedReasonHe: gate && !gate.open ? gate.he : null,
+          lockedReasonEn: gate && !gate.open ? gate.en : null,
+          positionHe: position?.he ?? null,
+          positionEn: position?.en ?? null,
+        },
+        supervisor,
+        examiners,
+        totals,
+        gradeApproved: !!m.gradeApproved,
+        gradeOverrideStatus: m.gradeOverride?.status ?? null,
+        // The bottom-of-form signature lines: the supervisor's approval of
+        // the computed grades and the coordinator's final sign-off.
+        approvals: {
+          supervisor: await verified(m.id, m.gradeOverride?.signature, gradesAsSignedScores(m.gradeOverride?.proposedGrades)),
+          coordinator: await verified(m.id, m.gradeApprovalSignature, gradesAsSignedScores(m.finalGradeByStudent)),
+        },
       };
     }));
 
-    // ── Totals per student ──
-    const allExaminersSubmitted = examinerIds.length > 0 && examiners.every((e) => e.submitted);
-    const showTotals = isStaff || (isSupervisor && data.autoCalculatedFinalGradeByStudent != null);
-    const templateMilestones = await resolveProjectTemplateMilestones(project);
-    const thisPercent = templateMilestones.find((m) => m.type === data.type)?.percentOfFinalGrade ?? 100;
-    const siblingsSnap = await db.collection('milestones').where('projectId', '==', data.projectId ?? '').get();
-    const siblings = siblingsSnap.docs.map((d) => d.data());
-
-    const totals = studentIds.map((studentId) => {
-      const sup = rawPoints(supEval ?? undefined, studentId, rubrics.supervisorEvaluation.components);
-      const avgExaminer = (sub: 'project' | 'defense', components: GradingComponentSpec[]) => {
-        if (!allExaminersSubmitted) return null;
-        const each = examinerIds.map((id) => rawPoints(data.examinerEvaluations?.[id]?.[sub], studentId, components) ?? 0);
-        return each.reduce((a, b) => a + b, 0) / each.length;
-      };
-      const defense = avgExaminer('defense', rubrics.examinerDefenseEvaluation.components);
-      const projectBook = avgExaminer('project', rubrics.examinerProjectEvaluation.components);
-      const points = sup != null && defense != null && projectBook != null ? Math.round((sup + defense + projectBook) * 10) / 10 : null;
-      const milestoneGrade: number | null = data.finalGradeByStudent?.[studentId] ?? data.autoCalculatedFinalGradeByStudent?.[studentId] ?? null;
-      // The other milestones' share of the project grade (the interim
-      // report's 25% for the B.Sc. form) — this student's own grade on each.
+    // Milestones outside the form that still carry part of the grade (the
+    // interim report, on both Electrical forms) — this student's own grade
+    // on each — and the weighted project grade.
+    const sectionIds = new Set(sectionDocs.map((m) => m.id));
+    const showProjectTotals = isStaff || isSupervisor;
+    const studentTotals = studentIds.map((studentId) => {
+      const own = siblings.filter((s) => (s.studentIds ?? []).includes(studentId));
+      const gradeFor = (s: FirebaseFirestore.DocumentData): number | null => s.finalGradeByStudent?.[studentId] ?? s.finalGrade ?? null;
       const otherMilestones = templateMilestones
-        .filter((m) => m.type !== data.type && (m.percentOfFinalGrade ?? 0) > 0)
-        .map((m) => {
-          const doc = siblings.find((s) => s.type === m.type && (s.studentIds ?? []).includes(studentId));
-          const grade: number | null = doc ? doc.finalGradeByStudent?.[studentId] ?? doc.finalGrade ?? null : null;
-          return { type: m.type, nameHe: m.nameHe, nameEn: m.nameEn, percent: m.percentOfFinalGrade ?? 0, grade };
+        .filter((t) => (t.percentOfFinalGrade ?? 0) > 0 && !own.some((s) => s.type === t.type && sectionIds.has(s.id)))
+        .map((t) => {
+          const doc = own.find((s) => s.type === t.type);
+          return { type: t.type, nameHe: t.nameHe, nameEn: t.nameEn, percent: t.percentOfFinalGrade ?? 0, grade: doc ? gradeFor(doc) : null };
         });
-      const actual = siblings
-        .filter((s) => (s.studentIds ?? []).includes(studentId))
-        .map((s) => ({ type: s.type, finalGrade: s.type === data.type ? (data.gradeApproved ? milestoneGrade : null) : s.finalGradeByStudent?.[studentId] ?? s.finalGrade ?? null }));
+      const actual = own.map((s) => ({ type: s.type as string, finalGrade: sectionIds.has(s.id) ? (s.gradeApproved ? gradeFor(s) : null) : gradeFor(s) }));
       return {
         studentId,
-        supervisorPoints: showTotals || canSeeSupervisorScores ? sup : null,
-        examinerDefensePoints: showTotals ? defense : null,
-        examinerProjectPoints: showTotals ? projectBook : null,
-        points: showTotals ? points : null,
-        maxPoints: RUBRIC_ORDER.reduce((sum, k) => sum + maxPoints(rubrics[k].components), 0),
-        milestoneGrade: showTotals ? milestoneGrade : null,
-        milestonePercent: thisPercent,
-        otherMilestones: showTotals ? otherMilestones : [],
-        projectFinalGrade: showTotals ? computeProjectFinalGrade(templateMilestones, actual) : null,
+        otherMilestones: showProjectTotals ? otherMilestones : [],
+        projectFinalGrade: showProjectTotals ? computeProjectFinalGrade(templateMilestones, actual) : null,
       };
     });
-
-    // ── What the viewer may do ──
-    let canEdit = false;
-    let lockedReasonHe: string | null = null;
-    let lockedReasonEn: string | null = null;
-    const alreadyComputed = data.autoCalculatedFinalGrade != null || data.gradeApproved;
-    if (alreadyComputed) {
-      lockedReasonHe = 'כל ההערכות הוגשו והציון חושב — הטופס נעול.';
-      lockedReasonEn = 'All evaluations are in and the grade was computed — the form is locked.';
-    } else if (data.supervisorId === uid) {
-      canEdit = true;
-    } else if (isExaminer) {
-      const defenseDay = data.dueDate ? dayjs(data.dueDate.toDate()).tz(TZ).startOf('day') : null;
-      if (!defenseDay || !isDefenseDateConfirmed(data.status)) {
-        lockedReasonHe = 'ההערכה תיפתח רק לאחר שנקבע מועד הגנה.';
-        lockedReasonEn = 'Evaluation opens once a defense date has been agreed and set.';
-      } else if (dayjs().tz(TZ).isBefore(defenseDay)) {
-        lockedReasonHe = `ההערכה תיפתח במועד ההגנה (${defenseDay.format('DD/MM/YYYY')}).`;
-        lockedReasonEn = `Evaluation opens on the defense date (${defenseDay.format('DD/MM/YYYY')}).`;
-      } else {
-        canEdit = true;
-      }
-    }
 
     return res.status(200).json({
       milestoneId,
       projectId: data.projectId ?? null,
       facultyId: scope.facultyId,
-      titleHe: rubrics.formTitleHe ?? data.nameHe ?? '',
-      titleEn: rubrics.formTitleEn ?? data.nameEn ?? '',
+      titleHe: fgc.formTitleHe ?? data.nameHe ?? '',
+      titleEn: fgc.formTitleEn ?? data.nameEn ?? '',
       header,
       students: studentIds.map((id) => ({ id, name: people[id]?.name ?? id, idNumber: people[id]?.idNumber ?? null })),
-      rubrics: RUBRIC_ORDER.map((kind) => ({
-        kind,
-        giver: kind === 'supervisorEvaluation' ? 'supervisor' : 'examiner',
-        weight: rubrics[kind].weight,
-        components: rubrics[kind].components,
-      })),
-      viewer: {
-        role: data.supervisorId === uid ? 'supervisor' : isExaminer ? 'examiner' : isSupervisor ? 'secondary_supervisor' : 'staff',
-        canEdit,
-        lockedReasonHe,
-        lockedReasonEn,
-        positionHe: data.supervisorId === uid ? 'מנחה' : isExaminer ? examinerPosition(examinerIndex).he : null,
-        positionEn: data.supervisorId === uid ? 'Supervisor' : isExaminer ? examinerPosition(examinerIndex).en : null,
-      },
-      supervisor,
-      examiners,
-      totals,
-      gradeApproved: !!data.gradeApproved,
-      gradeOverrideStatus: data.gradeOverride?.status ?? null,
+      viewerIsStaff: isStaff,
+      sections,
+      studentTotals,
     });
   } catch (error: any) {
     console.error('getEvaluationForm error:', error);
@@ -304,10 +386,10 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
 // ─── POST /api/projects/milestones/:milestoneId/evaluation-form ──────────────
 // Body: { scoresByStudent: { [studentId]: { [componentKey]: number } }, comment? }
 // The project's supervisor fills the supervisor rubric; an assigned examiner
-// fills both examiner rubrics (presentation + project book) at once — the
-// "נותן ההערכה" column of the paper form. Every enrolled student must be
-// scored. Re-submitting is allowed (and re-signs) until the grade has been
-// computed from everyone's submissions.
+// fills both examiner rubrics at once (either may be empty on a given
+// milestone) — the "נותן ההערכה" column of the paper form. Every enrolled
+// student must be scored. Re-submitting is allowed (and re-signs) until the
+// grade has been computed from everyone's submissions.
 export const submitEvaluationForm = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
@@ -327,18 +409,9 @@ export const submitEvaluationForm = async (req: AuthenticatedRequest, res: Respo
     if (!role) {
       return res.status(403).json({ message: L(req, "Only this project's supervisor or an assigned examiner may fill in this form.", 'רק המנחה של הפרויקט או בוחן/ת שהוקצה/ה רשאים למלא טופס זה.') });
     }
-    if (data.gradeApproved || data.autoCalculatedFinalGrade != null) {
-      return res.status(409).json({ message: L(req, 'All evaluations are in and the grade was computed — the form is locked.', 'כל ההערכות הוגשו והציון חושב — הטופס נעול.') });
-    }
-    if (role === 'examiner') {
-      // Same gate as submitExaminerEvaluation: only from the agreed defense day.
-      if (!data.dueDate || !isDefenseDateConfirmed(data.status)) {
-        return res.status(403).json({ message: L(req, 'Evaluation opens once a defense date has been agreed and set.', 'ההערכה תיפתח רק לאחר שנקבע מועד הגנה.') });
-      }
-      const defenseDay = dayjs(data.dueDate.toDate()).tz(TZ).startOf('day');
-      if (dayjs().tz(TZ).isBefore(defenseDay)) {
-        return res.status(403).json({ message: L(req, `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).`, `ההערכה תיפתח במועד ההגנה שנקבע (${defenseDay.format('DD/MM/YYYY')}).`) });
-      }
+    const gate = evaluationGate(data, role);
+    if (!gate.open) {
+      return res.status(409).json({ message: L(req, gate.en, gate.he) });
     }
 
     const studentIds: string[] = data.studentIds ?? [];
@@ -375,13 +448,11 @@ export const submitEvaluationForm = async (req: AuthenticatedRequest, res: Respo
       };
     };
 
-    // Digital signature — the signer's own name and faculty, from their
-    // account (falling back to the project's faculty for an account with
-    // none of its own, e.g. a cross-faculty 'all' examiner).
+    // Digital signature — the signer's own name and faculty, from their account.
     const signerSnap = await db.collection('users').doc(uid).get();
     const signer = signerSnap.data() ?? {};
-    const signerFaculty = signer.facultyId && signer.facultyId !== 'all' ? signer.facultyId : data.facultyId ?? '';
-    const position = role === 'supervisor' ? { he: 'מנחה', en: 'Supervisor' } : examinerPosition(examinerIds.indexOf(uid));
+    const signerFaculty = signerFacultyFor(signer, data.facultyId ?? '');
+    const position = role === 'supervisor' ? { he: 'מנחה', en: 'Supervisor' } : examinerPosition(examinerIds.indexOf(uid), rubrics.examinerLabels);
 
     let update: Record<string, unknown>;
     let signedEntries: StoredRubricEval[];

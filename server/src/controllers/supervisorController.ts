@@ -16,6 +16,8 @@ import {
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
 import { computeProjectFinalGrade, averageGrade } from '../services/gradeEngine.js';
+import { signEvaluation } from '../services/evaluationSignature.js';
+import { gradesAsSignedScores, signerFacultyFor } from './evaluationFormController.js';
 import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { assignProjectRecordNumber } from '../services/projectRecordNumber.js';
@@ -1337,7 +1339,10 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
     if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const data = milestoneSnap.data()!;
 
-    if (data.type !== 'defense' || !data.finalGradeComponents) {
+    // Per-student evaluation forms may sit on any milestone type (e.g. the
+    // Electrical M.Sc. project book) — the legacy three-rubric flow is
+    // defense-only.
+    if (!data.finalGradeComponents || (data.type !== 'defense' && !data.finalGradeComponents.perStudent)) {
       return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי התלת-מדדי.') });
     }
     if (data.supervisorId !== supervisorId) {
@@ -1403,6 +1408,19 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       kind = 'override';
     }
 
+    // Per-student forms: the supervisor's approval is the form's
+    // "חתימת המנחה" line — digitally signed over the grades proposed.
+    let decisionSignature: Awaited<ReturnType<typeof signEvaluation>> | undefined;
+    if (perStudent && proposedGrades) {
+      const signerSnap = await db.collection('users').doc(supervisorId).get();
+      const signer = signerSnap.data() ?? {};
+      decisionSignature = await signEvaluation({
+        milestoneId, signerUid: supervisorId, signerName: signer.displayName || signer.displayNameHe || supervisorId,
+        role: 'supervisor', positionHe: 'מנחה — אישור הציון', positionEn: 'Supervisor — grade approval',
+        facultyId: signerFacultyFor(signer, data.facultyId ?? ''), scores: gradesAsSignedScores(proposedGrades),
+      });
+    }
+
     // Optional file attached alongside the decision (e.g. the signed final-
     // grade paper form, for the record) — never required, the decision
     // itself is what finalizes the grade. See uploadMiddleware (shared with
@@ -1434,6 +1452,7 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
             kind,
             proposedGrade,
             ...(proposedGrades ? { proposedGrades } : {}),
+            ...(decisionSignature ? { signature: decisionSignature } : {}),
             ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
             ...(fileUrls.length > 0 ? { fileUrls } : {}),
             proposedBy: supervisorId,

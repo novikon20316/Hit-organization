@@ -2559,6 +2559,8 @@ export const apiClient = {
         gradeOverrideFileUrls: string[];
         /** Per-student evaluation form — one computed/proposed grade per student. */
         perStudent?: boolean;
+        milestoneNameHe?: string;
+        milestoneNameEn?: string;
         students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
       }>;
     }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
@@ -3511,7 +3513,7 @@ export interface EvaluationFormComponent {
 
 export interface EvaluationFormSignature {
   signerName: string;
-  role: 'supervisor' | 'examiner';
+  role: 'supervisor' | 'examiner' | 'coordinator';
   positionHe: string;
   positionEn: string;
   facultyId: string;
@@ -3523,26 +3525,27 @@ export interface EvaluationFormSignature {
   valid: boolean;
 }
 
-export interface EvaluationFormView {
+export interface EvaluationFormSection {
   milestoneId: string;
-  projectId: string | null;
-  facultyId: string;
-  titleHe: string;
-  titleEn: string;
-  header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
-  students: Array<{ id: string; name: string; idNumber: string | null }>;
+  nameHe: string;
+  nameEn: string;
+  type: string;
+  /** This milestone's share of the project's final grade. */
+  percent: number;
+  totalsDisplay: 'points' | 'weighted';
   rubrics: Array<{
     kind: 'supervisorEvaluation' | 'examinerDefenseEvaluation' | 'examinerProjectEvaluation';
     giver: 'supervisor' | 'examiner';
     weight: number;
+    percentOfTotal: number;
+    percentPerGrader: number;
     components: EvaluationFormComponent[];
   }>;
   viewer: {
-    role: 'supervisor' | 'secondary_supervisor' | 'examiner' | 'staff';
+    role: 'supervisor' | 'examiner' | null;
     canEdit: boolean;
     lockedReasonHe: string | null;
     lockedReasonEn: string | null;
-    /** The viewer's own line on the form ("מנחה", "בוחן 1 / יו\"ר"...), null for staff. */
     positionHe: string | null;
     positionEn: string | null;
   };
@@ -3569,16 +3572,30 @@ export interface EvaluationFormView {
   }>;
   totals: Array<{
     studentId: string;
-    supervisorPoints: number | null;
-    examinerDefensePoints: number | null;
-    examinerProjectPoints: number | null;
     points: number | null;
     maxPoints: number;
     milestoneGrade: number | null;
-    milestonePercent: number;
-    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
-    projectFinalGrade: number | null;
+    contribution: number | null;
   }>;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+  approvals: { supervisor: EvaluationFormSignature | null; coordinator: EvaluationFormSignature | null };
+}
+
+export interface EvaluationFormView {
+  milestoneId: string;
+  projectId: string | null;
+  facultyId: string;
+  titleHe: string;
+  titleEn: string;
+  header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
+  students: Array<{ id: string; name: string; idNumber: string | null }>;
+  viewerIsStaff: boolean;
+  /** One per milestone of the form (a form split across milestones has several). */
+  sections: EvaluationFormSection[];
+  studentTotals: Array<{
+    studentId: string;
+    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
+    projectFinalGrade: number | null;
+  }>;
 }

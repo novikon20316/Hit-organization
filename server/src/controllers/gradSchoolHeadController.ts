@@ -22,6 +22,8 @@ import {
   MilestoneDoc,
 } from '../services/studentProgress.js';
 import { transferGradeToMichlol, examinerScoreFor, averageGrade } from '../services/gradeEngine.js';
+import { signEvaluation } from '../services/evaluationSignature.js';
+import { gradesAsSignedScores, signerFacultyFor } from './evaluationFormController.js';
 import { isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
@@ -362,9 +364,13 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
     if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
 
-    if (milestone.type !== 'defense' || !milestone.finalGradeComponents) {
+    if (!milestone.finalGradeComponents || (milestone.type !== 'defense' && !milestone.finalGradeComponents.perStudent)) {
       return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי התלת-מרכיבי.') });
     }
+    // A per-student form on a non-defense milestone (e.g. the M.Sc. project
+    // book) is a milestone grade, not the project's final grade — no
+    // Michlol transfer or "final grade" notification for it.
+    const isFinalGrade = milestone.type === 'defense';
     if (milestone.gradeOverride?.status !== 'pending') {
       return res.status(400).json({ message: L(req, 'No grade override is pending for this milestone.', 'אין שינוי ציון ממתין לאבן דרך זו.') });
     }
@@ -396,6 +402,22 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       ? averageGrade(finalGradeByStudent)
       : decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
 
+    // Per-student forms: the coordinator's sign-off is the form's
+    // "חתימת רכז פרויקטים" line — digitally signed over the final grades —
+    // and the milestone reaches a completed status, which is also what
+    // releases the grade to the student (milestoneVisibility.ts). The prior
+    // status is kept so an unlock can restore it.
+    let approvalSignature: Awaited<ReturnType<typeof signEvaluation>> | undefined;
+    if (finalGradeByStudent) {
+      const signerSnap = await db.collection('users').doc(uid).get();
+      const signer = signerSnap.data() ?? {};
+      approvalSignature = await signEvaluation({
+        milestoneId, signerUid: uid, signerName: signer.displayName || signer.displayNameHe || uid,
+        role: 'coordinator', positionHe: 'רכז/ת פרויקטים — אישור סופי', positionEn: 'Projects coordinator — final approval',
+        facultyId: signerFacultyFor(signer, milestone.facultyId ?? ''), scores: gradesAsSignedScores(finalGradeByStudent),
+      });
+    }
+
     // Transaction, not the plain get()-then-update() this used to be — same
     // reasoning as approveFinalGrade below: two near-simultaneous decisions
     // on the same pending override could otherwise both pass the
@@ -410,7 +432,12 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
         }
         transaction.update(milestoneRef, {
           finalGrade,
-          ...(finalGradeByStudent ? { finalGradeByStudent } : {}),
+          ...(finalGradeByStudent ? {
+            finalGradeByStudent,
+            gradeApprovalSignature: approvalSignature,
+            statusBeforeGradeApproval: milestone.status ?? null,
+            status: isFinalGrade ? 'completed' : 'coordinator_approved',
+          } : {}),
           gradeApproved: true,
           gradeApprovedBy: uid,
           gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -439,26 +466,32 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
 
     const studentIds: string[] = milestone.studentIds ?? [];
     const gradeFor = (studentId: string): number => finalGradeByStudent?.[studentId] ?? finalGrade;
-    // One transfer per distinct grade, so each student's own grade is what
-    // goes to Michlol.
-    const studentsByGrade = new Map<number, string[]>();
-    studentIds.forEach((id) => studentsByGrade.set(gradeFor(id), [...(studentsByGrade.get(gradeFor(id)) ?? []), id]));
-    const transfers = await Promise.all([...studentsByGrade.entries()].map(([grade, ids]) =>
-      transferGradeToMichlol({ milestoneId, projectId: milestone.projectId ?? '', studentIds: ids, finalGrade: grade })));
-    const transfer = { transferred: transfers.every((t) => t.transferred), transferredAt: transfers[0]?.transferredAt ?? new Date().toISOString() };
-    await milestoneRef.update({
-      michlolTransferStatus: transfer.transferred ? 'transferred' : 'failed',
-      michlolTransferredAt: transfer.transferredAt,
-    });
+    if (isFinalGrade) {
+      // One transfer per distinct grade, so each student's own grade is what
+      // goes to Michlol.
+      const studentsByGrade = new Map<number, string[]>();
+      studentIds.forEach((id) => studentsByGrade.set(gradeFor(id), [...(studentsByGrade.get(gradeFor(id)) ?? []), id]));
+      const transfers = await Promise.all([...studentsByGrade.entries()].map(([grade, ids]) =>
+        transferGradeToMichlol({ milestoneId, projectId: milestone.projectId ?? '', studentIds: ids, finalGrade: grade })));
+      const transfer = { transferred: transfers.every((t) => t.transferred), transferredAt: transfers[0]?.transferredAt ?? new Date().toISOString() };
+      await milestoneRef.update({
+        michlolTransferStatus: transfer.transferred ? 'transferred' : 'failed',
+        michlolTransferredAt: transfer.transferredAt,
+      });
+    }
 
     try {
       await Promise.all(studentIds.map((studentId) => db.collection('notifications').add({
         recipientId: studentId,
         type: 'final_grade_approved',
-        titleHe: '🎓 הציון הסופי אושר',
-        titleEn: '🎓 Final Grade Approved',
-        bodyHe: `הציון הסופי שלך (${gradeFor(studentId)}) אושר והועבר למכלול.`,
-        bodyEn: `Your final grade (${gradeFor(studentId)}) has been approved and transferred to Michlol.`,
+        titleHe: isFinalGrade ? '🎓 הציון הסופי אושר' : '✅ הציון אושר',
+        titleEn: isFinalGrade ? '🎓 Final Grade Approved' : '✅ Grade Approved',
+        bodyHe: isFinalGrade
+          ? `הציון הסופי שלך (${gradeFor(studentId)}) אושר והועבר למכלול.`
+          : `הציון שלך ב"${milestone.nameHe ?? ''}" (${gradeFor(studentId)}) אושר.`,
+        bodyEn: isFinalGrade
+          ? `Your final grade (${gradeFor(studentId)}) has been approved and transferred to Michlol.`
+          : `Your grade for "${milestone.nameEn ?? ''}" (${gradeFor(studentId)}) has been approved.`,
         isRead: false,
         relatedProjectId: milestone.projectId ?? null,
         relatedMilestoneId: milestoneId,
@@ -659,6 +692,13 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
       gradeApproved: false,
       gradeApprovedBy: admin.firestore.FieldValue.delete(),
       gradeApprovedAt: admin.firestore.FieldValue.delete(),
+      // Per-student forms: the coordinator's signature no longer applies,
+      // and the status set at approval goes back to what it was.
+      ...(milestone.gradeApprovalSignature ? { gradeApprovalSignature: admin.firestore.FieldValue.delete() } : {}),
+      ...(milestone.statusBeforeGradeApproval !== undefined ? {
+        status: milestone.statusBeforeGradeApproval ?? 'submitted',
+        statusBeforeGradeApproval: admin.firestore.FieldValue.delete(),
+      } : {}),
       michlolTransferStatus: admin.firestore.FieldValue.delete(),
       michlolTransferredAt: admin.firestore.FieldValue.delete(),
       gradeUnlockReason: reason,

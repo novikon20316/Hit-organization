@@ -240,7 +240,7 @@ const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table', 'yesno'
 const AUTO_FILL_KEYS: string[] = [
   'studentName', 'studentIdNumber', 'studentPhone', 'studentEmail', 'studentPhoto', 'accumulatedCredits',
   'supervisorName', 'submissionDate', 'projectNameHe', 'projectNameEn', 'examinerNames',
-  'projectStartDate', 'academicYear', 'defenseDate',
+  'projectStartDate', 'academicYear', 'defenseDate', 'supervisorNames',
 ] satisfies NonNullable<FormFieldSpec['autoFill']>[];
 
 function validateFormFields(input: any): FormFieldSpec[] | null {
@@ -326,6 +326,14 @@ function validateFinalGradeComponents(input: any): { ok: true; value?: WorkflowM
     const headerFields = validateFormFields(input.headerFields);
     if (headerFields === null) return { ok: false };
     if (headerFields.length > 0) value.headerFields = headerFields;
+    if (typeof input.formGroup === 'string' && input.formGroup.trim()) value.formGroup = input.formGroup.trim();
+    if (input.totalsDisplay === 'weighted') value.totalsDisplay = 'weighted';
+    if (Array.isArray(input.examinerLabels)) {
+      const labels = input.examinerLabels
+        .filter((l: any) => l && typeof l.he === 'string' && typeof l.en === 'string' && l.he.trim())
+        .map((l: any) => ({ he: l.he.trim(), en: l.en.trim() }));
+      if (labels.length > 0) value.examinerLabels = labels;
+    }
   }
   return { ok: true, value };
 }

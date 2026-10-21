@@ -124,6 +124,9 @@ export interface FinalGradeComponents {
   formTitleHe?: string;
   formTitleEn?: string;
   headerFields?: unknown[];
+  formGroup?: string;
+  totalsDisplay?: 'points' | 'weighted';
+  examinerLabels?: Array<{ he: string; en: string }>;
 }
 
 // Valid roles for a chain STAGE — includes 'examiner', which resolves to a

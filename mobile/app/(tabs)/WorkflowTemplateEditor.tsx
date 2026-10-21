@@ -841,12 +841,12 @@ export default function WorkflowTemplateEditor() {
       // Per-student form settings aren't edited here — carried over as-is so
       // saving doesn't turn the per-student evaluation form back into one
       // shared score per team.
-      const { perStudent, formTitleHe, formTitleEn, headerFields } = editingMs?.finalGradeComponents ?? {};
+      const { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels } = editingMs?.finalGradeComponents ?? {};
       finalGradeComponents = {
         supervisorEvaluation: { components: msSupervisorEvalComponents, weight: w1 },
         examinerProjectEvaluation: { components: msExaminerProjectComponents, weight: w2 },
         examinerDefenseEvaluation: { components: msExaminerDefenseComponents, weight: w3 },
-        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields } : {}),
+        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels } : {}),
       };
     }
 
