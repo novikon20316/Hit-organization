@@ -7,6 +7,7 @@
 // at the end of the row — just "Export to Excel" for the shared page,
 // "Create Report" + "Export to Excel" for system_admin's flow.
 
+import { Select } from '@/components/ui/Select';
 import type { ReactNode } from 'react';
 import { FACULTY_LABELS, type FacultyId } from '@/lib/i18n';
 import {
@@ -71,7 +72,7 @@ export function ReportFiltersBar({
         />
 
         {isSystemAdmin && (
-          <select
+          <Select
             value={facultyId}
             onChange={(e) => onFacultyIdChange(e.target.value)}
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -80,10 +81,10 @@ export function ReportFiltersBar({
             {(Object.keys(FACULTY_LABELS) as FacultyId[]).filter((id) => id !== 'all').map((id) => (
               <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
             ))}
-          </select>
+          </Select>
         )}
 
-        <select
+        <Select
           value={degreeType}
           onChange={(e) => onDegreeTypeChange(e.target.value)}
           className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -92,9 +93,9 @@ export function ReportFiltersBar({
           {DEGREE_TYPES.map((v) => (
             <option key={v} value={v}>{DEGREE_TYPE_LABEL[v][lang]}</option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={projectType}
           onChange={(e) => onProjectTypeChange(e.target.value)}
           className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -103,9 +104,9 @@ export function ReportFiltersBar({
           {PROJECT_TYPES.map((v) => (
             <option key={v} value={v}>{PROJECT_TYPE_LABEL[v][lang]}</option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={milestoneType}
           onChange={(e) => onMilestoneTypeChange(e.target.value)}
           className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -114,9 +115,9 @@ export function ReportFiltersBar({
           {MILESTONE_TYPES.map((v) => (
             <option key={v} value={v}>{MILESTONE_TYPE_LABEL[v][lang]}</option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={processStatus}
           onChange={(e) => onProcessStatusChange(e.target.value)}
           className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -125,9 +126,9 @@ export function ReportFiltersBar({
           {PROCESS_STATUSES.map((v) => (
             <option key={v} value={v}>{PROCESS_STATUS_LABEL[v][lang]}</option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={examinerId}
           onChange={(e) => onExaminerIdChange(e.target.value)}
           className="max-w-[12rem] rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -136,7 +137,7 @@ export function ReportFiltersBar({
           {examinerOptions.map((ex) => (
             <option key={ex.id} value={ex.id}>{ex.displayName}</option>
           ))}
-        </select>
+        </Select>
 
         <input
           value={advisorId}

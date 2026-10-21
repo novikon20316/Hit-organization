@@ -3,6 +3,7 @@
 // app/admin/panel/ProjectsTab.tsx
 // Ported from the `activeTab === 'projects'` section of mobile's panel.tsx.
 
+import { Select } from '@/components/ui/Select';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -72,22 +73,22 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
+        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל הסטטוסים' : 'All statuses'}</option>
           {statusOptions.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
-        </select>
-        <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value)} className={selectCls}>
+        </Select>
+        <Select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
           {DISPLAYED_FACULTIES.map((id) => (
             <option key={id} value={id}>
               {facultyLabel(id, lang)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {error && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}

@@ -11,6 +11,7 @@
 // Data comes from GET /api/supervisor/projects/:id/detail — see
 // server/src/controllers/supervisorController.ts's getSupervisorProjectDetail.
 
+import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -667,7 +668,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                                 className="w-full rounded-md border border-supervisor-outline-variant bg-white px-2 py-1 text-xs text-supervisor-on-surface"
                                               />
                                             ) : f.type === 'yesno' ? (
-                                              <select
+                                              <Select
                                                 value={stageFormValues[f.key] ?? ''}
                                                 onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
                                                 className="w-full rounded-md border border-supervisor-outline-variant bg-white px-2 py-1 text-xs text-supervisor-on-surface"
@@ -675,7 +676,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                                 <option value="">{lang === 'he' ? 'בחר' : 'Select'}</option>
                                                 <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
                                                 <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
-                                              </select>
+                                              </Select>
                                             ) : (
                                               <input
                                                 value={stageFormValues[f.key] ?? ''}

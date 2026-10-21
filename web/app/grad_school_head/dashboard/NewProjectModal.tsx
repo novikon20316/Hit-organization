@@ -12,6 +12,7 @@
 // scopeAuthorization.ts's grantedFacultyIdsFor) rather than every faculty in
 // the institution.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -237,14 +238,14 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           </Field>
 
           <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'} info={newProjectFieldInfo('major')} fieldGuideId="major">
-            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={facultyIds.length === 0}>
+            <Select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={facultyIds.length === 0}>
               <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
               {majorOptions().map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.label[lang]}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
 
           <div className="grid grid-cols-2 gap-4">

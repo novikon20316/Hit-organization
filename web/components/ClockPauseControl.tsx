@@ -6,6 +6,7 @@
 // fetches its own state via apiClient.getClockPauseState, independent of
 // whatever dashboard payload the parent card came from.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type ClockPause, type ClockPauseReason } from '@/lib/apiClient';
@@ -117,7 +118,7 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
             <label className="mt-3 block text-xs font-medium text-muted">
               {lang === 'he' ? 'סיבה' : 'Reason'}
             </label>
-            <select
+            <Select
               value={reason}
               onChange={(e) => setReason(e.target.value as ClockPauseReason)}
               className="mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
@@ -125,7 +126,7 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
               {(Object.keys(REASON_LABEL) as ClockPauseReason[]).map((r) => (
                 <option key={r} value={r}>{REASON_LABEL[r][lang]}</option>
               ))}
-            </select>
+            </Select>
             <label className="mt-3 block text-xs font-medium text-muted">
               {lang === 'he' ? 'הערה (אופציונלי)' : 'Note (optional)'}
             </label>

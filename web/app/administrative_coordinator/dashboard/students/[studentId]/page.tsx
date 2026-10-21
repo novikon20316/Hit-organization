@@ -8,6 +8,7 @@
 // apiClient.getStudentDetail(studentId) (see
 // server/src/controllers/projectCoordinatorController.ts's getStudentDetail).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -416,7 +417,7 @@ export default function StudentDetailPage() {
             <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? 'מגדר' : 'Gender'}</p>
             {canSetSpecialization ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <select
+                <Select
                   value={genderInput}
                   onChange={(e) => setGenderInput(e.target.value as 'male' | 'female' | '')}
                   aria-label={lang === 'he' ? 'מגדר' : 'Gender'}
@@ -425,7 +426,7 @@ export default function StudentDetailPage() {
                   <option value="">{lang === 'he' ? 'לא הוגדר' : 'Not set'}</option>
                   <option value="male">{lang === 'he' ? 'זכר' : 'Male'}</option>
                   <option value="female">{lang === 'he' ? 'נקבה' : 'Female'}</option>
-                </select>
+                </Select>
                 <button
                   type="button"
                   disabled={savingGender || genderInput === (student.gender ?? '')}
@@ -450,7 +451,7 @@ export default function StudentDetailPage() {
               <p className="text-sm font-semibold text-administrative-coordinator-on-surface">🎯 {lang === 'he' ? 'תחום התמחות' : 'Specialization'}</p>
               {canSetSpecialization ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select
+                  <Select
                     value={specializationInput}
                     onChange={(e) => setSpecializationInput(e.target.value)}
                     aria-label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}
@@ -460,7 +461,7 @@ export default function StudentDetailPage() {
                     {student.specializationOptions.map((key) => (
                       <option key={key} value={key}>{SPECIALIZATION_LABELS[key]?.[lang] ?? key}</option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     type="button"
                     disabled={savingSpecialization || specializationInput === (student.specialization ?? '')}

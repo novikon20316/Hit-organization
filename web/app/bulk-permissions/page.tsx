@@ -8,6 +8,7 @@
 // locked server-side to their own faculty regardless of what this page sends.
 // grad_school_head: cross-faculty by design, same as the rest of this app.
 
+import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -125,11 +126,11 @@ export default function BulkPermissionsPage() {
       <div className="max-w-xl">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תפקיד יעד' : 'Target role'}</span>
-          <select value={targetRole} onChange={(e) => setTargetRole(e.target.value as AppRole)} className={inputCls}>
+          <Select value={targetRole} onChange={(e) => setTargetRole(e.target.value as AppRole)} className={inputCls}>
             {TARGETABLE_ROLES.map((r) => (
               <option key={r} value={r}>{roleLabel(r, lang)}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
         {isFacultyLocked ? (
@@ -141,7 +142,7 @@ export default function BulkPermissionsPage() {
         ) : (
           <label className="mt-3 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-            <select
+            <Select
               value={facultyId}
               onChange={(e) => {
                 const fid = e.target.value;
@@ -159,25 +160,25 @@ export default function BulkPermissionsPage() {
               {PERMISSION_FACULTY_IDS.filter((id) => id !== 'all').map((id) => (
                 <option key={id} value={id}>{facultyLabel(id, lang)}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 
         {effectiveFacultyId && majors.length > 0 && (
           <label className="mt-3 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}</span>
-            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls}>
+            <Select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls}>
               <option value="">{lang === 'he' ? 'כל המגמות' : 'All majors'}</option>
               {majors.map((m) => (
                 <option key={m.slug} value={m.slug}>{m.label[lang]}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 
         <label className="mt-3 block">
           <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר (אופציונלי)' : 'Degree level (optional)'}</span>
-          <select
+          <Select
             value={degreeLevel}
             onChange={(e) => { const v = e.target.value as DegreeLevel | ''; setDegreeLevel(v); if (v !== 'masters') setProcessType(''); }}
             className={inputCls}
@@ -186,18 +187,18 @@ export default function BulkPermissionsPage() {
             {degreeLevelOptions.map((d) => (
               <option key={d.key} value={d.key}>{d.label[lang]}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
         {degreeLevel === 'masters' && (
           <label className="mt-3 block">
             <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול (אופציונלי)' : 'Process type (optional)'}</span>
-            <select value={processType} onChange={(e) => setProcessType(e.target.value as ProcessType | '')} className={inputCls}>
+            <Select value={processType} onChange={(e) => setProcessType(e.target.value as ProcessType | '')} className={inputCls}>
               <option value="">{lang === 'he' ? 'שני המסלולים' : 'Both tracks'}</option>
               {PROCESS_TYPES.map((p) => (
                 <option key={p.key} value={p.key}>{p.label[lang]}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 

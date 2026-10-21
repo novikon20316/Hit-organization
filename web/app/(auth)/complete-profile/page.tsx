@@ -14,6 +14,7 @@
 // satisfy, validates newUid against the caller's own uid, and hard-locks
 // role to 'student').
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
@@ -203,7 +204,7 @@ export default function CompleteProfilePage() {
               </Field>
 
               <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
-                <select
+                <Select
                   value={facultyId}
                   onChange={(e) => {
                     const newFacultyId = e.target.value;
@@ -223,11 +224,11 @@ export default function CompleteProfilePage() {
                       </option>
                     );
                   })}
-                </select>
+                </Select>
               </Field>
 
               <Field label={lang === 'he' ? 'תוכנית לימודים' : 'Program'}>
-                <select
+                <Select
                   value={programKey}
                   onChange={(e) => {
                     setProgramKey(e.target.value);
@@ -242,7 +243,7 @@ export default function CompleteProfilePage() {
                       {p.label[lang]}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {facultyId && facultyPrograms.length === 1 && (
                   <p className="mt-1 text-xs text-muted">
                     {lang === 'he' ? 'לפקולטה זו יש רק תוכנית לימודים אחת' : 'This faculty only offers one program'}
@@ -251,7 +252,7 @@ export default function CompleteProfilePage() {
               </Field>
 
               <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>
-                <select
+                <Select
                   value={yearOfStudy ?? ''}
                   onChange={(e) => setYearOfStudy(Number(e.target.value))}
                   className={inputCls}
@@ -263,7 +264,7 @@ export default function CompleteProfilePage() {
                       {y}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
 

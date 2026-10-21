@@ -11,6 +11,7 @@
 // three roles this powers, and adminController.ts's createAdminUser/
 // updateUserRoleAdmin for the matching server-side scope enforcement.
 
+import { Select } from '@/components/ui/Select';
 import { useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -78,14 +79,14 @@ export function ManagedStaffTab({ staff, onRefresh, scope }: ManagedStaffTabProp
           placeholder={lang === 'he' ? 'חפש איש סגל...' : 'Search staff...'}
           className={`${inputCls} w-full max-w-sm`}
         />
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={selectCls}>
+        <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל התפקידים' : 'All roles'}</option>
           {scope.selectableRoles.map((r) => (
             <option key={r} value={r}>
               {roleLabel(r, lang)}
             </option>
           ))}
-        </select>
+        </Select>
         <button
           type="button"
           onClick={() => setShowNew(true)}

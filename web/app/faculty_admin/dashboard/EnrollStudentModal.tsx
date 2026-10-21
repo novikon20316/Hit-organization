@@ -1,6 +1,7 @@
 'use client';
 
 // app/faculty_admin/dashboard/EnrollStudentModal.tsx
+import { Select } from '@/components/ui/Select';
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -61,7 +62,7 @@ export function EnrollStudentModal({ project, availableStudents, onClose, onEnro
             {lang === 'he' ? 'סטודנט (ללא פרויקט פעיל)' : 'Student (no active project)'}
             <InfoTooltip text={ENROLL_STUDENT_FIELD_GUIDE[0]!.description} />
           </span>
-          <select
+          <Select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
             className="w-full rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low px-3 py-2 text-sm text-faculty-admin-on-surface focus:border-faculty-admin-primary focus:bg-faculty-admin-surface-container-lowest focus:outline-none"
@@ -72,7 +73,7 @@ export function EnrollStudentModal({ project, availableStudents, onClose, onEnro
                 {s.displayName} — {s.email}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         {availableStudents.length === 0 && (

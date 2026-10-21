@@ -19,6 +19,7 @@
 // the Suspense boundary during prerendering (Next.js requirement) — same
 // pattern as app/maintenance/page.tsx and app/defense-access/page.tsx.
 
+import { Select } from '@/components/ui/Select';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
@@ -582,7 +583,7 @@ function ProposeVersionForm({
               ? 'לאחר שהרכז מאשר את רשימת הבוחנים, ניתן לדרוש אישור נוסף מתפקיד ספציפי לפני שההזמנות נשלחות בפועל.'
               : "After a coordinator approves the recommended examiner list, require sign-off from a specific role before invitations actually go out."}
           </p>
-          <select
+          <Select
             value={examinerSignoffRole}
             onChange={(e) => { markDirty(); setExaminerSignoffRole(e.target.value as ChainRole | 'none'); }}
             disabled={isReadOnly}
@@ -592,7 +593,7 @@ function ProposeVersionForm({
             {SIGNOFF_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label data-field-guide-id="finalGradeSignoffRole" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
@@ -605,7 +606,7 @@ function ProposeVersionForm({
               ? 'לאחר שהציון הסופי מחושב, תפקיד זה יאשר (או ידחה) אותו לפני ההעברה למכלול.'
               : "Once a defense milestone's final grade is computed, this role approves (or rejects) it before it transfers to Michlol."}
           </p>
-          <select
+          <Select
             value={finalGradeSignoffRole}
             onChange={(e) => { markDirty(); setFinalGradeSignoffRole(e.target.value as ChainRole); }}
             disabled={isReadOnly}
@@ -614,7 +615,7 @@ function ProposeVersionForm({
             {SIGNOFF_ROLES.map((r) => (
               <option key={r.key} value={r.key}>{chainRoleLabel(r.key, lang)}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <fieldset data-field-guide-id="finalReportSignatureRoles" className="block rounded-[var(--radius)] border border-line bg-surface p-5">
@@ -663,7 +664,7 @@ function ProposeVersionForm({
               ? 'לסטודנט/ית ללא פרויקט פעיל בפקולטה/תואר זה: עיון בפרויקטים בודדים (ברירת המחדל), או בחירת מנחה מתוך רשימה.'
               : 'For a student with no active project in this faculty/degree: browse individually-posted projects (default), or choose a supervisor from a list.'}
           </p>
-          <select
+          <Select
             value={firstStepMode}
             onChange={(e) => { markDirty(); setFirstStepMode(e.target.value as 'browse_projects' | 'choose_supervisor'); }}
             disabled={isReadOnly}
@@ -671,7 +672,7 @@ function ProposeVersionForm({
           >
             <option value="browse_projects">{lang === 'he' ? 'עיון בפרויקטים' : 'Browse projects'}</option>
             <option value="choose_supervisor">{lang === 'he' ? 'בחירת מנחה' : 'Choose a supervisor'}</option>
-          </select>
+          </Select>
         </label>
 
         {firstStepMode === 'choose_supervisor' && (

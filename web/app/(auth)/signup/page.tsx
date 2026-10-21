@@ -4,6 +4,7 @@
 // Ported from mobile/app/(auth)/signup.tsx — same flow, same validation
 // rules, same two-stage (form -> email verification) structure.
 
+import { Select } from '@/components/ui/Select';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -446,7 +447,7 @@ export default function SignupPage() {
               </Field>
 
               <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
-                <select
+                <Select
                   value={facultyId}
                   onChange={(e) => {
                     const newFacultyId = e.target.value;
@@ -468,11 +469,11 @@ export default function SignupPage() {
                       </option>
                     );
                   })}
-                </select>
+                </Select>
               </Field>
 
               <Field label={lang === 'he' ? 'תוכנית לימודים' : 'Program'}>
-                <select
+                <Select
                   value={programKey}
                   onChange={(e) => {
                     setProgramKey(e.target.value);
@@ -489,7 +490,7 @@ export default function SignupPage() {
                       {p.label[lang]}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {facultyId && facultyPrograms.length === 1 && (
                   <p className="mt-1 text-xs text-muted">
                     {lang === 'he' ? 'לפקולטה זו יש רק תוכנית לימודים אחת' : 'This faculty only offers one program'}
@@ -498,14 +499,14 @@ export default function SignupPage() {
               </Field>
 
               <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>
-                <select value={yearOfStudy ?? ''} onChange={(e) => setYearOfStudy(Number(e.target.value))} className={inputCls} disabled={!programKey}>
+                <Select value={yearOfStudy ?? ''} onChange={(e) => setYearOfStudy(Number(e.target.value))} className={inputCls} disabled={!programKey}>
                   <option value="">{lang === 'he' ? 'בחר שנה' : 'Select year'}</option>
                   {yearOptions.map((y) => (
                     <option key={y} value={y}>
                       {y}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               {trackPolicy === 'signup_choice' && (
@@ -537,24 +538,24 @@ export default function SignupPage() {
               )}
 
               <Field label={lang === 'he' ? 'מגדר' : 'Gender'}>
-                <select value={gender} onChange={(e) => setGender(e.target.value as 'male' | 'female' | '')} className={inputCls}>
+                <Select value={gender} onChange={(e) => setGender(e.target.value as 'male' | 'female' | '')} className={inputCls}>
                   <option value="">{lang === 'he' ? 'בחר/י' : 'Select'}</option>
                   <option value="male">{lang === 'he' ? 'זכר' : 'Male'}</option>
                   <option value="female">{lang === 'he' ? 'נקבה' : 'Female'}</option>
-                </select>
+                </Select>
                 <p className="mt-1.5 text-xs text-muted">{lang === 'he' ? 'משמש לפנייה נכונה בטפסים רשמיים (למשל "מר" / "גברת").' : 'Used for correct wording on official forms (e.g. "Mr." / "Ms.").'}</p>
               </Field>
 
               {specializationOptions.length > 0 && (
                 <Field label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}>
-                  <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className={inputCls}>
+                  <Select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className={inputCls}>
                     <option value="">{lang === 'he' ? 'בחר תחום' : 'Select specialization'}</option>
                     {specializationOptions.map((key) => (
                       <option key={key} value={key}>
                         {SPECIALIZATION_LABELS[key]?.[lang] ?? key}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
               )}
             </div>

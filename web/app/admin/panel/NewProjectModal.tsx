@@ -19,6 +19,7 @@
 // and every selected combination must resolve to an approved workflow
 // template — see WorkflowTemplatePreview.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -268,14 +269,14 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           </Field>
 
           <Field label={lang === 'he' ? 'מגמה / תוכנית (אופציונלי)' : 'Major/Program (optional)'} info={newProjectFieldInfo('major')} fieldGuideId="major">
-            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={facultyIds.length === 0}>
+            <Select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} disabled={facultyIds.length === 0}>
               <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
               {majorOptions.map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.label[lang]}
                 </option>
               ))}
-            </select>
+            </Select>
             {supervisorAssignedMajors.length > 0 && (
               <p className="mt-1 text-xs text-admin-on-surface-variant">
                 {lang === 'he' ? 'אחד או יותר מהמנחים שנבחרו מוגבלים למגמות מסוימות.' : 'One or more selected supervisors are restricted to specific majors.'}

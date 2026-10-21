@@ -12,6 +12,7 @@
 //   (supervisor / examiner-on-the-project / examiner-on-the-defense) instead
 //   of the single shared gradingComponents rubric below.
 
+import { Select } from '@/components/ui/Select';
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
@@ -97,7 +98,7 @@ function FormFieldListEditor({ fields, setFields, emptyLabel }: FormFieldListEdi
               </button>
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <select
+              <Select
                 value={f.type}
                 onChange={(e) => updateField(idx, { type: e.target.value as FormFieldSpec['type'] })}
                 className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
@@ -105,7 +106,7 @@ function FormFieldListEditor({ fields, setFields, emptyLabel }: FormFieldListEdi
                 {FORM_FIELD_TYPES.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt[lang]}</option>
                 ))}
-              </select>
+              </Select>
               <label className="flex items-center gap-1 text-xs text-muted">
                 <input
                   type="checkbox"
@@ -118,7 +119,7 @@ function FormFieldListEditor({ fields, setFields, emptyLabel }: FormFieldListEdi
               {f.type === 'yesno' && (
                 <label className="flex items-center gap-1 text-xs text-muted">
                   {lang === 'he' ? 'הערה חובה כאשר התשובה:' : 'Comment required when the answer is:'}
-                  <select
+                  <Select
                     value={f.commentRequiredOn ?? ''}
                     onChange={(e) => updateField(idx, { commentRequiredOn: e.target.value === '' ? undefined : (e.target.value as 'yes' | 'no') })}
                     className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-xs text-ink"
@@ -126,7 +127,7 @@ function FormFieldListEditor({ fields, setFields, emptyLabel }: FormFieldListEdi
                     <option value="">{lang === 'he' ? 'לעולם לא' : 'Never'}</option>
                     <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
                     <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
-                  </select>
+                  </Select>
                 </label>
               )}
             </div>
@@ -546,7 +547,8 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                 <span className="mb-1.5 block text-sm font-medium text-ink">
                   {lang === 'he' ? 'סנכרון מועד עם אבן דרך אחרת (אופציונלי)' : 'Sync due date with another milestone (optional)'}
                 </span>
-                <select
+                <Select
+                  autoPick={false}
                   value={syncDueDateWith}
                   onChange={(e) => setSyncDueDateWith(e.target.value)}
                   className={inputCls}
@@ -555,7 +557,7 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
                   {syncOptions.map((m) => (
                     <option key={m.type} value={m.type}>{lang === 'he' ? m.nameHe || m.type : m.nameEn || m.type}</option>
                   ))}
-                </select>
+                </Select>
                 {syncDueDateWith && (
                   <p className="mt-1.5 text-xs text-muted">
                     {lang === 'he'

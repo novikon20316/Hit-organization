@@ -7,6 +7,7 @@
 // date (25-40 days out), or replaces one examiner and restarts date
 // selection for just them. See apiClient.resolveDefenseDateConflict.
 
+import { Select } from '@/components/ui/Select';
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -147,14 +148,14 @@ export function DateConflictModal({ milestone, examiners, onClose, onResolved }:
         </div>
 
         {replacementType === 'internal' ? (
-          <select value={replacementInternalId} onChange={(e) => setReplacementInternalId(e.target.value)} className={`${inputCls} mt-2`}>
+          <Select value={replacementInternalId} onChange={(e) => setReplacementInternalId(e.target.value)} className={`${inputCls} mt-2`}>
             <option value="">{lang === 'he' ? 'בחר בוחן' : 'Select examiner'}</option>
             {examiners.map((ex) => (
               <option key={ex.id} value={ex.id}>
                 {ex.displayName} — {ex.email}
               </option>
             ))}
-          </select>
+          </Select>
         ) : (
           <div className="mt-2 grid gap-2">
             <input

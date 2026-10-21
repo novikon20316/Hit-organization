@@ -8,6 +8,7 @@
 // approve, and where a rejection at that stage routes (back to the student,
 // or to another stage in this same chain — self-loop allowed).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { CommitteeRecord } from '@/lib/apiClient';
@@ -123,7 +124,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
             <div className="flex items-center gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EDE9FE] text-[10px] font-bold text-primary">{idx + 1}</span>
               <InfoTooltip text={STAGE_INFO} label={lang === 'he' ? 'מידע על שלב זה' : 'About this stage'} />
-              <select
+              <Select
                 value={stage.role}
                 onChange={(e) => updateStage(idx, { role: e.target.value as ChainStage['role'] })}
                 disabled={isReadOnly}
@@ -132,8 +133,8 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                 {CHAIN_ROLES.map((r) => (
                   <option key={r.key} value={r.key}>{lang === 'he' ? r.he : r.en}</option>
                 ))}
-              </select>
-              <select
+              </Select>
+              <Select
                 value={stage.action}
                 onChange={(e) => updateStage(idx, { action: e.target.value as ChainStage['action'] })}
                 disabled={isReadOnly}
@@ -150,7 +151,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                     <option value="approve">{lang === 'he' ? 'מאשר' : 'Approves'}</option>
                   </>
                 )}
-              </select>
+              </Select>
               <div className="flex shrink-0 gap-0.5">
                 <button type="button" onClick={() => moveStage(idx, -1)} disabled={isReadOnly || idx === 0} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="up">▲</button>
                 <button type="button" onClick={() => moveStage(idx, 1)} disabled={isReadOnly || idx === stages.length - 1} className="rounded px-1 text-xs text-muted hover:bg-paper disabled:opacity-30" aria-label="down">▼</button>
@@ -180,7 +181,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                 <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
                   {lang === 'he' ? 'אם נדחה, יעבור אל' : 'If rejected, goes to'}
                   <InfoTooltip text={REJECT_TO_INFO} />
-                  <select
+                  <Select
                     value={stage.rejectTo}
                     onChange={(e) => updateStage(idx, { rejectTo: e.target.value })}
                     disabled={isReadOnly}
@@ -194,7 +195,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                           : chainRoleLabel(s.role, lang)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 {rejectsForward && (
                   <p className="mt-1 text-[11px] text-accent">
@@ -211,7 +212,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
               ) : (
                 <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
                   {lang === 'he' ? 'איזו ועדה' : 'Which committee'}
-                  <select
+                  <Select
                     value={stage.committeeId ?? ''}
                     onChange={(e) => updateStage(idx, { committeeId: e.target.value || undefined })}
                     disabled={isReadOnly}
@@ -223,7 +224,7 @@ export function ChainEditor({ stages, onChange, committees = [], isReadOnly = fa
                     {committees.map((c) => (
                       <option key={c.id} value={c.id}>{committeeMajorLabel(c, lang)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               )
             )}

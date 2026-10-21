@@ -17,6 +17,7 @@
 // Every selected combination must resolve to an approved workflow template
 // — see WorkflowTemplatePreview.
 
+import { Select } from '@/components/ui/Select';
 import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -194,7 +195,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
               {lang === 'he' ? `מגמה / תוכנית${isMajorRestricted ? ' *' : ' (אופציונלי)'}` : `Major/Program${isMajorRestricted ? ' *' : ' (optional)'}`}
               <InfoTooltip text={newProjectFieldInfo('major')} />
             </span>
-            <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} required={isMajorRestricted}>
+            <Select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls} required={isMajorRestricted}>
               {!isMajorRestricted && (
                 <option value="">{lang === 'he' ? 'ללא הגבלה — כל המגמות' : 'No restriction — all majors'}</option>
               )}
@@ -204,7 +205,7 @@ export function NewProjectModal({ facultyId, onClose, onCreated }: NewProjectMod
                   {m.label[lang]}
                 </option>
               ))}
-            </select>
+            </Select>
             {isMajorRestricted && (
               <p className="mt-1 text-xs text-supervisor-on-surface-variant">
                 {lang === 'he' ? 'אתה מוגבל למגמות מסוימות בפקולטה שלך.' : "You're restricted to specific majors in your faculty."}

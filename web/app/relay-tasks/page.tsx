@@ -11,6 +11,7 @@
 // gets a dropdown instead of the single button — she can also send the
 // decision back to the committee or the supervisor if something's wrong.
 
+import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -132,7 +133,7 @@ function RelayActionPicker({ task, busy, onSubmit }: {
 
   return (
     <div className="mt-2 space-y-2">
-      <select
+      <Select
         value={action}
         onChange={(e) => setAction(e.target.value as RelayTaskAction)}
         disabled={busy}
@@ -142,7 +143,7 @@ function RelayActionPicker({ task, busy, onSubmit }: {
         {options.map((o) => (
           <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
         ))}
-      </select>
+      </Select>
       {needsReason && (
         <textarea
           rows={2}

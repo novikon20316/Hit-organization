@@ -1,6 +1,7 @@
 'use client';
 
 // app/supervisor/dashboard/EditProjectModal.tsx
+import { Select } from '@/components/ui/Select';
 import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -123,10 +124,10 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
                 {lang === 'he' ? 'תואר' : 'Degree'}
                 <InfoTooltip text={newProjectFieldInfo('degreeType')} />
               </span>
-              <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
+              <Select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
                 {degreeOptions.includes('bachelors') && <option value="bachelors">{t('bachelors')}</option>}
                 {degreeOptions.includes('masters') && <option value="masters">{t('masters')}</option>}
-              </select>
+              </Select>
               {degreeOptions.length === 1 && (
                 <p className="mt-1 text-xs text-supervisor-on-surface-variant">
                   {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
@@ -138,10 +139,10 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
                 {lang === 'he' ? 'סוג' : 'Type'}
                 <InfoTooltip text={newProjectFieldInfo('projectType')} />
               </span>
-              <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputCls}>
+              <Select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputCls}>
                 <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
                 <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
-              </select>
+              </Select>
             </label>
           </div>
           <label data-field-guide-id="skills" className="block">

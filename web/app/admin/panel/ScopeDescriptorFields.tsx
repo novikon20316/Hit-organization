@@ -12,6 +12,7 @@
 // <select>s to match this codebase's other single-choice fields (see
 // NewUserModal.tsx / NewProjectModal.tsx's faculty/degree/major pickers).
 
+import { Select } from '@/components/ui/Select';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { facultyLabel } from '@/lib/i18n';
 import {
@@ -37,7 +38,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
       {/* Faculty */}
       <label className="block">
         <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-        <select
+        <Select
           value={scope.facultyId}
           onChange={(e) => {
             const facultyId = e.target.value as PermissionFacultyId;
@@ -52,7 +53,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
               {facultyLabel(fid, lang)}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* Major (only when a specific faculty, not 'all') */}
@@ -61,14 +62,14 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
           <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
             {lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
           </span>
-          <select value={scope.major ?? ''} onChange={(e) => onChange({ major: e.target.value || undefined })} className={inputCls}>
+          <Select value={scope.major ?? ''} onChange={(e) => onChange({ major: e.target.value || undefined })} className={inputCls}>
             <option value="">{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</option>
             {majors.map((m) => (
               <option key={m.slug} value={m.slug}>
                 {m.label[lang]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -77,7 +78,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
         <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
           {lang === 'he' ? 'תואר (אופציונלי)' : 'Degree Level (optional)'}
         </span>
-        <select
+        <Select
           value={scope.degreeLevel ?? ''}
           onChange={(e) => {
             const degreeLevel = (e.target.value || undefined) as ScopeDescriptor['degreeLevel'];
@@ -91,7 +92,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
               {d.label[lang]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* Process type — master's only */}
@@ -100,7 +101,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
           <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">
             {lang === 'he' ? 'מסלול (אופציונלי)' : 'Process Type (optional)'}
           </span>
-          <select
+          <Select
             value={scope.processType ?? ''}
             onChange={(e) => onChange({ processType: (e.target.value || undefined) as ScopeDescriptor['processType'] })}
             className={inputCls}
@@ -111,7 +112,7 @@ export function ScopeDescriptorFields({ scope, onChange }: ScopeDescriptorFields
                 {p.label[lang]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
     </div>

@@ -8,6 +8,7 @@
 // act that actually advances/rejects the milestone (see
 // committeeReviewController.ts's submitCommitteeDecision).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeReviewDetail, type DecisionRecipientCandidate } from '@/lib/apiClient';
@@ -250,7 +251,7 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
                     <label className="mb-1 block text-xs font-semibold text-[#5B3E99]">
                       {lang === 'he' ? 'העברת ההחלטה אל' : 'Send the decision back to'}
                     </label>
-                    <select
+                    <Select
                       value={selectedRecipientId}
                       onChange={(e) => setSelectedRecipientId(e.target.value)}
                       className={inputCls}
@@ -261,7 +262,7 @@ export function CommitteeReviewModal({ milestoneId, currentUserId, onClose, onAc
                           {RECIPIENT_ROLE_LABEL[c.role][lang]} — {c.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {selectedRecipientId !== 'student' && (
                       <p className="mt-1 text-xs text-muted">
                         {lang === 'he'

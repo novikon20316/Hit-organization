@@ -4,6 +4,7 @@
 // Ported from mobile's EditUserModal + panel.tsx's handleSaveUser. Same
 // endpoint, same payload: { role, roles, facultyId } via role-update.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -292,25 +293,25 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
         <div className="mt-4 grid gap-4">
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תפקיד ראשי' : 'Primary Role'}</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
+            <Select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {roleOptions.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
 
           {!scope?.lockedFacultyId && (
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-              <select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
+              <Select value={facultyId} onChange={(e) => handleFacultyChange(e.target.value)} className={inputCls}>
                 {VALID_FACULTY_IDS.map((id) => (
                   <option key={id} value={id}>
                     {facultyLabel(id, lang)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
 
@@ -321,7 +322,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             <>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'תואר' : 'Degree'}</span>
-                <select
+                <Select
                   value={degreeType}
                   onChange={(e) => setDegreeType(e.target.value as DegreeLevel)}
                   className={inputCls}
@@ -332,12 +333,12 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                       {DEGREE_LEVELS.find((o) => o.key === d)?.label[lang] ?? d}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'מגמה' : 'Department'}</span>
-                <select
+                <Select
                   value={major}
                   onChange={(e) => setMajor(e.target.value)}
                   className={inputCls}
@@ -349,7 +350,7 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
                       {m.label[lang]}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {departmentOptions.length === 0 && (
                   <p className="mt-1 text-xs text-admin-on-surface-variant">
                     {lang === 'he' ? 'אין מגמות לפקולטה ולתואר שנבחרו' : 'No departments for this faculty/degree combination'}
@@ -363,25 +364,25 @@ export function EditUserModal({ user, onClose, onSaved, scope }: EditUserModalPr
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}</span>
-                <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
+                <Select autoPick={false} value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.primary.map((o) => (
                     <option key={o.key} value={o.key}>
                       {lang === 'he' ? o.labelHe : o.labelEn}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-admin-on-surface">{lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}</span>
-                <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
+                <Select autoPick={false} value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.secondary.map((o) => (
                     <option key={o.key} value={o.key}>
                       {lang === 'he' ? o.labelHe : o.labelEn}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
           )}

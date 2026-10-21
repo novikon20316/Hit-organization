@@ -10,6 +10,7 @@
 // the Suspense boundary during prerendering (Next.js requirement) — wrapped
 // below so the rest of the app shell can still be prerendered.
 
+import { Select } from '@/components/ui/Select';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -339,27 +340,27 @@ function AdminPanelContent() {
               placeholder={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
               className="w-full max-w-sm rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none"
             />
-            <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value as typeof staffFilter)} className={selectCls}>
+            <Select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value as typeof staffFilter)} className={selectCls}>
               <option value="all">{lang === 'he' ? 'הכל' : 'All'}</option>
               <option value="staff">{lang === 'he' ? 'צוות בלבד' : 'Staff only'}</option>
               <option value="student">{lang === 'he' ? 'סטודנטים בלבד' : 'Students only'}</option>
-            </select>
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={selectCls}>
+            </Select>
+            <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)} className={selectCls}>
               <option value="all">{lang === 'he' ? 'כל התפקידים' : 'All roles'}</option>
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
               ))}
-            </select>
-            <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value as typeof facultyFilter)} className={selectCls}>
+            </Select>
+            <Select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value as typeof facultyFilter)} className={selectCls}>
               <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
               {DISPLAYED_FACULTIES.map((id) => (
                 <option key={id} value={id}>
                   {facultyLabel(id, lang)}
                 </option>
               ))}
-            </select>
+            </Select>
             <button
               type="button"
               onClick={() => setShowColorLegend((v) => !v)}

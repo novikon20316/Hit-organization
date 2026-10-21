@@ -6,6 +6,7 @@
 // grad_school_head, ...), not nested under any one role, mirroring
 // /reports and /info-files.
 
+import { Select } from '@/components/ui/Select';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
@@ -325,7 +326,7 @@ function WorkflowTemplatesContent() {
           <span className="mb-1.5 block text-xs font-medium text-muted">
             {lang === 'he' ? 'פקולטה' : 'Faculty'}
           </span>
-          <select
+          <Select
             value={selectedFacultyId}
             onChange={(e) => setSelectedFacultyId(e.target.value)}
             className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -333,7 +334,7 @@ function WorkflowTemplatesContent() {
             {SELECTABLE_FACULTY_IDS.map((id) => (
               <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -349,7 +350,7 @@ function WorkflowTemplatesContent() {
           <span className="mb-1.5 block text-xs font-medium text-muted">
             {lang === 'he' ? 'תחום אחריות' : 'Your subject'}
           </span>
-          <select
+          <Select
             value={coordinatorScopeIndex}
             onChange={(e) => setCoordinatorScopeIndex(Number(e.target.value))}
             className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
@@ -360,7 +361,7 @@ function WorkflowTemplatesContent() {
                 {s.major ? ` — ${s.major}` : ` (${lang === 'he' ? 'כל המגמות' : 'all majors'})`}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -384,7 +385,7 @@ function WorkflowTemplatesContent() {
           <span className="mb-1.5 block text-xs font-medium text-muted">
             {lang === 'he' ? 'מגמה / תחום' : 'Subject / Major'}
           </span>
-          <select
+          <Select
             value={selectedMajor ?? ''}
             onChange={(e) => setSelectedMajor(e.target.value || null)}
             disabled={majorOptions.length === 1}
@@ -396,7 +397,7 @@ function WorkflowTemplatesContent() {
             {majorOptions.map((m) => (
               <option key={m.slug} value={m.slug}>{m.label}</option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -789,7 +790,7 @@ function WorkflowTemplatesContent() {
               <>
                 <label className="mt-4 block">
                   <span className="mb-1.5 block text-xs font-medium text-muted">{lang === 'he' ? 'פקולטת מקור' : 'Source faculty'}</span>
-                  <select
+                  <Select
                     value={duplicateSourceFaculty}
                     onChange={(e) => { setDuplicateSourceFaculty(e.target.value); setDuplicateSourceMajor(''); }}
                     disabled={duplicateBusy}
@@ -799,12 +800,12 @@ function WorkflowTemplatesContent() {
                     {SELECTABLE_FACULTY_IDS.map((id) => (
                       <option key={id} value={id}>{FACULTY_LABELS[id][lang]}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 {duplicateSourceFaculty && (
                   <label className="mt-3 block">
                     <span className="mb-1.5 block text-xs font-medium text-muted">{lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}</span>
-                    <select
+                    <Select
                       value={duplicateSourceMajor}
                       onChange={(e) => setDuplicateSourceMajor(e.target.value)}
                       disabled={duplicateBusy}
@@ -814,7 +815,7 @@ function WorkflowTemplatesContent() {
                       {majorOptionsFor(duplicateSourceFaculty, activeProcessType, lang).map((m) => (
                         <option key={m.slug} value={m.slug}>{m.label}</option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
                 {duplicateError && <p className="mt-3 rounded-md bg-danger-bg px-2.5 py-1.5 text-xs text-danger" role="alert">{duplicateError}</p>}

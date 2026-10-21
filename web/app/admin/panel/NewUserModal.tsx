@@ -4,6 +4,7 @@
 // Ported from mobile's NewUserModal + panel.tsx's handleCreateUser — same
 // validation, same POST /api/admin/users/create payload shape.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -329,18 +330,18 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
           </Field>
 
           <Field label={lang === 'he' ? 'תפקיד' : 'Role'}>
-            <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
+            <Select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {roleOptions.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
 
           {!isCrossFaculty && !scope?.lockedFacultyId && (scope?.allowedScopes?.length ?? 2) > 1 && (
             <Field label={lang === 'he' ? 'פקולטה' : 'Faculty'}>
-              <select
+              <Select
                 value={facultyId}
                 onChange={(e) => {
                   const newFacultyId = e.target.value;
@@ -365,7 +366,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                     {facultyLabel(id, lang)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           )}
 
@@ -406,7 +407,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
           {isStudent && (
             <>
               <Field label={lang === 'he' ? 'תואר' : 'Degree'}>
-                <select
+                <Select
                   value={degreeType}
                   onChange={(e) => {
                     setDegreeType(e.target.value as 'bachelors' | 'masters');
@@ -421,7 +422,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                   {availableDegreeLevels.includes('masters') && (
                     <option value="masters">{lang === 'he' ? 'תואר שני' : "Master's"}</option>
                   )}
-                </select>
+                </Select>
                 {availableDegreeLevels.length === 1 && (
                   <p className="mt-1 text-xs text-admin-on-surface-variant">
                     {lang === 'he' ? 'לפקולטה זו יש רק תואר אחד' : 'This faculty only offers one degree level'}
@@ -430,7 +431,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               </Field>
 
               <Field label={lang === 'he' ? 'מגמה' : 'Major'}>
-                <select
+                <Select
                   value={major}
                   onChange={(e) => setMajor(e.target.value)}
                   className={inputCls}
@@ -442,7 +443,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
                       {p.label[lang]}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {facultyId && majorOptions.length === 1 && (
                   <p className="mt-1 text-xs text-admin-on-surface-variant">
                     {lang === 'he' ? 'לפקולטה זו יש רק מגמה אחת' : 'This faculty only offers one major'}
@@ -451,13 +452,13 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
               </Field>
 
               <Field label={lang === 'he' ? 'שנת לימודים' : 'Year of Study'}>
-                <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} className={inputCls}>
+                <Select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} className={inputCls}>
                   {[1, 2, 3, 4].map((y) => (
                     <option key={y} value={y}>
                       {y}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               <Field label={lang === 'he' ? 'מספר סטודנט (אופציונלי)' : 'Student ID (optional)'}>

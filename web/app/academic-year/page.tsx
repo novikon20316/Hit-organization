@@ -8,6 +8,7 @@
 // path out even after actually reaching their final year (see
 // server/src/controllers/userController.ts's computeIsEligible fix).
 
+import { Select } from '@/components/ui/Select';
 import { useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
@@ -420,15 +421,16 @@ function EditTrackForm({
 
       <label className="mt-3 block">
         <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מסלול' : 'Track'}</span>
-        <select
+        <Select
           value={track}
+          autoPick={false}
           onChange={(e) => setTrack(e.target.value as 'thesis' | 'project' | '')}
           className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none"
         >
           <option value="">{lang === 'he' ? '(לא נבחר)' : '(not set)'}</option>
           <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
           <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
-        </select>
+        </Select>
       </label>
 
       <label className="mt-3 flex items-center gap-2 text-sm text-ink">

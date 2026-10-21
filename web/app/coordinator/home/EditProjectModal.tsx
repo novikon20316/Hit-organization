@@ -10,6 +10,7 @@
 // (coordinator/home/types.ts) rather than MyProject (supervisor dashboard's
 // own type), and additionally exposes maxStudents.
 
+import { Select } from '@/components/ui/Select';
 import { useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -129,20 +130,20 @@ export function EditProjectModal({ project, onClose, onSaved }: EditProjectModal
                 {lang === 'he' ? 'תואר' : 'Degree'}
                 <InfoTooltip text={newProjectFieldInfo('degreeType')} />
               </span>
-              <select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
+              <Select value={degreeType} onChange={(e) => setDegreeType(e.target.value)} className={inputCls} disabled={degreeOptions.length === 1}>
                 {degreeOptions.includes('bachelors') && <option value="bachelors">{t('bachelors')}</option>}
                 {degreeOptions.includes('masters') && <option value="masters">{t('masters')}</option>}
-              </select>
+              </Select>
             </label>
             <label data-field-guide-id="projectType" className="block">
               <span className="mb-1.5 block text-sm font-medium text-coordinator-on-surface">
                 {lang === 'he' ? 'סוג' : 'Type'}
                 <InfoTooltip text={newProjectFieldInfo('projectType')} />
               </span>
-              <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputCls}>
+              <Select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={inputCls}>
                 <option value="project">{lang === 'he' ? 'פרויקט' : 'Project'}</option>
                 <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>
-              </select>
+              </Select>
             </label>
           </div>
 

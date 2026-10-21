@@ -8,6 +8,7 @@
 // with no way to look up an entry, fix a typo, or reopen an ID that got
 // mistakenly locked (`used: true`) after its account was deleted.
 
+import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -242,24 +243,24 @@ export function StudentRosterTab() {
           placeholder={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}
           className={`${inputCls} w-full max-w-sm`}
         />
-        <select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value as typeof facultyFilter)} className={selectCls}>
+        <Select value={facultyFilter} onChange={(e) => setFacultyFilter(e.target.value as typeof facultyFilter)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל הפקולטות' : 'All faculties'}</option>
           {VALID_FACULTY_IDS.filter((id) => id !== 'all').map((id) => (
             <option key={id} value={id}>
               {facultyLabel(id as FacultyId, lang)}
             </option>
           ))}
-        </select>
-        <select value={degreeFilter} onChange={(e) => setDegreeFilter(e.target.value as typeof degreeFilter)} className={selectCls}>
+        </Select>
+        <Select value={degreeFilter} onChange={(e) => setDegreeFilter(e.target.value as typeof degreeFilter)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'כל התארים' : 'All degrees'}</option>
           <option value="bachelors">{DEGREE_LABEL.bachelors[lang]}</option>
           <option value="masters">{DEGREE_LABEL.masters[lang]}</option>
-        </select>
-        <select value={usedFilter} onChange={(e) => setUsedFilter(e.target.value as typeof usedFilter)} className={selectCls}>
+        </Select>
+        <Select value={usedFilter} onChange={(e) => setUsedFilter(e.target.value as typeof usedFilter)} className={selectCls}>
           <option value="all">{lang === 'he' ? 'הכל' : 'All'}</option>
           <option value="unused">{lang === 'he' ? 'עדיין לא נרשמו' : 'Not registered yet'}</option>
           <option value="used">{lang === 'he' ? 'נרשמו' : 'Already registered'}</option>
-        </select>
+        </Select>
       </div>
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}

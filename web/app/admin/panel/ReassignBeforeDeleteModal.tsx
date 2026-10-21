@@ -10,6 +10,7 @@
 // yes/no); this needs a per-project supervisor picker, so it's its own
 // dialog mirroring ConfirmDialog's shell/a11y conventions instead.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -121,7 +122,7 @@ export function ReassignBeforeDeleteModal({
                     ? (lang === 'he' ? 'מנחה ראשי' : 'Primary supervisor')
                     : (lang === 'he' ? 'מנחה משני' : 'Secondary supervisor')}
                 </p>
-                <select
+                <Select
                   className="mt-2 w-full rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
                   value={selections[project.id] ?? ''}
                   disabled={loadingCandidates || submitting}
@@ -137,7 +138,7 @@ export function ReassignBeforeDeleteModal({
                   {filteredOptions.map((o) => (
                     <option key={o.id} value={o.id}>{o.displayName}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             );
           })}

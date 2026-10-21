@@ -14,6 +14,7 @@
 // platform selector, shows each platform's current live status, and lets
 // you end one early instead of only ever waiting out its timer.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppVersionSection } from './AppVersionSection';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -338,13 +339,13 @@ function TimeSelect({ label, value, onChange, options }: { label: string; value:
   return (
     <label className="block">
       <span className="mb-1 block text-xs text-admin-on-surface-variant">{label}</span>
-      <select value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputCls}>
+      <Select value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputCls}>
         {options.map((n) => (
           <option key={n} value={n}>
             {n}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }

@@ -12,6 +12,7 @@
 // that milestone (each milestone may get a different one — the last choice
 // is pre-selected).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeConflict } from '@/lib/apiClient';
@@ -141,7 +142,7 @@ export function CommitteeConflictsTab() {
 
               {isReplacing ? (
                 <div className="mt-3 grid gap-2">
-                  <select
+                  <Select
                     value={selectedReplacement}
                     onChange={(e) => setSelectedReplacement(e.target.value)}
                     className="w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
@@ -150,7 +151,7 @@ export function CommitteeConflictsTab() {
                     {candidates.map((m) => (
                       <option key={m.id} value={m.id}>{m.displayName} ({m.role})</option>
                     ))}
-                  </select>
+                  </Select>
                   {candidates.length === 0 && (
                     <p className="text-xs text-administrative-coordinator-on-surface-variant">
                       {lang === 'he' ? 'אין מועמדים זמינים' : 'No candidates available'}

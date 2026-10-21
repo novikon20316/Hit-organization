@@ -18,6 +18,7 @@
 // scopeAuthorization.ts's isStudentWithinStaffScope, the same predicate this
 // tab's own roster is filtered by).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -274,24 +275,24 @@ export function StudentsListTab({ enablePasswordReset = false, canManageStudents
           className={`${inputCls} w-full max-w-sm`}
         />
         {majorOptions.length > 1 && (
-          <select value={majorFilter} onChange={(e) => setMajorFilter(e.target.value)} className={selectCls}>
+          <Select value={majorFilter} onChange={(e) => setMajorFilter(e.target.value)} className={selectCls}>
             <option value="all">{lang === 'he' ? 'כל החוגים' : 'All majors'}</option>
             {majorOptions.map(([slug, label]) => (
               <option key={slug} value={slug}>
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {degreeOptions.length > 1 && (
-          <select value={degreeFilter} onChange={(e) => setDegreeFilter(e.target.value)} className={selectCls}>
+          <Select value={degreeFilter} onChange={(e) => setDegreeFilter(e.target.value)} className={selectCls}>
             <option value="all">{lang === 'he' ? 'כל הדרגות' : 'All degrees'}</option>
             {degreeOptions.map((d) => (
               <option key={d} value={d}>
                 {t(d as 'bachelors' | 'masters')}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {canManageStudents && (
           <button

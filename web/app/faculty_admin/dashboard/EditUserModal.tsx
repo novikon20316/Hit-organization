@@ -1,6 +1,7 @@
 'use client';
 
 // app/faculty_admin/dashboard/EditUserModal.tsx
+import { Select } from '@/components/ui/Select';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -107,26 +108,26 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
               {lang === 'he' ? 'תפקיד' : 'Role'}
               <InfoTooltip text={editUserGuideEntry('role').description} />
             </span>
-            <select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
+            <Select value={role} onChange={(e) => setRole(e.target.value as AppRole)} className={inputCls}>
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r, lang)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label data-field-guide-id="faculty" className="block">
             <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
               {lang === 'he' ? 'פקולטה' : 'Faculty'}
               <InfoTooltip text={editUserGuideEntry('faculty').description} />
             </span>
-            <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
+            <Select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
               {VALID_FACULTY_IDS.map((id) => (
                 <option key={id} value={id}>
                   {facultyLabel(id, lang)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
 
           {isStudent && (
@@ -136,28 +137,28 @@ export function EditUserModal({ user, onClose, onSaved }: EditUserModalProps) {
                   {lang === 'he' ? 'סטטוס ראשי' : 'Primary Status'}
                   <InfoTooltip text={editUserGuideEntry('primaryStatus').description} />
                 </span>
-                <select value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
+                <Select autoPick={false} value={primaryStatus} onChange={(e) => setPrimaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.primary.map((o) => (
                     <option key={o.key} value={o.key}>
                       {lang === 'he' ? o.labelHe : o.labelEn}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label data-field-guide-id="secondaryStatus" className="block">
                 <span className="mb-1.5 block text-sm font-medium text-faculty-admin-on-surface">
                   {lang === 'he' ? 'סטטוס משני' : 'Secondary Status'}
                   <InfoTooltip text={editUserGuideEntry('secondaryStatus').description} />
                 </span>
-                <select value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
+                <Select autoPick={false} value={secondaryStatus} onChange={(e) => setSecondaryStatus(e.target.value)} className={inputCls}>
                   <option value="">{lang === 'he' ? '— ללא —' : '— none —'}</option>
                   {statusConfig.secondary.map((o) => (
                     <option key={o.key} value={o.key}>
                       {lang === 'he' ? o.labelHe : o.labelEn}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </>
           )}

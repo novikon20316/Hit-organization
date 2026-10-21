@@ -14,6 +14,7 @@
 // the response per-role: administrative_secretary and coordinator each only
 // ever see their own assigned faculty/faculties, never anyone else's.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, downloadAuthenticatedFile, type PaymentCategory, type SupervisorPaymentRates } from '@/lib/apiClient';
@@ -146,7 +147,7 @@ export function CoordinatorStatisticsTab({ showCreditPoints = true }: { showCred
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <select
+        <Select
           value={facultyFilter}
           onChange={(e) => setFacultyFilter(e.target.value as 'all' | FacultyId)}
           className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none"
@@ -157,7 +158,7 @@ export function CoordinatorStatisticsTab({ showCreditPoints = true }: { showCred
               {facultyLabel(fid as FacultyId, lang)}
             </option>
           ))}
-        </select>
+        </Select>
         <div className="flex items-center gap-2">
           {downloadError && <span className="text-xs text-danger" role="alert">{downloadError}</span>}
           <DownloadButton onClick={handleDownload} busy={downloading} lang={lang} />

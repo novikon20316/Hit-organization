@@ -7,6 +7,7 @@
 // three plus initial members/chairman; editing an EXISTING committee (by
 // its own chairman, or by system_admin) only touches memberIds/chairmanId.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type CommitteeRecord } from '@/lib/apiClient';
@@ -156,27 +157,27 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'פקולטה' : 'Faculty'}</span>
-                <select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
+                <Select value={facultyId} onChange={(e) => setFacultyId(e.target.value)} className={inputCls}>
                   {FACULTY_OPTIONS.map((f) => <option key={f} value={f}>{facultyLabel(f, lang)}</option>)}
-                </select>
+                </Select>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'מגמה' : 'Major'}</span>
-                <select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls}>
+                <Select value={major} onChange={(e) => setMajor(e.target.value)} className={inputCls}>
                   {majorOptions.map((m) => <option key={m.slug} value={m.slug}>{m.label[lang]}</option>)}
-                </select>
+                </Select>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'תואר' : 'Degree'}</span>
-                <select value={degreeLevel} onChange={(e) => setDegreeLevel(e.target.value as DegreeLevel)} className={inputCls}>
+                <Select value={degreeLevel} onChange={(e) => setDegreeLevel(e.target.value as DegreeLevel)} className={inputCls}>
                   {DEGREE_LEVELS.filter((d) => degreeOptions.includes(d.key)).map((d) => (
                     <option key={d.key} value={d.key}>{d.label[lang]}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'סוג ועדה' : 'Committee Type'}</span>
-                <select
+                <Select
                   value={type}
                   onChange={(e) => setType(e.target.value as 'thesis' | 'final_project')}
                   disabled={degreeLevel === 'bachelors'}
@@ -184,7 +185,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
                 >
                   {degreeLevel === 'masters' && <option value="thesis">{lang === 'he' ? 'תזה' : 'Thesis'}</option>}
                   <option value="final_project">{lang === 'he' ? 'פרויקט גמר' : 'Final Project'}</option>
-                </select>
+                </Select>
               </label>
             </div>
           ) : (
@@ -224,13 +225,13 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
           {memberIds.length > 0 && (
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-ink">{lang === 'he' ? 'יו"ר הוועדה' : 'Chairman'}</span>
-              <select value={chairmanId ?? ''} onChange={(e) => setChairmanId(e.target.value || null)} className={inputCls}>
+              <Select autoPick={false} value={chairmanId ?? ''} onChange={(e) => setChairmanId(e.target.value || null)} className={inputCls}>
                 <option value="">{lang === 'he' ? 'לא נבחר' : 'Not set'}</option>
                 {memberIds.map((id) => {
                   const c = candidates.find((cand) => cand.id === id);
                   return <option key={id} value={id}>{c?.displayName ?? id}</option>;
                 })}
-              </select>
+              </Select>
             </label>
           )}
         </div>

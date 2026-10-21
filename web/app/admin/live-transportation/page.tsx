@@ -14,6 +14,7 @@
 // local component state — it keeps accumulating even with no admin page
 // open, and survives reloads/logouts instead of resetting on every mount.
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, getDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -701,7 +702,7 @@ export default function LiveTransportationPage() {
               placeholder={lang === 'he' ? 'חפש לפי משתמש, פעולה, תאריך או שעה...' : 'Search user, action, date, or time...'}
               className="min-w-[220px] flex-1 rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-3 py-1.5 text-xs text-admin-on-surface"
             />
-            <select
+            <Select
               value={tableActionFilter}
               onChange={(e) => setTableActionFilter(e.target.value)}
               className="rounded-md border border-admin-outline-variant bg-admin-surface-container-lowest px-2 py-1.5 text-xs text-admin-on-surface"
@@ -710,7 +711,7 @@ export default function LiveTransportationPage() {
               {distinctActions.map((a) => (
                 <option key={a} value={a}>{a}</option>
               ))}
-            </select>
+            </Select>
             <input
               type="date"
               value={tableDateFilter}

@@ -12,6 +12,7 @@
 // pending, so it never clutters a dashboard for staff who don't hold a
 // configured sign-off role.
 
+import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -216,7 +217,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                         className="w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
                       />
                     ) : f.type === 'yesno' ? (
-                      <select
+                      <Select
                         value={stageFormValues[f.key] ?? ''}
                         onChange={(e) => setStageFormValues((v) => ({ ...v, [f.key]: e.target.value }))}
                         className="w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-xs text-ink"
@@ -224,7 +225,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                         <option value="">{lang === 'he' ? 'בחר' : 'Select'}</option>
                         <option value="yes">{lang === 'he' ? 'כן' : 'Yes'}</option>
                         <option value="no">{lang === 'he' ? 'לא' : 'No'}</option>
-                      </select>
+                      </Select>
                     ) : (
                       <input
                         value={stageFormValues[f.key] ?? ''}

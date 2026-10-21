@@ -12,6 +12,7 @@
 // which physical examiner becomes "#1"), so the weight UI is just two
 // fields (supervisor % + each-examiner %) regardless of how many slots exist.
 
+import { Select } from '@/components/ui/Select';
 import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -267,14 +268,14 @@ function ExaminerSlotRow({
       </div>
 
       {slot.type === 'internal' ? (
-        <select value={slot.internalId} onChange={(e) => onChange({ internalId: e.target.value })} className={`${inputCls} mt-2`}>
+        <Select autoPick={false} value={slot.internalId} onChange={(e) => onChange({ internalId: e.target.value })} className={`${inputCls} mt-2`}>
           <option value="">{lang === 'he' ? 'בחר בוחן' : 'Select examiner'}</option>
           {examiners.map((ex) => (
             <option key={ex.id} value={ex.id}>
               {ex.displayName} — {ex.email}
             </option>
           ))}
-        </select>
+        </Select>
       ) : (
         <div className="mt-2 grid gap-2">
           <input

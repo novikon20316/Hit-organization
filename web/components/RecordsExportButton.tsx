@@ -6,6 +6,7 @@
 // and one per record, limited server-side to what the caller may see.
 // Faculty list comes from GET /api/project-records/faculties (already scoped).
 
+import { Select } from '@/components/ui/Select';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, downloadAuthenticatedFile } from '@/lib/apiClient';
@@ -58,12 +59,12 @@ export function RecordsExportButton() {
         {faculties.length > 1 && (
           <label className="flex flex-col gap-1 text-xs text-muted">
             {he ? 'פקולטה' : 'Faculty'}
-            <select className={inputClass} value={facultyId} onChange={(e) => setFacultyId(e.target.value)}>
+            <Select className={inputClass} value={facultyId} onChange={(e) => setFacultyId(e.target.value)}>
               <option value="">{he ? 'הכל' : 'All'}</option>
               {faculties.map((f) => (
                 <option key={f} value={f}>{facultyLabel(f as FacultyId, lang)}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         <label className="flex flex-col gap-1 text-xs text-muted">
