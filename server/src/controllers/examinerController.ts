@@ -60,6 +60,19 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           }
         }
 
+        // Supervisor + student display names, looked up live (the milestone
+        // doc carries only their uids).
+        const nameOf = async (uid: string | undefined) => {
+          if (!uid) return '';
+          const snap = await db.collection('users').doc(uid).get();
+          return (snap.data()?.displayName || snap.data()?.displayNameHe || '') as string;
+        };
+        const [supervisorDisplayName, ...studentDisplayNames] = await Promise.all([
+          nameOf(milestoneData.supervisorId),
+          ...((milestoneData.studentIds ?? []) as string[]).map(nameOf),
+        ]);
+        const peopleNames = { supervisor: supervisorDisplayName ?? '', students: studentDisplayNames.filter(Boolean) };
+
         // Cross-milestone summary ("grades & files by milestone") for this
         // examiner's expanded card — mobile/app/examinor/home.tsx has always
         // read this off milestoneHistory, but nothing ever wrote it, so it
@@ -108,11 +121,14 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           nameHe: milestoneData.nameHe ?? null,
           nameEn: milestoneData.nameEn ?? null,
           status: milestoneData.status,
-          studentNames: milestoneData.studentNames || [],
+          // Never written onto milestone docs at enrollment — resolved live
+          // from the user docs (see peopleNames below), falling back to any
+          // legacy denormalized copy.
+          studentNames: peopleNames.students.length ? peopleNames.students : milestoneData.studentNames || [],
           studentIds: milestoneData.studentIds || [],
           supervisorId: milestoneData.supervisorId,
           supervisorScore: milestoneData.supervisorScore || null,
-          supervisorName: milestoneData.supervisorName || 'Unknown',
+          supervisorName: peopleNames.supervisor || milestoneData.supervisorName || 'Unknown',
           examinerIds: milestoneData.examinerIds || [],
           // Per-milestone configured grading rubric (see workflowTemplates.ts's
           // GradingComponentSpec) — empty means GradeExaminerModal falls back

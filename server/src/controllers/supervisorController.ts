@@ -241,13 +241,17 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       return [doc.id, p.maxStudents ?? p.NumberOfStudents ?? 1];
     }));
 
+    // Milestone docs carry only uids/projectId — names and titles are never
+    // denormalized onto them at enrollment, so resolve them from the
+    // project/student data already loaded above.
+    const projectTitleById = new Map(projectDocs.map((d) => [d.id, { he: d.data().titleHe ?? '', en: d.data().titleEn ?? '' }]));
     const pendingGrades = milestoneDocs.map(doc => {
       const data = doc.data();
       return {
         id:             doc.id,
         projectId:      data.projectId      ?? '',
-        projectTitleHe: data.projectTitleHe ?? '',
-        projectTitleEn: data.projectTitleEn ?? '',
+        projectTitleHe: data.projectTitleHe || projectTitleById.get(data.projectId)?.he || '',
+        projectTitleEn: data.projectTitleEn || projectTitleById.get(data.projectId)?.en || '',
         type:           data.type           ?? '',
         // Snapshotted from the workflow template at enrollment (see
         // services/projectEnrollment.ts) — the only real name a custom
@@ -256,7 +260,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         nameHe:         data.nameHe         ?? null,
         nameEn:         data.nameEn         ?? null,
         status:         data.status         ?? '',
-        studentNames:   data.studentNames   ?? [],
+        studentNames:   (data.studentNames?.length ? data.studentNames : (data.studentIds ?? []).map((sid: string) => studentInfoById[sid]?.name).filter(Boolean)) ?? [],
         // Needed so a caller can submit a per-student individual grade
         // component (POST /api/projects/milestones/:id/individual-grade,
         // see projectController.ts's submitIndividualGrade) — mobile gets
