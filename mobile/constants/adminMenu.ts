@@ -24,7 +24,7 @@ export interface AdminMenuItem {
 }
 
 export const ADMIN_NAVIGATION_ITEMS: AdminMenuItem[] = [
-  { key: 'overview', icon: '📊', href: '/admin/panel', label: { he: 'סקירה', en: 'Overview' } },
+  { key: 'overview', icon: '📊', href: '/admin/overview', label: { he: 'סקירה', en: 'Overview' } },
   { key: 'users', icon: '👥', href: '/admin/panel?tab=users', label: { he: 'ניהול משתמשים', en: 'User Management' } },
   { key: 'projects', icon: '📁', href: '/admin/panel?tab=projects', label: { he: 'פרויקטים', en: 'Projects' } },
   { key: 'milestones', icon: '🏁', href: '/admin/panel?tab=milestones', label: { he: 'אבני דרך', en: 'Milestones' }, badgeTargetScreens: ['admin_panel_milestones'] },
