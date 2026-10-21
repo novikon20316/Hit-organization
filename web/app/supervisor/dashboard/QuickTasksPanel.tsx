@@ -8,8 +8,9 @@
 // applications — capped at 3 items total. Every item is a jump straight to
 // where the supervisor can act on it: a grade-pending row opens the grading
 // form directly (same modal ProjectWorkflowSection's own "Grade" button
-// opens), the other two rows switch to the tab that shows them, since
-// there's no single project/application card to deep-link to on the page.
+// opens), a deadline row expands that project's card and opens its current
+// milestone's form (see OpenMilestoneRequest), and an application row
+// switches to the Applications tab.
 // One exception to "no new API calls": committee reviews, fetched here only
 // for a supervisor with no higher role who's been substituted onto a
 // committee (see lib/roles.ts's isSupervisorWithoutHigherRole).
@@ -47,9 +48,13 @@ interface QuickTasksPanelProps {
    *  instead of just pointing at the Projects tab and leaving the supervisor
    *  to find the right row themselves. */
   onGrade: (milestone: SupervisorPendingMilestone) => void;
+  /** Expands the project's card on the Projects tab and opens the form for
+   *  its current milestone (e.g. the defense evaluation form) — a bare link
+   *  to the tab left every card collapsed, so nothing actually opened. */
+  onOpenMilestone: (project: MyProject) => void;
 }
 
-export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade }: QuickTasksPanelProps) {
+export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade, onOpenMilestone }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
   const { userData } = useAuth();
   const { isCommitteeSubstitute } = useNotifications();
@@ -116,7 +121,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
               : lang === 'he'
                 ? `${daysLeft} ימים נותרו`
                 : `${daysLeft} days left`,
-        href: '/supervisor/dashboard?tab=projects',
+        onClick: () => onOpenMilestone(p),
       };
     }),
     ...pendingApps.map((a) => ({

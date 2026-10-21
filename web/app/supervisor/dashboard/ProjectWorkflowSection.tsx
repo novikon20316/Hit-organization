@@ -26,7 +26,7 @@ import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal'
 import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
-import type { MyProject, SupervisorPendingMilestone } from './types';
+import type { MyProject, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 interface ProjectWorkflowSectionProps {
@@ -36,6 +36,9 @@ interface ProjectWorkflowSectionProps {
   // can be triggered straight from this milestone row.
   pendingGrades: SupervisorPendingMilestone[];
   onGrade: (milestone: SupervisorPendingMilestone) => void;
+  /** From a Quick Tasks click — opens this milestone's form once the detail
+   *  has loaded, same choice of form as the milestone row's own button. */
+  openRequest?: OpenMilestoneRequest | null;
 }
 
 interface TemplateMilestone {
@@ -218,7 +221,7 @@ function formatShortDate(iso: string | null, lang: 'he' | 'en'): string | null {
   return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: ProjectWorkflowSectionProps) {
+export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRequest }: ProjectWorkflowSectionProps) {
   // The "Grade" button for an ordinary milestone opens GradeMilestoneModal at
   // the dashboard-page level (see page.tsx's gradingTarget), not inside this
   // component — after it submits, the page only refetches its own
@@ -347,6 +350,37 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   }, [project.id, lang]);
 
   const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
+
+  // Quick Tasks → open the requested milestone's form, picking the same form
+  // the row's own button below would (keep the two in sync). Matched by id,
+  // or by type for a dashboard response that predates currentMilestone.id.
+  // Handled once per request nonce, after the detail has loaded.
+  const handledOpenNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!openRequest || loading || handledOpenNonceRef.current === openRequest.nonce) return;
+    const all = students.flatMap((s) => s.milestones);
+    const m =
+      (openRequest.milestoneId ? all.find((x) => x.id === openRequest.milestoneId) : undefined) ??
+      all.find((x) => x.type === openRequest.milestoneType && x.id && !isCompletedStatus(x.status));
+    if (!m?.id) return;
+    handledOpenNonceRef.current = openRequest.nonce;
+    const spec = templateMilestones.find((t) => t.type === m.type);
+    const pending = pendingGrades.find((pg) => pg.id === m.id);
+    if (m.hasFinalGradeComponents && m.perStudentEvaluation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot per Quick Tasks click (nonce-guarded), waits on the async detail load
+      setEvaluationFormFor(m.id);
+    } else if (m.hasFinalGradeComponents) {
+      if (m.gradeApproved || m.gradeOverrideStatus === 'pending') return;
+      if (m.autoCalculatedFinalGrade != null) setFinalGradeDecisionFor({ milestoneId: m.id, autoGrade: m.autoCalculatedFinalGrade });
+      else if (!m.supervisorEvaluationSubmitted) setSupervisorEvalFor({ milestoneId: m.id, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] });
+    } else if (m.hasExaminerOpinionForm) {
+      setOpinionFormFor(m.id);
+    } else if (m.staffRecordMode === 'upload_or_form') {
+      setStaffRecordFor({ milestoneId: m.id, fields: spec?.staffFormFields ?? [] });
+    } else if (pending && m.type !== 'research_proposal') {
+      onGrade(pending);
+    }
+  }, [openRequest, loading, students, templateMilestones, pendingGrades, onGrade]);
   // Defense examiners / agreed date / logistics change outside this card —
   // see hooks/useDefenseScheduleLiveRefresh.ts.
   useDefenseScheduleLiveRefresh(refreshDetailSilently);

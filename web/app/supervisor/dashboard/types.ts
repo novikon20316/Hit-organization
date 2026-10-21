@@ -2,12 +2,24 @@
 import type { FacultyId } from '@/lib/i18n';
 
 export interface MyProjectMilestoneInfo {
+  /** Absent from responses served before the server started sending it. */
+  id?: string;
   nameHe: string;
   nameEn: string;
   type: string;
   dueDate: string | null;
   daysLeft: number | null;
   urgency: 'green' | 'orange' | 'red' | null;
+}
+
+/** A Quick Tasks click asking a project card to expand and open the form for
+ *  one of its milestones. `nonce` changes on every click, so clicking the
+ *  same task again (after closing the form) re-opens it. */
+export interface OpenMilestoneRequest {
+  projectId: string;
+  milestoneId: string | null;
+  milestoneType: string;
+  nonce: number;
 }
 
 export interface MyProjectEnrolledStudent {

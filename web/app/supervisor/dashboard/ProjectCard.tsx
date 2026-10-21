@@ -1,7 +1,7 @@
 'use client';
 
 // app/supervisor/dashboard/ProjectCard.tsx
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -10,7 +10,7 @@ import { facultyLabel } from '@/lib/i18n';
 import { ProjectWorkflowSection } from './ProjectWorkflowSection';
 import { RequestErasureModal } from './RequestErasureModal';
 import type { FacultyId } from '@/lib/i18n';
-import type { MyProject, SupervisorPendingMilestone } from './types';
+import type { MyProject, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
 
 // Due-date urgency border color — green: more than a week left, orange:
 // 1-7 days left, red: due today or already past due. Matches the same
@@ -56,9 +56,12 @@ interface ProjectCardProps {
    *  Optional so other dashboards reusing this same card (e.g.
    *  program_head/dashboard/page.tsx) aren't affected unless they wire it. */
   onRecommendExaminers?: (project: MyProject) => void;
+  /** Set when a Quick Tasks row targets this project — the card expands,
+   *  scrolls into view, and ProjectWorkflowSection opens the milestone's form. */
+  openRequest?: OpenMilestoneRequest | null;
 }
 
-export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGrade, onRecommendExaminers }: ProjectCardProps) {
+export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGrade, onRecommendExaminers, openRequest }: ProjectCardProps) {
   const { lang, t } = useLanguage();
   const router = useRouter();
   const facultyColor = getFacultyColor(p.facultyId);
@@ -66,6 +69,17 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  // Adjust-state-during-render (not an effect) so the card is already
+  // expanded on the same render the request arrives.
+  const [seenOpenNonce, setSeenOpenNonce] = useState<number | null>(null);
+  if (openRequest && openRequest.nonce !== seenOpenNonce) {
+    setSeenOpenNonce(openRequest.nonce);
+    setExpanded(true);
+  }
+  useEffect(() => {
+    if (openRequest) cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openRequest]);
 
   // Same reasoning as ApplicationCard.tsx's messageStudent — the chat
   // backend only needs the student's uid (no email/phone required), so an
@@ -88,7 +102,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
   const dueDateLabel = formatDueDate(p.currentMilestone?.dueDate, lang);
 
   return (
-    <div className="rounded-[12px] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
+    <div ref={cardRef} className="rounded-[12px] p-1" style={{ border: `2px solid ${urgencyColor}` }}>
     <div className="role-rail rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button
         type="button"
@@ -203,7 +217,7 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
         </button>
       </div>
 
-      <ProjectWorkflowSection project={p} pendingGrades={pendingGrades} onGrade={onGrade} />
+      <ProjectWorkflowSection project={p} pendingGrades={pendingGrades} onGrade={onGrade} openRequest={openRequest} />
       </>
       )}
 

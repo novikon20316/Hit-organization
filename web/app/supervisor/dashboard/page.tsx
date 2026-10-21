@@ -13,7 +13,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
@@ -34,7 +34,7 @@ import { EditProjectModal } from './EditProjectModal';
 import { NewProjectModal } from './NewProjectModal';
 import { RecommendExaminersModal, type RecommendExaminersTarget } from './RecommendExaminersModal';
 import { QuickTasksPanel } from './QuickTasksPanel';
-import type { MyProject, Application, SupervisorPendingMilestone } from './types';
+import type { MyProject, Application, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import {
   PROJECTS_TAB_FIELD_GUIDE, PROJECTS_TAB_GUIDE_KEY,
@@ -104,6 +104,19 @@ function SupervisorDashboardContent() {
   const [loadError, setLoadError] = useState('');
 
   const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
+  const [openMilestoneRequest, setOpenMilestoneRequest] = useState<OpenMilestoneRequest | null>(null);
+  const router = useRouter();
+  const openProjectMilestone = (project: MyProject) => {
+    if (!project.currentMilestone) return;
+    setProjectFilter('all');
+    setOpenMilestoneRequest({
+      projectId: project.id,
+      milestoneId: project.currentMilestone.id ?? null,
+      milestoneType: project.currentMilestone.type,
+      nonce: Date.now(),
+    });
+    if (tab !== 'projects') router.push('/supervisor/dashboard?tab=projects');
+  };
   // Opens GradeMilestoneModal automatically for deepLinkMilestoneId once
   // it shows up in pendingGrades — lands the supervisor straight on the
   // specific submission a notification was about, instead of a bare "here's
@@ -466,6 +479,7 @@ function SupervisorDashboardContent() {
                     pendingGrades={pendingGrades}
                     onGrade={setGradingTarget}
                     onRecommendExaminers={(project) => setRecommendExaminersTarget(project)}
+                    openRequest={openMilestoneRequest?.projectId === p.id ? openMilestoneRequest : null}
                   />
                 ))}
                 {filteredProjects.length === 0 && (
@@ -495,7 +509,7 @@ function SupervisorDashboardContent() {
       </div>
 
       <div className="w-full shrink-0 lg:w-80">
-        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} />
+        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} onOpenMilestone={openProjectMilestone} />
       </div>
       </div>
 

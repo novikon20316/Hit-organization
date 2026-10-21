@@ -180,7 +180,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
       const current = projectMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? null;
 
       let currentMilestone: {
-        nameHe: string; nameEn: string; type: string;
+        id: string; nameHe: string; nameEn: string; type: string;
         dueDate: string | null; daysLeft: number | null;
         urgency: 'green' | 'orange' | 'red' | null;
       } | null = null;
@@ -194,6 +194,9 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         const urgency: 'green' | 'orange' | 'red' | null =
           daysLeft === null ? null : daysLeft > 7 ? 'green' : daysLeft >= 1 ? 'orange' : 'red';
         currentMilestone = {
+          // Lets the web Quick Tasks row open this exact milestone's form
+          // (QuickTasksPanel → ProjectWorkflowSection's openRequest).
+          id:     current.id,
           nameHe: current.nameHe ?? current.type,
           nameEn: current.nameEn ?? current.type,
           type:   current.type,
