@@ -148,13 +148,18 @@ export function computeNotifTargetRoute(type: string, role: AppRole | undefined,
     case 'application_approved':
     case 'application_rejected':
     case 'meeting_requested':
+      // Always student-directed types.
+      return '/student/home';
+    // Student-directed milestone types land on the tab that actually shows
+    // the milestone — plain /student/home is the overview, usually the page
+    // the student is already on, so "View" there looked like it did nothing.
     case 'milestone_graded':
+      return '/student/home?tab=grades';
     case 'milestone_deadline_7d':
     case 'milestone_deadline_1d':
     case 'milestone_overdue':
     case 'milestone_submission_confirmed':
-      // Always student-directed types.
-      return '/student/home';
+      return '/student/home?tab=milestones';
     case 'application_received':
     case 'account_created':
     case 'milestone_submitted':
