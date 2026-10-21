@@ -19,6 +19,7 @@ import {AssignedMilestone, GradingComponentSpec, isDefenseDateConfirmed} from '@
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import {
@@ -134,6 +135,7 @@ export default function ExaminerHome() {
   //    own convention (this screen doesn't extract its modals). ──────────
   const [evalModal,      setEvalModal]      = useState(false);
   const [evalTarget,     setEvalTarget]     = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
+  const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
   const [evalScores,     setEvalScores]     = useState<Record<string, string>>({});
   const [evalComment,    setEvalComment]    = useState('');
   const [evalFile,       setEvalFile]       = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
@@ -998,6 +1000,22 @@ export default function ExaminerHome() {
                           </Text>
                         </View>
                       )
+                    ) : m.finalGradeComponents?.perStudent ? (
+                      // Per-student paper form (e.g. Electrical B.Sc.) — both
+                      // examiner rubrics at once, one score per student.
+                      <Pressable
+                        style={[graded ? styles.gradedBadge : styles.gradeBtn, !graded && { backgroundColor: fc.primary }]}
+                        onPress={() => setEvaluationFormFor(m.id)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={graded ? styles.gradedBadgeText : styles.gradeBtnText}>
+                          {graded
+                            ? `✅ ${lang === 'he' ? 'הטופס נחתם — צפייה/עדכון' : 'Form signed — view/update'}`
+                            : isBeforeDefense(m.defenseDate)
+                              ? `🕐 ${lang === 'he' ? 'צפייה בטופס (נפתח למילוי ביום ההגנה)' : 'View the form (opens on the defense day)'}`
+                              : `📝 ${lang === 'he' ? 'מלא/י וחתום/י טופס הערכה' : 'Fill in & sign the evaluation form'}`}
+                        </Text>
+                      </Pressable>
                     ) : graded ? (
                       <View style={styles.gradedBadge}>
                         <Text style={styles.gradedBadgeText}>
@@ -1635,6 +1653,15 @@ export default function ExaminerHome() {
       </Modal>
 
       <ChatbotFab lang={lang} corner="bottom-left" />
+      {evaluationFormFor && (
+        <EvaluationFormModal
+          visible
+          lang={lang}
+          milestoneId={evaluationFormFor}
+          onClose={() => setEvaluationFormFor(null)}
+          onChanged={fetchDashboardData}
+        />
+      )}
     </SafeAreaView>
   );
 }

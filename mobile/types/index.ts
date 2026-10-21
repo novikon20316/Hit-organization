@@ -620,6 +620,8 @@ export interface AssignedMilestone {
     supervisorEvaluation: { components: GradingComponentSpec[]; weight: number };
     examinerProjectEvaluation: { components: GradingComponentSpec[]; weight: number };
     examinerDefenseEvaluation: { components: GradingComponentSpec[]; weight: number };
+    /** Per-student evaluation form — see components/modals/EvaluationFormModal.tsx. */
+    perStudent?: boolean;
   } | null;
   examinerEvaluations?: Record<string, {
     project?: { total: number };

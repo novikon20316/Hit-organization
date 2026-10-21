@@ -237,6 +237,11 @@ function validateGradingComponents(input: any): GradingComponentSpec[] | null {
 }
 
 const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table', 'yesno'];
+const AUTO_FILL_KEYS: string[] = [
+  'studentName', 'studentIdNumber', 'studentPhone', 'studentEmail', 'studentPhoto', 'accumulatedCredits',
+  'supervisorName', 'submissionDate', 'projectNameHe', 'projectNameEn', 'examinerNames',
+  'projectStartDate', 'academicYear', 'defenseDate',
+] satisfies NonNullable<FormFieldSpec['autoFill']>[];
 
 function validateFormFields(input: any): FormFieldSpec[] | null {
   if (input === undefined || input === null) return [];
@@ -255,6 +260,14 @@ function validateFormFields(input: any): FormFieldSpec[] | null {
     };
     if (f.type === 'yesno' && (f.commentRequiredOn === 'yes' || f.commentRequiredOn === 'no')) {
       spec.commentRequiredOn = f.commentRequiredOn;
+    }
+    // autoFill/locked used to be dropped here, so any script-authored
+    // auto-filled field silently became a free-typed one the first time the
+    // template was re-saved from the editor.
+    if (typeof f.autoFill === 'string' && AUTO_FILL_KEYS.includes(f.autoFill)) {
+      spec.autoFill = f.autoFill;
+      if (f.locked === false) spec.locked = false;
+      else if (f.locked === true) spec.locked = true;
     }
     if (f.type === 'table') {
       if (!Array.isArray(f.tableColumns) || f.tableColumns.length === 0) return null;
@@ -298,7 +311,23 @@ function validateFinalGradeComponents(input: any): { ok: true; value?: WorkflowM
   if (!supervisorEvaluation || !examinerProjectEvaluation || !examinerDefenseEvaluation) return { ok: false };
   const weightSum = supervisorEvaluation.weight + examinerProjectEvaluation.weight + examinerDefenseEvaluation.weight;
   if (weightSum !== 100) return { ok: false };
-  return { ok: true, value: { supervisorEvaluation, examinerProjectEvaluation, examinerDefenseEvaluation } };
+  const value: NonNullable<WorkflowMilestoneSpec['finalGradeComponents']> = { supervisorEvaluation, examinerProjectEvaluation, examinerDefenseEvaluation };
+  // Per-student paper-form mode (see workflowTemplates.ts's perStudent) —
+  // must survive an editor round-trip, or re-saving the template would
+  // silently revert it to one shared score per team.
+  if (input.perStudent === true) {
+    // The form submits one flat score map per student across the examiner's
+    // two rubrics, so component keys must be unique across all three.
+    const keys = [...supervisorEvaluation.components, ...examinerProjectEvaluation.components, ...examinerDefenseEvaluation.components].map((c) => c.key);
+    if (new Set(keys).size !== keys.length) return { ok: false };
+    value.perStudent = true;
+    if (typeof input.formTitleHe === 'string' && input.formTitleHe.trim()) value.formTitleHe = input.formTitleHe.trim();
+    if (typeof input.formTitleEn === 'string' && input.formTitleEn.trim()) value.formTitleEn = input.formTitleEn.trim();
+    const headerFields = validateFormFields(input.headerFields);
+    if (headerFields === null) return { ok: false };
+    if (headerFields.length > 0) value.headerFields = headerFields;
+  }
+  return { ok: true, value };
 }
 
 function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {

@@ -147,6 +147,69 @@ export function computeFinalGradeByStudent(
   return result;
 }
 
+// ─── Per-student three-rubric grading (finalGradeComponents.perStudent) ─────
+// See evaluationFormController.ts. Each evaluation stores
+// byStudent[studentId].scores[componentKey].score.
+
+interface RubricComponentLike { key: string; maxScore: number; excludeFromTotal?: boolean }
+type PerStudentEval = { byStudent?: Record<string, { scores: Record<string, { score: number }> }> } | null | undefined;
+
+/** Raw points (not the weighted rubric total) one evaluation gave one student. */
+export function rawRubricPoints(entry: PerStudentEval, studentId: string, components: RubricComponentLike[]): number | null {
+  const s = entry?.byStudent?.[studentId];
+  if (!s) return null;
+  return components.filter((c) => !c.excludeFromTotal).reduce((sum, c) => sum + (s.scores[c.key]?.score ?? 0), 0);
+}
+
+export function rubricMaxPoints(components: RubricComponentLike[]): number {
+  return components.filter((c) => !c.excludeFromTotal).reduce((sum, c) => sum + c.maxScore, 0);
+}
+
+/** Per-student milestone grade (0-100) from raw points, without the
+ *  intermediate per-rubric rounding computeGradingComponentsScore applies —
+ *  for the Electrical B.Sc. form (45/15/15 points, weighted 60/20/20) this is
+ *  exactly points/75*100. Examiner rubrics are averaged across the whole
+ *  panel (`examinerIds`). */
+export function computePerStudentAutoGrades(
+  milestone: {
+    studentIds?: string[];
+    finalGradeComponents: Record<'supervisorEvaluation' | 'examinerProjectEvaluation' | 'examinerDefenseEvaluation', { components: RubricComponentLike[]; weight: number }>;
+    supervisorEvaluation?: PerStudentEval;
+    examinerEvaluations?: Record<string, { project?: PerStudentEval; defense?: PerStudentEval }>;
+  },
+  examinerIds: string[],
+): Record<string, number> {
+  const rubrics = milestone.finalGradeComponents;
+  const result: Record<string, number> = {};
+  for (const studentId of milestone.studentIds ?? []) {
+    let grade = 0;
+    for (const kind of ['supervisorEvaluation', 'examinerProjectEvaluation', 'examinerDefenseEvaluation'] as const) {
+      const components = rubrics[kind].components;
+      const max = rubricMaxPoints(components);
+      if (max === 0) continue;
+      let points: number;
+      if (kind === 'supervisorEvaluation') {
+        points = rawRubricPoints(milestone.supervisorEvaluation, studentId, components) ?? 0;
+      } else {
+        const sub = kind === 'examinerProjectEvaluation' ? 'project' : 'defense';
+        const each = examinerIds.map((id) => rawRubricPoints(milestone.examinerEvaluations?.[id]?.[sub], studentId, components) ?? 0);
+        points = each.length ? each.reduce((a, b) => a + b, 0) / each.length : 0;
+      }
+      grade += (points / max) * rubrics[kind].weight;
+    }
+    result[studentId] = Math.round(grade);
+  }
+  return result;
+}
+
+/** Rounded mean of a per-student grade map — the single `finalGrade` /
+ *  `autoCalculatedFinalGrade` kept alongside it for project-level readers
+ *  that predate per-student grades. */
+export function averageGrade(byStudent: Record<string, number>): number {
+  const values = Object.values(byStudent);
+  return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+}
+
 /**
  * A project's OVERALL final grade, weighted across ALL of its milestones by
  * each milestone TYPE's percentOfFinalGrade on the project's workflow

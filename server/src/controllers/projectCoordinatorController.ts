@@ -992,6 +992,16 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
         examinerProjectFileUrls,
         examinerDefenseFileUrls,
         gradeOverrideFileUrls,
+        // Per-student evaluation form (finalGradeComponents.perStudent) —
+        // one computed and one proposed grade per student; the client shows
+        // these per student and links to the full signed form.
+        perStudent: !!m.finalGradeComponents?.perStudent,
+        students: (m.studentIds ?? []).map((sid: string) => ({
+          id: sid,
+          name: studentNameById[sid] ?? sid,
+          autoCalculatedFinalGrade: m.autoCalculatedFinalGradeByStudent?.[sid] ?? null,
+          proposedGrade: m.gradeOverride?.proposedGrades?.[sid] ?? null,
+        })),
       };
     });
 

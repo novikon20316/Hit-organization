@@ -435,10 +435,15 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
         setError(lang === 'he' ? `סכום המשקלים הכלליים של שלושת המרכיבים חייב להיות 100 (כרגע ${w1 + w2 + w3})` : `The three rubrics' overall weights must sum to 100 (currently ${w1 + w2 + w3})`);
         return;
       }
+      // Per-student form settings aren't edited here — carried over as-is
+      // so saving the milestone doesn't silently turn the per-student
+      // evaluation form back into one shared score per team.
+      const { perStudent, formTitleHe, formTitleEn, headerFields } = editing?.finalGradeComponents ?? {};
       finalGradeComponents = {
         supervisorEvaluation: { components: supervisorEvalComponents, weight: w1 },
         examinerProjectEvaluation: { components: examinerProjectComponents, weight: w2 },
         examinerDefenseEvaluation: { components: examinerDefenseComponents, weight: w3 },
+        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields } : {}),
       };
     }
 

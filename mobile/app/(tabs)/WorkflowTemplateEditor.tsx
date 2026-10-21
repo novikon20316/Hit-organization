@@ -838,10 +838,15 @@ export default function WorkflowTemplateEditor() {
         Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? `סכום המשקלים הכלליים של שלושת המרכיבים חייב להיות 100 (כרגע ${w1 + w2 + w3})` : `The three rubrics' overall weights must sum to 100 (currently ${w1 + w2 + w3})`);
         return;
       }
+      // Per-student form settings aren't edited here — carried over as-is so
+      // saving doesn't turn the per-student evaluation form back into one
+      // shared score per team.
+      const { perStudent, formTitleHe, formTitleEn, headerFields } = editingMs?.finalGradeComponents ?? {};
       finalGradeComponents = {
         supervisorEvaluation: { components: msSupervisorEvalComponents, weight: w1 },
         examinerProjectEvaluation: { components: msExaminerProjectComponents, weight: w2 },
         examinerDefenseEvaluation: { components: msExaminerDefenseComponents, weight: w3 },
+        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields } : {}),
       };
     }
 

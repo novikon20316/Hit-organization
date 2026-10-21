@@ -92,7 +92,14 @@ export interface FormFieldSpec {
    *  each variant is resolved server-side. */
   autoFill?: 'studentName' | 'studentIdNumber' | 'studentPhone' | 'studentEmail'
     | 'studentPhoto' | 'accumulatedCredits' | 'supervisorName' | 'submissionDate'
-    | 'projectNameHe' | 'projectNameEn' | 'examinerNames';
+    | 'projectNameHe' | 'projectNameEn' | 'examinerNames'
+    // The project's projectStartDate (set when the first student is seated —
+    // see projectEnrollment.ts), its academic year in Hebrew letters (the
+    // project's own academicYear, else derived from projectStartDate), and
+    // the defense milestone's agreed date (only once isDefenseDateConfirmed —
+    // blank before that, never the plain target date). Resolved server-side
+    // by evaluationForm.ts's resolveHeaderFields.
+    | 'projectStartDate' | 'academicYear' | 'defenseDate';
   /** Only meaningful alongside autoFill — true means the value can never be
    *  edited by the student, even as a fallback when the auto-filled source is
    *  empty (e.g. a not-yet-computed accumulatedCredits shows a "pending"
@@ -487,6 +494,25 @@ export interface WorkflowMilestoneSpec {
     supervisorEvaluation: FinalGradeRubric;
     examinerProjectEvaluation: FinalGradeRubric;
     examinerDefenseEvaluation: FinalGradeRubric;
+    /** True means every grader scores EACH enrolled student separately (the
+     *  paper form's "ציון סטודנט I / ציון סטודנט II" columns) — stored under
+     *  each evaluation's `byStudent` map, combined per student into
+     *  autoCalculatedFinalGradeByStudent and, once approved, the milestone's
+     *  finalGradeByStudent (which every per-student reader already prefers
+     *  over finalGrade). Graders submit through evaluationFormController.ts
+     *  instead of submitSupervisorEvaluation/submitExaminerEvaluation, and
+     *  each submission is digitally signed (see evaluationSignature.ts).
+     *  Omitted keeps today's one-score-per-milestone behavior. */
+    perStudent?: boolean;
+    /** Title shown at the top of the online form (e.g. "טופס הערכת פרויקט
+     *  גמר הנדסי לתואר B.Sc."). Only used by the perStudent form view. */
+    formTitleHe?: string;
+    formTitleEn?: string;
+    /** Read-only header lines of the paper form, every one an autoFill field
+     *  (project start date, academic year, defense date, supervisor,
+     *  project title, examiners...) — resolved server-side. Only used by the
+     *  perStudent form view. */
+    headerFields?: FormFieldSpec[];
   };
   /** How much this milestone counts toward the project's OVERALL final
    *  grade (0-100), validated to sum to 100 across every milestone in the

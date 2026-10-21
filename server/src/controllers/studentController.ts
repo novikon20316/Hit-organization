@@ -107,9 +107,15 @@ export const getStudentProject = async (req: AuthenticatedRequest, res: Response
     const isEnrolledStudentViewer = (data?.enrolledStudentIds ?? []).includes(requester.uid);
     const milestonesSnap = await db.collection('milestones').where('projectId', '==', id).get();
     const actualMilestones = milestonesSnap.docs.map((d) => {
-      const m = d.data() as { type: string; status?: string; finalGrade?: number | null };
+      const m = d.data() as { type: string; status?: string; finalGrade?: number | null; finalGradeByStudent?: Record<string, number> };
       if (isEnrolledStudentViewer && !isGradeReleasedToStudent(m.status)) {
         return { type: m.type, finalGrade: null };
+      }
+      // A team shares milestone docs; a per-student grade (see
+      // gradeEngine.ts's computeFinalGradeByStudent / the per-student
+      // evaluation form) is the viewing student's real grade.
+      if (isEnrolledStudentViewer && m.finalGradeByStudent?.[requester.uid] != null) {
+        return { type: m.type, finalGrade: m.finalGradeByStudent[requester.uid] ?? null };
       }
       return m;
     });

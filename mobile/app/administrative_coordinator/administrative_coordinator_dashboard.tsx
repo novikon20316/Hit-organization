@@ -37,6 +37,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
+import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
 import {
   DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
   SEND_EXAMINER_FIELD_GUIDE, SEND_EXAMINER_GUIDE_KEY,
@@ -213,6 +214,9 @@ interface GradeOverrideRow {
   examinerProjectFileUrls: string[];
   examinerDefenseFileUrls: string[];
   gradeOverrideFileUrls: string[];
+  /** Per-student evaluation form — one computed/proposed grade per student. */
+  perStudent?: boolean;
+  students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
 }
 
 // "Replace Committee Member" — see web/app/administrative_coordinator/
@@ -567,6 +571,7 @@ export default function ProjectCoordinatorDashboard() {
 
   // ── Grade Overrides tab ───────────────────────────────────────────────────
   const [overrides, setOverrides] = useState<GradeOverrideRow[]>([]);
+  const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
   const [overridesLoading, setOverridesLoading] = useState(false);
   const [overridesLoaded, setOverridesLoaded] = useState(false);
   const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
@@ -1117,7 +1122,23 @@ export default function ProjectCoordinatorDashboard() {
                   <Text style={s.cardTitle}>{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</Text>
                   <Text style={s.cardSub}>👤 {r.studentNames.join(', ')}</Text>
 
-                  {(r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
+                  {r.perStudent && (
+                    <View style={{ marginTop: 8, gap: 4 }}>
+                      {(r.students ?? []).map((st) => (
+                        <Text key={st.id} style={s.cardSub}>
+                          {st.name}: {lang === 'he' ? 'מחושב' : 'computed'} {st.autoCalculatedFinalGrade ?? '—'}
+                          {r.kind === 'override' ? ` → ${lang === 'he' ? 'מוצע' : 'proposed'} ${st.proposedGrade ?? '—'}` : ''}
+                        </Text>
+                      ))}
+                      <Pressable onPress={() => setEvaluationFormFor(r.milestoneId)} accessibilityRole="button">
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#00236F' }}>
+                          📄 {lang === 'he' ? 'צפייה בטופס ההערכה החתום' : 'View the signed evaluation form'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {!r.perStudent && (r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
                     <View style={s.overrideSplit}>
                       <View style={s.overrideBox}>
                         <Text style={s.overrideLabel}>{lang === 'he' ? 'מנחה' : 'Supervisor'}</Text>
@@ -1141,7 +1162,7 @@ export default function ProjectCoordinatorDashboard() {
 
                   {r.kind === 'override' ? (
                     <>
-                      <View style={s.overrideSplit}>
+                      {!r.perStudent && <View style={s.overrideSplit}>
                         <View style={s.overrideBox}>
                           <Text style={s.overrideLabel}>{lang === 'he' ? 'ציון מחושב' : 'Computed'}</Text>
                           <Text style={s.overrideValue}>{r.autoCalculatedFinalGrade ?? '—'}</Text>
@@ -1150,7 +1171,7 @@ export default function ProjectCoordinatorDashboard() {
                           <Text style={[s.overrideLabel, { color: '#B45309' }]}>{lang === 'he' ? 'ציון מוצע' : 'Proposed'}</Text>
                           <Text style={[s.overrideValue, { color: '#B45309' }]}>{r.proposedGrade ?? '—'}</Text>
                         </View>
-                      </View>
+                      </View>}
 
                       <Text style={s.overrideReason}>💬 {r.reason}</Text>
 
@@ -1177,7 +1198,7 @@ export default function ProjectCoordinatorDashboard() {
                     <>
                       <View style={s.overrideBox}>
                         <Text style={s.overrideLabel}>{lang === 'he' ? 'המנחה אישר את הציון המחושב' : 'Supervisor confirmed the computed grade'}</Text>
-                        <Text style={s.overrideValue}>{r.proposedGrade ?? '—'}</Text>
+                        {!r.perStudent && <Text style={s.overrideValue}>{r.proposedGrade ?? '—'}</Text>}
                       </View>
 
                       <View style={s.overrideActionRow}>
@@ -1725,6 +1746,9 @@ export default function ProjectCoordinatorDashboard() {
       />
 
       <ChatbotFab lang={lang} corner="bottom-left" />
+      {evaluationFormFor && (
+        <EvaluationFormModal visible lang={lang} milestoneId={evaluationFormFor} onClose={() => setEvaluationFormFor(null)} />
+      )}
     </SafeAreaView>
   );
 }

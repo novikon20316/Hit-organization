@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { verifyToken } from '../middleware/auth.js';
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
+import { getEvaluationForm, submitEvaluationForm } from '../controllers/evaluationFormController.js';
 import {
   getStudentProject,
   submitStudentMilestone,
@@ -32,6 +33,10 @@ router.post('/milestones/:milestoneId/examiner-evaluation', verifyToken, uploadM
 // Non-scored examiner Q&A (see workflowTemplates.ts's examinerFormFields) —
 // e.g. the Industrial Engineering & Management "Presentation 1" yes/no form.
 router.post('/milestones/:milestoneId/examiner-form', verifyToken, submitExaminerFormAnswers);
+// Per-student evaluation form (finalGradeComponents.perStudent) — see
+// evaluationFormController.ts.
+router.get('/milestones/:milestoneId/evaluation-form', verifyToken, getEvaluationForm);
+router.post('/milestones/:milestoneId/evaluation-form', verifyToken, submitEvaluationForm);
 router.get('/ActiveProjects', verifyToken, getActiveProjects);
 // Student Interfaces
 router.get('/student/projects/:id', verifyToken, getStudentProject);

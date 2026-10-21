@@ -20,6 +20,7 @@ import { roleLabel, type AppRole } from '@/lib/i18n';
 import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
+import { EvaluationFormModal } from '@/components/EvaluationFormModal';
 import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
@@ -79,6 +80,10 @@ export interface StudentMilestoneRow {
   staffRecordMode: 'none' | 'upload_or_form' | null;
   staffRecordSubmitted: boolean;
   hasFinalGradeComponents: boolean;
+  /** Per-student evaluation form (finalGradeComponents.perStudent) — opens
+   *  EvaluationFormModal instead of the single-score evaluation/decision
+   *  modals. */
+  perStudentEvaluation?: boolean;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
@@ -252,6 +257,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   const [error, setError] = useState('');
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: TemplateMilestone['staffFormFields'] } | null>(null);
+  const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
@@ -916,8 +922,30 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                             </button>
                           )}
 
+                          {/* Per-student evaluation form (e.g. Electrical B.Sc.) —
+                              one entry point for filling, signing and deciding. */}
+                          {m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
+                            <div className="mt-1 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setEvaluationFormFor(m.id!)}
+                                className="font-medium text-[#00236f] hover:underline"
+                              >
+                                {m.gradeApproved
+                                  ? `🎓 ${lang === 'he' ? `ציון סופי: ${m.finalGrade} — צפייה בטופס` : `Final grade: ${m.finalGrade} — view form`}`
+                                  : m.gradeOverrideStatus === 'pending'
+                                    ? `⏳ ${lang === 'he' ? 'ממתין לאישור הרכז/ת — צפייה בטופס' : "Awaiting the coordinator's approval — view form"}`
+                                    : m.autoCalculatedFinalGrade != null
+                                      ? `🎓 ${lang === 'he' ? `ציון מחושב: ${m.autoCalculatedFinalGrade} — לחץ לאישור` : `Computed grade: ${m.autoCalculatedFinalGrade} — click to confirm`}`
+                                      : !m.supervisorEvaluationSubmitted
+                                        ? `📝 ${lang === 'he' ? 'מלא/י טופס הערכה' : 'Fill in the evaluation form'}`
+                                        : `✓ ${lang === 'he' ? 'הטופס נחתם — ממתין לבוחנים (צפייה/עדכון)' : 'Form signed — waiting on examiners (view/update)'}`}
+                              </button>
+                            </div>
+                          )}
+
                           {/* Three-rubric final-grade workflow (defense only). */}
-                          {m.hasFinalGradeComponents && m.id && (
+                          {m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
                             <div className="mt-1 text-xs">
                               {m.gradeApproved ? (
                                 <span className="font-semibold text-success">
@@ -986,6 +1014,13 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           components={supervisorEvalFor.components}
           onClose={() => setSupervisorEvalFor(null)}
           onSubmitted={refreshDetailSilently}
+        />
+      )}
+      {evaluationFormFor && (
+        <EvaluationFormModal
+          milestoneId={evaluationFormFor}
+          onClose={() => setEvaluationFormFor(null)}
+          onChanged={refreshDetailSilently}
         />
       )}
       {finalGradeDecisionFor && (

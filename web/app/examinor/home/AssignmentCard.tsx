@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { MILESTONE_LABEL, type AssignedMilestone, type GradeWeights, type IdentityGradeWeights } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { EvaluationFormModal } from '@/components/EvaluationFormModal';
 
 interface AssignmentCardProps {
   milestone: AssignedMilestone;
@@ -57,6 +58,10 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   // finalGradeComponents) — this examiner submits two independent rubrics
   // (project + defense) instead of the single shared score below.
   const isThreeRubric = !!m.finalGradeComponents;
+  // Per-student paper form (e.g. Electrical B.Sc.): both examiner rubrics are
+  // filled at once, one score column per student, in EvaluationFormModal.
+  const isPerStudentForm = !!m.finalGradeComponents?.perStudent;
+  const [showEvaluationForm, setShowEvaluationForm] = useState(false);
   const myEvaluations = m.examinerEvaluations?.[uid];
   const projectDone = !!myEvaluations?.project;
   const defenseDone = !!myEvaluations?.defense;
@@ -419,6 +424,21 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
               {lang === 'he' ? 'ממתין לאישור הבוחן הראשי' : "Awaiting examiner #1's sign-off"}
             </span>
           )
+        ) : isPerStudentForm ? (
+          <button
+            type="button"
+            onClick={() => setShowEvaluationForm(true)}
+            className={graded
+              ? 'w-full rounded-lg bg-success-bg px-3 py-2 text-xs font-semibold text-success hover:opacity-90'
+              : 'w-full rounded-lg px-3 py-2 text-xs font-semibold text-white hover:opacity-90'}
+            style={graded ? undefined : { backgroundColor: facultyColor }}
+          >
+            {graded
+              ? `✅ ${lang === 'he' ? 'הטופס נחתם — צפייה/עדכון' : 'Form signed — view/update'}`
+              : isBeforeDefense
+                ? `🕐 ${lang === 'he' ? 'צפייה בטופס ההערכה (נפתח למילוי ביום ההגנה)' : 'View the evaluation form (opens on the defense day)'}`
+                : `📝 ${lang === 'he' ? 'מלא/י וחתום/י טופס הערכה' : 'Fill in & sign the evaluation form'}`}
+          </button>
         ) : graded ? (
           <span className="block rounded-lg bg-success-bg px-3 py-2 text-center text-xs font-semibold text-success">
             ✅ {lang === 'he' ? 'ציון הוגש' : 'Grade submitted'}
@@ -470,6 +490,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           </button>
         )}
       </div>
+      {showEvaluationForm && (
+        <EvaluationFormModal milestoneId={m.id} onClose={() => setShowEvaluationForm(false)} onChanged={onChanged} />
+      )}
     </div>
   );
 }

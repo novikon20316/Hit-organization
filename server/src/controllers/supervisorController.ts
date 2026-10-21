@@ -15,7 +15,7 @@ import {
   resolveFinalGradeSignoffRole, resolveMilestoneOrder, isDefenseDateConfirmed,
   type WorkflowMilestoneSpec, type FormFieldSpec,
 } from '../services/workflowTemplates.js';
-import { computeProjectFinalGrade } from '../services/gradeEngine.js';
+import { computeProjectFinalGrade, averageGrade } from '../services/gradeEngine.js';
 import { normalizePrerequisites, normalizeMinAverageGrade, normalizeMinCreditPoints } from '../services/prerequisites.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { assignProjectRecordNumber } from '../services/projectRecordNumber.js';
@@ -372,7 +372,7 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
       // null until every nonzero-weighted milestone is graded.
       const overallFinalGrade = computeProjectFinalGrade(
         templateMilestones,
-        studentMilestones as { type: string; finalGrade?: number | null }[]
+        studentMilestones.map((m) => ({ type: m.type, finalGrade: m.finalGradeByStudent?.[studentId] ?? m.finalGrade ?? null }))
       );
       return {
         studentId,
@@ -450,8 +450,13 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // "awaiting coordinator") without a separate round trip.
             hasFinalGradeComponents: !!m?.finalGradeComponents,
             supervisorEvaluationSubmitted: !!m?.supervisorEvaluation,
-            autoCalculatedFinalGrade: m?.autoCalculatedFinalGrade ?? null,
-            finalGrade: m?.finalGrade ?? null,
+            autoCalculatedFinalGrade: m?.autoCalculatedFinalGradeByStudent?.[studentId] ?? m?.autoCalculatedFinalGrade ?? null,
+            finalGrade: m?.finalGradeByStudent?.[studentId] ?? m?.finalGrade ?? null,
+            // Per-student evaluation form (finalGradeComponents.perStudent)
+            // — the client opens EvaluationFormModal instead of the single-
+            // score SupervisorEvaluationModal/FinalGradeDecisionModal.
+            perStudentEvaluation: !!m?.finalGradeComponents?.perStudent,
+            autoCalculatedFinalGradeByStudent: m?.autoCalculatedFinalGradeByStudent ?? null,
             // The supervisor's own last-submitted score — distinct from
             // finalGrade (which may blend in examiner scores) — so the
             // "Update grade" modal can prefill and PATCH the right value.
@@ -1316,6 +1321,10 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
   const supervisorId = req.user?.uid;
   const { id: milestoneId } = req.params;
   const { decision, grade, reason } = req.body;
+  // Per-student milestones (finalGradeComponents.perStudent) send an
+  // override as { grades: { [studentId]: number } } — JSON body, or a
+  // JSON string field when multipart.
+  const gradesInput = typeof req.body.grades === 'string' ? (() => { try { return JSON.parse(req.body.grades); } catch { return null; } })() : req.body.grades;
   if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   if (!milestoneId || typeof milestoneId !== 'string') return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן דרך לא תקין.') });
   if (decision !== 'approve' && decision !== 'override') {
@@ -1352,10 +1361,33 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
     // omitted, so decideGradeOverride (gradSchoolHeadController.ts) needs no
     // changes at all — approve_override/keep_auto both yield the same number.
     let proposedGrade: number;
+    let proposedGrades: Record<string, number> | undefined;
     let reasonTrimmed: string | undefined;
     let kind: 'auto_confirmed' | 'override';
 
-    if (decision === 'approve') {
+    const perStudent = !!data.finalGradeComponents.perStudent;
+    if (perStudent && decision === 'approve') {
+      proposedGrades = { ...(data.autoCalculatedFinalGradeByStudent ?? {}) };
+      proposedGrade = data.autoCalculatedFinalGrade;
+      kind = 'auto_confirmed';
+    } else if (perStudent) {
+      const studentIds: string[] = data.studentIds ?? [];
+      const parsed: Record<string, number> = {};
+      for (const studentId of studentIds) {
+        const g = Number(gradesInput?.[studentId]);
+        if (!Number.isFinite(g) || g < 0 || g > 100) {
+          return res.status(400).json({ message: L(req, 'Every student needs a grade between 0 and 100.', 'יש להזין לכל סטודנט ציון בין 0 ל-100.') });
+        }
+        parsed[studentId] = Math.round(g);
+      }
+      if (typeof reason !== 'string' || !reason.trim()) {
+        return res.status(400).json({ message: L(req, 'A reason is required when changing the automatically calculated grade.', 'יש לציין נימוק בעת שינוי הציון המחושב אוטומטית.') });
+      }
+      proposedGrades = parsed;
+      proposedGrade = averageGrade(parsed);
+      reasonTrimmed = reason.trim();
+      kind = 'override';
+    } else if (decision === 'approve') {
       proposedGrade = data.autoCalculatedFinalGrade;
       kind = 'auto_confirmed';
     } else {
@@ -1401,6 +1433,7 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
           gradeOverride: {
             kind,
             proposedGrade,
+            ...(proposedGrades ? { proposedGrades } : {}),
             ...(reasonTrimmed ? { reason: reasonTrimmed } : {}),
             ...(fileUrls.length > 0 ? { fileUrls } : {}),
             proposedBy: supervisorId,
@@ -1427,7 +1460,7 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       entityType: 'milestone',
       entityId: milestoneId,
       oldValue: { autoCalculatedFinalGrade: data.autoCalculatedFinalGrade },
-      newValue: { proposedGrade, ...(reasonTrimmed ? { reason: reasonTrimmed } : {}) },
+      newValue: { proposedGrade, ...(proposedGrades ? { proposedGrades } : {}), ...(reasonTrimmed ? { reason: reasonTrimmed } : {}) },
     });
 
     // Notify whoever resolveFinalGradeSignoffRole resolves to (the

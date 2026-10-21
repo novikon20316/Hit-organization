@@ -126,6 +126,12 @@ export interface FinalGradeComponents {
   supervisorEvaluation: FinalGradeRubric;
   examinerProjectEvaluation: FinalGradeRubric;
   examinerDefenseEvaluation: FinalGradeRubric;
+  /** Per-student paper-form mode (see server's workflowTemplates.ts) —
+   *  script-authored, not editable here, but carried through a save. */
+  perStudent?: boolean;
+  formTitleHe?: string;
+  formTitleEn?: string;
+  headerFields?: unknown[];
 }
 
 // Valid roles for a chain STAGE — includes 'examiner', which resolves to a

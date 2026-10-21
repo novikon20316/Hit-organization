@@ -19,6 +19,7 @@ import { roleLabel, type Lang, type AppRole } from './i18n';
 import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
+import EvaluationFormModal from './modals/EvaluationFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
@@ -88,6 +89,9 @@ interface StudentMilestoneRow {
   staffRecordMode: 'none' | 'upload_or_form' | null;
   staffRecordSubmitted: boolean;
   hasFinalGradeComponents: boolean;
+  /** Per-student evaluation form (finalGradeComponents.perStudent) — opens
+   *  EvaluationFormModal instead of the single-score modals. */
+  perStudentEvaluation?: boolean;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
@@ -187,6 +191,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   const [confirmedProposalRead, setConfirmedProposalRead] = useState(false);
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
+  const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
@@ -604,7 +609,22 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                     )}
 
                     {/* Three-rubric final-grade workflow (defense only). */}
-                    {m.hasFinalGradeComponents && m.id && (
+                    {m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
+                      <Pressable onPress={() => setEvaluationFormFor(m.id!)} accessibilityRole="button" style={{ marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: m.gradeApproved ? '#10B981' : '#7C3AED' }}>
+                          {m.gradeApproved
+                            ? `🎓 ${lang === 'he' ? `ציון סופי: ${m.finalGrade} — צפייה בטופס` : `Final grade: ${m.finalGrade} — view form`}`
+                            : m.gradeOverrideStatus === 'pending'
+                              ? `⏳ ${lang === 'he' ? 'ממתין לאישור הרכז/ת — צפייה בטופס' : "Awaiting the coordinator's approval — view form"}`
+                              : m.autoCalculatedFinalGrade != null
+                                ? `🎓 ${lang === 'he' ? `ציון מחושב: ${m.autoCalculatedFinalGrade} — הקש לאישור` : `Computed grade: ${m.autoCalculatedFinalGrade} — tap to confirm`}`
+                                : !m.supervisorEvaluationSubmitted
+                                  ? `📝 ${lang === 'he' ? 'מלא/י טופס הערכה' : 'Fill in the evaluation form'}`
+                                  : `✓ ${lang === 'he' ? 'הטופס נחתם — ממתין לבוחנים' : 'Form signed — waiting on examiners'}`}
+                        </Text>
+                      </Pressable>
+                    )}
+                    {m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
                       <View style={{ marginTop: 4 }}>
                         {m.gradeApproved ? (
                           <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
@@ -660,6 +680,15 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
           }}
           onClose={() => setStaffRecordFor(null)}
           onSubmitted={refreshDetailSilently}
+        />
+      )}
+      {evaluationFormFor && (
+        <EvaluationFormModal
+          visible
+          lang={lang}
+          milestoneId={evaluationFormFor}
+          onClose={() => setEvaluationFormFor(null)}
+          onChanged={refreshDetailSilently}
         />
       )}
       {supervisorEvalFor && (

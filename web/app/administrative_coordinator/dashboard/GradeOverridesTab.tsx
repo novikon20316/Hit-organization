@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { EvaluationFormModal } from '@/components/EvaluationFormModal';
 
 interface GradeOverrideRow {
   milestoneId: string;
@@ -30,6 +31,8 @@ interface GradeOverrideRow {
   examinerProjectFileUrls: string[];
   examinerDefenseFileUrls: string[];
   gradeOverrideFileUrls: string[];
+  perStudent?: boolean;
+  students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
 }
 
 function FileLinks({ label, urls }: { label: string; urls: string[] }) {
@@ -52,6 +55,7 @@ export function GradeOverridesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [formFor, setFormFor] = useState<string | null>(null);
 
   const fetchRows = () => {
     setLoading(true);
@@ -95,6 +99,61 @@ export function GradeOverridesTab() {
           <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
           <p className="mt-0.5 text-xs text-administrative-coordinator-on-surface-variant">👤 {r.studentNames.join(', ')}</p>
 
+          {r.perStudent ? (
+            <>
+              {/* Per-student evaluation form: one grade per student — the
+                  rubric aggregates above don't apply, the signed form does. */}
+              <table className="mt-3 w-full text-xs">
+                <thead>
+                  <tr className="text-administrative-coordinator-on-surface-variant">
+                    <th className="py-1 text-start font-medium">{lang === 'he' ? 'סטודנט/ית' : 'Student'}</th>
+                    <th className="py-1 text-center font-medium">{lang === 'he' ? 'מחושב' : 'Computed'}</th>
+                    {r.kind === 'override' && <th className="py-1 text-center font-medium text-accent">{lang === 'he' ? 'מוצע' : 'Proposed'}</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(r.students ?? []).map((s) => (
+                    <tr key={s.id} className="border-t border-administrative-coordinator-outline-variant">
+                      <td className="py-1.5 text-administrative-coordinator-on-surface">{s.name}</td>
+                      <td className="py-1.5 text-center font-bold text-administrative-coordinator-on-surface">{s.autoCalculatedFinalGrade ?? '—'}</td>
+                      {r.kind === 'override' && <td className="py-1.5 text-center font-bold text-accent">{s.proposedGrade ?? '—'}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button
+                type="button"
+                onClick={() => setFormFor(r.milestoneId)}
+                className="mt-2 text-xs font-medium text-administrative-coordinator-primary hover:underline"
+              >
+                📄 {lang === 'he' ? 'צפייה בטופס ההערכה החתום' : 'View the signed evaluation form'}
+              </button>
+              {r.kind === 'override' && (
+                <p className="mt-2 rounded-md bg-administrative-coordinator-surface-container-low px-2.5 py-1.5 text-xs text-administrative-coordinator-on-surface">💬 {r.reason}</p>
+              )}
+              <div className="mt-3 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => decide(r.milestoneId, 'approve_override')}
+                  disabled={busyId === r.milestoneId}
+                  className="flex-1 rounded-lg bg-administrative-coordinator-primary px-2.5 py-1.5 text-xs font-semibold text-administrative-coordinator-on-primary hover:bg-administrative-coordinator-primary-container disabled:opacity-60"
+                >
+                  {r.kind === 'override' ? (lang === 'he' ? '✓ אשר את השינוי' : '✓ Approve change') : (lang === 'he' ? '✓ אשר ציונים סופיים' : '✓ Approve final grades')}
+                </button>
+                {r.kind === 'override' && (
+                  <button
+                    type="button"
+                    onClick={() => decide(r.milestoneId, 'keep_auto')}
+                    disabled={busyId === r.milestoneId}
+                    className="flex-1 rounded-lg border border-administrative-coordinator-outline-variant px-2.5 py-1.5 text-xs font-medium text-administrative-coordinator-on-surface hover:bg-administrative-coordinator-surface-container-low disabled:opacity-60"
+                  >
+                    {lang === 'he' ? 'השאר מחושב' : 'Keep computed'}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+          <>
           {(r.supervisorEvaluationTotal != null || r.examinerProjectAvg != null || r.examinerDefenseAvg != null) && (
             <div className="mt-2 flex gap-1.5">
               <div className="flex-1 rounded-md bg-administrative-coordinator-surface-container-low p-1.5 text-center">
@@ -170,8 +229,11 @@ export function GradeOverridesTab() {
               </div>
             </>
           )}
+          </>
+          )}
         </div>
       ))}
+      {formFor && <EvaluationFormModal milestoneId={formFor} onClose={() => setFormFor(null)} />}
     </div>
   );
 }

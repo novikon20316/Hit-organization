@@ -1908,6 +1908,27 @@ export const apiClient = {
     );
   },
 
+  /** Per-student evaluation form (finalGradeComponents.perStudent) — the
+   *  whole paper form as the viewer may see it: header filled by the
+   *  server, scores per student, signatures with their verification state.
+   *  See server's evaluationFormController.ts. */
+  async getEvaluationForm(milestoneId: string) {
+    return request<EvaluationFormView>(`/api/projects/milestones/${milestoneId}/evaluation-form`);
+  },
+
+  /** The supervisor submits their rubric; an assigned examiner submits both
+   *  examiner rubrics. Every enrolled student must be scored. Signed
+   *  digitally server-side. */
+  async submitEvaluationForm(milestoneId: string, payload: { scoresByStudent: Record<string, Record<string, number>>; comment?: string }) {
+    return request<{ success: boolean }>(`/api/projects/milestones/${milestoneId}/evaluation-form`, { method: 'POST', body: payload });
+  },
+
+  /** Per-student variant of decideFinalGrade below — 'override' carries one
+   *  grade per student. */
+  async decidePerStudentFinalGrade(milestoneId: string, payload: { decision: 'approve' } | { decision: 'override'; grades: Record<string, number>; reason: string }) {
+    return request<{ success: boolean }>(`/api/supervisor/milestones/${milestoneId}/final-grade-decision`, { method: 'POST', body: payload });
+  },
+
   /** decision: 'approve' finalizes autoCalculatedFinalGrade directly; 'override'
    *  requires grade+reason and routes to the coordinator's grade-override
    *  queue instead (see decideGradeOverride below). `files` is optional —
@@ -2536,6 +2557,9 @@ export const apiClient = {
         examinerProjectFileUrls: string[];
         examinerDefenseFileUrls: string[];
         gradeOverrideFileUrls: string[];
+        /** Per-student evaluation form — one computed/proposed grade per student. */
+        perStudent?: boolean;
+        students?: Array<{ id: string; name: string; autoCalculatedFinalGrade: number | null; proposedGrade: number | null }>;
       }>;
     }>('/api/project-coordinator/grade-overrides', { method: 'GET' });
   },
@@ -3473,4 +3497,88 @@ export interface FinalReportData {
   finalGradeApprovedAt: string | null;
   signatures: Array<{ role: string; name: string | null; signedAt: string | null }>;
   generatedAt: string;
+}
+
+// ─── Per-student evaluation form (see server's evaluationFormController.ts) ──
+export interface EvaluationFormComponent {
+  key: string;
+  labelHe: string;
+  labelEn: string;
+  maxScore: number;
+  groupHe?: string;
+  groupEn?: string;
+}
+
+export interface EvaluationFormSignature {
+  signerName: string;
+  role: 'supervisor' | 'examiner';
+  positionHe: string;
+  positionEn: string;
+  facultyId: string;
+  facultyNameHe: string;
+  facultyNameEn: string;
+  signedAt: string;
+  code: string;
+  /** False when the signature or any score it covers changed after signing. */
+  valid: boolean;
+}
+
+export interface EvaluationFormView {
+  milestoneId: string;
+  projectId: string | null;
+  facultyId: string;
+  titleHe: string;
+  titleEn: string;
+  header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
+  students: Array<{ id: string; name: string; idNumber: string | null }>;
+  rubrics: Array<{
+    kind: 'supervisorEvaluation' | 'examinerDefenseEvaluation' | 'examinerProjectEvaluation';
+    giver: 'supervisor' | 'examiner';
+    weight: number;
+    components: EvaluationFormComponent[];
+  }>;
+  viewer: {
+    role: 'supervisor' | 'secondary_supervisor' | 'examiner' | 'staff';
+    canEdit: boolean;
+    lockedReasonHe: string | null;
+    lockedReasonEn: string | null;
+    /** The viewer's own line on the form ("מנחה", "בוחן 1 / יו\"ר"...), null for staff. */
+    positionHe: string | null;
+    positionEn: string | null;
+  };
+  /** scores: studentId -> componentKey -> score; null when hidden from this viewer. */
+  supervisor: {
+    uid: string;
+    name: string;
+    submitted: boolean;
+    submittedAt: string | null;
+    scores: Record<string, Record<string, number>> | null;
+    comment: string | null;
+    signature: EvaluationFormSignature | null;
+  };
+  examiners: Array<{
+    uid: string;
+    name: string;
+    positionHe: string;
+    positionEn: string;
+    submitted: boolean;
+    submittedAt: string | null;
+    scores: Record<string, Record<string, number>> | null;
+    comment: string | null;
+    signature: EvaluationFormSignature | null;
+  }>;
+  totals: Array<{
+    studentId: string;
+    supervisorPoints: number | null;
+    examinerDefensePoints: number | null;
+    examinerProjectPoints: number | null;
+    points: number | null;
+    maxPoints: number;
+    milestoneGrade: number | null;
+    milestonePercent: number;
+    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
+    projectFinalGrade: number | null;
+  }>;
+  gradeApproved: boolean;
+  gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
 }

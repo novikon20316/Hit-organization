@@ -70,6 +70,7 @@ const GRADE_BEARING_FIELDS = [
   'examiner2Comments',
   'examinerScores',
   'autoCalculatedFinalGrade',
+  'autoCalculatedFinalGradeByStudent',
   'supervisorEvaluation',
   'gradeOverride',
   'stageScores',
@@ -92,11 +93,43 @@ export function redactUnreleasedGradeForStudent(
   // regardless of what other roles the account also holds — matches how
   // this endpoint already scoped the query that produced `data`.
   if (!viewerRoles.includes('student')) return data;
-  if (isGradeReleasedToStudent(data.status)) return data;
+  if (isGradeReleasedToStudent(data.status)) return narrowPerStudentFields(data, viewerUid);
 
   const result = { ...data };
   for (const field of GRADE_BEARING_FIELDS) {
     if (field in result) result[field] = null;
+  }
+  return result;
+}
+
+/** A team shares one milestone doc, but a per-student-graded milestone
+ *  (finalGradeComponents.perStudent, or the individual-grade component —
+ *  see gradeEngine.ts's computeFinalGradeByStudent) gives each teammate
+ *  their own grade. A student viewer only gets their own entry of every
+ *  per-student map, and `finalGrade` becomes their own grade, so every
+ *  existing student screen that shows finalGrade shows the right number. */
+function narrowPerStudentFields(data: Record<string, any>, viewerUid: string): Record<string, any> {
+  const own = <T>(map: Record<string, T> | null | undefined) =>
+    map && typeof map === 'object' && viewerUid in map ? { [viewerUid]: map[viewerUid] } : map ? {} : map;
+  const result = { ...data };
+  if (data.finalGradeByStudent) {
+    result.finalGradeByStudent = own(data.finalGradeByStudent);
+    if (data.finalGradeByStudent[viewerUid] != null) result.finalGrade = data.finalGradeByStudent[viewerUid];
+  }
+  if (data.autoCalculatedFinalGradeByStudent) {
+    result.autoCalculatedFinalGradeByStudent = own(data.autoCalculatedFinalGradeByStudent);
+    if (data.autoCalculatedFinalGradeByStudent[viewerUid] != null) result.autoCalculatedFinalGrade = data.autoCalculatedFinalGradeByStudent[viewerUid];
+  }
+  if (data.supervisorEvaluation?.byStudent) {
+    const mine = data.supervisorEvaluation.byStudent[viewerUid];
+    // The signature binds every student's scores — meaningless (and a leak
+    // of nothing but a code) once narrowed to one student, so it's dropped.
+    const { signature: _signature, ...rest } = data.supervisorEvaluation;
+    result.supervisorEvaluation = { ...rest, byStudent: own(data.supervisorEvaluation.byStudent), ...(mine ? { total: mine.total } : {}) };
+  }
+  if (data.gradeOverride?.proposedGrades) {
+    result.gradeOverride = { ...data.gradeOverride, proposedGrades: own(data.gradeOverride.proposedGrades) };
+    if (data.gradeOverride.proposedGrades[viewerUid] != null) result.gradeOverride.proposedGrade = data.gradeOverride.proposedGrades[viewerUid];
   }
   return result;
 }

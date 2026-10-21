@@ -21,7 +21,7 @@ import {
   urgencyFromAge,
   MilestoneDoc,
 } from '../services/studentProgress.js';
-import { transferGradeToMichlol, examinerScoreFor } from '../services/gradeEngine.js';
+import { transferGradeToMichlol, examinerScoreFor, averageGrade } from '../services/gradeEngine.js';
 import { isIdentityKeyedDefense } from '../services/milestoneRouting.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
@@ -386,7 +386,15 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       }
     }
 
-    const finalGrade = decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
+    // Per-student milestones (finalGradeComponents.perStudent) carry one
+    // grade per student; finalGrade keeps the team average for project-level
+    // readers, and every per-student reader prefers finalGradeByStudent.
+    const finalGradeByStudent: Record<string, number> | null = milestone.finalGradeComponents.perStudent
+      ? (decision === 'approve_override' ? milestone.gradeOverride.proposedGrades : milestone.autoCalculatedFinalGradeByStudent) ?? null
+      : null;
+    const finalGrade = finalGradeByStudent
+      ? averageGrade(finalGradeByStudent)
+      : decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
 
     // Transaction, not the plain get()-then-update() this used to be — same
     // reasoning as approveFinalGrade below: two near-simultaneous decisions
@@ -402,6 +410,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
         }
         transaction.update(milestoneRef, {
           finalGrade,
+          ...(finalGradeByStudent ? { finalGradeByStudent } : {}),
           gradeApproved: true,
           gradeApprovedBy: uid,
           gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -425,13 +434,18 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       entityType: 'milestone',
       entityId: milestoneId,
       oldValue: { autoCalculatedFinalGrade: milestone.autoCalculatedFinalGrade, proposedGrade: milestone.gradeOverride.proposedGrade },
-      newValue: { finalGrade },
+      newValue: { finalGrade, ...(finalGradeByStudent ? { finalGradeByStudent } : {}) },
     });
 
     const studentIds: string[] = milestone.studentIds ?? [];
-    const transfer = await transferGradeToMichlol({
-      milestoneId, projectId: milestone.projectId ?? '', studentIds, finalGrade,
-    });
+    const gradeFor = (studentId: string): number => finalGradeByStudent?.[studentId] ?? finalGrade;
+    // One transfer per distinct grade, so each student's own grade is what
+    // goes to Michlol.
+    const studentsByGrade = new Map<number, string[]>();
+    studentIds.forEach((id) => studentsByGrade.set(gradeFor(id), [...(studentsByGrade.get(gradeFor(id)) ?? []), id]));
+    const transfers = await Promise.all([...studentsByGrade.entries()].map(([grade, ids]) =>
+      transferGradeToMichlol({ milestoneId, projectId: milestone.projectId ?? '', studentIds: ids, finalGrade: grade })));
+    const transfer = { transferred: transfers.every((t) => t.transferred), transferredAt: transfers[0]?.transferredAt ?? new Date().toISOString() };
     await milestoneRef.update({
       michlolTransferStatus: transfer.transferred ? 'transferred' : 'failed',
       michlolTransferredAt: transfer.transferredAt,
@@ -443,8 +457,8 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
         type: 'final_grade_approved',
         titleHe: '🎓 הציון הסופי אושר',
         titleEn: '🎓 Final Grade Approved',
-        bodyHe: `הציון הסופי שלך (${finalGrade}) אושר והועבר למכלול.`,
-        bodyEn: `Your final grade (${finalGrade}) has been approved and transferred to Michlol.`,
+        bodyHe: `הציון הסופי שלך (${gradeFor(studentId)}) אושר והועבר למכלול.`,
+        bodyEn: `Your final grade (${gradeFor(studentId)}) has been approved and transferred to Michlol.`,
         isRead: false,
         relatedProjectId: milestone.projectId ?? null,
         relatedMilestoneId: milestoneId,

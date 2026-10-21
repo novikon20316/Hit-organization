@@ -17,7 +17,7 @@ dayjs.extend(timezone);
 const TZ = 'Asia/Jerusalem';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
-import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeExaminerOnlyGrade, computeFinalGradeByStudent, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
+import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeExaminerOnlyGrade, computeFinalGradeByStudent, computePerStudentAutoGrades, averageGrade, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
@@ -978,14 +978,24 @@ export async function maybeFinalizeAutoCalculatedGrade(milestoneRef: FirebaseFir
     const examinerProjectAvg = allIds.reduce((sum, id) => sum + examinerEvals[id]!.project!.total, 0) / allIds.length;
     const examinerDefenseAvg = allIds.reduce((sum, id) => sum + examinerEvals[id]!.defense!.total, 0) / allIds.length;
 
-    autoGrade = Math.round(
-      (supervisorEval.total * rubrics.supervisorEvaluation.weight +
-        examinerProjectAvg * rubrics.examinerProjectEvaluation.weight +
-        examinerDefenseAvg * rubrics.examinerDefenseEvaluation.weight) / 100
-    );
+    // Per-student form (finalGradeComponents.perStudent): one grade per
+    // student from their own raw points; autoCalculatedFinalGrade keeps the
+    // team average for readers that predate per-student grades.
+    let autoByStudent: Record<string, number> | null = null;
+    if (rubrics.perStudent) {
+      autoByStudent = computePerStudentAutoGrades(data as any, allIds);
+      autoGrade = averageGrade(autoByStudent);
+    } else {
+      autoGrade = Math.round(
+        (supervisorEval.total * rubrics.supervisorEvaluation.weight +
+          examinerProjectAvg * rubrics.examinerProjectEvaluation.weight +
+          examinerDefenseAvg * rubrics.examinerDefenseEvaluation.weight) / 100
+      );
+    }
 
     transaction.update(milestoneRef, {
       autoCalculatedFinalGrade: autoGrade,
+      ...(autoByStudent ? { autoCalculatedFinalGradeByStudent: autoByStudent } : {}),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     shouldNotify = true;
@@ -1032,6 +1042,12 @@ export const submitSupervisorEvaluation = async (req: AuthenticatedRequest, res:
 
     if (data.type !== 'defense' || !data.finalGradeComponents) {
       return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי מבוסס שלושת המחוונים.') });
+    }
+    // Per-student milestones are filled through the evaluation form instead
+    // (evaluationFormController.ts) — a single shared score here would leave
+    // byStudent empty and every student's grade at zero.
+    if (data.finalGradeComponents.perStudent) {
+      return res.status(400).json({ message: L(req, 'This milestone is graded per student through the evaluation form.', 'אבן דרך זו מוערכת לפי סטודנט דרך טופס ההערכה.') });
     }
     if (data.supervisorId !== uid) {
       return res.status(403).json({ message: L(req, "Only this project's supervisor may submit this evaluation.", 'רק המנחה של פרויקט זה רשאי/ת להגיש הערכה זו.') });
@@ -1115,6 +1131,12 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
 
     if (data.type !== 'defense' || !data.finalGradeComponents) {
       return res.status(400).json({ message: L(req, 'This milestone does not use the three-rubric final-grade workflow.', 'אבן דרך זו אינה משתמשת בתהליך הציון הסופי מבוסס שלושת המחוונים.') });
+    }
+    // Per-student milestones are filled through the evaluation form instead
+    // (evaluationFormController.ts) — a single shared score here would leave
+    // byStudent empty and every student's grade at zero.
+    if (data.finalGradeComponents.perStudent) {
+      return res.status(400).json({ message: L(req, 'This milestone is graded per student through the evaluation form.', 'אבן דרך זו מוערכת לפי סטודנט דרך טופס ההערכה.') });
     }
     const examinerIds: string[] = data.examinerIds ?? [];
     if (!examinerIds.includes(uid)) {
