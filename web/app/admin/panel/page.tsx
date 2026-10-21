@@ -19,6 +19,7 @@ import { db } from '@/lib/firebase';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { SystemHealthCard } from '@/components/SystemHealthCard';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { facultyLabel, roleLabel, type FacultyId } from '@/lib/i18n';
@@ -147,6 +148,12 @@ function AdminPanelContent() {
     if (isAllowed) fetchDashboard();
     if (isAllowed) fetchStatusConfig();
   }, [isAllowed, fetchDashboard, fetchStatusConfig]);
+
+  // A user added/edited/removed anywhere — a seed script, a bulk import,
+  // another admin — shows up in the Users tab without a reload. Only a
+  // "something changed" marker is live; the data still comes from
+  // dashboard-summary (see hooks/useUsersLiveRefresh.ts).
+  useUsersLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   // Live locked-accounts listener — system_admin's live scope is
   // deliberately narrow (security events only, not general app data), per

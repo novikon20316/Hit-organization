@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
@@ -123,6 +124,8 @@ function FacultyAdminDashboardContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; fetchDashboard's setState calls happen after its awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
   }, [isAllowed, fetchDashboard]);
+  // A user added/edited/removed anywhere — refresh the lists in place.
+  useUsersLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   if (guardLoading) {
     return (

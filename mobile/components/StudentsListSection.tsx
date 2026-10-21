@@ -16,6 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
+import { useUsersLiveRefresh } from '../hooks/useUsersLiveRefresh';
 import { facultyLabel, type FacultyId } from './i18n';
 import { majorsForFaculty } from '../constants/permissions';
 import { adminPanelStyles } from '../constants/styles';
@@ -75,6 +76,9 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
   useEffect(() => {
     fetchStudents();
   }, [fetchStudents]);
+
+  // A student added/edited/removed anywhere — refresh in place.
+  useUsersLiveRefresh(() => fetchStudents({ silent: true }));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

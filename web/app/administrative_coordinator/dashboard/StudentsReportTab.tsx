@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
 import { specializationLabel } from '@/lib/specialization';
@@ -159,6 +160,18 @@ export function StudentsReportTab({ enableMessaging = false }: { enableMessaging
       cancelled = true;
     };
   }, [lang]);
+
+  // A student added/edited/removed anywhere — refresh rows in place (no
+  // spinner, selection kept). A failed background refresh keeps the rows.
+  useUsersLiveRefresh(() => {
+    apiClient
+      .getStudentsReport()
+      .then((res) => {
+        setRows(res.students as StudentReportRow[]);
+        setNoScopeAssigned(!!res.noScopeAssigned);
+      })
+      .catch(() => {});
+  });
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();

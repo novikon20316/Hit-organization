@@ -36,6 +36,7 @@ import { useNotifications } from '@/src/context/NotificationsContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from '@/components/modals/ExaminerOpinionFormModal';
@@ -642,14 +643,15 @@ export default function ProjectCoordinatorDashboard() {
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
-  const fetchStudentsReport = useCallback(async () => {
-    setStudentsLoading(true);
+  // `silent` = a background live refresh: no spinner, no error alert.
+  const fetchStudentsReport = useCallback(async (silent = false) => {
+    if (!silent) setStudentsLoading(true);
     try {
       const res = await apiClient.get('/api/project-coordinator/students-report');
       setStudentsReport(res.data.students ?? []);
       setStudentsNoScope(!!res.data.noScopeAssigned);
     } catch (e: any) {
-      Alert.alert(
+      if (!silent) Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
       );
@@ -663,6 +665,10 @@ export default function ProjectCoordinatorDashboard() {
   useEffect(() => {
     if (activeTab === 'students' && !studentsLoaded) fetchStudentsReport();
   }, [activeTab, studentsLoaded, fetchStudentsReport]);
+
+  // A student added/edited/removed anywhere (incl. by a script or another
+  // staff member) — reload the report if it's already been opened.
+  useUsersLiveRefresh(() => { if (studentsLoaded) fetchStudentsReport(true); });
 
   // administrative_secretary ("administrative coordinator") may reset a
   // student's password — scoped server-side to her own faculty/major via
@@ -1105,7 +1111,7 @@ export default function ProjectCoordinatorDashboard() {
         refreshControl={
           <RefreshControl
             refreshing={activeTab === 'groups' ? refreshing : activeTab === 'students' ? studentsLoading : activeTab === 'committeeConflicts' ? conflictsLoading : overridesLoading}
-            onRefresh={activeTab === 'groups' ? onRefresh : activeTab === 'students' ? fetchStudentsReport : activeTab === 'committeeConflicts' ? fetchConflicts : fetchOverrides}
+            onRefresh={activeTab === 'groups' ? onRefresh : activeTab === 'students' ? () => fetchStudentsReport() : activeTab === 'committeeConflicts' ? fetchConflicts : fetchOverrides}
           />
         }
       >

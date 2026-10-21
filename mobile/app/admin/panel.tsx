@@ -16,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
 import { pickAndImportStudentRoster, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
@@ -312,10 +313,11 @@ export default function PanelScreen() {
 
   // ── 1. Unified Core Dashboard Synchronization ────────────────────────
   
-  const fetchAllDashboardData = async () => {
+  // `silent` = a background live refresh: no spinner, no error alert.
+  const fetchAllDashboardData = async (silent = false) => {
     try {
       if (!auth.currentUser) return;
-      setLoading(true);
+      if (silent !== true) setLoading(true);
 
       // 🚀 Replaced separate snapshots with clean relational endpoints
       const [adminProfile, dataMatrix] = await Promise.all([
@@ -330,6 +332,7 @@ export default function PanelScreen() {
       setProjects(dataMatrix.data.projects || []);
       setMilestones(dataMatrix.data.milestones || []);
     } catch (err) {
+      if (silent === true) return;
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'טעינת לוח הבקרה נכשלה.' : 'Failed to load the dashboard.',
@@ -346,6 +349,10 @@ export default function PanelScreen() {
   useEffect(() => {
     fetchAllDashboardData();
   }, []);
+
+  // A user added/edited/removed anywhere (incl. by a script or another
+  // admin) — refresh the Users list in place.
+  useUsersLiveRefresh(() => fetchAllDashboardData(true));
 
   // Student status option lists — fetched once at screen load, not per row
   // (see server/src/controllers/studentStatusController.ts's GET, open to

@@ -59,6 +59,7 @@ import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
+import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
 import { resolveLanguage } from './middleware/language.js';
@@ -340,6 +341,8 @@ setInterval(() => {
 setInterval(() => {
   pruneAuditLog().catch((err) => console.error('pruneAuditLog sweep failed:', err));
 }, ONE_HOUR_MS);
+// Live refresh for staff user lists — see services/usersChangeSignal.ts.
+startUsersChangeWatcher();
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {

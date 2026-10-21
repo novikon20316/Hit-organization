@@ -40,6 +40,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import {
   ASSIGN_EXAMINERS_FIELD_GUIDE, ASSIGN_EXAMINERS_GUIDE_KEY,
   DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
@@ -394,14 +395,15 @@ export default function CoordinatorHome() {
   const [studentsReportSearch, setStudentsReportSearch] = useState('');
   const [studentsReportFilter, setStudentsReportFilter] = useState<'all' | StudentStatus>('all');
 
-  const fetchStudentsReport = React.useCallback(async () => {
-    setStudentsReportLoading(true);
+  // `silent` = a background live refresh: no spinner, no error alert.
+  const fetchStudentsReport = React.useCallback(async (silent = false) => {
+    if (!silent) setStudentsReportLoading(true);
     try {
       const res = await apiClient.get('/api/project-coordinator/students-report');
       setStudentsReport(res.data.students ?? []);
       setStudentsReportNoScope(!!res.data.noScopeAssigned);
     } catch (e: any) {
-      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
+      if (!silent) Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data');
     } finally {
       setStudentsReportLoading(false);
       setStudentsReportLoaded(true);
@@ -413,6 +415,10 @@ export default function CoordinatorHome() {
   useEffect(() => {
     if (activeTab === 'studentsReport' && !studentsReportLoaded) fetchStudentsReport();
   }, [activeTab, studentsReportLoaded, fetchStudentsReport]);
+
+  // A student added/edited/removed anywhere — reload the report if it's
+  // already been opened (see hooks/useUsersLiveRefresh.ts).
+  useUsersLiveRefresh(() => { if (studentsReportLoaded) fetchStudentsReport(true); });
 
   const filteredStudentsReport = studentsReport.filter((row) => {
     const q = studentsReportSearch.trim().toLowerCase();

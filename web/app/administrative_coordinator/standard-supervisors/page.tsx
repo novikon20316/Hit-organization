@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
@@ -76,6 +77,13 @@ export default function StandardSupervisorsPage() {
         setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors');
       });
   }, [isAllowed, lang]);
+
+  // A supervisor added/edited/removed anywhere — refresh in place. Unsaved
+  // Excel-import values (`pending`) are kept and still shown on top.
+  useUsersLiveRefresh(() => {
+    if (!isAllowed) return;
+    apiClient.getStandardSupervisors().then((res) => setSupervisors(res.supervisors)).catch(() => {});
+  });
 
   const shownFlags = (s: Supervisor): Flags => pending?.[s.id] ?? s.standardSupervisorEligibility;
   const changedCells = (supervisors ?? []).flatMap((s) =>

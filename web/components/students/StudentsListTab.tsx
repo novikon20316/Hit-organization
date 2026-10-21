@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import { majorsForFaculty } from '@/lib/permissions';
 import { getDegreeTypeColor, getTrackColor, withAlpha } from '@/lib/facultyColors';
@@ -235,6 +236,9 @@ export function StudentsListTab({ enablePasswordReset = false, canManageStudents
       .then((res) => setStudents(res.students ?? []))
       .catch((err) => setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת רשימת הסטודנטים נכשלה' : 'Failed to load students list'));
   };
+  // Also when a student is added/edited/removed anywhere else — a seed
+  // script, a bulk import, another staff member (see hooks/useUsersLiveRefresh.ts).
+  useUsersLiveRefresh(refetchStudents);
 
   const majorOptions = useMemo(() => {
     const seen = new Map<string, string>();

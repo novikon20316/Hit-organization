@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '@/src/api/apiClient';
+import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { facultyLabel, type FacultyId, type Lang } from '@/components/i18n';
 import { majorsForFaculty } from '@/constants/permissions';
 import { ap } from '@/constants/theme';
@@ -82,6 +83,14 @@ export default function StandardSupervisorsScreen() {
       .then((res) => setSupervisors(res.data.supervisors ?? []))
       .catch(() => setError(lang === 'he' ? 'טעינת רשימת המנחים נכשלה' : 'Failed to load supervisors'));
   }, [lang]);
+
+  // A supervisor added/edited/removed anywhere — refresh in place. Unsaved
+  // Excel-import values (`pending`) are kept and still shown on top.
+  useUsersLiveRefresh(() => {
+    apiClient.get('/api/admin/standard-supervisors')
+      .then((res) => setSupervisors(res.data.supervisors ?? []))
+      .catch(() => {});
+  });
 
   const shownFlags = (s: Supervisor): Flags => pending?.[s.id] ?? s.standardSupervisorEligibility;
   const changedCells = (supervisors ?? []).flatMap((s) =>
