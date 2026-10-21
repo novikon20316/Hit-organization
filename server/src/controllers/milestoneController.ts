@@ -543,7 +543,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       // pool (coordinator when administrative_secretary is up, or vice
       // versa) is dropped entirely rather than sent an FYI.
       const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
-      const actionablePool = firstStageRole === 'administrative_secretary' ? adminCoordinatorIds : coordinatorIds;
+      // Any other first stage (supervisor, examiner, ...) isn't coordinator-
+      // tier work yet — that role is notified on its own, and the coordinator
+      // tier hears about it once the chain actually reaches them.
+      const actionablePool = firstStageRole === 'administrative_secretary' ? adminCoordinatorIds
+        : firstStageRole === 'coordinator' ? coordinatorIds
+        : [];
       const staffRecipientIds = [...new Set(actionablePool)].filter((id) => id !== supervisorId);
       await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
     }

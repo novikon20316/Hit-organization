@@ -301,6 +301,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // milestone's pre-check-only chain (defense's shape) — see the
       // routingHasExaminerStage branch below.
       let precheckCompleted = false;
+      // Set when this grade hands the milestone on to a later sign-off stage
+      // (e.g. supervisor:grade → coordinator:approve) — that stage's actors
+      // are told it's now awaiting them, same as approveChainMilestone does.
+      let advancedToStage: ChainStage | undefined;
 
       await db.runTransaction(async (transaction) => {
         const freshSnap = await transaction.get(milestoneRef);
@@ -411,7 +415,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
           update.status     = 'graded';
           responseStatus     = 'graded';
-          if (nextStage) update.currentStageIndex = freshIndex + 1;
+          if (nextStage) {
+            update.currentStageIndex = freshIndex + 1;
+            advancedToStage = nextStage;
+          }
         }
 
         transaction.update(milestoneRef, update);
@@ -456,6 +463,29 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           status: 'awaiting_co_examiner',
           message: 'Your grade was recorded — waiting for the other examiner(s) to also grade before this stage finalizes.',
         });
+      }
+
+      if (advancedToStage && advancedToStage.role !== 'committee') {
+        const stage = advancedToStage;
+        const nextActorIds = await resolveStaffForScope(stage.role, resource, [data.supervisorId].filter(Boolean), data.examinerIds ?? [], false);
+        const milestoneTitle = { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' };
+        const nextStageTargetScreen = targetScreenFor(stage.role, 'milestone_action');
+        await Promise.all(nextActorIds.filter((id) => id !== uid).map((actorUid) =>
+          notifyUser({
+            recipientId: actorUid,
+            type: 'milestone_submitted',
+            titleHe: 'ממתין לבדיקתך',
+            titleEn: 'Awaiting your review',
+            bodyHe: `אבן הדרך "${milestoneTitle.he}" ממתינה כעת לבדיקתך.`,
+            bodyEn: `Milestone "${milestoneTitle.en}" is now awaiting your review.`,
+            relatedProjectId: projectId ?? null,
+            relatedMilestoneId: milestoneId,
+            ...(nextStageTargetScreen ? { targetScreen: nextStageTargetScreen } : {}),
+            emailData: { milestoneTitle },
+          }).catch((notifyError) => {
+            console.error(`submitMilestoneGrade: next-stage notify failed for ${actorUid} on milestone ${milestoneId}:`, notifyError);
+          })
+        ));
       }
 
       if (precheckCompleted) {
@@ -1804,7 +1834,12 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       // actually "awaiting review" by. Only recipients matched under THAT
       // role are notified — the other pool is dropped entirely.
       const firstStageRole = isChainDriven(milestoneData) ? milestoneData.routing[0]?.role : 'coordinator';
-      const actionablePool = firstStageRole === 'administrative_secretary' ? adminCoordinatorIds : coordinatorIds;
+      // Any other first stage (supervisor, examiner, ...) isn't coordinator-
+      // tier work yet — the coordinator tier hears about it once the chain
+      // actually reaches them (approveChainMilestone's next-stage notify).
+      const actionablePool = firstStageRole === 'administrative_secretary' ? adminCoordinatorIds
+        : firstStageRole === 'coordinator' ? coordinatorIds
+        : [];
       const staffRecipientIds = [...new Set(actionablePool)].filter((id) => id !== supervisorId);
       await Promise.all(staffRecipientIds.map((id) => notifyStaffMilestoneSubmitted(id)));
     }

@@ -241,6 +241,8 @@ export async function resolveProjectScope(projectId: string | undefined | null):
 // Same role/roles combination staffController.ts's getDeadLines already
 // does defensively — just as two queries here since Firestore can't OR
 // across two different fields in one query.
+const COORDINATOR_TIER_ROLES = new Set<string>(['coordinator', 'administrative_secretary']);
+
 async function usersWithRole(role: string): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
   const [byRoles, byRole] = await Promise.all([
     db.collection('users').where('roles', 'array-contains', role).get(),
@@ -289,6 +291,15 @@ export async function resolveStaffForScope(
     const data = doc.data();
     const descriptor: ScopeDescriptor = { facultyId: data.facultyId ?? '' };
     const coordinatorScopes: ScopeDescriptor[] = data.coordinatorScopes ?? [];
+    // Coordinator-tier: explicit coordinatorScopes REPLACE facultyId, same as
+    // withinCoordinatorScope and the coordinator dashboard. A coordinator of
+    // one faculty who supervises in another has facultyId = that other
+    // faculty — matching it too notified them (and let them act) on
+    // milestones their Pending tab never shows.
+    if (COORDINATOR_TIER_ROLES.has(role) && coordinatorScopes.length > 0) {
+      if (coordinatorScopes.some((scope) => scopeMatches(scope, resource))) uids.add(doc.id);
+      return;
+    }
     if (scopeMatches(descriptor, resource) || coordinatorScopes.some((scope) => scopeMatches(scope, resource))) {
       uids.add(doc.id);
     }
