@@ -819,6 +819,17 @@ export default function ProjectCoordinatorDashboard() {
     }
   };
 
+  // Exactly one eligible replacement once the pool loads — select it rather
+  // than make her tap the only row (the swap still needs Confirm). Same rule
+  // as web's components/ui/Select.tsx.
+  useEffect(() => {
+    if (!replacingKey || selectedReplacement) return;
+    const c = conflicts.find((x) => `${x.milestoneId}:${x.conflictedUserId}` === replacingKey);
+    if (!c) return;
+    const candidates = (membersByFaculty[`${c.facultyId}/${c.major}`] ?? []).filter((m) => m.id !== c.conflictedUserId && !(c.committeeMemberIds ?? []).includes(m.id));
+    if (candidates.length === 1) setSelectedReplacement(candidates[0]!.id);
+  }, [replacingKey, selectedReplacement, conflicts, membersByFaculty]);
+
   const handleSubstitute = async (c: CommitteeConflictRow) => {
     if (!selectedReplacement) return;
     setConflictBusy(true);

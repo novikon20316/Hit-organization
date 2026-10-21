@@ -6,7 +6,7 @@
 // operational scope) — same narrowing logic, just used for different
 // purposes downstream. See constants/permissions.ts's ScopeDescriptor.
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { FACULTY_COLORS } from '../shared';
 import {
@@ -25,6 +25,21 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
   const majors = scope.facultyId !== 'all' ? majorsForFaculty(scope.facultyId) : [];
   const availableDegreeLevels = degreeLevelsForFaculty(scope.facultyId);
   const degreeLevelOptions = DEGREE_LEVELS.filter((d) => availableDegreeLevels.includes(d.key));
+  // Only one real choice left (e.g. Data Science: one major, master's only)
+  // — fill it in and drop the "all" row, rather than make the user pick the
+  // obvious. Same rule as web's components/ui/Select.tsx.
+  const onlyMajor = majors.length === 1 ? majors[0].slug : undefined;
+  const onlyDegreeLevel = degreeLevelOptions.length === 1 ? degreeLevelOptions[0].key : undefined;
+  useEffect(() => {
+    const patch: Partial<ScopeDescriptor> = {};
+    if (onlyMajor && scope.major !== onlyMajor) patch.major = onlyMajor;
+    if (onlyDegreeLevel && scope.degreeLevel !== onlyDegreeLevel) {
+      patch.degreeLevel = onlyDegreeLevel;
+      if (onlyDegreeLevel !== 'masters') patch.processType = undefined;
+    }
+    if (Object.keys(patch).length) onChange(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is a fresh closure every parent render; keyed on the values that decide the patch
+  }, [onlyMajor, onlyDegreeLevel, scope.major, scope.degreeLevel]);
 
   return (
     <>
@@ -63,7 +78,7 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
       {scope.facultyId !== 'all' && (
         <>
           <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}</Text>
-          <Pressable
+          {!onlyMajor && <Pressable
             style={s.permRow}
             onPress={() => onChange({ major: undefined })}
             accessibilityRole="radio"
@@ -73,7 +88,7 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
               {!scope.major && <Text style={s.checkmark}>✓</Text>}
             </View>
             <Text style={s.permLabel}>{lang === 'he' ? 'כל המגמות בפקולטה' : 'All majors in this faculty'}</Text>
-          </Pressable>
+          </Pressable>}
           {majors.map((m) => {
             const isActive = scope.major === m.slug;
             return (
@@ -96,7 +111,7 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
 
       {/* Degree level */}
       <Text style={[s.degreeLabel, { marginTop: 16 }]}>{lang === 'he' ? 'תואר (אופציונלי)' : 'Degree Level (optional)'}</Text>
-      <Pressable
+      {!onlyDegreeLevel && <Pressable
         style={s.permRow}
         onPress={() => onChange({ degreeLevel: undefined, processType: undefined })}
         accessibilityRole="radio"
@@ -106,7 +121,7 @@ export default function ScopeDescriptorFields({ lang, scope, onChange }: Props) 
           {!scope.degreeLevel && <Text style={s.checkmark}>✓</Text>}
         </View>
         <Text style={s.permLabel}>{lang === 'he' ? 'שני התארים' : 'Both degree levels'}</Text>
-      </Pressable>
+      </Pressable>}
       {degreeLevelOptions.map((d) => {
         const isActive = scope.degreeLevel === d.key;
         return (

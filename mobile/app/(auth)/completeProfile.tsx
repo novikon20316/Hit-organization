@@ -407,7 +407,9 @@ export default function CompleteProfile() {
                       }}
                       onPress={() => {
                         setFaculty(item.key);
-                        setProgramKey(null);
+                        // A one-program faculty locks the program row (see
+                        // above), so fill it in — same as signup.tsx.
+                        setProgramKey(item.programs.length === 1 ? item.programs[0]!.key : null);
                         setYearOfStudy(null);
                         setShowFacultyModal(false);
                       }}

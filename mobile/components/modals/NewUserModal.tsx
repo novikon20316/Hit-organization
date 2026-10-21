@@ -169,6 +169,34 @@ export default function NewUserModal({
   };
   const majorOptions = getMajorOptions(newUserFaculty, newUserDegree);
 
+  const facultyEntries = Object.entries(FACULTY_COLORS)
+    .filter(([k]) => k !== 'default' && k !== 'all')
+    .filter(([fid]) => !lockedDegreeType || getFacultyByKey(fid)?.programs.some((p) => p.level === lockedDegreeType))
+    .filter(([fid]) => !allowedScopes?.length || allowedScopes.some((s) => s.facultyId === fid));
+
+  // Only one real choice left for role / faculty / degree level (a delegate
+  // offered a single role, a scope narrowed to one faculty, a masters-only
+  // faculty that was preset rather than tapped) — fill it in rather than
+  // make the admin pick the obvious. Same rule as web's components/ui/Select.tsx.
+  const onlyRole = roleEntries.length === 1 ? roleEntries[0]![0] : undefined;
+  const onlyFaculty = !lockedFacultyId && !CROSS_FACULTY_ROLES.includes(newUserRole as any) && facultyEntries.length === 1
+    ? facultyEntries[0]![0] : undefined;
+  const onlyDegree = availableDegreeLevels.length === 1 ? availableDegreeLevels[0] : undefined;
+  React.useEffect(() => {
+    if (!visible) return;
+    if (onlyRole && newUserRole !== onlyRole) setNewUserRole(onlyRole);
+    if (onlyFaculty && newUserFaculty !== onlyFaculty) {
+      setNewUserFaculty(onlyFaculty);
+      setNewUserMajor('');
+      setNewUserAssignedMajors([]);
+    }
+    if (onlyDegree && newUserDegree !== onlyDegree) {
+      setNewUserDegree(onlyDegree);
+      setNewUserMajor('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setters are fresh parent closures; keyed on the values that decide the update
+  }, [visible, onlyRole, onlyFaculty, onlyDegree, newUserRole, newUserFaculty, newUserDegree]);
+
   // A faculty+degree combo with exactly one major (e.g. data_science) needs
   // no picking — auto-select it so the admin isn't stuck on a required field
   // with nothing to do. Also covers the locked-faculty modal-open case.
@@ -328,11 +356,7 @@ export default function NewUserModal({
                   : 'This role is cross-faculty — it will automatically see all faculties.'}
               </Text>
             ) : (
-              Object.entries(FACULTY_COLORS)
-                .filter(([k]) => k !== 'default' && k !== 'all')
-                .filter(([fid]) => !lockedDegreeType || getFacultyByKey(fid)?.programs.some((p) => p.level === lockedDegreeType))
-                .filter(([fid]) => !allowedScopes?.length || allowedScopes.some((s) => s.facultyId === fid))
-                .map(([fid, fc]) => (
+              facultyEntries.map(([fid, fc]) => (
                   <Pressable
                     key={fid}
                     style={[

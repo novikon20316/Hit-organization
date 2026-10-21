@@ -4,7 +4,7 @@
 // registration logic below is unchanged. The faculty/program/year/track
 // pickers stay as native grids and a modal (there's no equivalent to a
 // web <select> here), just re-skinned with the same tokens.
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, Pressable, ScrollView, Modal,
   ActivityIndicator, Alert, TextInput,
@@ -162,6 +162,15 @@ export default function ProfileSetup() {
     const years = PROGRAM_DEGREE_LENGTHS[selectedProgram.slug] ?? PROGRAM_DEGREE_LENGTHS.default;
     return Array.from({ length: years }, (_, i) => i + 1);
   })();
+
+  // Only one real choice left (no list does this today, but both are driven
+  // by config) — fill it in. Same rule as web's components/ui/Select.tsx.
+  const onlyYear = yearOptions.length === 1 ? yearOptions[0] : undefined;
+  const onlySpecialization = specializationOptions.length === 1 ? specializationOptions[0] : undefined;
+  useEffect(() => {
+    if (onlyYear !== undefined && yearOfStudy !== onlyYear) setYearOfStudy(onlyYear);
+    if (onlySpecialization && specialization !== onlySpecialization) setSpecialization(onlySpecialization);
+  }, [onlyYear, onlySpecialization, yearOfStudy, specialization]);
 
   // Writes the Firestore profile — only ever called once the account's email
   // is verified (either just now, or found already-verified on a resumed

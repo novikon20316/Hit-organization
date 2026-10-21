@@ -43,6 +43,14 @@ export default function FacultyCheckboxes({ selected, onChange, lang }: Props) {
     };
   }, []);
 
+  // Authorized in exactly one faculty — check it for them (and lock it):
+  // there's nothing to choose. Same rule as web's components/ui/Select.tsx.
+  const onlyOption = options.length === 1 ? options[0] : undefined;
+  useEffect(() => {
+    if (onlyOption && !selected.includes(onlyOption)) onChange([onlyOption]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange is a fresh parent closure; keyed on the values that decide the update
+  }, [onlyOption, selected]);
+
   const toggle = (facultyId: string) => {
     onChange(selected.includes(facultyId) ? selected.filter((id) => id !== facultyId) : [...selected, facultyId]);
   };
@@ -67,6 +75,7 @@ export default function FacultyCheckboxes({ selected, onChange, lang }: Props) {
             key={facultyId}
             style={styles.row}
             onPress={() => toggle(facultyId)}
+            disabled={!!onlyOption}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: isActive }}
           >

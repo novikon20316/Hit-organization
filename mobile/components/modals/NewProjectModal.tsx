@@ -230,6 +230,15 @@ export default function NewProjectModal({
 
   const showProgramPicker = visiblePrograms.length > 0;
 
+  // Only one program to choose (e.g. Data Science) — select it and drop the
+  // "no restriction" row, which would mean the same thing. Same rule as
+  // web's components/ui/Select.tsx.
+  const onlyProgram = visiblePrograms.length === 1 ? visiblePrograms[0]!.key : undefined;
+  useEffect(() => {
+    if (onlyProgram && selectedProgram !== onlyProgram) setSelectedProgram?.(onlyProgram);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedProgram is a fresh parent closure; keyed on the values that decide the update
+  }, [onlyProgram, selectedProgram]);
+
   const shouldShowClassSelection =
     hasOnlySupervisorRole && singleFaculty && !showProgramPicker;
 
@@ -479,7 +488,7 @@ export default function NewProjectModal({
               <InfoTooltip textHe={newProjectFieldInfo('major').he} textEn={newProjectFieldInfo('major').en} />
             </View>
 
-            {isSupervisor && !isMajorRestricted && (
+            {isSupervisor && !isMajorRestricted && !onlyProgram && (
               <Pressable
                 style={[programStyles.programBtn, selectedProgram === null && programStyles.programBtnActive]}
                 onPress={() => setSelectedProgram?.(null)}
@@ -502,6 +511,7 @@ export default function NewProjectModal({
                   key={p.key}
                   style={[programStyles.programBtn, isSelected && programStyles.programBtnActive]}
                   onPress={() => setSelectedProgram?.(isSelected ? null : p.key)}
+                  disabled={!!onlyProgram}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: isSelected }}
                 >

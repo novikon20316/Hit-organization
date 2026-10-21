@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -92,6 +92,14 @@ export default function RecommendedExaminerModal({
   handleSubmitRecommendation,
   styles,
 }: Props) {
+  // A supervisor with a single project has nothing to choose — select it.
+  // Same rule as web's components/ui/Select.tsx.
+  const onlyProject = myProjects.length === 1 ? myProjects[0] : undefined;
+  useEffect(() => {
+    if (recommendModal && onlyProject && selectedProjectForRec?.id !== onlyProject.id) setSelectedProjectForRec(onlyProject);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedProjectForRec is a fresh parent closure; keyed on the values that decide the update
+  }, [recommendModal, onlyProject, selectedProjectForRec?.id]);
+
   return (
     <Modal visible={recommendModal} animationType="slide" presentationStyle="pageSheet">
   <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>

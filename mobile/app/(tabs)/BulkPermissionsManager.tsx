@@ -69,6 +69,17 @@ export default function BulkPermissionsManager() {
   const effectiveFacultyId = isFacultyLocked ? (ownFacultyId ?? '') : facultyId;
   const majors = effectiveFacultyId ? majorsForFaculty(effectiveFacultyId) : [];
   const degreeLevelOptions = DEGREE_LEVELS.filter((d) => degreeLevelsForFaculty(effectiveFacultyId || 'all').includes(d.key));
+  // Only one real choice left (e.g. Data Science: one major, master's only)
+  // — fill it in and drop the "all" pill. Same rule as web's components/ui/Select.tsx.
+  const onlyMajor = majors.length === 1 ? majors[0].slug : undefined;
+  const onlyDegreeLevel = degreeLevelOptions.length === 1 ? degreeLevelOptions[0].key : undefined;
+  useEffect(() => {
+    if (onlyMajor && major !== onlyMajor) setMajor(onlyMajor);
+    if (onlyDegreeLevel && degreeLevel !== onlyDegreeLevel) {
+      setDegreeLevel(onlyDegreeLevel);
+      if (onlyDegreeLevel !== 'masters') setProcessType('');
+    }
+  }, [onlyMajor, onlyDegreeLevel, major, degreeLevel]);
 
   useEffect(() => {
     if (!uid) { setLoadingProfile(false); return; }
@@ -195,7 +206,7 @@ export default function BulkPermissionsManager() {
               {lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <Pill label={lang === 'he' ? 'הכל' : 'All'} active={major === ''} onPress={() => setMajor('')} />
+              {!onlyMajor && <Pill label={lang === 'he' ? 'הכל' : 'All'} active={major === ''} onPress={() => setMajor('')} />}
               {majors.map((m) => (
                 <Pill key={m.slug} label={m.label[lang]} active={major === m.slug} onPress={() => setMajor(m.slug)} />
               ))}
@@ -207,7 +218,7 @@ export default function BulkPermissionsManager() {
           {lang === 'he' ? 'תואר (אופציונלי)' : 'Degree level (optional)'}
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          <Pill label={lang === 'he' ? 'שני התארים' : 'Both'} active={degreeLevel === ''} onPress={() => { setDegreeLevel(''); setProcessType(''); }} />
+          {!onlyDegreeLevel && <Pill label={lang === 'he' ? 'שני התארים' : 'Both'} active={degreeLevel === ''} onPress={() => { setDegreeLevel(''); setProcessType(''); }} />}
           {degreeLevelOptions.map((d) => (
             <Pill key={d.key} label={d.label[lang]} active={degreeLevel === d.key} onPress={() => { setDegreeLevel(d.key); if (d.key !== 'masters') setProcessType(''); }} />
           ))}
