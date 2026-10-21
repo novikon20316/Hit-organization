@@ -3,11 +3,12 @@ import {
   getProjectCoordinatorDashboard, getStudentsReport, sendStudentsMessage, getStudentDetail, getPendingGradeOverrides,
   getCoordinatorStatistics, exportCoordinatorStatistics, updateSupervisorPaymentRates,
 } from '../controllers/projectCoordinatorController.js';
-import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization, setStudentCompletedCourses } from '../controllers/studentTrackController.js';
+import { setStudentThesisEligibility, setStudentThesisAverage, setStudentSpecialization, setStudentCompletedCourses, setStudentGender } from '../controllers/studentTrackController.js';
 import { assignDefense, getDefenseZoomStartUrl, getDefenseConfig } from '../controllers/coordinatorController.js';
 import { studentsMessageLimiter } from '../middleware/rateLimit.js';
 import { revokeStudentFinalReportLinks } from '../controllers/finalReportController.js';
 import { verifyToken } from '../middleware/auth.js';
+import { getThesisOpinionQueue } from '../controllers/examinerOpinionController.js';
 
 const router = Router();
 
@@ -27,6 +28,9 @@ router.post('/students/:studentId/specialization', verifyToken, setStudentSpecia
 // PUT /api/project-coordinator/students/:studentId/completed-courses   { completedCourses: { subject, grade }[] }
 router.put('/students/:studentId/completed-courses', verifyToken, setStudentCompletedCourses);
 router.get('/grade-overrides', verifyToken, getPendingGradeOverrides);
+router.get('/thesis-opinions', verifyToken, getThesisOpinionQueue);
+// POST /api/project-coordinator/students/:studentId/gender   { gender: 'male' | 'female' | null }
+router.post('/students/:studentId/gender', verifyToken, setStudentGender);
 router.get('/statistics', verifyToken, getCoordinatorStatistics);
 router.get('/statistics/export', verifyToken, exportCoordinatorStatistics);
 router.put('/supervisor-payment-rates', verifyToken, updateSupervisorPaymentRates);

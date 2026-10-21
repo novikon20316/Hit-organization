@@ -26,6 +26,7 @@ import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsSc
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
 import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
+import { notifyExaminersOfResubmission } from '../services/examinerOpinion.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 
 const db = admin.firestore();
@@ -165,6 +166,14 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
     const data        = milestoneSnap.data() || {};
     const supervisorId= data.supervisorId;
     const examinerIds: string[] = data.examinerIds ?? [];
+
+    // Examiner-opinion milestones (the thesis defense — see
+    // services/examinerOpinion.ts) take no numeric grade here: examiners
+    // submit an opinion and the administrative coordinator enters the grade.
+    // Only their (approve-only) pre-check chain still runs through here.
+    if (data.examinerOpinionForm && !isChainDriven(data)) {
+      return res.status(400).json({ message: L(req, 'This milestone is evaluated through the examiner opinion form.', 'אבן דרך זו מוערכת באמצעות טופס חוות דעת הבוחן.') });
+    }
 
     // Optional file(s) the grader attaches alongside the grade (e.g. an
     // annotated/marked-up copy of the student's submission, PDF or Word) —
@@ -1569,7 +1578,11 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         archiveUpdate = buildRevisionArchiveUpdate(freshData);
 
         transaction.update(milestoneRef, {
-          status:         'submitted',
+          // A thesis the coordinator sent back after the examiners' opinions
+          // (examinerOpinionController.ts's sendThesisBackForCorrections)
+          // returns to where it was in the defense flow, not to 'submitted'.
+          status:         freshData.statusBeforeSendBack ?? 'submitted',
+          ...(freshData.statusBeforeSendBack !== undefined ? { statusBeforeSendBack: admin.firestore.FieldValue.delete() } : {}),
           submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
           fileUrls:       fileUrls       ?? [],
           submissionNote: submissionNote ?? '',
@@ -1600,6 +1613,12 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
         });
       }
       throw err;
+    }
+
+    // A corrected thesis after the coordinator sent it back — tell the
+    // examiners who now owe a new opinion (see services/examinerOpinion.ts).
+    if (milestoneData.examinerOpinionForm && milestoneData.statusBeforeSendBack !== undefined) {
+      await notifyExaminersOfResubmission(milestoneId);
     }
 
     // Independent of the chain — see workflowTemplates.ts's preGradeSignoffs

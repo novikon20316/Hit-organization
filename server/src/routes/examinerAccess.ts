@@ -11,7 +11,12 @@ import {
   requestOtp,
   verifyOtp,
   submitExternalExaminerEvaluation,
+  getExternalOpinionForm,
+  parseExternalOpinionUpload,
+  submitExternalOpinionForm,
 } from '../controllers/examinerAccessController.js';
+import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
+import { verifyFileSignatures } from '../services/fileSignature.js';
 import {
   getOnboardingStatus,
   submitExaminerIdentity,
@@ -33,6 +38,10 @@ router.get('/defense/:grantCode', getDefenseAccessStatus);
 router.get('/:token/defense-dates', getDefenseDateStatus);
 router.post('/:token/defense-dates', submitExternalDefenseDates);
 router.post('/:token/examiner-evaluation', submitExternalExaminerEvaluation);
+// Examiner opinion form (thesis) — see services/examinerOpinion.ts.
+router.get('/:token/opinion-form', getExternalOpinionForm);
+router.post('/:token/opinion-form/parse', uploadMiddleware, handleUploadError, verifyFileSignatures, parseExternalOpinionUpload);
+router.post('/:token/opinion-form', uploadMiddleware, handleUploadError, verifyFileSignatures, submitExternalOpinionForm);
 
 // One-time (per examiner identity) onboarding — see examinerOnboardingController.ts.
 router.get('/:token/onboarding-status', getOnboardingStatus);

@@ -807,6 +807,7 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         major: studentData.major ?? null,
         degreeType: studentData.degreeType ?? null,
         specialization: studentData.specialization ?? null,
+        gender: studentData.gender ?? null,
         // Options staff may pick from on the student detail page (empty =
         // program has no specializations, so no editor is shown).
         specializationOptions: specializationsForStudent(studentData),

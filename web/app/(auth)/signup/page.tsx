@@ -97,6 +97,8 @@ export default function SignupPage() {
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
   const [specialization, setSpecialization] = useState('');
+  // Used for gendered wording on official forms ("מר"/"גברת").
+  const [gender, setGender] = useState<'male' | 'female' | ''>('');
 
   const [stage, setStage] = useState<'form' | 'verify'>('form');
   const [saving, setSaving] = useState(false);
@@ -138,6 +140,7 @@ export default function SignupPage() {
     !yearOfStudy && (lang === 'he' ? 'שנת לימודים' : 'Year of study'),
     trackPolicy === 'signup_choice' && !chosenTrack && (lang === 'he' ? 'מסלול' : 'Track'),
     specializationOptions.length > 0 && !specialization && (lang === 'he' ? 'תחום התמחות' : 'Specialization'),
+    !gender && (lang === 'he' ? 'מגדר' : 'Gender'),
   ].filter((f): f is string => typeof f === 'string');
 
   const canSave = Boolean(
@@ -150,7 +153,8 @@ export default function SignupPage() {
       programKey &&
       yearOfStudy &&
       (trackPolicy !== 'signup_choice' || !!chosenTrack) &&
-      (specializationOptions.length === 0 || !!specialization)
+      (specializationOptions.length === 0 || !!specialization) &&
+      !!gender
   );
 
   const finishRegistration = async (user: User) => {
@@ -168,6 +172,7 @@ export default function SignupPage() {
       phoneNumber,
       chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack! : undefined,
       specialization: specializationOptions.length > 0 ? specialization : undefined,
+      ...(gender ? { gender } : {}),
     });
     if (!res.success) throw new Error(res.message ?? 'Sync failed');
 
@@ -530,6 +535,15 @@ export default function SignupPage() {
                   </p>
                 </Field>
               )}
+
+              <Field label={lang === 'he' ? 'מגדר' : 'Gender'}>
+                <select value={gender} onChange={(e) => setGender(e.target.value as 'male' | 'female' | '')} className={inputCls}>
+                  <option value="">{lang === 'he' ? 'בחר/י' : 'Select'}</option>
+                  <option value="male">{lang === 'he' ? 'זכר' : 'Male'}</option>
+                  <option value="female">{lang === 'he' ? 'נקבה' : 'Female'}</option>
+                </select>
+                <p className="mt-1.5 text-xs text-muted">{lang === 'he' ? 'משמש לפנייה נכונה בטפסים רשמיים (למשל "מר" / "גברת").' : 'Used for correct wording on official forms (e.g. "Mr." / "Ms.").'}</p>
+              </Field>
 
               {specializationOptions.length > 0 && (
                 <Field label={lang === 'he' ? 'תחום התמחות' : 'Specialization'}>

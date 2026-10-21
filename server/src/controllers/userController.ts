@@ -167,7 +167,7 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
 
     const {
       newUid, displayName, displayNameHe, displayNameEn,
-      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, specialization, phoneNumber,
+      role, facultyId, degreeType, yearOfStudy, major, studentId, chosenTrack, specialization, phoneNumber, gender,
     } = req.body;
 
     // MEDIUM FIX (M2, AUDIT_FULL_2026_10_13.md): the profile email used to
@@ -282,6 +282,10 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
       yearOfStudy:  role === 'student' ? (Number(yearOfStudy) || 1)   : null,
       major:        role === 'student' ? major : null,
       specialization: allowedSpecializations.length > 0 ? specialization : null,
+      // Used for gendered wording on official forms ("מר"/"גברת" — see
+      // examinerOpinion.ts's studentTitledName). Optional: older app builds
+      // don't send it; the student can set it later (setMyGender).
+      gender: role === 'student' && (gender === 'male' || gender === 'female') ? gender : null,
       studentId:    role === 'student' ? (studentId    || null) : null,
       // Anchor for the automatic graduation-based deletion sweep (see
       // services/accountDeletion.ts). Defaults to signup time on first sync
@@ -771,3 +775,28 @@ export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
+// ─── POST /api/users/me/gender ───────────────────────────────────────────────
+// Body: { gender: 'male' | 'female' } — the student's own gender, used for
+// gendered wording on official forms (e.g. "מר"/"גברת" on the thesis
+// examiner's form). Students only; staff can also set it from the student's
+// detail page (studentTrackController.ts's setStudentGender).
+export const setMyGender = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  const gender = req.body?.gender;
+  if (gender !== 'male' && gender !== 'female') {
+    return res.status(400).json({ message: L(req, 'Invalid gender.', 'מגדר לא תקין.') });
+  }
+  try {
+    const ref = db.collection('users').doc(uid);
+    const snap = await ref.get();
+    if (snap.data()?.role !== 'student') {
+      return res.status(403).json({ message: L(req, 'Only students set this here.', 'רק סטודנטים מעדכנים שדה זה כאן.') });
+    }
+    await ref.update({ gender, updatedAt: new Date().toISOString() });
+    return res.status(200).json({ success: true, gender });
+  } catch (error) {
+    console.error('setMyGender error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to save.', 'השמירה נכשלה.') });
+  }
+};

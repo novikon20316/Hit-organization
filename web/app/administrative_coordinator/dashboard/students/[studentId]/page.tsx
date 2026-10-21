@@ -122,6 +122,8 @@ export default function StudentDetailPage() {
   const [averageInput, setAverageInput] = useState('');
   const [savingAverage, setSavingAverage] = useState(false);
   const [specializationInput, setSpecializationInput] = useState('');
+  const [genderInput, setGenderInput] = useState<'male' | 'female' | ''>('');
+  const [savingGender, setSavingGender] = useState(false);
   const [savingSpecialization, setSavingSpecialization] = useState(false);
   const [revokingReport, setRevokingReport] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('personal');
@@ -171,6 +173,23 @@ export default function StudentDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- same sync-to-loaded-data pattern as averageInput above
     setSpecializationInput(data?.student?.specialization ?? '');
   }, [data?.student?.specialization]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- same sync-to-loaded-data pattern as specializationInput above
+    setGenderInput((data?.student?.gender as 'male' | 'female' | null) ?? '');
+  }, [data?.student?.gender]);
+
+  const handleSetGender = async () => {
+    setSavingGender(true);
+    try {
+      await apiClient.setStudentGender(studentId, genderInput || null);
+      await loadDetail();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : lang === 'he' ? 'העדכון נכשל' : 'Update failed');
+    } finally {
+      setSavingGender(false);
+    }
+  };
 
   const handleSetSpecialization = async () => {
     setSavingSpecialization(true);
@@ -386,6 +405,39 @@ export default function StudentDetailPage() {
                     ? `מסלול: ${student.track === 'thesis' ? 'תזה' : 'פרויקט'} (נבחר בהרשמה, נעול)`
                     : `Track: ${student.track === 'thesis' ? 'Thesis' : 'Project'} (chosen at signup, locked)`)
                   : (lang === 'he' ? 'מסלול: פרויקט בלבד (אין אפשרות תזה בתוכנית זו)' : 'Track: Project only (no thesis option in this program)')}
+              </p>
+            )}
+          </div>
+
+          {/* Gender — used for gendered wording on official forms
+              ("מר"/"גברת"); staff can set it for students who registered
+              before signup asked for it, or correct it. */}
+          <div className="rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-5">
+            <p className="text-sm font-semibold text-administrative-coordinator-on-surface">{lang === 'he' ? 'מגדר' : 'Gender'}</p>
+            {canSetSpecialization ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <select
+                  value={genderInput}
+                  onChange={(e) => setGenderInput(e.target.value as 'male' | 'female' | '')}
+                  aria-label={lang === 'he' ? 'מגדר' : 'Gender'}
+                  className="rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-1.5 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:outline-none"
+                >
+                  <option value="">{lang === 'he' ? 'לא הוגדר' : 'Not set'}</option>
+                  <option value="male">{lang === 'he' ? 'זכר' : 'Male'}</option>
+                  <option value="female">{lang === 'he' ? 'נקבה' : 'Female'}</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={savingGender || genderInput === (student.gender ?? '')}
+                  onClick={handleSetGender}
+                  className="rounded-lg bg-administrative-coordinator-primary px-3 py-1.5 text-sm font-semibold text-administrative-coordinator-on-primary hover:opacity-90 disabled:opacity-60"
+                >
+                  {savingGender ? '…' : lang === 'he' ? 'שמור' : 'Save'}
+                </button>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-administrative-coordinator-on-surface-variant">
+                {student.gender === 'male' ? (lang === 'he' ? 'זכר' : 'Male') : student.gender === 'female' ? (lang === 'he' ? 'נקבה' : 'Female') : (lang === 'he' ? 'לא הוגדר' : 'Not set')}
               </p>
             )}
           </div>

@@ -28,6 +28,7 @@ interface StudentDetail {
     degreeType: 'bachelors' | 'masters' | null;
     specialization?: string | null;
     specializationOptions?: string[];
+    gender?: 'male' | 'female' | null;
     completedCourses?: { subject: string; grade?: number }[];
     prerequisiteSubjects?: string[];
     email: string;
@@ -124,6 +125,7 @@ export default function StudentDetailScreen() {
   const [eligibilityReason, setEligibilityReason] = useState('');
   const [savingEligibility, setSavingEligibility] = useState(false);
   const [savingSpecialization, setSavingSpecialization] = useState(false);
+  const [savingGender, setSavingGender] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('personal');
 
   const loadDetail = () => {
@@ -165,6 +167,19 @@ export default function StudentDetailScreen() {
   // Coordinator / admin coordinator / system_admin only — the server
   // (studentTrackController.ts's setStudentSpecialization) enforces the role
   // and scope; anyone else gets its error message back here.
+  // Same roles/scope as the specialization editor (setStudentGender).
+  const handleSetGender = async (gender: 'male' | 'female') => {
+    setSavingGender(true);
+    try {
+      await apiClient.post(`/api/project-coordinator/students/${studentId}/gender`, { gender });
+      await loadDetail();
+    } catch (err: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', err?.response?.data?.message || (lang === 'he' ? 'העדכון נכשל' : 'Update failed'));
+    } finally {
+      setSavingGender(false);
+    }
+  };
+
   const handleSetSpecialization = async (specialization: string | null) => {
     setSavingSpecialization(true);
     try {
@@ -310,6 +325,31 @@ export default function StudentDetailScreen() {
                     : (lang === 'he' ? 'מסלול: פרויקט בלבד (אין אפשרות תזה בתוכנית זו)' : 'Track: Project only (no thesis option in this program)')}
                 </Text>
               )}
+            </View>
+
+            {/* Gender — used for gendered wording on official forms ("מר"/"גברת"). */}
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{lang === 'he' ? 'מגדר' : 'Gender'}</Text>
+              <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 8, marginTop: 6 }}>
+                {(['male', 'female'] as const).map((g) => {
+                  const selected = student.gender === g;
+                  return (
+                    <Pressable
+                      key={g}
+                      disabled={savingGender || selected}
+                      onPress={() => handleSetGender(g)}
+                      style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10, borderColor: selected ? ap.primary : ap.outlineVariant, backgroundColor: selected ? 'rgba(0,35,111,0.08)' : 'transparent', opacity: savingGender ? 0.6 : 1 }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected, disabled: savingGender }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: selected ? '700' : '500', color: ap.onSurface, textAlign: 'center' }}>
+                        {selected ? '✓ ' : ''}{g === 'male' ? (lang === 'he' ? 'זכר' : 'Male') : (lang === 'he' ? 'נקבה' : 'Female')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {!student.gender && <Text style={styles.cardSub}>{lang === 'he' ? 'טרם הוגדר — הקש/י כדי לשמור' : 'Not set yet — tap to save'}</Text>}
             </View>
 
             {/* Specialization (תחום) — see constants/specialization.ts */}

@@ -20,6 +20,7 @@ import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
+import ExaminerOpinionFormModal from '@/components/modals/ExaminerOpinionFormModal';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import {
@@ -136,6 +137,7 @@ export default function ExaminerHome() {
   const [evalModal,      setEvalModal]      = useState(false);
   const [evalTarget,     setEvalTarget]     = useState<{ milestone: AssignedMilestone; kind: 'project' | 'defense' } | null>(null);
   const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
+  const [opinionFormFor, setOpinionFormFor] = useState<string | null>(null);
   const [evalScores,     setEvalScores]     = useState<Record<string, string>>({});
   const [evalComment,    setEvalComment]    = useState('');
   const [evalFile,       setEvalFile]       = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
@@ -1000,6 +1002,18 @@ export default function ExaminerHome() {
                           </Text>
                         </View>
                       )
+                    ) : m.hasExaminerOpinionForm ? (
+                      <Pressable
+                        style={[m.myOpinionSubmitted ? styles.gradedBadge : styles.gradeBtn, !m.myOpinionSubmitted && { backgroundColor: fc.primary }]}
+                        onPress={() => setOpinionFormFor(m.id)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={m.myOpinionSubmitted ? styles.gradedBadgeText : styles.gradeBtnText}>
+                          {m.myOpinionSubmitted
+                            ? `✅ ${lang === 'he' ? 'חוות הדעת נחתמה — צפייה/עדכון' : 'Opinion signed — view/update'}`
+                            : `📝 ${lang === 'he' ? 'מלא/י טופס בוחן (חוות דעת)' : "Fill in the examiner's opinion form"}`}
+                        </Text>
+                      </Pressable>
                     ) : m.finalGradeComponents?.perStudent ? (
                       // Per-student paper form (e.g. Electrical B.Sc.) — both
                       // examiner rubrics at once, one score per student.
@@ -1653,6 +1667,9 @@ export default function ExaminerHome() {
       </Modal>
 
       <ChatbotFab lang={lang} corner="bottom-left" />
+      {opinionFormFor && (
+        <ExaminerOpinionFormModal visible lang={lang} milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={fetchDashboardData} />
+      )}
       {evaluationFormFor && (
         <EvaluationFormModal
           visible

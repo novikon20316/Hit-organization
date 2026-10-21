@@ -9,6 +9,7 @@ import { getFacultyColor } from '@/lib/facultyColors';
 import { MILESTONE_LABEL, type AssignedMilestone, type GradeWeights, type IdentityGradeWeights } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { EvaluationFormModal } from '@/components/EvaluationFormModal';
+import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal';
 
 interface AssignmentCardProps {
   milestone: AssignedMilestone;
@@ -62,6 +63,8 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   // filled at once, one score column per student, in EvaluationFormModal.
   const isPerStudentForm = !!m.finalGradeComponents?.perStudent;
   const [showEvaluationForm, setShowEvaluationForm] = useState(false);
+  const isOpinionForm = !!m.hasExaminerOpinionForm;
+  const [showOpinionForm, setShowOpinionForm] = useState(false);
   const myEvaluations = m.examinerEvaluations?.[uid];
   const projectDone = !!myEvaluations?.project;
   const defenseDone = !!myEvaluations?.defense;
@@ -424,6 +427,19 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
               {lang === 'he' ? 'ממתין לאישור הבוחן הראשי' : "Awaiting examiner #1's sign-off"}
             </span>
           )
+        ) : isOpinionForm ? (
+          <button
+            type="button"
+            onClick={() => setShowOpinionForm(true)}
+            className={m.myOpinionSubmitted
+              ? 'w-full rounded-lg bg-success-bg px-3 py-2 text-xs font-semibold text-success hover:opacity-90'
+              : 'w-full rounded-lg px-3 py-2 text-xs font-semibold text-white hover:opacity-90'}
+            style={m.myOpinionSubmitted ? undefined : { backgroundColor: facultyColor }}
+          >
+            {m.myOpinionSubmitted
+              ? `✅ ${lang === 'he' ? 'חוות הדעת נחתמה — צפייה/עדכון' : 'Opinion signed — view/update'}`
+              : `📝 ${lang === 'he' ? 'מלא/י טופס בוחן (חוות דעת)' : "Fill in the examiner's opinion form"}`}
+          </button>
         ) : isPerStudentForm ? (
           <button
             type="button"
@@ -490,6 +506,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           </button>
         )}
       </div>
+      {showOpinionForm && (
+        <ExaminerOpinionFormModal milestoneId={m.id} onClose={() => setShowOpinionForm(false)} onChanged={onChanged} />
+      )}
       {showEvaluationForm && (
         <EvaluationFormModal milestoneId={m.id} onClose={() => setShowEvaluationForm(false)} onChanged={onChanged} />
       )}

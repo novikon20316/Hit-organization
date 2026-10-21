@@ -136,6 +136,8 @@ export default function ProfileSetup() {
   const [yearOfStudy, setYearOfStudy] = useState<number | null>(null);
   const [chosenTrack, setChosenTrack] = useState<StudentTrack | null>(null);
   const [specialization, setSpecialization] = useState<string | null>(null);
+  // Used for gendered wording on official forms ("מר"/"גברת").
+  const [gender, setGender] = useState<'male' | 'female' | null>(null);
   // Set once the user tries to save with the form incomplete — turns on the
   // red "required field" indicators below instead of just the blocking Alert.
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -187,6 +189,7 @@ export default function ProfileSetup() {
         phoneNumber: phoneNumber,
         chosenTrack: trackPolicy === 'signup_choice' ? chosenTrack : undefined,
         specialization: specializationOptions.length > 0 ? specialization : undefined,
+        ...(gender ? { gender } : {}),
         hasActiveProject: false,
         expoPushToken: null,
         displayName,
@@ -365,6 +368,7 @@ export default function ProfileSetup() {
     !yearOfStudy && (lang === 'he' ? 'שנת לימודים' : 'Year of study'),
     trackPolicy === 'signup_choice' && !chosenTrack && (lang === 'he' ? 'מסלול' : 'Track'),
     specializationOptions.length > 0 && !specialization && (lang === 'he' ? 'תחום התמחות' : 'Specialization'),
+    !gender && (lang === 'he' ? 'מגדר' : 'Gender'),
   ].filter((f): f is string => typeof f === 'string');
 
   const canSave =
@@ -377,7 +381,8 @@ export default function ProfileSetup() {
     programKey &&
     yearOfStudy &&
     (trackPolicy !== 'signup_choice' || !!chosenTrack) &&
-    (specializationOptions.length === 0 || !!specialization);
+    (specializationOptions.length === 0 || !!specialization) &&
+    !!gender;
 
   if (stage === 'verify') {
     return (
@@ -755,6 +760,28 @@ export default function ProfileSetup() {
               )}
             </Field>
           )}
+
+          {/* --- Gender — used for gendered wording on official forms. --- */}
+          <Field label={lang === 'he' ? 'מגדר' : 'Gender'}>
+            <View style={styles.majorGrid}>
+              {(['male', 'female'] as const).map((g) => (
+                <Pressable
+                  key={g}
+                  style={[styles.majorOption, gender === g && styles.majorOptionActive]}
+                  onPress={() => setGender(g)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: gender === g }}
+                >
+                  <Text style={[styles.majorText, gender === g && styles.majorTextActive, isRtl && styles.textRight]}>
+                    {g === 'male' ? (lang === 'he' ? 'זכר' : 'Male') : (lang === 'he' ? 'נקבה' : 'Female')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {attemptedSubmit && !gender && (
+              <ErrorNote isRtl={isRtl}>{lang === 'he' ? 'יש לבחור מגדר' : 'Please select a gender'}</ErrorNote>
+            )}
+          </Field>
 
           {/* --- Specialization (תחום) — only for programs that list them,
                see constants/specialization.ts. --- */}

@@ -44,7 +44,7 @@ function formatNumber(n: number | null | undefined): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function SignatureBlock({ label, signature, pendingText, he }: { label: string; signature: EvaluationFormSignature | null; pendingText: string; he: boolean }) {
+export function SignatureBlock({ label, signature, pendingText, he }: { label: string; signature: EvaluationFormSignature | null; pendingText: string; he: boolean }) {
   if (!signature) {
     return (
       <div className="rounded-lg border border-dashed border-line p-3">

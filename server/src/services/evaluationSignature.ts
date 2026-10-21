@@ -38,6 +38,9 @@ export interface EvaluationSignature {
 /** What gets signed, beyond the signer's own identity fields — the scores
  *  as plain numbers, keyed studentId -> componentKey -> score. */
 export type SignedScores = Record<string, Record<string, number>>;
+/** Anything JSON-serializable can be signed — scores, grades, or a written
+ *  opinion (see examinerOpinion.ts). */
+export type SignedPayload = SignedScores | Record<string, unknown>;
 
 // Short, unambiguous faculty prefix for the visible code. Anything not
 // listed falls back to 'SG' ("signature").
@@ -107,7 +110,7 @@ function toBase32(bytes: Buffer, length: number): string {
   return out;
 }
 
-function payloadFor(milestoneId: string, sig: Omit<EvaluationSignature, 'code' | 'digest'>, scores: SignedScores): string {
+function payloadFor(milestoneId: string, sig: Omit<EvaluationSignature, 'code' | 'digest'>, scores: SignedPayload): string {
   return canonicalJson({
     v: 1,
     milestoneId,
@@ -133,7 +136,7 @@ export async function signEvaluation(params: {
   positionHe: string;
   positionEn: string;
   facultyId: string;
-  scores: SignedScores;
+  scores: SignedPayload;
 }): Promise<EvaluationSignature> {
   const names = facultyName(params.facultyId);
   const base: Omit<EvaluationSignature, 'code' | 'digest'> = {
@@ -155,7 +158,7 @@ export async function signEvaluation(params: {
 
 /** Recomputes the digest from what's stored NOW and compares — false if the
  *  signature itself or any signed score was changed after signing. */
-export async function verifyEvaluationSignature(milestoneId: string, sig: EvaluationSignature | null | undefined, scores: SignedScores): Promise<boolean> {
+export async function verifyEvaluationSignature(milestoneId: string, sig: EvaluationSignature | null | undefined, scores: SignedPayload): Promise<boolean> {
   if (!sig?.digest) return false;
   const { code: _code, digest, ...base } = sig;
   const expected = await digestFor(payloadFor(milestoneId, base, scores));

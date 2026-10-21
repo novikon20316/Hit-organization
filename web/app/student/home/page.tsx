@@ -14,6 +14,7 @@ import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { GenderPrompt } from './GenderPrompt';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useStudentData } from '@/hooks/useStudentData';
 import { apiClient } from '@/lib/apiClient';
@@ -89,6 +90,8 @@ function StudentHomeContent() {
             <p className="text-sm text-muted" role="status" aria-live="polite">{t('loading')}</p>
           </div>
         )}
+
+        {studentState !== 'loading' && activeTab === 'overview' && <GenderPrompt />}
 
         {studentState !== 'loading' && activeTab === 'overview' && <FinalReportCard />}
 

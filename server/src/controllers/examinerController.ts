@@ -132,6 +132,12 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           // finalGradeComponents) — empty/absent means this milestone still
           // uses the single shared gradingComponents rubric above.
           finalGradeComponents: milestoneData.finalGradeComponents ?? null,
+          // Thesis examiner opinion form (see services/examinerOpinion.ts) —
+          // only whether THIS examiner already submitted, never the others'.
+          hasExaminerOpinionForm: !!milestoneData.examinerOpinionForm,
+          myOpinionSubmitted: milestoneData.examinerOpinionForm
+            ? (await db.collection('examinerOpinions').doc(`${milestoneDoc.id}__${examinerId}`).get()).exists
+            : false,
           // Generic chain-routing milestones (see milestoneRouting.ts's
           // isChainDriven — e.g. the examiner-only 'poster' milestone type)
           // carry neither examinerScores nor finalGradeComponents, so the

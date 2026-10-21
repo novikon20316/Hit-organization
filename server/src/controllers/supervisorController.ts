@@ -458,6 +458,9 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // — the client opens EvaluationFormModal instead of the single-
             // score SupervisorEvaluationModal/FinalGradeDecisionModal.
             perStudentEvaluation: !!m?.finalGradeComponents?.perStudent,
+            // Thesis examiner opinion form (see services/examinerOpinion.ts).
+            hasExaminerOpinionForm: !!m?.examinerOpinionForm,
+            opinionOutcome: m?.opinionOutcome?.result ?? null,
             autoCalculatedFinalGradeByStudent: m?.autoCalculatedFinalGradeByStudent ?? null,
             // The supervisor's own last-submitted score — distinct from
             // finalGrade (which may blend in examiner scores) — so the

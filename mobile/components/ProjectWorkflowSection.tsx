@@ -20,6 +20,7 @@ import StaffRecordModal from './modals/StaffRecordModal';
 import SupervisorEvaluationModal from './modals/SupervisorEvaluationModal';
 import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
 import EvaluationFormModal from './modals/EvaluationFormModal';
+import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
@@ -92,6 +93,9 @@ interface StudentMilestoneRow {
   /** Per-student evaluation form (finalGradeComponents.perStudent) — opens
    *  EvaluationFormModal instead of the single-score modals. */
   perStudentEvaluation?: boolean;
+  /** Thesis examiner opinion form — see components/modals/ExaminerOpinionFormModal.tsx. */
+  hasExaminerOpinionForm?: boolean;
+  opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
@@ -192,6 +196,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: StaffFormField[] } | null>(null);
   const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
+  const [opinionFormFor, setOpinionFormFor] = useState<string | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
@@ -609,6 +614,19 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                     )}
 
                     {/* Three-rubric final-grade workflow (defense only). */}
+                    {m.hasExaminerOpinionForm && m.id && (
+                      <Pressable onPress={() => setOpinionFormFor(m.id!)} accessibilityRole="button" style={{ marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: m.gradeApproved ? '#10B981' : '#7C3AED' }}>
+                          {m.gradeApproved
+                            ? `🎓 ${lang === 'he' ? `ציון סופי: ${m.finalGrade} — חוות דעת הבוחנים` : `Final grade: ${m.finalGrade} — examiner opinions`}`
+                            : m.opinionOutcome === 'continue'
+                              ? `✅ ${lang === 'he' ? 'הבוחנים אישרו — ממתין לציון מהרכז/ת' : 'Examiners approved — awaiting the grade'}`
+                              : m.opinionOutcome
+                                ? `⚠️ ${lang === 'he' ? 'בוחן/ת ביקש/ה שינויים — צפייה' : 'An examiner asked for changes — view'}`
+                                : `📝 ${lang === 'he' ? 'חוות דעת הבוחנים' : 'Examiner opinions'}`}
+                        </Text>
+                      </Pressable>
+                    )}
                     {m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
                       <Pressable onPress={() => setEvaluationFormFor(m.id!)} accessibilityRole="button" style={{ marginTop: 4 }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: m.gradeApproved ? '#10B981' : '#7C3AED' }}>
@@ -681,6 +699,9 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
           onClose={() => setStaffRecordFor(null)}
           onSubmitted={refreshDetailSilently}
         />
+      )}
+      {opinionFormFor && (
+        <ExaminerOpinionFormModal visible lang={lang} milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={refreshDetailSilently} />
       )}
       {evaluationFormFor && (
         <EvaluationFormModal

@@ -16,6 +16,7 @@ import {
   verifyStudentEligibility,
   completeOnboardingTour,
   markFieldGuideSeen,
+  setMyGender,
   uploadUserPhoto,
   getUserPhotoUrl,
   photoUploadMiddleware,
@@ -40,6 +41,7 @@ router.post('/delete-account/request', verifyToken, requestAccountDeletion)
 router.post('/delete-account/cancel', verifyToken, cancelAccountDeletion)
 router.post('/complete-onboarding-tour', verifyToken, completeOnboardingTour)
 router.post('/mark-field-guide-seen', verifyToken, markFieldGuideSeen)
+router.post('/me/gender', verifyToken, setMyGender)
 router.post('/photo', verifyToken, photoUploadMiddleware, verifyFileSignatures, uploadUserPhoto)
 router.get('/:uid/photo-url', verifyToken, getUserPhotoUrl)
 

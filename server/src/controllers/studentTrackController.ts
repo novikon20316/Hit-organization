@@ -274,3 +274,45 @@ export const setStudentCompletedCourses = async (req: AuthenticatedRequest, res:
     return res.status(500).json({ message: L(req, 'Failed to update completed courses.', 'עדכון הקורסים שהושלמו נכשל.') });
   }
 };
+
+// Staff set/correct a student's gender (used for gendered wording on
+// official forms) — same roles and scoping as setStudentSpecialization.
+export const setStudentGender = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  if (!hasAnyRole(req.user, SPECIALIZATION_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
+  }
+  const { studentId } = req.params;
+  const gender: unknown = req.body?.gender ?? null;
+  if (!isValidDocId(studentId)) {
+    return res.status(400).json({ message: L(req, 'Invalid studentId.', 'מזהה הסטודנט אינו תקין.') });
+  }
+  if (gender !== null && gender !== 'male' && gender !== 'female') {
+    return res.status(400).json({ message: L(req, 'Invalid gender.', 'מגדר לא תקין.') });
+  }
+  try {
+    const studentRef = db.collection('users').doc(studentId);
+    const studentSnap = await studentRef.get();
+    if (!studentSnap.exists || studentSnap.data()?.role !== 'student') {
+      return res.status(404).json({ message: L(req, 'Student not found.', 'הסטודנט לא נמצא.') });
+    }
+    const studentData = studentSnap.data()!;
+    if (!withinCoordinatorScope(req.user, { facultyId: studentData.facultyId ?? '', major: studentData.major || undefined })) {
+      return res.status(403).json({ message: L(req, 'This student is outside your assigned scope.', 'סטודנט זה אינו בתחום האחריות שהוקצה לך.') });
+    }
+    await studentRef.update({ gender, updatedAt: new Date().toISOString() });
+    await logAuditEvent({
+      userId: req.user.uid,
+      userRole: req.user.role,
+      action: 'student_gender_set',
+      entityType: 'user',
+      entityId: studentId,
+      oldValue: { gender: studentData.gender ?? null },
+      newValue: { gender },
+    });
+    return res.status(200).json({ success: true, gender });
+  } catch (error) {
+    console.error('setStudentGender error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to save.', 'השמירה נכשלה.') });
+  }
+};

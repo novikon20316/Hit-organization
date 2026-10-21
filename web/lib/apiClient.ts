@@ -1908,6 +1908,49 @@ export const apiClient = {
     );
   },
 
+  // ─── Examiner opinion form (thesis — see server's examinerOpinion.ts) ─────
+  async getExaminerOpinionForm(milestoneId: string) {
+    return request<ExaminerOpinionView>(`/api/projects/milestones/${milestoneId}/examiner-opinion`);
+  },
+  /** Uploads the examiner's filled Word form; returns the online form's pre-fill. */
+  async parseExaminerOpinionUpload(milestoneId: string, file: File) {
+    const formData = new FormData();
+    formData.append('files', file);
+    return request<ExaminerOpinionParseResult>(`/api/projects/milestones/${milestoneId}/examiner-opinion/parse`, { method: 'POST', body: formData, raw: true });
+  },
+  async submitExaminerOpinion(milestoneId: string, formData: FormData) {
+    return request<{ success: boolean; outcome: string | null }>(`/api/projects/milestones/${milestoneId}/examiner-opinion`, { method: 'POST', body: formData, raw: true });
+  },
+  async getExternalExaminerOpinionForm(token: string) {
+    return request<ExaminerOpinionView>(`/api/examiner-access/${encodeURIComponent(token)}/opinion-form`);
+  },
+  async parseExternalExaminerOpinionUpload(token: string, file: File) {
+    const formData = new FormData();
+    formData.append('files', file);
+    return request<ExaminerOpinionParseResult>(`/api/examiner-access/${encodeURIComponent(token)}/opinion-form/parse`, { method: 'POST', body: formData, raw: true });
+  },
+  async submitExternalExaminerOpinion(token: string, formData: FormData) {
+    return request<{ success: boolean; outcome: string | null }>(`/api/examiner-access/${encodeURIComponent(token)}/opinion-form`, { method: 'POST', body: formData, raw: true });
+  },
+  /** Administrative coordinator: enter + approve the thesis's final grade. */
+  async approveThesisFinalGrade(milestoneId: string, grades: Record<string, number>) {
+    return request<{ success: boolean; finalGrade: number }>(`/api/projects/milestones/${milestoneId}/examiner-opinion/final-grade`, { method: 'POST', body: { grades } });
+  },
+  /** Administrative coordinator: return the thesis to the student for corrections. */
+  async sendThesisBackForCorrections(milestoneId: string, note: string) {
+    return request<{ success: boolean; reReviewers: number }>(`/api/projects/milestones/${milestoneId}/examiner-opinion/send-back`, { method: 'POST', body: { note } });
+  },
+  async getThesisOpinionQueue() {
+    return request<{ items: ThesisOpinionQueueItem[] }>('/api/project-coordinator/thesis-opinions');
+  },
+  /** The student's own gender (for gendered wording on official forms). */
+  async setMyGender(gender: 'male' | 'female') {
+    return request<{ success: boolean }>('/api/users/me/gender', { method: 'POST', body: { gender } });
+  },
+  async setStudentGender(studentId: string, gender: 'male' | 'female' | null) {
+    return request<{ success: boolean }>(`/api/project-coordinator/students/${encodeURIComponent(studentId)}/gender`, { method: 'POST', body: { gender } });
+  },
+
   /** Per-student evaluation form (finalGradeComponents.perStudent) — the
    *  whole paper form as the viewer may see it: header filled by the
    *  server, scores per student, signatures with their verification state.
@@ -2411,6 +2454,7 @@ export const apiClient = {
         degreeType: 'bachelors' | 'masters' | null;
         specialization: string | null;
         specializationOptions: string[];
+        gender?: 'male' | 'female' | null;
         completedCourses: { subject: string; grade?: number }[];
         prerequisiteSubjects: string[];
         email: string;
@@ -3598,4 +3642,67 @@ export interface EvaluationFormView {
     otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
     projectFinalGrade: number | null;
   }>;
+}
+
+// ─── Examiner opinion form (see server's services/examinerOpinion.ts) ────────
+export interface ExaminerOpinionChoice { value: string; labelHe: string; labelEn: string }
+
+export interface ExaminerOpinionEntry {
+  conclusion: string;
+  confidentiality: string;
+  opinion: string;
+  /** Only for staff and the examiner themself. */
+  confidentialOpinion: string | null;
+  institution: string | null;
+  examinerName?: string;
+  fileUrls: string[];
+  uploadedFormUrl: string | null;
+  submittedAt: string;
+  round: number;
+  signature: (EvaluationFormSignature) | null;
+  /** True when the supervisor sees it without the examiner's name. */
+  signedAnonymously: boolean;
+}
+
+export interface ExaminerOpinionView {
+  milestoneId: string;
+  titleHe: string;
+  titleEn: string;
+  header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null; valueEn: string | null }>;
+  conclusions: Array<ExaminerOpinionChoice & { outcome: 'continue' | 'revise' | 'reject' }>;
+  confidentialityOptions: Array<ExaminerOpinionChoice & { effect: 'none' | 'hide_name' | 'hide_marked' }>;
+  round: number;
+  viewer: {
+    kind: 'examiner' | 'supervisor' | 'staff';
+    canEdit: boolean;
+    lockedReasonHe: string | null;
+    lockedReasonEn: string | null;
+    defaultName: string | null;
+    defaultInstitution: string;
+  };
+  examiners: Array<{ index: number; submitted: boolean; isSelf: boolean; key: string | null; name: string | null; opinion: ExaminerOpinionEntry | null }>;
+  outcome: { result: 'continue' | 'revise' | 'reject'; decidedAt: string; round: number } | null;
+  sendBack: { at: string; note: string; round: number } | null;
+  finalGrade: number | null;
+  finalGradeByStudent: Record<string, number> | null;
+  gradeApproved: boolean;
+  students: Array<{ id: string; name: string }>;
+  history: Array<ExaminerOpinionEntry>;
+}
+
+export interface ExaminerOpinionParseResult {
+  prefill: { conclusion: string | null; confidentiality: string | null; examinerName: string; institution: string; extraText: string };
+  uploadedFormUrl: string;
+}
+
+export interface ThesisOpinionQueueItem {
+  milestoneId: string;
+  projectId: string | null;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  students: Array<{ id: string; name: string }>;
+  outcome: 'continue' | 'revise' | 'reject';
+  decidedAt: string | null;
+  round: number;
+  examinerCount: number;
 }

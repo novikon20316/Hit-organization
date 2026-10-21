@@ -22,6 +22,7 @@ import InfoScreen      from './info';
 import AwaitingGradeScreen from './awaitingGrade';
 import ChatbotFab       from '@/components/ChatbotFab';
 import { FinalReportCard } from '@/components/FinalReportCard';
+import { GenderPrompt } from '@/components/GenderPrompt';
 
 export default function StudentHome() {
   const [lang, setLang] = useState<Lang>('he');
@@ -104,6 +105,7 @@ export default function StudentHome() {
         onBeforeSignOut={handleBeforeSignOut}
       />
 
+      <GenderPrompt lang={lang} isRtl={isRtl} />
       <FinalReportCard lang={lang} isRtl={isRtl} />
 
       {/* ── Main Content — smart routing ── */}

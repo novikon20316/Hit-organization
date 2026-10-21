@@ -21,6 +21,7 @@ import { StaffRecordModal } from './StaffRecordModal';
 import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import { EvaluationFormModal } from '@/components/EvaluationFormModal';
+import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal';
 import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
@@ -84,6 +85,9 @@ export interface StudentMilestoneRow {
    *  EvaluationFormModal instead of the single-score evaluation/decision
    *  modals. */
   perStudentEvaluation?: boolean;
+  /** Thesis examiner opinion form — see components/ExaminerOpinionForm.tsx. */
+  hasExaminerOpinionForm?: boolean;
+  opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
@@ -258,6 +262,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
 
   const [staffRecordFor, setStaffRecordFor] = useState<{ milestoneId: string; fields: TemplateMilestone['staffFormFields'] } | null>(null);
   const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
+  const [opinionFormFor, setOpinionFormFor] = useState<string | null>(null);
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: NonNullable<TemplateMilestone['finalGradeComponents']>['supervisorEvaluation']['components'] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [previewFor, setPreviewFor] = useState<{ title: string; subtitle: string; submissionNote: string; fileUrls: string[] } | null>(null);
@@ -850,7 +855,10 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                 </div>
                               );
                             }
-                            if (pending) {
+                            // Examiner-opinion milestones (thesis defense) take no
+                            // supervisor grade — examiners submit opinions and the
+                            // administrative coordinator enters the grade.
+                            if (pending && !m.hasExaminerOpinionForm) {
                               // See workflowTemplates.ts's preGradeSignoffs —
                               // the committee chair's decision and/or examiner
                               // #1's sign-off must both be recorded before the
@@ -920,6 +928,22 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
                                 ? `✓ ${lang === 'he' ? 'רשומת מנחה הוגשה — עדכן' : 'Staff record submitted — update'}`
                                 : `📎 ${lang === 'he' ? 'הגש רשומת מנחה' : 'Submit staff record'}`}
                             </button>
+                          )}
+
+                          {/* Thesis examiner opinions — the supervisor sees each one as
+                              its examiner's confidentiality request allows. */}
+                          {m.hasExaminerOpinionForm && m.id && (
+                            <div className="mt-1 text-xs">
+                              <button type="button" onClick={() => setOpinionFormFor(m.id!)} className="font-medium text-[#00236f] hover:underline">
+                                {m.gradeApproved
+                                  ? `🎓 ${lang === 'he' ? `ציון סופי: ${m.finalGrade} — חוות דעת הבוחנים` : `Final grade: ${m.finalGrade} — examiner opinions`}`
+                                  : m.opinionOutcome === 'continue'
+                                    ? `✅ ${lang === 'he' ? 'הבוחנים אישרו — ממתין לציון מהרכז/ת · צפייה' : 'Examiners approved — awaiting the grade from the coordinator · view'}`
+                                    : m.opinionOutcome
+                                      ? `⚠️ ${lang === 'he' ? 'בוחן/ת ביקש/ה שינויים — צפייה בחוות הדעת' : 'An examiner asked for changes — view the opinions'}`
+                                      : `📝 ${lang === 'he' ? 'חוות דעת הבוחנים' : 'Examiner opinions'}`}
+                              </button>
+                            </div>
                           )}
 
                           {/* Per-student evaluation form (e.g. Electrical B.Sc.) —
@@ -1015,6 +1039,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
           onClose={() => setSupervisorEvalFor(null)}
           onSubmitted={refreshDetailSilently}
         />
+      )}
+      {opinionFormFor && (
+        <ExaminerOpinionFormModal milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={refreshDetailSilently} />
       )}
       {evaluationFormFor && (
         <EvaluationFormModal

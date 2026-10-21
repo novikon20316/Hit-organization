@@ -14,7 +14,7 @@
 //   4. If submitted → show confirmation (read-only)
 //   5. If declined / expired / invalid → show appropriate message
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
 import {
@@ -33,6 +33,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { OtpGate } from './OtpGate';
 import { OpinionForm } from './OpinionForm';
 import { DataScienceExaminerEvaluationForm } from './DataScienceExaminerEvaluationForm';
+import { ExaminerOpinionForm, externalOpinionSource } from '@/components/ExaminerOpinionForm';
 import { DefenseDateSection } from './DefenseDateSection';
 import { OnboardingForm } from './OnboardingForm';
 import type { ExaminerAccessPhase } from './types';
@@ -59,6 +60,18 @@ function ExaminerAccessContent() {
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  // Whether this invitation uses the examiner opinion form (the M.Sc.
+  // thesis "טופס בוחן" — see components/ExaminerOpinionForm.tsx). Probed
+  // once the examiner is in (accepted phase); the endpoint answers 400 for
+  // any invitation that doesn't, which keeps the existing forms.
+  const [usesOpinionForm, setUsesOpinionForm] = useState(false);
+  const opinionSource = useMemo(() => (token ? externalOpinionSource(token) : null), [token]);
+  useEffect(() => {
+    if (phase !== 'accepted' || !opinionSource) return;
+    let cancelled = false;
+    opinionSource.load().then(() => { if (!cancelled) setUsesOpinionForm(true); }).catch(() => { if (!cancelled) setUsesOpinionForm(false); });
+    return () => { cancelled = true; };
+  }, [phase, opinionSource]);
 
   const loadToken = useCallback(async () => {
     if (!token) {
@@ -321,7 +334,11 @@ function ExaminerAccessContent() {
 
       {token && <DefenseDateSection token={token} />}
 
-      {token && tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
+      {token && usesOpinionForm ? (
+        <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 shadow-sm">
+          <ExaminerOpinionForm source={opinionSource!} onChanged={() => undefined} />
+        </div>
+      ) : token && tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
         <DataScienceExaminerEvaluationForm
           token={token}
           tokenDoc={tokenDoc}

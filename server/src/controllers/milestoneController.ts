@@ -9,6 +9,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
 import { sanitizeMilestoneForViewer, redactUnreleasedGradeForStudent } from '../services/milestoneVisibility.js';
+import { notifyExaminersOfResubmission } from '../services/examinerOpinion.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
@@ -301,7 +302,11 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         archiveUpdate = buildRevisionArchiveUpdate(freshData);
 
         transaction.update(milestoneRef, {
-          status:         'submitted',
+          // A thesis the coordinator sent back after the examiners' opinions
+          // (examinerOpinionController.ts's sendThesisBackForCorrections)
+          // returns to where it was in the defense flow, not to 'submitted'.
+          status:         freshData.statusBeforeSendBack ?? 'submitted',
+          ...(freshData.statusBeforeSendBack !== undefined ? { statusBeforeSendBack: admin.firestore.FieldValue.delete() } : {}),
           submittedAt:    admin.firestore.FieldValue.serverTimestamp(),
           fileUrls,
           submissionNote: note,
@@ -337,6 +342,12 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
         });
       }
       throw err;
+    }
+
+    // A corrected thesis after the coordinator sent it back — tell the
+    // examiners who now owe a new opinion (see services/examinerOpinion.ts).
+    if (milestoneData.examinerOpinionForm && milestoneData.statusBeforeSendBack !== undefined) {
+      await notifyExaminersOfResubmission(milestoneId);
     }
 
     // The research-proposal form is where a project's real title first

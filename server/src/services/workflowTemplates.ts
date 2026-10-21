@@ -102,7 +102,11 @@ export interface FormFieldSpec {
     | 'projectStartDate' | 'academicYear' | 'defenseDate'
     // The primary supervisor plus the secondary one, if any (the paper
     // forms' "שם המנחה/ים").
-    | 'supervisorNames';
+    | 'supervisorNames'
+    // The student's name with the title their profile's gender calls for —
+    // "מר X" / "גברת X" ("Mr." / "Ms." in English), the bare name when no
+    // gender is recorded.
+    | 'studentTitledName';
   /** Only meaningful alongside autoFill — true means the value can never be
    *  edited by the student, even as a fallback when the auto-filled source is
    *  empty (e.g. a not-yet-computed accumulatedCredits shows a "pending"
@@ -531,6 +535,17 @@ export interface WorkflowMilestoneSpec {
      *  "בוחן I", "בוחן II"). Omitted: "בוחן 1 / יו\"ר", "בוחן 2", ... */
     examinerLabels?: Array<{ he: string; en: string }>;
   };
+  /** A non-scored written opinion every assigned examiner submits — a
+   *  conclusion picked from a fixed list, a confidentiality request and a
+   *  detailed opinion — first built for Electrical's M.Sc. thesis "טופס בוחן
+   *  לעבודת תזה". Each conclusion carries an `outcome` that drives the
+   *  workflow once every examiner has answered: all 'continue' → the
+   *  administrative coordinator enters and approves the final grade; any
+   *  'revise'/'reject' → back to the coordinator and supervisor, who can send
+   *  the thesis back to the student for corrections (only the 'revise'
+   *  examiners then review it again). Can be filled online or pre-filled
+   *  from the examiner's uploaded Word form. See examinerOpinion.ts. */
+  examinerOpinionForm?: ExaminerOpinionFormSpec;
   /** How much this milestone counts toward the project's OVERALL final
    *  grade (0-100), validated to sum to 100 across every milestone in the
    *  template — see workflowTemplateController.ts's validateMilestones.
@@ -550,6 +565,18 @@ export interface WorkflowMilestoneSpec {
    *  unrestricted (every milestone created before this feature existed, or
    *  one whose submissionRequirement never called for a file at all). */
   allowedFileTypes?: MilestoneFileType[];
+}
+
+export interface ExaminerOpinionFormSpec {
+  titleHe: string;
+  titleEn: string;
+  /** Read-only lines filled by the system (student, supervisors, topic...). */
+  headerFields?: FormFieldSpec[];
+  conclusions: Array<{ value: string; labelHe: string; labelEn: string; outcome: 'continue' | 'revise' | 'reject' }>;
+  /** The paper form's "בקשת חסיון" choices. `effect` is what the supervisor
+   *  then sees: everything, the opinion without the examiner's name, or
+   *  the opinion without its confidential part. */
+  confidentialityOptions: Array<{ value: string; labelHe: string; labelEn: string; effect: 'none' | 'hide_name' | 'hide_marked' }>;
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

@@ -106,6 +106,9 @@ export interface AssignedMilestone {
     /** Per-student evaluation form — see components/EvaluationFormModal.tsx. */
     perStudent?: boolean;
   } | null;
+  /** Thesis examiner opinion form — see components/ExaminerOpinionForm.tsx. */
+  hasExaminerOpinionForm?: boolean;
+  myOpinionSubmitted?: boolean;
   examinerEvaluations?: Record<string, {
     project?: { total: number };
     defense?: { total: number };

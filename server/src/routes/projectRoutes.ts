@@ -3,6 +3,7 @@ import { verifyToken } from '../middleware/auth.js';
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
 import { getEvaluationForm, submitEvaluationForm } from '../controllers/evaluationFormController.js';
+import { getExaminerOpinionForm, parseExaminerOpinionUpload, submitExaminerOpinionForm, approveThesisFinalGrade, sendThesisBackForCorrections } from '../controllers/examinerOpinionController.js';
 import {
   getStudentProject,
   submitStudentMilestone,
@@ -37,6 +38,12 @@ router.post('/milestones/:milestoneId/examiner-form', verifyToken, submitExamine
 // evaluationFormController.ts.
 router.get('/milestones/:milestoneId/evaluation-form', verifyToken, getEvaluationForm);
 router.post('/milestones/:milestoneId/evaluation-form', verifyToken, submitEvaluationForm);
+// Examiner opinion form (thesis) — see examinerOpinionController.ts.
+router.get('/milestones/:milestoneId/examiner-opinion', verifyToken, getExaminerOpinionForm);
+router.post('/milestones/:milestoneId/examiner-opinion/parse', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, parseExaminerOpinionUpload);
+router.post('/milestones/:milestoneId/examiner-opinion', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, submitExaminerOpinionForm);
+router.post('/milestones/:milestoneId/examiner-opinion/final-grade', verifyToken, approveThesisFinalGrade);
+router.post('/milestones/:milestoneId/examiner-opinion/send-back', verifyToken, sendThesisBackForCorrections);
 router.get('/ActiveProjects', verifyToken, getActiveProjects);
 // Student Interfaces
 router.get('/student/projects/:id', verifyToken, getStudentProject);

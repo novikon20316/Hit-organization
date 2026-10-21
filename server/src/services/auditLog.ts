@@ -84,6 +84,7 @@ export type AuditAction =
   // already-enrolled-project switch.
   | 'student_track_chosen'
   | 'student_specialization_set'
+  | 'student_gender_set'
   // Signup refused: ID on the roster, but the typed name didn't match it
   // (services/studentNameMatch.ts) — a possible attempt to register as
   // someone else.

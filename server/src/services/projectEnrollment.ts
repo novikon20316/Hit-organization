@@ -284,6 +284,11 @@ export async function enrollStudentInProject(
         // means the student submits the generic file+note form instead (see
         // submitMilestone's isStructuredFormMilestone branch).
         ...(t.studentFormFields?.length ? { studentFormFields: t.studentFormFields } : {}),
+        // Thesis examiner opinion form (see workflowTemplates.ts's
+        // examinerOpinionForm) — snapshotted like the other form configs.
+        // The opinions themselves live in the server-only examinerOpinions
+        // collection, never on this (student-readable) doc.
+        ...(t.examinerOpinionForm ? { examinerOpinionForm: t.examinerOpinionForm, examinerOpinionRound: 1 } : {}),
         // What the student must attach to submit this milestone (file/
         // comment/both/none) — see workflowTemplates.ts's
         // submissionRequirementMet. Omitted means no requirement recorded,

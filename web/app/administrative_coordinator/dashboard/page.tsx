@@ -33,6 +33,7 @@ import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { MyProjectsWidget } from '@/components/MyProjectsWidget';
 import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
+import { ThesisOpinionsSection } from './ThesisOpinionsSection';
 import { CommitteeConflictsTab } from './CommitteeConflictsTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
@@ -392,6 +393,7 @@ function AdministrativeCoordinatorDashboardContent() {
         <div data-field-guide-id="overrideList">
           <FieldGuideOverlay guideKey={OVERRIDES_TAB_GUIDE_KEY} steps={OVERRIDES_TAB_FIELD_GUIDE} />
           <GradeOverridesTab />
+          <ThesisOpinionsSection />
         </div>
       ) : activeTab === 'committeeConflicts' ? (
         <CommitteeConflictsTab />

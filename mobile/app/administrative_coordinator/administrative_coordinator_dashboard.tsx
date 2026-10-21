@@ -38,6 +38,7 @@ import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
+import ExaminerOpinionFormModal from '@/components/modals/ExaminerOpinionFormModal';
 import {
   DEFENSE_LOGISTICS_FIELD_GUIDE, DEFENSE_LOGISTICS_GUIDE_KEY,
   SEND_EXAMINER_FIELD_GUIDE, SEND_EXAMINER_GUIDE_KEY,
@@ -574,6 +575,10 @@ export default function ProjectCoordinatorDashboard() {
   // ── Grade Overrides tab ───────────────────────────────────────────────────
   const [overrides, setOverrides] = useState<GradeOverrideRow[]>([]);
   const [evaluationFormFor, setEvaluationFormFor] = useState<string | null>(null);
+  // Thesis examiner opinions awaiting her action — see server's
+  // examinerOpinionController.ts's getThesisOpinionQueue.
+  const [thesisOpinions, setThesisOpinions] = useState<Array<{ milestoneId: string; projectTitleHe: string; projectTitleEn: string; students: Array<{ name: string }>; outcome: 'continue' | 'revise' | 'reject'; round: number }>>([]);
+  const [opinionFormFor, setOpinionFormFor] = useState<string | null>(null);
   const [overridesLoading, setOverridesLoading] = useState(false);
   const [overridesLoaded, setOverridesLoaded] = useState(false);
   const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
@@ -745,6 +750,9 @@ export default function ProjectCoordinatorDashboard() {
     try {
       const res = await apiClient.get('/api/project-coordinator/grade-overrides');
       setOverrides(res.data.overrides ?? []);
+      apiClient.get('/api/project-coordinator/thesis-opinions')
+        .then((r) => setThesisOpinions(r.data.items ?? []))
+        .catch(() => setThesisOpinions([]));
     } catch (e: any) {
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
@@ -1222,7 +1230,26 @@ export default function ProjectCoordinatorDashboard() {
               ))
             )}
           </View>
-        ) : activeTab === 'committeeConflicts' ? (
+        ) : null}
+        {activeTab === 'overrides' && thesisOpinions.length > 0 && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={[s.cardTitle, { marginBottom: 8 }]}>{lang === 'he' ? 'עבודות תזה — חוות דעת בוחנים' : 'Theses — examiner opinions'}</Text>
+            {thesisOpinions.map((item) => (
+              <Pressable key={item.milestoneId} onPress={() => setOpinionFormFor(item.milestoneId)} accessibilityRole="button" style={[s.card, { borderLeftColor: item.outcome === 'continue' ? '#10B981' : item.outcome === 'revise' ? '#F59E0B' : '#DC2626' }]}>
+                <Text style={s.cardTitle}>{lang === 'he' ? item.projectTitleHe : item.projectTitleEn}</Text>
+                <Text style={s.cardSub}>👤 {item.students.map((st) => st.name).join(', ')}</Text>
+                <Text style={[s.cardSub, { fontWeight: '700' }]}>
+                  {item.outcome === 'continue'
+                    ? (lang === 'he' ? '✅ הבוחנים אישרו — יש להזין ציון סופי' : '✅ Examiners approved — enter the final grade')
+                    : item.outcome === 'revise'
+                      ? (lang === 'he' ? '✏️ בוחן/ת ביקש/ה תיקונים מהותיים' : '✏️ An examiner requested major corrections')
+                      : (lang === 'he' ? '⛔ בוחן/ת קבע/ה שהעבודה אינה ראויה' : '⛔ An examiner found the thesis not acceptable')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {activeTab === 'overrides' ? null : activeTab === 'committeeConflicts' ? (
           <View>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 10 }}>
               {lang === 'he'
@@ -1753,6 +1780,9 @@ export default function ProjectCoordinatorDashboard() {
       <ChatbotFab lang={lang} corner="bottom-left" />
       {evaluationFormFor && (
         <EvaluationFormModal visible lang={lang} milestoneId={evaluationFormFor} onClose={() => setEvaluationFormFor(null)} />
+      )}
+      {opinionFormFor && (
+        <ExaminerOpinionFormModal visible lang={lang} milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={fetchOverrides} />
       )}
     </SafeAreaView>
   );

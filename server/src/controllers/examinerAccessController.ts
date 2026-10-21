@@ -17,6 +17,9 @@ import { maybeFinalizeAutoCalculatedGrade } from './projectController.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
+import { buildOpinionView, submitOpinion, OpinionError } from '../services/examinerOpinion.js';
+import { parseAndStoreUpload, uploadedFormUrlFor } from './examinerOpinionController.js';
+import { v2 as cloudinary } from 'cloudinary';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -389,5 +392,113 @@ export const getDefenseAccessStatus = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('getDefenseAccessStatus error:', error);
     return res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
+  }
+};
+
+// ─── Examiner opinion form (external examiners) ──────────────────────────────
+// Same form and rules as the internal endpoints in examinerOpinionController.ts
+// (see services/examinerOpinion.ts), keyed by the access token — an external
+// examiner has no Firebase account. Each re-checks the OTP session, since
+// these bypass firestore.rules via the Admin SDK.
+
+async function loadTokenOpinionMilestone(req: Request, res: Response) {
+  const { token } = req.params;
+  if (!token || typeof token !== 'string') {
+    res.status(400).json({ message: L(req, 'Missing token.', 'חסר אסימון גישה.') });
+    return null;
+  }
+  const tokenSnap = await db.collection('examinerTokens').doc(token).get();
+  if (!tokenSnap.exists) {
+    res.status(404).json({ message: L(req, 'Invalid or unknown token.', 'אסימון לא תקין או לא מוכר.') });
+    return null;
+  }
+  const tokenDoc = tokenSnap.data()!;
+  if (!isOtpSessionFresh(tokenDoc)) {
+    res.status(403).json({ message: L(req, 'Please verify your access code first.', 'יש לאמת את קוד הגישה שלך תחילה.') });
+    return null;
+  }
+  // Examiners are often assigned at project level (no milestoneId on the
+  // token) — fall back to the project's opinion-form milestone, provided
+  // this token is actually on its panel.
+  let snap: FirebaseFirestore.DocumentSnapshot | null = tokenDoc.milestoneId ? await db.collection('milestones').doc(tokenDoc.milestoneId).get() : null;
+  if ((!snap?.exists || !snap.data()?.examinerOpinionForm) && tokenDoc.projectId) {
+    const candidates = await db.collection('milestones').where('projectId', '==', tokenDoc.projectId).get();
+    snap = candidates.docs.find((d) => d.data().examinerOpinionForm
+      && (d.data().defensePanel ?? []).some((p: { type?: string; ref?: string }) => p.type === 'external' && p.ref === token)) ?? null;
+  }
+  const ref = snap?.ref;
+  if (!snap?.exists || !ref || !snap.data()?.examinerOpinionForm) {
+    res.status(400).json({ message: L(req, 'This invitation does not use the examiner opinion form.', 'הזמנה זו אינה משתמשת בטופס חוות דעת הבוחן.') });
+    return null;
+  }
+  return { token, tokenDoc, ref, data: snap.data()! };
+}
+
+function sendTokenOpinionError(req: Request, res: Response, err: unknown, en: string, he: string) {
+  if (err instanceof OpinionError) return res.status(err.status).json({ message: L(req, err.en, err.he) });
+  console.error(en, err);
+  return res.status(500).json({ message: L(req, en, he) });
+}
+
+/** GET /api/examiner-access/:token/opinion-form */
+export const getExternalOpinionForm = async (req: Request, res: Response) => {
+  try {
+    const loaded = await loadTokenOpinionMilestone(req, res);
+    if (!loaded) return;
+    return res.status(200).json(await buildOpinionView(loaded.ref.id, loaded.data, { kind: 'examiner', key: loaded.token }, {
+      name: loaded.tokenDoc.examinerName ?? '',
+      institution: loaded.tokenDoc.examinerInstitution ?? '',
+    }));
+  } catch (err) {
+    return sendTokenOpinionError(req, res, err, 'Failed to load the examiner form.', 'טעינת טופס הבוחן נכשלה.');
+  }
+};
+
+/** POST /api/examiner-access/:token/opinion-form/parse — one Word file. */
+export const parseExternalOpinionUpload = async (req: Request, res: Response) => {
+  try {
+    const loaded = await loadTokenOpinionMilestone(req, res);
+    if (!loaded) return;
+    return res.status(200).json(await parseAndStoreUpload(req, loaded.ref, loaded.data, loaded.token));
+  } catch (err) {
+    return sendTokenOpinionError(req, res, err, 'Could not read the uploaded form.', 'לא ניתן היה לקרוא את הטופס שהועלה.');
+  }
+};
+
+/** POST /api/examiner-access/:token/opinion-form — multipart, like the internal one. */
+export const submitExternalOpinionForm = async (req: Request, res: Response) => {
+  try {
+    const loaded = await loadTokenOpinionMilestone(req, res);
+    if (!loaded) return;
+    const files = ((req as any).files as Express.Multer.File[]) ?? [];
+    const fileUrls: string[] = [];
+    for (const file of files) {
+      const result = await cloudinary.uploader.upload(`data:${file.mimetype};base64,${file.buffer.toString('base64')}`, { resource_type: 'raw', folder: 'examinerOpinions' });
+      fileUrls.push(result.secure_url);
+    }
+    const result = await submitOpinion({
+      milestoneRef: loaded.ref,
+      key: loaded.token,
+      external: true,
+      signerName: loaded.tokenDoc.examinerName || loaded.tokenDoc.name || '',
+      // An external examiner belongs to no faculty in this system — the
+      // signature carries the thesis's faculty, with their own institution
+      // in the signed opinion itself.
+      signerFacultyId: loaded.data.facultyId ?? '',
+      input: req.body,
+      fileUrls,
+      uploadedFormUrl: await uploadedFormUrlFor(loaded.ref.id, loaded.token),
+    });
+    await logAuditEvent({
+      userId: loaded.token,
+      userRole: 'external_examiner',
+      action: 'examiner_evaluation_submitted',
+      entityType: 'milestone',
+      entityId: loaded.ref.id,
+      newValue: { examinerOpinion: true, conclusion: req.body?.conclusion ?? null },
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendTokenOpinionError(req, res, err, 'Failed to submit the examiner form.', 'שליחת טופס הבוחן נכשלה.');
   }
 };

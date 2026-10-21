@@ -240,7 +240,7 @@ const FORM_FIELD_TYPES = ['text', 'textarea', 'date', 'number', 'table', 'yesno'
 const AUTO_FILL_KEYS: string[] = [
   'studentName', 'studentIdNumber', 'studentPhone', 'studentEmail', 'studentPhoto', 'accumulatedCredits',
   'supervisorName', 'submissionDate', 'projectNameHe', 'projectNameEn', 'examinerNames',
-  'projectStartDate', 'academicYear', 'defenseDate', 'supervisorNames',
+  'projectStartDate', 'academicYear', 'defenseDate', 'supervisorNames', 'studentTitledName',
 ] satisfies NonNullable<FormFieldSpec['autoFill']>[];
 
 function validateFormFields(input: any): FormFieldSpec[] | null {
@@ -450,6 +450,25 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     }
     if (finalGradeComponents.value) spec.finalGradeComponents = finalGradeComponents.value;
     if (percentOfFinalGrade !== undefined) spec.percentOfFinalGrade = percentOfFinalGrade;
+    // Script-authored (not editable in the template editor) — carried
+    // through a save unchanged so re-saving doesn't drop the thesis
+    // examiner form. Only the shape is checked.
+    const opinionForm = m.examinerOpinionForm;
+    if (opinionForm && typeof opinionForm === 'object' && Array.isArray(opinionForm.conclusions) && Array.isArray(opinionForm.confidentialityOptions)) {
+      const headerFields = validateFormFields(opinionForm.headerFields);
+      if (headerFields === null) return null;
+      spec.examinerOpinionForm = {
+        titleHe: String(opinionForm.titleHe ?? ''),
+        titleEn: String(opinionForm.titleEn ?? ''),
+        ...(headerFields.length > 0 ? { headerFields } : {}),
+        conclusions: opinionForm.conclusions
+          .filter((c: any) => c && typeof c.value === 'string' && ['continue', 'revise', 'reject'].includes(c.outcome))
+          .map((c: any) => ({ value: c.value, labelHe: String(c.labelHe ?? ''), labelEn: String(c.labelEn ?? ''), outcome: c.outcome })),
+        confidentialityOptions: opinionForm.confidentialityOptions
+          .filter((c: any) => c && typeof c.value === 'string' && ['none', 'hide_name', 'hide_marked'].includes(c.effect))
+          .map((c: any) => ({ value: c.value, labelHe: String(c.labelHe ?? ''), labelEn: String(c.labelEn ?? ''), effect: c.effect })),
+      };
+    }
     if (syncDueDateWith) spec.syncDueDateWith = syncDueDateWith;
     if (spec.requiresExaminers) {
       if (examinerCount !== undefined) spec.examinerCount = examinerCount;
