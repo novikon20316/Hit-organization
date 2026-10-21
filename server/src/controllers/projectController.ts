@@ -541,6 +541,11 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       if (!isSupervisor && !isExaminer) {
         return res.status(403).json({ message: L(req, 'Not authorized to grade this milestone', 'אין הרשאה לדרג אבן דרך זו.') });
       }
+      // Submitting is final for an examiner — unlike the supervisor's
+      // reason-required "update grade" below, they can't change their mind.
+      if (!isSupervisor && data.examinerScores?.[uid] != null) {
+        return res.status(409).json({ message: L(req, 'You already submitted your grade — it can no longer be changed.', 'כבר הגשת את הציון שלך — לא ניתן לשנות אותו.') });
+      }
       const gradeFileUrls = await getGradeFileUrls();
 
       // A supervisor overwriting a grade they already submitted must say why
@@ -1183,6 +1188,10 @@ export const submitExaminerEvaluation = async (req: AuthenticatedRequest, res: R
     }
     if (data.gradeApproved) {
       return res.status(409).json({ message: L(req, 'This grade has already been finalized.', 'הציון הזה כבר הפך לסופי.') });
+    }
+    // Submitting is final — an examiner can't change a score once given.
+    if (data.examinerEvaluations?.[uid]?.[kind]) {
+      return res.status(409).json({ message: L(req, 'You already submitted this evaluation — it can no longer be changed.', 'כבר הגשת הערכה זו — לא ניתן לשנות אותה.') });
     }
 
     // CRITICAL FIX: no examiner (internal or external — see the identical

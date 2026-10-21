@@ -240,6 +240,11 @@ export const submitExternalExaminerEvaluation = async (req: Request, res: Respon
       return res.status(403).json({ message: L(req, `Evaluation opens on the agreed defense date (${defenseDay.format('DD/MM/YYYY')}).`, `ההערכה תיפתח בתאריך ההגנה שנקבע (${defenseDay.format('DD/MM/YYYY')}).`) });
     }
 
+    // Submitting is final — an examiner can't change a score once given.
+    if ((tokenDoc.opinion as Record<string, unknown> | undefined)?.[kind]) {
+      return res.status(409).json({ message: L(req, 'You already submitted this evaluation — it can no longer be changed.', 'כבר הגשת הערכה זו — לא ניתן לשנות אותה.') });
+    }
+
     if (kind === 'project' && !comment?.trim()) {
       return res.status(400).json({ message: L(req, 'A written comment is required.', 'נדרשת הערה כתובה.') });
     }

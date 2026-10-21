@@ -12,7 +12,7 @@
 // (read-only).
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { Alert, Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { apiClient } from '../../src/api/apiClient';
 import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
@@ -329,11 +329,26 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
           <View style={{ marginTop: 12 }}>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, textAlign: align }}>
               {he
-                ? `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. ניתן לעדכן ולחתום מחדש עד שכל ההערכות יוגשו.`
-                : `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. You can update and re-sign until every evaluation is in.`}
+                ? sec.viewer.role === 'examiner'
+                  ? `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. לאחר החתימה לא ניתן לשנות את הציונים.`
+                  : `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. ניתן לעדכן ולחתום מחדש עד שכל ההערכות יוגשו.`
+                : sec.viewer.role === 'examiner'
+                  ? `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. Once signed, your scores can no longer be changed.`
+                  : `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. You can update and re-sign until every evaluation is in.`}
             </Text>
             <Pressable
-              onPress={() => submitSection(sec)}
+              onPress={() => {
+                // An examiner's signature is final (server: evaluationGate).
+                if (sec.viewer.role !== 'examiner') { submitSection(sec); return; }
+                Alert.alert(
+                  he ? 'חתימה סופית' : 'Final signature',
+                  he ? 'לאחר החתימה לא ניתן יהיה לשנות את הציונים. לחתום ולהגיש?' : "Once signed, your scores can't be changed. Sign and submit?",
+                  [
+                    { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
+                    { text: he ? 'חתום/י והגש/י' : 'Sign & submit', onPress: () => submitSection(sec) },
+                  ],
+                );
+              }}
               disabled={busy || !allFilled}
               accessibilityRole="button"
               style={[button, { marginTop: 8, backgroundColor: ap.primary, opacity: busy || !allFilled ? 0.5 : 1 }]}

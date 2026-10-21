@@ -345,12 +345,22 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
           <div className="mt-3">
             <p className="text-xs text-muted">
               {he
-                ? `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. ניתן לעדכן ולחתום מחדש עד שכל ההערכות יוגשו.`
-                : `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. You can update and re-sign until every evaluation is in.`}
+                ? sec.viewer.role === 'examiner'
+                  ? `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. לאחר החתימה לא ניתן לשנות את הציונים.`
+                  : `בהגשה הטופס ייחתם דיגיטלית בשמך (${sec.viewer.positionHe ?? ''}), כולל הפקולטה שלך וקוד חתימה ייחודי. ניתן לעדכן ולחתום מחדש עד שכל ההערכות יוגשו.`
+                : sec.viewer.role === 'examiner'
+                  ? `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. Once signed, your scores can no longer be changed.`
+                  : `Submitting signs the form digitally in your name (${sec.viewer.positionEn ?? ''}), with your faculty and a unique signature code. You can update and re-sign until every evaluation is in.`}
             </p>
             <button
               type="button"
-              onClick={() => submitSection(sec)}
+              onClick={() => {
+                // An examiner's signature is final (server: evaluationGate).
+                if (sec.viewer.role === 'examiner' && !window.confirm(he
+                  ? 'לאחר החתימה לא ניתן יהיה לשנות את הציונים. לחתום ולהגיש?'
+                  : "Once signed, your scores can't be changed. Sign and submit?")) return;
+                submitSection(sec);
+              }}
               disabled={busy || !allFilled}
               className="mt-2 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
             >

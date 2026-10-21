@@ -132,10 +132,14 @@ async function loadPerStudentMilestone(req: AuthenticatedRequest, res: Response)
  *  defense day (same gate as submitExaminerEvaluation) and to the supervisor
  *  any time; any other milestone opens to both once the student has
  *  submitted it and its pre-check chain (if it has one) is complete. Nobody
- *  can edit once the grade has been computed. */
-export function evaluationGate(data: FirebaseFirestore.DocumentData, role: 'supervisor' | 'examiner'): { open: true } | { open: false; he: string; en: string } {
+ *  can edit once the grade has been computed, and an examiner (`uid`) can't
+ *  change their part once they've signed it — the signature is final. */
+export function evaluationGate(data: FirebaseFirestore.DocumentData, role: 'supervisor' | 'examiner', uid?: string): { open: true } | { open: false; he: string; en: string } {
   if (data.gradeApproved || data.autoCalculatedFinalGrade != null) {
     return { open: false, he: 'כל ההערכות הוגשו והציון חושב — הטופס נעול.', en: 'All evaluations are in and the grade was computed — the form is locked.' };
+  }
+  if (role === 'examiner' && uid && data.examinerEvaluations?.[uid]?.signature) {
+    return { open: false, he: 'חתמת על ההערכה שלך — לא ניתן לשנות אותה.', en: 'You signed your evaluation — it can no longer be changed.' };
   }
   if (data.type === 'defense') {
     if (role === 'supervisor') return { open: true };
@@ -297,7 +301,7 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
 
       // What this viewer may do in THIS section.
       const myRole: 'supervisor' | 'examiner' | null = m.supervisorId === uid ? 'supervisor' : examinerIndex !== -1 ? 'examiner' : null;
-      const gate = myRole ? evaluationGate(m, myRole) : null;
+      const gate = myRole ? evaluationGate(m, myRole, uid) : null;
       const position = myRole === 'supervisor' ? { he: 'מנחה', en: 'Supervisor' } : myRole === 'examiner' ? examinerPosition(examinerIndex, rubrics.examinerLabels) : null;
 
       return {
@@ -409,7 +413,7 @@ export const submitEvaluationForm = async (req: AuthenticatedRequest, res: Respo
     if (!role) {
       return res.status(403).json({ message: L(req, "Only this project's supervisor or an assigned examiner may fill in this form.", 'רק המנחה של הפרויקט או בוחן/ת שהוקצה/ה רשאים למלא טופס זה.') });
     }
-    const gate = evaluationGate(data, role);
+    const gate = evaluationGate(data, role, uid);
     if (!gate.open) {
       return res.status(409).json({ message: L(req, gate.en, gate.he) });
     }
