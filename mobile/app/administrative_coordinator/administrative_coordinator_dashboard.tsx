@@ -37,6 +37,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from '@/components/modals/ExaminerOpinionFormModal';
@@ -625,11 +626,13 @@ export default function ProjectCoordinatorDashboard() {
   const uid  = auth.currentUser?.uid ?? '';
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  // `silent` = a background live refresh: no error alert.
+  const fetchData = useCallback(async (silent = false) => {
     try {
       const res = await apiClient.get(`/api/project-coordinator/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
+      if (silent) return;
       Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
@@ -642,6 +645,9 @@ export default function ProjectCoordinatorDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
+  // Defense examiners / agreed date / logistics changed — see
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => fetchData(true));
 
   // `silent` = a background live refresh: no spinner, no error alert.
   const fetchStudentsReport = useCallback(async (silent = false) => {
@@ -1521,7 +1527,7 @@ export default function ProjectCoordinatorDashboard() {
         ) : !viewingSupervisorKey ? (
         <>
         <FieldGuideOverlay guideKey={GROUPS_TAB_GUIDE_KEY} steps={GROUPS_TAB_FIELD_GUIDE} />
-        <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={fetchData} />
+        <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={() => fetchData()} />
         <TextInput
           style={s.searchInput}
           value={supervisorSearchText}
@@ -1735,7 +1741,7 @@ export default function ProjectCoordinatorDashboard() {
         guideKey={DEFENSE_LOGISTICS_GUIDE_KEY}
         guideSteps={DEFENSE_LOGISTICS_FIELD_GUIDE}
         onClose={() => setDefenseModalGroup(null)}
-        onSaved={fetchData}
+        onSaved={() => fetchData()}
       />
 
       <BulkDueDateModal
@@ -1743,7 +1749,7 @@ export default function ProjectCoordinatorDashboard() {
         onClose={() => setShowBulkDueDate(false)}
         lang={lang}
         projects={(data?.groups ?? []).map((g) => ({ id: g.id, label: g.projectTitle, sublabel: g.members.map((m) => m.name).join(', ') || undefined }))}
-        onSaved={fetchData}
+        onSaved={() => fetchData()}
       />
 
       <NewProjectModal

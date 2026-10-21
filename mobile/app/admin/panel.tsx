@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
 import { pickAndImportStudentRoster, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
@@ -353,6 +354,9 @@ export default function PanelScreen() {
   // A user added/edited/removed anywhere (incl. by a script or another
   // admin) — refresh the Users list in place.
   useUsersLiveRefresh(() => fetchAllDashboardData(true));
+  // Same for projects' defense dates / examiners (see
+  // hooks/useDefenseScheduleLiveRefresh.ts).
+  useDefenseScheduleLiveRefresh(() => fetchAllDashboardData(true));
 
   // Student status option lists — fetched once at screen load, not per row
   // (see server/src/controllers/studentStatusController.ts's GET, open to

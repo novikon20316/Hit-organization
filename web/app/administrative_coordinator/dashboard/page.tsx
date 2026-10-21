@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -312,6 +313,11 @@ function AdministrativeCoordinatorDashboardContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
   }, [isAllowed, fetchDashboard]);
+
+  // Defense examiners / agreed date / logistics changed (by anyone, incl.
+  // date matching completing on its own) — see
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   const supervisorKey = (g: ProjectGroup) => g.supervisorId ?? `name:${g.supervisorName}`;
 

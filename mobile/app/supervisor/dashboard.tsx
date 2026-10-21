@@ -26,6 +26,7 @@ import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
 // grading-queue "Submitted Files" chips — same approach as web's
@@ -377,6 +378,9 @@ export default function SupervisorHome() {
   // A new notification (a submission, an application, a committee outcome)
   // reloads the dashboard in place — see hooks/useLiveRefresh.ts.
   useLiveRefresh(() => fetchDashboardData(true));
+  // Same for a defense being scheduled (examiners, agreed date, logistics) —
+  // see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => fetchDashboardData(true));
 
   // Re-check connection status right after bouncing back from the Google
   // Calendar OAuth flow (see connectCalendar/handleCalendarCallback) — the

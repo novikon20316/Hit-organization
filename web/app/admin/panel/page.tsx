@@ -20,6 +20,7 @@ import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWid
 import { SystemHealthCard } from '@/components/SystemHealthCard';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { facultyLabel, roleLabel, type FacultyId } from '@/lib/i18n';
@@ -154,6 +155,9 @@ function AdminPanelContent() {
   // "something changed" marker is live; the data still comes from
   // dashboard-summary (see hooks/useUsersLiveRefresh.ts).
   useUsersLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
+  // Same for projects' defense dates / examiners (see
+  // hooks/useDefenseScheduleLiveRefresh.ts).
+  useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   // Live locked-accounts listener — system_admin's live scope is
   // deliberately narrow (security events only, not general app data), per

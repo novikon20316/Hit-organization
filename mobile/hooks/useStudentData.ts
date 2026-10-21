@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../src/api/apiClient';
 import { useLiveRefresh } from './useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from './useDefenseScheduleLiveRefresh';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../src/firebase/firebase';
 import {
@@ -373,6 +374,10 @@ export function useStudentData() {
   // Any new notification (an application decision, a grade released, ...)
   // also silently reloads — covers events that don't touch a milestone doc.
   useLiveRefresh(() => (studentState === 'active' ? refreshMilestones() : fetchDashboardData(true)));
+  // A defense being scheduled — examiners assigned, date agreed, logistics
+  // edited — reloads the milestones too ("פרטי ההגנה" card), see
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (studentState === 'active') refreshMilestones(); });
 
   // ── Derived helpers ───────────────────────────────────────────────────────
   const withDerived = (milestones: Milestone[]) => ({

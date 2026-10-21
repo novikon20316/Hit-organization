@@ -2894,6 +2894,13 @@ export const apiClient = {
     });
   },
 
+  /** GET /api/change-signals/defense-schedule — public, data-free marker
+   *  that moves whenever any defense's scheduling changes; polled by the
+   *  external examiner pages (see hooks/usePolledDefenseScheduleRefresh.ts). */
+  async getDefenseScheduleSignal() {
+    return request<{ changedAt: number }>('/api/change-signals/defense-schedule', { method: 'GET' });
+  },
+
   /** GET /api/examiner-access/:token/defense-dates — status + window info for
    *  the external examiner's defense-date submission (separate concern from
    *  the opinion/review flow above). */

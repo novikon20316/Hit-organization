@@ -21,6 +21,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
@@ -99,6 +100,11 @@ export default function AdminProjectMilestonesPage() {
     mapped.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
     setMilestones(mapped);
   }, [projectId]);
+
+  // Defense examiners / agreed date / logistics changed — reload in place;
+  // a failed background reload just keeps what's on screen. See
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { fetchMilestones().catch(() => {}); });
 
   const handleApproveGrade = useCallback(
     async (milestone: MilestoneData) => {

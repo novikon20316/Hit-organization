@@ -10,6 +10,7 @@
 // once the token is 'accepted'.
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePolledDefenseScheduleRefresh } from '@/hooks/usePolledDefenseScheduleRefresh';
 import { apiClient } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { DefenseDateStatus } from './types';
@@ -41,15 +42,17 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   // "not open yet."
   const [loadError, setLoadError] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoadError(false);
+  // `silent` — a background live refresh: a failure keeps what's on screen.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoadError(false);
     try {
       const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
       setStatus(res.status);
       if (res.windowStart && res.windowEnd) setDateWindow({ start: res.windowStart, end: res.windowEnd });
       if (res.matchedDate) setMatchedDate(res.matchedDate);
+      setLoadError(false);
     } catch (e) {
-      setLoadError(true);
+      if (!silent) setLoadError(true);
     } finally {
       setLoaded(true);
     }
@@ -59,6 +62,10 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot load on mount; load()'s setState calls happen after its awaited network call resolves, not synchronously in this effect
     load();
   }, [load]);
+
+  // The other examiners submitting their dates / the coordinator resolving a
+  // conflict shows up without a reload — see hooks/usePolledDefenseScheduleRefresh.ts.
+  usePolledDefenseScheduleRefresh(() => load(true));
 
   // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
   // deliberately duplicated rather than trusted-away, so a rejected date is
@@ -153,7 +160,7 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
         </p>
         <button
           type="button"
-          onClick={load}
+          onClick={() => load()}
           className="mt-2 rounded-lg border border-examinor-outline-variant px-3.5 py-2 text-sm font-medium text-examinor-on-surface hover:bg-examinor-surface-container-low"
         >
           {t('examinerDefenseDateRetry')}

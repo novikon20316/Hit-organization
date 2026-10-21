@@ -10,6 +10,7 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { db } from '@/lib/firebase';
@@ -69,6 +70,12 @@ function ExaminerHomeContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     if (isAllowed) fetchDashboard();
   }, [isAllowed, fetchDashboard]);
+
+  // The listener below only overlays milestones already in the list — a
+  // defense this examiner was just assigned to (or removed from) needs a
+  // re-fetch, as do panel names resolved server-side. See
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   // Live milestone listener — same merge-by-id overlay idiom as
   // app/coordinator/home/page.tsx and hooks/useStudentData.ts: the REST

@@ -18,6 +18,7 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { apiClient } from '@/lib/apiClient';
 import { isDefenseDateConfirmed } from '@/app/student/home/types';
 import type { AppRole } from '@/lib/roles';
@@ -174,6 +175,9 @@ function CoordinatorHomeContent() {
 
   // New notification → reload in place (see hooks/useLiveRefresh.ts).
   useLiveRefresh(() => { if (isAllowed) fetchAll(); });
+  // Defense scheduling changed (examiners, date matching, agreed date,
+  // logistics) — see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchAll(); });
 
   // Live milestone listener — the REST fetch above stays the source of
   // truth for "shell" fields that don't change in real time (project/

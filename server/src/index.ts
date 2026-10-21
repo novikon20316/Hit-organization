@@ -60,6 +60,7 @@ import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js'
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
 import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
+import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
 import { resolveLanguage } from './middleware/language.js';
@@ -160,6 +161,9 @@ app.post('/api/faculty-content/:id/dismiss', verifyToken, dismissFacultyContent)
 // able to resolve a status key to a label wherever it's displayed, not just
 // whoever can edit the option lists (that's /api/admin/student-statuses).
 app.get('/api/student-statuses', verifyToken, getStudentStatusOptions);
+// Public, data-free live-refresh marker for the external examiner pages — see
+// services/defenseScheduleChangeSignal.ts.
+app.get('/api/change-signals/defense-schedule', getDefenseScheduleSignal);
 
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
 const apiKey = process.env.CLOUDINARY_API_KEY!;
@@ -343,6 +347,8 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 // Live refresh for staff user lists — see services/usersChangeSignal.ts.
 startUsersChangeWatcher();
+// Live refresh for defense scheduling screens — see services/defenseScheduleChangeSignal.ts.
+startDefenseScheduleChangeWatcher();
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {

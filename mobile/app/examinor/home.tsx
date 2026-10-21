@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../../src/firebase/firebase';
+import { useDefenseScheduleLiveRefresh } from '../../hooks/useDefenseScheduleLiveRefresh';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
@@ -189,9 +190,11 @@ export default function ExaminerHome() {
 
   // ── Dashboard fetch — no uid in the URL, the server reads it from the
   //    auth token (see examinerController.getExaminerDashboard) ────────────
-  const fetchDashboardData = async () => {
+  //    `silent` — a background live refresh never flashes the spinner or
+  //    pops an error alert over what the examiner is doing.
+  const fetchDashboardData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [profileRes, dashboardRes] = await Promise.all([
         apiClient.get('/api/users/profile'),
         apiClient.get('/api/examiner/dashboard'),
@@ -199,12 +202,13 @@ export default function ExaminerHome() {
       setExaminerName(profileRes.data?.displayName || '');
       setAssignments(dashboardRes.data.milestones || []);
     } catch (err: any) {
+      if (silent) return;
       Alert.alert(
         lang === 'he' ? 'שגיאה בהבאת נתונים' : 'Data Fetch Error',
         lang === 'he' ? 'נכשלה טעינת נתוני השרת' : 'Could not synchronize data with backend server.'
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -212,6 +216,11 @@ export default function ExaminerHome() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // The listener below only overlays milestones already in the list — a
+  // defense this examiner was just assigned to (or removed from) needs a
+  // re-fetch. See hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => fetchDashboardData(true));
 
   // Live milestone listener — same merge-by-id overlay idiom as
   // web/app/examinor/home/page.tsx and coordinator/home's listeners: the
@@ -1668,7 +1677,7 @@ export default function ExaminerHome() {
 
       <ChatbotFab lang={lang} corner="bottom-left" />
       {opinionFormFor && (
-        <ExaminerOpinionFormModal visible lang={lang} milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={fetchDashboardData} />
+        <ExaminerOpinionFormModal visible lang={lang} milestoneId={opinionFormFor} onClose={() => setOpinionFormFor(null)} onChanged={() => fetchDashboardData()} />
       )}
       {evaluationFormFor && (
         <EvaluationFormModal
@@ -1676,7 +1685,7 @@ export default function ExaminerHome() {
           lang={lang}
           milestoneId={evaluationFormFor}
           onClose={() => setEvaluationFormFor(null)}
-          onChanged={fetchDashboardData}
+          onChanged={() => fetchDashboardData()}
         />
       )}
     </SafeAreaView>

@@ -17,6 +17,7 @@
 // below so the rest of the app shell can still be prerendered.
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { usePolledDefenseScheduleRefresh } from '@/hooks/usePolledDefenseScheduleRefresh';
 import { defenseModeLabel, resolveDefenseMode, type DefenseMode, type DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import { useSearchParams } from 'next/navigation';
 import { apiClient, ApiError } from '@/lib/apiClient';
@@ -48,7 +49,8 @@ function DefenseAccessContent() {
   const [status, setStatus] = useState<GateStatus>('loading');
   const [info, setInfo] = useState<DefenseAccessInfo | null>(null);
 
-  const load = useCallback(async () => {
+  // `silent` — a background live refresh: a failure keeps what's on screen.
+  const load = useCallback(async (silent = false) => {
     if (!grant) {
       setStatus('invalid');
       return;
@@ -58,6 +60,7 @@ function DefenseAccessContent() {
       setStatus(res.status);
       setInfo(res);
     } catch (e) {
+      if (silent) return;
       setStatus(e instanceof ApiError && e.status === 404 ? 'invalid' : 'error');
     }
   }, [grant]);
@@ -66,6 +69,10 @@ function DefenseAccessContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot load on mount; load()'s setState calls happen after its awaited network call resolves, not synchronously in this effect
     load();
   }, [load]);
+
+  // Logistics edited / the date moved (which revokes this grant) shows up
+  // without a reload — see hooks/usePolledDefenseScheduleRefresh.ts.
+  usePolledDefenseScheduleRefresh(() => load(true));
 
   if (status === 'loading') {
     return <p className="text-sm text-muted">{t('loading')}</p>;

@@ -12,6 +12,7 @@
 // tokenDoc.finalGradeComponents is set.
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePolledDefenseScheduleRefresh } from '@/hooks/usePolledDefenseScheduleRefresh';
 import { apiClient } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
@@ -151,13 +152,15 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
   // copy — same fix as DefenseDateSection.tsx's identical gap.
   const [loadError, setLoadError] = useState(false);
 
-  const loadDate = useCallback(async () => {
-    setLoadError(false);
+  // `silent` — a background live refresh: a failure keeps what's on screen.
+  const loadDate = useCallback(async (silent = false) => {
+    if (!silent) setLoadError(false);
     try {
       const res = await apiClient.getExaminerAccessDefenseDateStatus(token);
       setAgreedDate(res.matchedDate ?? null);
+      setLoadError(false);
     } catch (e) {
-      setLoadError(true);
+      if (!silent) setLoadError(true);
     } finally {
       setDateLoaded(true);
     }
@@ -167,6 +170,10 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot load on mount; loadDate()'s setState calls happen after its awaited network call resolves, not synchronously in this effect
     loadDate();
   }, [loadDate]);
+
+  // The agreed date being set or moved shows up without a reload — see
+  // hooks/usePolledDefenseScheduleRefresh.ts.
+  usePolledDefenseScheduleRefresh(() => loadDate(true));
 
   const components = tokenDoc.finalGradeComponents;
   if (!components) return null;
@@ -182,7 +189,7 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
         </p>
         <button
           type="button"
-          onClick={loadDate}
+          onClick={() => loadDate()}
           className="mt-2 rounded-examinor border border-examinor-outline-variant px-3.5 py-2 text-sm font-medium text-examinor-on-surface hover:bg-examinor-surface-container-low"
         >
           {lang === 'he' ? 'נסה שוב' : 'Retry'}

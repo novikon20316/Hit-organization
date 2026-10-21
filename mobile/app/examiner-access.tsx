@@ -12,6 +12,7 @@
 //   5. If declined / expired / invalid → show appropriate message
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { usePolledDefenseScheduleRefresh } from '../hooks/usePolledDefenseScheduleRefresh';
 import {
   View, Text, ScrollView, Pressable, TextInput,
   ActivityIndicator, Alert, Linking,
@@ -151,6 +152,9 @@ export default function ExaminerAccessScreen() {
       if (res.data.matchedDate) setMatchedDate(res.data.matchedDate);
     } catch {}
   }, [token]);
+  // The other examiners submitting their dates / the coordinator resolving a
+  // conflict shows up without a reload — see hooks/usePolledDefenseScheduleRefresh.ts.
+  usePolledDefenseScheduleRefresh(() => { if (tokenDoc) loadDefenseDateStatus(); });
 
   const updateDateRow = (idx: number, value: string) =>
     setDateDraftRows((prev) => { const rows = [...prev]; rows[idx] = value; return rows; });

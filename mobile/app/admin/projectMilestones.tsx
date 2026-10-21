@@ -18,6 +18,7 @@ import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient } from '../../src/api/apiClient';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { MilestoneRoadmap, type RoadmapMilestone, type RoutingStage } from '@/components/MilestoneRoadmap';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
 import { facultyLabel, type FacultyId } from '@/components/i18n';
@@ -98,14 +99,21 @@ export default function ProjectMilestonesScreen() {
   const [milestones, setMilestones] = useState<RoadmapMilestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Bumped when a defense's examiners / agreed date / logistics change, to
+  // reload in place — see hooks/useDefenseScheduleLiveRefresh.ts.
+  const [liveTick, setLiveTick] = useState(0);
+  useDefenseScheduleLiveRefresh(() => setLiveTick((t) => t + 1));
 
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
+    const silent = liveTick > 0;
 
     (async () => {
-      setLoading(true);
-      setError('');
+      if (!silent) {
+        setLoading(true);
+        setError('');
+      }
       try {
         const [summaryRes, milestonesRes] = await Promise.all([
           apiClient.get('/api/admin/dashboard-summary'),
@@ -120,7 +128,7 @@ export default function ProjectMilestonesScreen() {
         const mapped = raw.map(toRoadmapMilestone).sort((a, b) => resolveOrder(a) - resolveOrder(b));
         setMilestones(mapped);
       } catch (err) {
-        if (!cancelled) setError(lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load data');
+        if (!cancelled && !silent) setError(lang === 'he' ? 'טעינת הנתונים נכשלה' : 'Failed to load data');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -129,7 +137,7 @@ export default function ProjectMilestonesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, lang]);
+  }, [projectId, lang, liveTick]);
 
   const title = project ? (lang === 'he' ? project.titleHe : project.titleEn) : null;
 

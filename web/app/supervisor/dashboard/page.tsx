@@ -19,6 +19,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { db } from '@/lib/firebase';
@@ -213,6 +214,9 @@ function SupervisorDashboardContent() {
   // A new notification (a submission, an application, a committee outcome)
   // reloads the dashboard in place — see hooks/useLiveRefresh.ts.
   useLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
+  // Same for a defense being scheduled (examiners, agreed date, logistics) —
+  // see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   // Live milestone listener for pendingGrades. Unlike the coordinator/
   // examiner dashboards' overlay-by-id (which only ever patches fields onto

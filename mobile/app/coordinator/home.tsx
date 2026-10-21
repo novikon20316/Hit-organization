@@ -40,6 +40,7 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import {
   ASSIGN_EXAMINERS_FIELD_GUIDE, ASSIGN_EXAMINERS_GUIDE_KEY,
@@ -695,6 +696,9 @@ export default function CoordinatorHome() {
   // New notification (e.g. a student just submitted a milestone) → reload
   // the dashboard in place — see hooks/useLiveRefresh.ts.
   useLiveRefresh(() => fetchCoordinatorDashboard(true));
+  // Defense scheduling changed (examiners, date matching, agreed date,
+  // logistics) — see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => fetchCoordinatorDashboard(true));
 
   // ── Import / export faculty roster (Excel) ──────────────────────────────────
   // Scoped server-side to this coordinator's own facultyId — rows in the

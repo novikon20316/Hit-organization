@@ -13,6 +13,7 @@ import { apiClient } from '@/lib/apiClient';
 import { normalizeCompletedCourses, type CompletedCourse } from '@/lib/prerequisites';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
 import { resolveMilestoneOrder } from '@/app/student/home/types';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
@@ -353,6 +354,10 @@ export function useStudentData() {
   // Any new notification (an application decision, a grade released, ...)
   // also silently reloads — covers events that don't touch a milestone doc.
   useLiveRefresh(() => (studentState === 'active' ? refreshMilestones() : fetchDashboardData(true)));
+  // A defense being scheduled — examiners assigned, date agreed, logistics
+  // edited — reloads the milestones too ("פרטי ההגנה" card), see
+  // hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(() => { if (studentState === 'active') refreshMilestones(); });
 
   const withDerived = (milestones: Milestone[]) => ({
     nextMilestone:

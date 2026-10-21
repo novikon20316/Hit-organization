@@ -22,6 +22,7 @@ import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
 import EvaluationFormModal from './modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
 // one from the URL itself, same approach as app/student/milestones.tsx's own
@@ -250,6 +251,9 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   }, [projectId, lang]);
 
   const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
+  // Defense examiners / agreed date / logistics change outside this card —
+  // see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(refreshDetailSilently);
 
   const handleSaveAdjustedDueDate = async (milestoneId: string) => {
     if (!adjustDateText.trim()) return;

@@ -26,6 +26,7 @@ import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import type { MyProject, SupervisorPendingMilestone } from './types';
+import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 interface ProjectWorkflowSectionProps {
   project: MyProject;
@@ -345,6 +346,9 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade }: Proj
   }, [project.id, lang]);
 
   const refreshDetailSilently = useCallback(() => fetchDetail({ silent: true }), [fetchDetail]);
+  // Defense examiners / agreed date / logistics change outside this card —
+  // see hooks/useDefenseScheduleLiveRefresh.ts.
+  useDefenseScheduleLiveRefresh(refreshDetailSilently);
 
   const handleSaveAdjustedDueDate = async (milestoneId: string) => {
     if (!adjustDateText.trim()) return;
