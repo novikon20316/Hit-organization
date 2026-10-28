@@ -4,8 +4,15 @@ import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase
 import { apiClient } from '../api/apiClient';
 import { auth, db } from '../firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { notifMatchesRole } from '../../firebase/notificationScreens';
+import { notifMatchesRole, badgeMatchesRole } from '../../firebase/notificationScreens';
 import { useActiveRole } from '../../contexts/ActiveRoleContext';
+
+/** One tab-badge contributor: the screen it lives on and the role it was
+ *  sent for (null on older notifications that predate targetRole). */
+interface BadgeEntry {
+  screen: string;
+  role: string | null;
+}
 
 // Best-effort — the native app-icon badge (like WhatsApp's unread count) isn't
 // available on every platform/build (e.g. Android launchers vary, Expo Go
@@ -25,6 +32,8 @@ interface NotificationsContextValue {
   /** Bulk-marks read every unread notification whose targetScreen is one
    *  of `targetScreens` — call once when the user opens a tab that has a
    *  badge, so it clears immediately. */
+  /** Marks the tab's notifications read — only those sent for the active
+   *  role, so a shared screen doesn't clear another role's badge. */
   markTabSeen: (targetScreens: string[]) => Promise<void>;
   refresh: () => Promise<void>;
   /** Bumps every time a NEW notification lands (never on the initial
@@ -73,7 +82,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const { activeRole } = useActiveRole();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
-  const [unreadByTargetScreen, setUnreadByTargetScreen] = useState<Record<string, number>>({});
+  const [badgeEntries, setBadgeEntries] = useState<BadgeEntry[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   // Total unread MESSAGES (not conversation count) — kept separately from
   // unreadChats (conversations with >=1 unread) purely to feed the native
@@ -83,14 +92,20 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // Per-tab badges = unread notifications ∪ still-open tasks (read or not —
   // see server/src/services/pendingTasks.ts), each doc counted once. Same
   // merge as web's NotificationsContext.
-  const unreadScreens = useRef<Map<string, string>>(new Map());
-  const pendingTaskScreens = useRef<Map<string, string>>(new Map());
+  const unreadScreens = useRef<Map<string, BadgeEntry>>(new Map());
+  const pendingTaskScreens = useRef<Map<string, BadgeEntry>>(new Map());
   const recomputeTabBadges = useCallback(() => {
-    const merged = new Map([...unreadScreens.current, ...pendingTaskScreens.current]);
-    const byScreen: Record<string, number> = {};
-    merged.forEach((screen) => { byScreen[screen] = (byScreen[screen] ?? 0) + 1; });
-    setUnreadByTargetScreen(byScreen);
+    setBadgeEntries([...new Map([...unreadScreens.current, ...pendingTaskScreens.current]).values()]);
   }, []);
+  // Only the active role's notifications light its tabs — supervisor and
+  // secondary_supervisor share screens, see badgeMatchesRole.
+  const unreadByTargetScreen = useMemo(() => {
+    const byScreen: Record<string, number> = {};
+    for (const e of badgeEntries) {
+      if (badgeMatchesRole(e.screen, e.role, activeRole)) byScreen[e.screen] = (byScreen[e.screen] ?? 0) + 1;
+    }
+    return byScreen;
+  }, [badgeEntries, activeRole]);
   const [liveEventTick, setLiveEventTick] = useState(0);
   const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
   const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
@@ -175,13 +190,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         // count here. unreadByTargetScreen below stays unfiltered: each
         // tab's own badge already only cares about that role's own screens,
         // so it's inherently scoped without needing this.
-        const roleFiltered = alertDocs.filter((d) => notifMatchesRole(d.data().targetScreen, activeRole));
+        const roleFiltered = alertDocs.filter((d) => notifMatchesRole(d.data().targetScreen, activeRole, d.data().targetRole));
         setUnreadCount(roleFiltered.length);
         setNativeBadge(roleFiltered.length + unreadMessagesRef.current);
-        const screens = new Map<string, string>();
+        const screens = new Map<string, BadgeEntry>();
         for (const doc of alertDocs) {
-          const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+          const { targetScreen, targetRole } = doc.data();
+          if (typeof targetScreen === 'string') screens.set(doc.id, { screen: targetScreen, role: typeof targetRole === 'string' ? targetRole : null });
         }
         unreadScreens.current = screens;
         recomputeTabBadges();
@@ -210,10 +225,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return onSnapshot(
       q,
       (snapshot) => {
-        const screens = new Map<string, string>();
+        const screens = new Map<string, BadgeEntry>();
         for (const doc of snapshot.docs) {
-          const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+          const { targetScreen, targetRole } = doc.data();
+          if (typeof targetScreen === 'string') screens.set(doc.id, { screen: targetScreen, role: typeof targetRole === 'string' ? targetRole : null });
         }
         pendingTaskScreens.current = screens;
         recomputeTabBadges();
@@ -241,12 +256,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
-      await apiClient.markNotificationsRead(targetScreens);
+      await apiClient.markNotificationsRead(targetScreens, activeRole);
     } catch {
       // Fire-and-forget from the header menu's badge-clearing onPress — a
       // failure here must never block navigation.
     }
-  }, []);
+  }, [activeRole]);
 
   // Memoized for the same reason as ActiveRoleContext's provider value —
   // this wraps the whole app, so an unmemoized object literal re-renders

@@ -8,12 +8,12 @@
 // covered by this pass (see plan: "a live chat feed is a separate, larger
 // feature").
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
 import { apiClient } from '@/lib/apiClient';
-import { notifMatchesRole } from '@/lib/notificationScreens';
+import { notifMatchesRole, badgeMatchesRole } from '@/lib/notificationScreens';
 
 interface NotificationsContextValue {
   unreadCount: number;
@@ -21,7 +21,11 @@ interface NotificationsContextValue {
   /** Unread in-app notification count bucketed by targetScreen (see
    *  server/src/services/notificationTargets.ts) — how per-tab sidebar
    *  badges (SidebarShell.tsx) know how many "new" items each tab has. */
+  /** Tab badge counts for the role currently being viewed — see badgeMatchesRole. */
   unreadByTargetScreen: Record<string, number>;
+  /** Badge count across `targetScreens` for any of the user's roles — the
+   *  "Switch Role" items ask about a role other than the active one. */
+  badgeCountFor: (targetScreens: string[], role: string | undefined) => number;
   /** Live — true as soon as the signed-in user has at least one open
    *  (unresolved) relayTasks doc assigned to them, false the moment the
    *  last one is resolved. Drives whether the "Decisions to Relay" sidebar
@@ -57,7 +61,10 @@ interface NotificationsContextValue {
   /** Bulk-marks read every unread notification whose targetScreen is one
    *  of `targetScreens` — called once when the user opens a tab that has
    *  a badge, so it clears immediately. */
-  markTabSeen: (targetScreens: string[]) => Promise<void>;
+  /** Marks the tab's notifications read — only those sent for `role`
+   *  (defaults to the active role), so a shared screen doesn't clear
+   *  another role's badge. */
+  markTabSeen: (targetScreens: string[], role?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -74,10 +81,18 @@ export interface LiveEvent {
   relatedMilestoneId: string | null;
 }
 
+/** One tab-badge contributor: the screen it lives on and the role it was
+ *  sent for (null on older notifications that predate targetRole). */
+interface BadgeEntry {
+  screen: string;
+  role: string | null;
+}
+
 const NotificationsContext = createContext<NotificationsContextValue>({
   unreadCount: 0,
   unreadChats: 0,
   unreadByTargetScreen: {},
+  badgeCountFor: () => 0,
   hasOpenRelayTasks: false,
   isOnAnyCommittee: false,
   isCommitteeSubstitute: false,
@@ -92,7 +107,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { firebaseUser, activeRole } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
-  const [unreadByTargetScreen, setUnreadByTargetScreen] = useState<Record<string, number>>({});
+  const [badgeEntries, setBadgeEntries] = useState<BadgeEntry[]>([]);
   const [hasOpenRelayTasks, setHasOpenRelayTasks] = useState(false);
   const [isOnFormalCommittee, setIsOnFormalCommittee] = useState(false);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
@@ -106,14 +121,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Per-tab badges = unread notifications ∪ still-open tasks (read or not —
   // see server/src/services/pendingTasks.ts), each doc counted once. Kept
   // as id → targetScreen maps from the two listeners below and merged here.
-  const unreadScreens = useRef<Map<string, string>>(new Map());
-  const pendingTaskScreens = useRef<Map<string, string>>(new Map());
+  const unreadScreens = useRef<Map<string, BadgeEntry>>(new Map());
+  const pendingTaskScreens = useRef<Map<string, BadgeEntry>>(new Map());
   const recomputeTabBadges = useCallback(() => {
-    const merged = new Map([...unreadScreens.current, ...pendingTaskScreens.current]);
-    const byScreen: Record<string, number> = {};
-    merged.forEach((screen) => { byScreen[screen] = (byScreen[screen] ?? 0) + 1; });
-    setUnreadByTargetScreen(byScreen);
+    setBadgeEntries([...new Map([...unreadScreens.current, ...pendingTaskScreens.current]).values()]);
   }, []);
+  const badgeCountFor = useCallback(
+    (targetScreens: string[], role: string | undefined) =>
+      badgeEntries.filter((e) => targetScreens.includes(e.screen) && badgeMatchesRole(e.screen, e.role, role)).length,
+    [badgeEntries]
+  );
+  const unreadByTargetScreen = useMemo(() => {
+    const byScreen: Record<string, number> = {};
+    for (const e of badgeEntries) {
+      if (badgeMatchesRole(e.screen, e.role, activeRole)) byScreen[e.screen] = (byScreen[e.screen] ?? 0) + 1;
+    }
+    return byScreen;
+  }, [badgeEntries, activeRole]);
   const unsubRelayTasks = useRef<Unsubscribe | null>(null);
   const unsubCommittees = useRef<Unsubscribe | null>(null);
 
@@ -186,12 +210,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         // own badgeTargetScreens already only names that role's own
         // screens (or, for the "Switch Role" section, the OTHER role being
         // offered), so they're inherently scoped without needing this.
-        const roleFiltered = snapshot.docs.filter((doc) => notifMatchesRole(doc.data().targetScreen, activeRole));
+        const roleFiltered = snapshot.docs.filter((doc) => notifMatchesRole(doc.data().targetScreen, activeRole, doc.data().targetRole));
         setUnreadCount(roleFiltered.length);
-        const screens = new Map<string, string>();
+        const screens = new Map<string, BadgeEntry>();
         for (const doc of snapshot.docs) {
-          const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+          const { targetScreen, targetRole } = doc.data();
+          if (typeof targetScreen === 'string') screens.set(doc.id, { screen: targetScreen, role: typeof targetRole === 'string' ? targetRole : null });
         }
         unreadScreens.current = screens;
         recomputeTabBadges();
@@ -220,10 +244,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unsubPendingTasks.current = onSnapshot(
       q,
       (snapshot) => {
-        const screens = new Map<string, string>();
+        const screens = new Map<string, BadgeEntry>();
         for (const doc of snapshot.docs) {
-          const targetScreen = doc.data().targetScreen;
-          if (typeof targetScreen === 'string') screens.set(doc.id, targetScreen);
+          const { targetScreen, targetRole } = doc.data();
+          if (typeof targetScreen === 'string') screens.set(doc.id, { screen: targetScreen, role: typeof targetRole === 'string' ? targetRole : null });
         }
         pendingTaskScreens.current = screens;
         recomputeTabBadges();
@@ -311,14 +335,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     return () => cancel(unsubSubstitutions);
   }, [firebaseUser]);
 
-  const markTabSeen = useCallback(async (targetScreens: string[]) => {
+  const markTabSeen = useCallback(async (targetScreens: string[], role?: string) => {
     try {
-      await apiClient.markNotificationsRead(targetScreens);
+      await apiClient.markNotificationsRead(targetScreens, role ?? activeRole);
     } catch {
       // Fire-and-forget from SidebarShell's badge-clearing effect — a
       // failure here must never block navigation/rendering.
     }
-  }, []);
+  }, [activeRole]);
 
   // Rather than resetting unreadCount/unreadChats to 0 with a setState call
   // when firebaseUser goes away (a synchronous reset-on-dependency-change,
@@ -328,6 +352,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unreadCount: firebaseUser ? unreadCount : 0,
     unreadChats: firebaseUser ? unreadChats : 0,
     unreadByTargetScreen: firebaseUser ? unreadByTargetScreen : {},
+    badgeCountFor,
     hasOpenRelayTasks: firebaseUser ? hasOpenRelayTasks : false,
     isOnAnyCommittee: firebaseUser ? isOnAnyCommittee : false,
     isCommitteeSubstitute: firebaseUser ? isCommitteeSubstitute : false,

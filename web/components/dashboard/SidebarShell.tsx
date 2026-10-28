@@ -56,6 +56,9 @@ export interface SidebarNavItem {
    *  with no notification concept (they simply show no badge). Opening
    *  this item (isActive) bulk-marks those as read, clearing the badge. */
   badgeTargetScreens?: string[];
+  /** Whose notifications the badge counts — defaults to the active role.
+   *  Set on the "Switch Role" items, which show another role's count. */
+  badgeRole?: string;
   /** Optional extra gate beyond "this role sees this sidebar at all" — e.g.
    *  a tab scoped to a narrower population than the role itself (see
    *  lib/permissions.ts's withinCoordinatorScope), or one gated on a live
@@ -115,11 +118,10 @@ function SidebarNavSections({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const resolveHref = (href: SidebarNavItem['href']) => (typeof href === 'function' ? href(searchParams) : href);
-  const { unreadByTargetScreen, hasOpenRelayTasks, isOnAnyCommittee, isCommitteeSubstitute, markTabSeen } = useNotifications();
-  const { userData } = useAuth();
+  const { badgeCountFor: countBadge, hasOpenRelayTasks, isOnAnyCommittee, isCommitteeSubstitute, markTabSeen } = useNotifications();
+  const { userData, activeRole } = useAuth();
 
-  const badgeCountFor = (item: SidebarNavItem) =>
-    (item.badgeTargetScreens ?? []).reduce((sum, ts) => sum + (unreadByTargetScreen[ts] ?? 0), 0);
+  const badgeCountFor = (item: SidebarNavItem) => countBadge(item.badgeTargetScreens ?? [], item.badgeRole ?? activeRole);
 
   // Items with a `visible` gate (e.g. a tab scoped narrower than the role
   // itself) are dropped from both the rendered list and the tour/badge
@@ -142,7 +144,7 @@ function SidebarNavSections({
 
   useEffect(() => {
     if (activeItem?.badgeTargetScreens?.length && activeBadgeCount > 0) {
-      markTabSeen(activeItem.badgeTargetScreens);
+      markTabSeen(activeItem.badgeTargetScreens, activeItem.badgeRole ?? activeRole);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on primitives (path/params/badge identity/count), not the sections array itself, since role-specific builders (e.g. buildCoordinatorNavSections) return a new array every render
   }, [pathname, searchParamsKey, activeBadgeScreensKey, activeBadgeCount]);

@@ -74,7 +74,7 @@ export default function NotificationsPage() {
   // multi-role account switched into supervisor shouldn't see their
   // grad_school_head queue's notifications mixed in here. Notifications with
   // no targetScreen (generic/account-level) always pass regardless of role.
-  const roleNotifications = notifications.filter((n) => notifMatchesRole(n.targetScreen, activeRole));
+  const roleNotifications = notifications.filter((n) => notifMatchesRole(n.targetScreen, activeRole, n.targetRole));
   const unreadCount = roleNotifications.filter((n) => !n.isRead).length;
   const unreadChats = chats.filter((c) => c.unreadCount > 0).length;
 

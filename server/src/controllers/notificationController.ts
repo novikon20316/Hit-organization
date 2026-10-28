@@ -25,11 +25,17 @@ function resolveRoleFilter(req: AuthenticatedRequest): string | undefined {
 }
 
 /** True if `doc` should count for `role` — no targetScreen at all (generic/
- *  account-level: broadcast, 2FA, new_message) always counts regardless. */
-function matchesRoleFilter(targetScreen: unknown, role: string | undefined): boolean {
+ *  account-level: broadcast, 2FA, new_message) always counts regardless.
+ *  When the doc names the role it was sent for (targetRole), only that role
+ *  counts it: several roles share a screen (supervisor and
+ *  secondary_supervisor both use supervisor_projects), so the screen alone
+ *  would light every one of them. */
+function matchesRoleFilter(targetScreen: unknown, role: string | undefined, targetRole?: unknown): boolean {
   if (!role) return true;
   if (typeof targetScreen !== 'string' || !targetScreen) return true;
-  return ROLE_AGNOSTIC_SCREENS.includes(targetScreen) || screensForRole(role).includes(targetScreen);
+  if (ROLE_AGNOSTIC_SCREENS.includes(targetScreen)) return true;
+  if (typeof targetRole === 'string' && targetRole) return targetRole === role;
+  return screensForRole(role).includes(targetScreen);
 }
 
 /**
@@ -47,7 +53,7 @@ export const getNotificationInboxSummary = async (req: AuthenticatedRequest, res
       .get();
 
     const unreadCount = role
-      ? snapshot.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role)).length
+      ? snapshot.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role, doc.data().targetRole)).length
       : snapshot.size;
 
     return res.status(200).json({ unreadCount });
@@ -157,7 +163,7 @@ export const getUserNotificationFeed = async (req: AuthenticatedRequest, res: Re
     // toDate()?.toISOString() normalization already used for this exact
     // mismatch elsewhere (see feedbackController.ts, milestoneController.ts).
     const feedItems = snapshot.docs
-      .filter((doc) => matchesRoleFilter(doc.data().targetScreen, role))
+      .filter((doc) => matchesRoleFilter(doc.data().targetScreen, role, doc.data().targetRole))
       .map(doc => {
         const data = doc.data();
         return {
@@ -232,25 +238,31 @@ export const markNotificationsReadForScreens = async (req: AuthenticatedRequest,
     // below never clears a still-open task's tab badge on its own.
     await reconcileUserTasks(uid).catch((err) => console.error('reconcileUserTasks failed:', err));
 
+    // Optional: the role whose tab was opened. Opening the supervisor's
+    // Projects tab must not also clear a secondary_supervisor task that
+    // happens to live on the same screen.
+    const role = typeof req.body.role === 'string' && getUserRoles(req.user).includes(req.body.role) ? req.body.role : undefined;
+
     const unreadSnap = await db.collection('notifications')
       .where('recipientId', '==', uid)
       .where('isRead', '==', false)
       .where('targetScreen', 'in', targetScreens)
       .get();
+    const toMark = unreadSnap.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role, doc.data().targetRole));
 
-    if (unreadSnap.empty) {
+    if (toMark.length === 0) {
       return res.status(200).json({ success: true, message: 'No matching unread notifications found.' });
     }
 
     const batch = db.batch();
-    unreadSnap.docs.forEach((doc) => {
+    toMark.forEach((doc) => {
       batch.update(db.collection('notifications').doc(doc.id), { isRead: true });
     });
     await batch.commit();
 
     return res.status(200).json({
       success: true,
-      message: `Successfully marked ${unreadSnap.size} notifications as read.`,
+      message: `Successfully marked ${toMark.length} notifications as read.`,
     });
 
   } catch (error: any) {
@@ -304,7 +316,7 @@ export const getNotificationBadgeCount = async (req: AuthenticatedRequest, res: 
       .get();
 
     const unreadCount = role
-      ? snap.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role)).length
+      ? snap.docs.filter((doc) => matchesRoleFilter(doc.data().targetScreen, role, doc.data().targetRole)).length
       : snap.size;
 
     return res.status(200).json({ unreadCount });

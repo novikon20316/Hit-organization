@@ -113,8 +113,20 @@ export function screensForRole(role: AppRole | string | undefined | null): strin
 /** True if `notif` should be shown while viewing the app as `role` — a
  *  notification with no targetScreen at all (generic/account-level: 2FA,
  *  broadcast, new_message) is always shown regardless of the active role. */
-export function notifMatchesRole(targetScreen: string | null | undefined, role: AppRole | undefined): boolean {
+export function notifMatchesRole(targetScreen: string | null | undefined, role: AppRole | undefined, targetRole?: string | null): boolean {
   if (!targetScreen) return true;
   if (!role) return true;
-  return ROLE_AGNOSTIC_SCREENS.includes(targetScreen) || screensForRole(role).includes(targetScreen);
+  if (ROLE_AGNOSTIC_SCREENS.includes(targetScreen)) return true;
+  if (targetRole) return targetRole === role;
+  return screensForRole(role).includes(targetScreen);
+}
+
+/** True if a tab badge for `role` should count this notification. Several
+ *  roles share a screen (supervisor and secondary_supervisor both use
+ *  supervisor_projects), so a notification that names the role it was sent
+ *  for (targetRole) only lights that role's badges. Older notifications
+ *  without a targetRole still count by screen alone. */
+export function badgeMatchesRole(targetScreen: string, targetRole: string | null | undefined, role: string | undefined): boolean {
+  if (!role || !targetRole || ROLE_AGNOSTIC_SCREENS.includes(targetScreen)) return true;
+  return targetRole === role;
 }

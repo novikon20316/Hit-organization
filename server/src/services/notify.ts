@@ -89,6 +89,27 @@ export interface NotifyParams {
   channels?: NotifyChannels;
 }
 
+/** Picks supervisor vs secondary_supervisor from how the recipient is named
+ *  on the project itself. Project fan-outs pass both as candidates, and
+ *  someone holding both roles would otherwise always resolve to the first
+ *  one — lighting their supervisor badge for a project they're only the
+ *  secondary supervisor of (or the other way round). Undefined when the
+ *  project doesn't settle it, so the caller falls back to the plain
+ *  candidate match. */
+async function projectRelationRole(
+  recipientId: string,
+  projectId: string | null,
+  candidates: string[] | undefined,
+  rolesHeld: Set<string>,
+): Promise<string | undefined> {
+  if (!projectId || !candidates?.includes('supervisor') || !candidates.includes('secondary_supervisor')) return undefined;
+  const project = (await db.collection('projects').doc(projectId).get().catch(() => null))?.data();
+  if (!project) return undefined;
+  if (project.supervisorId === recipientId && rolesHeld.has('supervisor')) return 'supervisor';
+  if (project.secondarySupervisorId === recipientId && rolesHeld.has('secondary_supervisor')) return 'secondary_supervisor';
+  return undefined;
+}
+
 /**
  * Single dispatcher for every outbound notification: writes the in-app
  * Firestore doc and attempts email/push/SMS/WhatsApp independently, then persists
@@ -129,7 +150,8 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   // concerns the recipient in) over their primary `role` field — see the
   // NotifyParams doc comment for why a multi-role recipient needs this.
   const rolesHeld = new Set<string>([user.role, ...(Array.isArray(user.roles) ? user.roles : [])].filter(Boolean));
-  const effectiveRole = taskRoleCandidates?.find((r) => rolesHeld.has(r)) ?? user.role;
+  const effectiveRole = (await projectRelationRole(recipientId, relatedProjectId, taskRoleCandidates, rolesHeld))
+    ?? taskRoleCandidates?.find((r) => rolesHeld.has(r)) ?? user.role;
   const targetScreen = targetScreenOverride ?? (taskKind ? targetScreenFor(effectiveRole, taskKind) : null);
 
   // A real, clickable "go see it" link for the channels OUTSIDE the app

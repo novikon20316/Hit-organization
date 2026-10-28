@@ -280,9 +280,10 @@ class ApiClient {
   }
 
   /** Clears the unread count for one tab's badge — bulk-marks read every
-   *  unread notification whose targetScreen is one of `targetScreens`. */
-  async markNotificationsRead(targetScreens: string[]) {
-    const response = await this.api.post('/api/notifications/mark-read', { targetScreens });
+   *  unread notification whose targetScreen is one of `targetScreens` and
+   *  that was sent for `role` (or for no particular role). */
+  async markNotificationsRead(targetScreens: string[], role?: string) {
+    const response = await this.api.post('/api/notifications/mark-read', { targetScreens, ...(role ? { role } : {}) });
     return response.data;
   }
 

@@ -100,6 +100,7 @@ function buildRoleSwitcherSection(
       isActive: () => false,
       onSelect: () => setActiveRole?.(r),
       badgeTargetScreens: screensForRole(r),
+      badgeRole: r,
       ...(r === mainRole ? { badge: { he: 'התפקיד הראשי', en: 'Main role' } } : {}),
     };
   });
