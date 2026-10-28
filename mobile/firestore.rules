@@ -700,7 +700,14 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────────
     match /config/{docId} {
-      allow read:  if isSignedIn();
+      // Allowlist, not every config doc: clients only ever read the
+      // data-free live-refresh markers (server/src/services/changeSignal.ts).
+      // Everything else here (supervisorPaymentRates, academicCalendar,
+      // studentStatuses) is read through the server's role-checked API, and
+      // supervisorPaymentRates in particular used to be readable by any
+      // signed-in student.
+      allow read:  if isSignedIn() &&
+        docId in ['usersChangeSignal', 'defenseScheduleChangeSignal'];
       allow write: if isSignedIn() && role(userDoc()) == 'system_admin';
     }
 
