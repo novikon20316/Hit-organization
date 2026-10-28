@@ -541,6 +541,9 @@ export interface ProjectRecord {
   projectTypes?: string[];
   academicYear: string;
   enrolledStudentIds: string[];
+  /** Parallel to enrolledStudentIds — resolved server-side by the admin
+   *  dashboard-summary endpoint. */
+  enrolledStudentNames?: string[];
   // Defense logistics mirrored onto the project by assignDefense (the admin
   // dashboard spreads the raw doc, so the date is a serialized Timestamp).
   defenseDate?: string | { _seconds?: number } | null;

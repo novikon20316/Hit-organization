@@ -130,6 +130,7 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
                 </p>
                 <p className="text-xs text-admin-on-surface-variant">
                   👥 {p.enrolledStudentIds?.length ?? 0} {lang === 'he' ? 'סטודנטים' : 'students'}
+                  {p.enrolledStudentNames?.length ? `: ${p.enrolledStudentNames.join(', ')}` : ''}
                 </p>
               </div>
 

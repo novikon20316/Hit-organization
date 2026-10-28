@@ -130,6 +130,8 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
           id: d.id,
           ...data,
           supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
+          // Same free lookup — the project cards used to show only a count.
+          enrolledStudentNames: ((data.enrolledStudentIds ?? []) as string[]).map((sid) => usersById[sid] ?? 'Unknown'),
         };
       });
 

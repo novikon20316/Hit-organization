@@ -105,6 +105,9 @@ export interface AdminProjectRecord {
   requiredSkills?: string[];
   prerequisites?: string[];
   enrolledStudentIds?: string[];
+  /** Parallel to enrolledStudentIds — resolved server-side by
+   *  getAdminDashboardSummary. */
+  enrolledStudentNames?: string[];
   academicYear?: string;
   createdAt?: string;
   // Defense logistics mirrored onto the project by assignDefense (raw doc

@@ -1783,6 +1783,7 @@ export default function PanelScreen() {
                 <Text style={styles.projectMeta}>
                   👥 {p.enrolledStudentIds?.length || 0}{' '}
                   {lang === 'he' ? 'סטודנטים' : 'students'}
+                  {p.enrolledStudentNames?.length ? `: ${p.enrolledStudentNames.join(', ')}` : ''}
                 </Text>
 
                 {/* Footer — separated from the metadata above like every

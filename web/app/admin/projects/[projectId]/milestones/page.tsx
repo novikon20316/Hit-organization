@@ -182,6 +182,15 @@ export default function AdminProjectMilestonesPage() {
                   {' · '}
                   👥 {project.enrolledStudentIds?.length ?? 0} {lang === 'he' ? 'סטודנטים' : 'students'}
                 </p>
+                {project.enrolledStudentNames?.length ? (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {project.enrolledStudentNames.map((name, i) => (
+                      <li key={project.enrolledStudentIds?.[i] ?? i} className="rounded-full bg-paper px-2.5 py-0.5 text-xs font-medium text-ink">
+                        🎓 {name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {(project.descriptionHe || project.descriptionEn) && (
                   <p className="mt-2 text-sm text-muted">{lang === 'he' ? project.descriptionHe : project.descriptionEn}</p>
                 )}
