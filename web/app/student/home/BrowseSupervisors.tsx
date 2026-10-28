@@ -336,7 +336,7 @@ export function BrowseSupervisors({ studentFaculty, studentDegree, studentEffect
       )}
 
       {applyTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
           <div
             ref={applyDialogRef}
             tabIndex={-1}
@@ -449,7 +449,7 @@ export function BrowseSupervisors({ studentFaculty, studentDegree, studentEffect
       )}
 
       {joinTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
           <div
             ref={joinDialogRef}
             tabIndex={-1}

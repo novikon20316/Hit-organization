@@ -491,7 +491,7 @@ export default function NotificationsPage() {
                     <button
                       type="button"
                       onClick={() => setDeletingChat(chat)}
-                      className="shrink-0 rounded-full px-2 py-1 text-xs text-muted opacity-0 hover:text-danger group-hover:opacity-100"
+                      className="shrink-0 rounded-full px-2 py-1 text-xs text-muted hover:text-danger md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     >
                       🗑️
                     </button>

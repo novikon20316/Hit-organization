@@ -183,7 +183,7 @@ export function ProgressReportFormModal({ milestone, project, onClose, onSubmitt
   const inputCls = 'w-full rounded-student border border-student-outline-variant bg-student-surface-container-low px-3.5 py-2.5 text-sm text-student-on-surface transition-colors focus:border-student-primary focus:bg-student-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-student-primary/15';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
       <div
         ref={dialogRef}
         tabIndex={-1}

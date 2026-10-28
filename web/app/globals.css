@@ -91,6 +91,17 @@ select:disabled {
   cursor: not-allowed;
 }
 
+/* iOS Safari zooms the whole page in on focusing any field under 16px and
+   leaves it zoomed — nearly every field here is text-sm. Phones only, so
+   the desktop type scale is untouched. */
+@media (width < 48rem) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 input:not([type="checkbox"]):not([type="radio"]):not(:disabled):hover,
 textarea:not(:disabled):hover,
 select:not(:disabled):hover {

@@ -137,7 +137,7 @@ export function EditCommitteeModal({ committee, existingCommittees = [], onClose
   const inputCls = 'w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-primary focus:bg-surface focus:outline-none';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
       <div
         ref={modalRef}
         tabIndex={-1}

@@ -356,7 +356,7 @@ export function ChatConversation({
 
       {viewerUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6"
+          className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/90 p-6"
           onClick={() => setViewerUrl(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- remote Cloudinary URL, not a local asset */}

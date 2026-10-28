@@ -168,7 +168,7 @@ export function NewProjectModal({ facultyId: ownFacultyId, onClose, onCreated }:
   const inputCls = 'w-full rounded-lg border border-faculty-admin-outline-variant bg-faculty-admin-surface-container-low px-3 py-2 text-sm text-faculty-admin-on-surface focus:border-faculty-admin-primary focus:bg-faculty-admin-surface-container-lowest focus:outline-none disabled:opacity-60';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
       <form
         ref={dialogRef}
         onSubmit={handleSubmit}

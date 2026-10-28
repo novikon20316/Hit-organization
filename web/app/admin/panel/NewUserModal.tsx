@@ -232,7 +232,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
 
   if (created) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
         <div
           ref={modalRef as React.RefObject<HTMLDivElement>}
           tabIndex={-1}
@@ -285,7 +285,7 @@ export function NewUserModal({ open, onClose, onCreated, scope }: NewUserModalPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
       <form
         ref={modalRef as React.RefObject<HTMLFormElement>}
         tabIndex={-1}

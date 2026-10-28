@@ -119,7 +119,7 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
 
   if (!form) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
         <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-paper p-6 shadow-lg outline-none">
           {loadError ? <p className="text-sm text-danger" role="alert">{loadError}</p> : <p className="text-sm text-muted">{he ? 'טוען…' : 'Loading…'}</p>}
           <button type="button" onClick={onClose} className="mt-4 text-sm font-medium text-primary hover:underline">{he ? 'סגור' : 'Close'}</button>
@@ -430,7 +430,7 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-2 sm:p-4">
       <div
         ref={dialogRef}
         tabIndex={-1}

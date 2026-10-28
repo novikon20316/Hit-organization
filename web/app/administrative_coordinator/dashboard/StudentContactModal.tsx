@@ -28,7 +28,7 @@ export function StudentContactModal({ member, onClose }: StudentContactModalProp
   if (!member) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4" onClick={onClose}>
       <div
         ref={modalRef}
         tabIndex={-1}

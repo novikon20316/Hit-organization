@@ -720,7 +720,7 @@ function WorkflowTemplatesContent() {
       <RejectModal open={!!rejectingId} busy={busyId === rejectingId} onCancel={() => setRejectingId(null)} onConfirm={handleReject} />
 
       {approvePreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
           <div
             ref={approvePreviewRef}
             tabIndex={-1}
@@ -757,7 +757,7 @@ function WorkflowTemplatesContent() {
       )}
 
       {duplicatingOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">
           <div
             ref={duplicatingRef}
             tabIndex={-1}

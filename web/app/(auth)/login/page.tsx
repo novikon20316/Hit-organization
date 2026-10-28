@@ -484,7 +484,7 @@ export default function LoginPage() {
       </main>
 
       {linkingPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 px-4">
           <div
             ref={linkingModalRef}
             tabIndex={-1}

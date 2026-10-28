@@ -24,7 +24,7 @@
 //    (same route, different accent) since it reads the signed-in user's
 //    own activeRole rather than taking a hardcoded prop.
 
-import { Suspense, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,11 +110,16 @@ function SidebarNavSections({
   quickActions,
   cls,
   lang,
+  onNavigate,
 }: {
   sections: SidebarSection[];
   quickActions?: SidebarSection;
   cls: ThemeClasses;
   lang: 'he' | 'en';
+  /** Closes the phone drawer (a no-op at md+, where the sidebar is always
+   *  open) — covers taps on the already-open page too, which never change
+   *  the pathname SidebarShell also closes on. */
+  onNavigate: () => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -165,7 +170,10 @@ function SidebarNavSections({
             <li key={item.key}>
               <Link
                 href={resolveHref(item.href)}
-                onClick={item.onSelect}
+                onClick={() => {
+                  item.onSelect?.();
+                  onNavigate();
+                }}
                 data-tour-id={item.key}
                 className={`flex items-center gap-3 rounded-admin px-3 py-2 text-sm transition-colors ${
                   active ? `border-e-4 font-bold ${cls.itemActive}` : cls.itemInactive
@@ -204,6 +212,21 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   const { lang, t, toggleLang } = useLanguage();
   const { userData, activeRole, logout } = useAuth();
   const { hasOpenRelayTasks, isOnAnyCommittee, isCommitteeSubstitute } = useNotifications();
+  const pathname = usePathname();
+  // Phones only (below md): the sidebar is a drawer behind the top bar's ☰
+  // button. At md+ it stays permanently open, as before — a fixed 256px
+  // column left a phone only ~120px for the page itself.
+  // Holds the pathname it was opened on, so navigating anywhere closes it.
+  const [drawerOpenOn, setDrawerOpenOn] = useState<string | null>(null);
+  const drawerOpen = drawerOpenOn === pathname;
+  const setDrawerOpen = (open: boolean) => setDrawerOpenOn(open ? pathname : null);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpenOn(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
 
   const handleLogout = async () => {
     await logout();
@@ -254,14 +277,34 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   const tourQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isItemVisible) } : undefined;
 
   return (
-    <div className="flex min-h-screen bg-paper">
-      {/* Always visible, at every breakpoint — the menu stays open
-       *  permanently rather than collapsing into a toggleable drawer below
-       *  `lg`. */}
+    <div className="flex min-h-screen flex-col bg-paper md:flex-row">
+      {/* Phone-only top bar — the one way to reach the drawer below md. */}
+      <div
+        style={accentStyle}
+        className={`sticky top-0 z-30 flex items-center gap-3 border-b px-3 py-2 md:hidden ${cls.nav}`}
+      >
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          aria-label={lang === 'he' ? 'פתיחת תפריט' : 'Open menu'}
+          aria-expanded={drawerOpen}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-admin text-xl ${cls.itemInactive}`}
+        >
+          ☰
+        </button>
+        <h2 className={`min-w-0 flex-1 truncate text-base font-bold ${cls.brand}`}>{brand.name}</h2>
+        <NotificationBell className={cls.itemInactive} />
+      </div>
+
+      {drawerOpen && (
+        <div aria-hidden="true" onClick={() => setDrawerOpen(false)} className="fixed inset-0 z-40 bg-black/40 md:hidden" />
+      )}
+
+      {/* Permanently open at md+; a drawer on phones. */}
       <nav
         aria-label={lang === 'he' ? 'ניווט' : 'Navigation'}
         style={accentStyle}
-        className={`flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 lg:sticky lg:top-0 lg:h-screen ${cls.nav}`}
+        className={`${drawerOpen ? 'fixed inset-y-0 start-0 z-50 flex' : 'hidden'} w-64 max-w-[85vw] shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 md:sticky md:top-0 md:z-auto md:flex md:h-screen md:max-w-none ${cls.nav}`}
       >
         <div className="mb-8 flex items-center gap-3 px-4">
           <div
@@ -275,10 +318,18 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
             <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
           </div>
           <NotificationBell className={cls.itemInactive} />
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(false)}
+            aria-label={lang === 'he' ? 'סגירת תפריט' : 'Close menu'}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-admin text-lg md:hidden ${cls.itemInactive}`}
+          >
+            ✕
+          </button>
         </div>
 
         <Suspense fallback={null}>
-          <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} lang={lang} />
+          <SidebarNavSections sections={sections} quickActions={quickActions} cls={cls} lang={lang} onNavigate={() => setDrawerOpen(false)} />
         </Suspense>
 
         {/* Pinned to the very bottom via mt-auto, set apart from the nav

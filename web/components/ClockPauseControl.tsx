@@ -103,7 +103,7 @@ export function ClockPauseControl({ projectId }: { projectId: string }) {
       {error && <p className="mt-1 text-xs text-danger" role="alert">{error}</p>}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4" onClick={() => setShowModal(false)}>
           <div
             ref={dialogRef}
             tabIndex={-1}

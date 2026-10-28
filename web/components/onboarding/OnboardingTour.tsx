@@ -72,7 +72,10 @@ export function OnboardingTour({ sections, quickActions }: OnboardingTourProps) 
   const measure = useCallback(() => {
     if (!stepKey) return;
     const el = document.querySelector(`[data-tour-id="${stepKey}"]`);
-    setRect(el ? el.getBoundingClientRect() : null);
+    const r = el?.getBoundingClientRect();
+    // Zero-size = the item is in the closed phone drawer (SidebarShell) —
+    // fall back to the centered card instead of spotlighting the corner.
+    setRect(r && r.width > 0 ? r : null);
   }, [stepKey]);
 
   useEffect(() => {
@@ -110,7 +113,7 @@ export function OnboardingTour({ sections, quickActions }: OnboardingTourProps) 
     const top = Math.min(Math.max(rect.top, VIEWPORT_MARGIN), window.innerHeight - 260);
     tooltipStyle = { left, top, width: TOOLTIP_WIDTH };
   } else {
-    tooltipStyle = { left: '50%', top: '50%', width: TOOLTIP_WIDTH, transform: 'translate(-50%, -50%)' };
+    tooltipStyle = { left: '50%', top: '50%', width: TOOLTIP_WIDTH, maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`, transform: 'translate(-50%, -50%)' };
   }
 
   return (

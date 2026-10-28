@@ -27,7 +27,7 @@ export function SessionExpiredModal({ open, onConfirm }: SessionExpiredModalProp
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true">
       <div ref={dialogRef} tabIndex={-1} className="w-full max-w-sm rounded-[var(--radius)] bg-surface p-5 shadow-lg outline-none">
         <h2 className="text-base font-semibold text-ink" dir="rtl">
           {t.sessionExpiredTitle.he}
