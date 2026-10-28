@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { apiClient } from '@/src/api/apiClient';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { auth } from '../../src/firebase/firebase';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
@@ -145,9 +146,11 @@ export default function PanelScreen() {
   const [adminFacultyId, setAdminFacultyId] = useState('');
 
   // ─── 🆕 Unified Dashboard Sync ───────────────────────────────────────────
-  const fetchAdminDashboard = async () => {
+  // `silent`: a background live refresh — no full-screen spinner, no alert
+  // on a transient network blip.
+  const fetchAdminDashboard = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       // The backend uses the auth token context to deduce the faculty ID and gather structured items
       const response = await apiClient.get('/api/admin/dashboard');
       
@@ -158,7 +161,7 @@ export default function PanelScreen() {
       setMilestones(response.data.milestones || []);
       setAllSupervisors(response.data.supervisors || []);
     } catch (err: any) {
-      Alert.alert('Error', lang === 'he' ? 'שגיאה בטעינת הנתונים' : 'Failed to synchronize administration items');
+      if (!silent) Alert.alert('Error', lang === 'he' ? 'שגיאה בטעינת הנתונים' : 'Failed to synchronize administration items');
     } finally {
       setLoading(false);
     }
@@ -167,6 +170,7 @@ export default function PanelScreen() {
   useEffect(() => {
     fetchAdminDashboard();
   }, []);
+  useLiveRefresh(() => fetchAdminDashboard(true));
 
   // Re-fetches supervisors per selected faculty when the Add Project picker
   // changes — a project can now be posted open to more than one faculty

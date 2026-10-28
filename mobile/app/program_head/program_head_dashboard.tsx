@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { TopBar, getFacultyColor } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { ProgramHeadDashboardStyles } from '../../constants/styles';
@@ -130,12 +131,14 @@ export default function ProgramHeadDashboard() {
   const uid = auth.currentUser?.uid;
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  // `silent`: a background live refresh — a transient network blip shouldn't
+  // pop an alert over whatever the user is doing.
+  const fetchData = useCallback(async (silent = false) => {
     try {
       const res = await apiClient.get(`/api/program-head/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      Alert.alert(
+      if (!silent) Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
       );
@@ -168,6 +171,7 @@ export default function ProgramHeadDashboard() {
     if (canCreateOwnProject) fetchMyProjects();
   }, [fetchData, fetchStaff, canCreateOwnProject, fetchMyProjects]);
   const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); if (canCreateOwnProject) fetchMyProjects(); };
+  useLiveRefresh(() => fetchData(true));
 
   // See server/src/controllers/coordinatorController.ts's
   // approveExaminerRecommendation/rejectExaminerRecommendation.

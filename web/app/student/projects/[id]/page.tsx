@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
@@ -47,6 +48,10 @@ export default function StudentProjectDetailPage() {
     list.sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
     setMilestones(list);
   }, [projectId]);
+
+  // A supervisor/committee approving, rejecting or grading a milestone
+  // notifies the student — pick it up without a reload.
+  useLiveRefresh(() => { if (isAllowed && projectId) fetchMilestones().catch(() => {}); });
 
   useEffect(() => {
     if (!projectId) return;

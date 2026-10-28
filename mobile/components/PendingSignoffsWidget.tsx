@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { apiClient } from '@/src/api/apiClient';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import type { Lang } from './i18n';
 
 type SignoffType = 'examiners' | 'final_grade' | 'chain_stage';
@@ -88,6 +89,8 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
   }, [lang]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+  // The previous stage's approver notifies whoever is next in the chain.
+  useLiveRefresh(fetchItems);
 
   const handleApprove = async (item: PendingSignoffItem) => {
     if (item.type === 'chain_stage' && (item.stageFormFields ?? []).length > 0 && formTargetId !== item.id) {

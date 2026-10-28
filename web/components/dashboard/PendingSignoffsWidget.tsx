@@ -15,6 +15,7 @@
 import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient } from '@/lib/apiClient';
 
 type SignoffType = 'examiners' | 'final_grade' | 'chain_stage';
@@ -105,6 +106,9 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect
     fetchItems();
   }, [fetchItems]);
+
+  // The previous stage's approver notifies whoever is next in the chain.
+  useLiveRefresh(fetchItems);
 
   const handleApprove = async (item: PendingSignoffItem) => {
     // A chain_stage item whose stage has its own fields collects them first

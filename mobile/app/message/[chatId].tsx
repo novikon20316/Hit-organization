@@ -9,7 +9,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { auth } from '../../src/firebase/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../../src/firebase/firebase';
 import { roleColor } from './new';
 import { apiClient } from '@/src/api/apiClient';
 import { ChatScreenStyles } from '../../constants/styles';
@@ -60,6 +61,10 @@ function roleLabel(role: string, lang: Lang): string {
 
 // ─── Format timestamp ─────────────────────────────────────────────────────────
 // createdAt is now always an ISO string (or null) — no Firestore Timestamp objects.
+// See the chat-doc listener in ChatScreen.
+const SAFETY_POLL_MS = 30_000;
+const FALLBACK_POLL_MS = 3000;
+
 function formatTime(isoString: string | null): string {
   if (!isoString) return '';
   const d = new Date(isoString);
@@ -163,9 +168,27 @@ export default function ChatScreen() {
     setOtherReadAt(null);
     setLoadingMessages(true);
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, [fetchMessages]);
+    // The server bumps the chat doc on every new message (lastMessageAt) and
+    // read receipt (readAt.<uid>), so listening to it is an instant "fetch
+    // now" signal — the fetch itself stays the access-checked REST call. A
+    // slow poll stays as a safety net, and a listener error (no Firebase
+    // session yet, a rules denial) falls back to the old 3s poll.
+    if (!chatId) return;
+    let interval = setInterval(fetchMessages, SAFETY_POLL_MS);
+    let first = true;
+    const unsub = onSnapshot(
+      doc(db, 'chats', chatId),
+      () => {
+        if (first) { first = false; return; } // current state — the fetch above covers it
+        fetchMessages();
+      },
+      () => {
+        clearInterval(interval);
+        interval = setInterval(fetchMessages, FALLBACK_POLL_MS);
+      }
+    );
+    return () => { unsub(); clearInterval(interval); };
+  }, [fetchMessages, chatId]);
 
   // ── Look up header metadata if not passed as params ────────────────────────
   useEffect(() => {

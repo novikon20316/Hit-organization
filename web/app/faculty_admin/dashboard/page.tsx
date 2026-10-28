@@ -23,6 +23,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
@@ -126,6 +127,8 @@ function FacultyAdminDashboardContent() {
   }, [isAllowed, fetchDashboard]);
   // A user added/edited/removed anywhere — refresh the lists in place.
   useUsersLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
+  // ...and any workflow event that notifies this admin (a submission, an approval).
+  useLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   if (guardLoading) {
     return (

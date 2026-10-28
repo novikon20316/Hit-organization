@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { TopBar, FACULTY_COLORS } from '../../components/shared';
 import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles, adminPanelStyles } from '../../constants/styles';
@@ -200,12 +201,14 @@ export default function GradSchoolHeadDashboard() {
   const uid = auth.currentUser?.uid;
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  // `silent`: a background live refresh — a transient network blip shouldn't
+  // pop an alert over whatever the user is doing.
+  const fetchData = useCallback(async (silent = false) => {
     try {
       const res = await apiClient.get(`/api/grad-school-head/${uid}/dashboard`);
       setData(res.data);
     } catch (e: any) {
-      Alert.alert(
+      if (!silent) Alert.alert(
         lang === 'he' ? 'שגיאה' : 'Error',
         lang === 'he' ? 'לא ניתן לטעון נתונים' : 'Could not load data',
       );
@@ -227,6 +230,7 @@ export default function GradSchoolHeadDashboard() {
   useEffect(() => { fetchData(); fetchStaff(); }, [fetchData, fetchStaff]);
 
   const onRefresh = () => { setRefreshing(true); fetchData(); fetchStaff(); };
+  useLiveRefresh(() => fetchData(true));
 
   // Fetches per selected faculty and merges (dedup by id).
   useEffect(() => {

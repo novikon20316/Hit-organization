@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { apiClient } from '@/lib/apiClient';
+import { db } from '@/lib/firebase';
 import { getRoleAccent } from '@/lib/facultyColors';
 import ReadTicks from '@/components/ReadTicks';
 
@@ -20,6 +22,10 @@ interface Message {
   senderId: string;
   createdAt: string | null;
 }
+
+// See the chat-doc listener below.
+const SAFETY_POLL_MS = 30_000;
+const FALLBACK_POLL_MS = 3000;
 
 function formatTime(iso: string | null, lang: 'he' | 'en'): string {
   if (!iso) return '';
@@ -124,9 +130,26 @@ export function ChatConversation({
     setLoadingMessages(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- polling on mount; fetchMessages' setState calls happen after its awaited network call resolves, not synchronously in this effect
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, [fetchMessages]);
+    // The server bumps the chat doc on every new message (lastMessageAt) and
+    // read receipt (readAt.<uid>), so listening to it is an instant "fetch
+    // now" signal — the fetch itself stays the access-checked REST call. A
+    // slow poll stays as a safety net, and a listener error (no Firebase
+    // session yet, a rules denial) falls back to the old 3s poll.
+    let interval = setInterval(fetchMessages, SAFETY_POLL_MS);
+    let first = true;
+    const unsub = onSnapshot(
+      doc(db, 'chats', chatId),
+      () => {
+        if (first) { first = false; return; } // current state — the fetch above covers it
+        fetchMessages();
+      },
+      () => {
+        clearInterval(interval);
+        interval = setInterval(fetchMessages, FALLBACK_POLL_MS);
+      }
+    );
+    return () => { unsub(); clearInterval(interval); };
+  }, [fetchMessages, chatId]);
 
   useEffect(() => {
     if (headerName || !chatId) return;

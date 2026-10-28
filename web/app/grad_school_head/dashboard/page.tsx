@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -199,6 +200,8 @@ function GradSchoolHeadDashboardContent() {
     if (isAllowed) fetchDashboard();
     if (isAllowed) fetchStaff();
   }, [isAllowed, fetchDashboard, fetchStaff]);
+  // A final grade/approval reaching this head notifies them — refresh in place.
+  useLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   const handleApproveFinalGrade = async (item: PendingApproval) => {
     setApprovingId(item.id);

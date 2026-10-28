@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
@@ -265,6 +266,9 @@ function ProgramHeadDashboardContent() {
     if (isAllowed) fetchStaff();
     if (isAllowed && canCreateOwnProject) fetchMyProjects();
   }, [isAllowed, fetchDashboard, fetchStaff, canCreateOwnProject, fetchMyProjects]);
+  // A submission/approval that reaches this program head notifies them —
+  // refresh the queues in place.
+  useLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
