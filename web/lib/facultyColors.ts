@@ -22,7 +22,7 @@ export const FACULTY_COLORS: Record<FacultyId, string> = {
 export const ROLE_ACCENTS: Record<AppRole, string> = {
   student: '#4C6B8A',
   supervisor: '#6E5A3B',
-  secondary_supervisor: '#8A7550',
+  secondary_supervisor: '#5A5FA8',
   coordinator: '#3F6B4C',
   faculty_admin: '#1E3A5F',
   program_head: '#16304E',
