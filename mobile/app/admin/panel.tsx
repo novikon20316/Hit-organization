@@ -87,6 +87,20 @@ function formatLastAt(iso: string | null | undefined, platform: 'web' | 'mobile'
   return platform ? `${dateStr} (${platform})` : dateStr;
 }
 
+const FEEDBACK_URGENCY_LABEL = {
+  high:   { he: 'דחוף',  en: 'High' },
+  medium: { he: 'בינוני', en: 'Medium' },
+  low:    { he: 'נמוך',  en: 'Low' },
+} as const;
+
+const FEEDBACK_CATEGORY_LABEL = {
+  bug:             { he: 'תקלה',       en: 'Bug' },
+  feature_request: { he: 'בקשה לפיצ׳ר', en: 'Feature request' },
+  ux:              { he: 'שימושיות',    en: 'Usability' },
+  question:        { he: 'שאלה',       en: 'Question' },
+  other:           { he: 'אחר',        en: 'Other' },
+} as const;
+
 export default function PanelScreen() {
   const router = useRouter();
   const [projectFile, setProjectFile] = useState<string | null>(null);
@@ -527,7 +541,9 @@ export default function PanelScreen() {
       try {
         setLoadingFeedback(true);
         const res = await apiClient.get('/api/feedback/admin', { params: { status: feedbackStatusFilter } });
-        setFeedbackMessages(res.data.messages || []);
+        // Most urgent first; untriaged (AI unavailable) after high — same as web.
+        const rank = (m: any) => (m.urgency === 'high' ? 0 : m.urgency === 'medium' ? 1 : m.urgency === 'low' ? 2 : 0.5);
+        setFeedbackMessages([...(res.data.messages || [])].sort((a, b) => rank(a) - rank(b)));
       } catch {} finally {
         setLoadingFeedback(false);
       }
@@ -2269,8 +2285,32 @@ export default function PanelScreen() {
             ) : (
               feedbackMessages.map((f) => (
                 <View key={f.id} style={styles.projectMilestoneCard}>
+                  {(f.urgency || f.category) && (
+                    <Text style={[styles.projectMeta, { marginBottom: 4, fontWeight: '700', color: f.urgency === 'high' ? '#B42318' : f.urgency === 'medium' ? '#92400E' : '#64748B' }]}>
+                      {[
+                        f.urgency && FEEDBACK_URGENCY_LABEL[f.urgency as keyof typeof FEEDBACK_URGENCY_LABEL]?.[lang],
+                        f.category && FEEDBACK_CATEGORY_LABEL[f.category as keyof typeof FEEDBACK_CATEGORY_LABEL]?.[lang],
+                      ].filter(Boolean).join(' · ')}
+                    </Text>
+                  )}
                   <Text style={styles.projectTitle}>{f.userName} · {f.role}</Text>
+                  {f.summaryEn && <Text style={[styles.projectMeta, { marginTop: 6, fontWeight: '600', writingDirection: 'ltr' }]}>{f.summaryEn}</Text>}
                   <Text style={[styles.projectMeta, { marginTop: 6 }]}>{f.text}</Text>
+                  {f.duplicateOfId && (
+                    <Text style={[styles.projectMeta, { marginTop: 6, color: '#92400E' }]}>
+                      {lang === 'he' ? 'ייתכן שזהה למשוב פתוח: ' : 'Possible duplicate of open feedback: '}
+                      {feedbackMessages.find((m) => m.id === f.duplicateOfId)?.text?.slice(0, 60) ?? f.duplicateOfId}
+                    </Text>
+                  )}
+                  {f.context && (
+                    <Text style={[styles.projectMeta, { marginTop: 6, writingDirection: 'ltr' }]}>
+                      {[
+                        f.context.screen,
+                        [f.context.platform, f.context.appVersion].filter(Boolean).join(' '),
+                        f.context.device,
+                      ].filter(Boolean).join('\n')}
+                    </Text>
+                  )}
                   {f.aiReasoning && (
                     <Text style={[styles.projectMeta, { marginTop: 6, fontStyle: 'italic' }]}>
                       🤖 {f.aiReasoning}

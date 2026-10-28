@@ -173,6 +173,22 @@ export interface AdminFeedbackMessage {
   role: string;
   text: string;
   aiReasoning?: string | null;
+  /** AI triage — null when the classifier was unavailable. */
+  category?: 'bug' | 'feature_request' | 'ux' | 'question' | 'other' | null;
+  urgency?: 'high' | 'medium' | 'low' | null;
+  summaryEn?: string | null;
+  /** Id of an earlier open item reporting the same issue. */
+  duplicateOfId?: string | null;
+  /** Where it was sent from — collected by the client at send time. */
+  context?: {
+    platform?: 'web' | 'ios' | 'android';
+    appVersion?: string;
+    screen?: string;
+    activeRole?: string;
+    device?: string;
+    language?: string;
+    serverRevision?: string;
+  } | null;
   status: 'open' | 'resolved';
   createdAt: string | null;
 }

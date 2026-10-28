@@ -32,6 +32,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { deriveSidebarTones } from '@/lib/colorTones';
+import { rememberScreen } from '@/lib/lastScreen';
 import { NotificationBell } from '@/components/NotificationBell';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 
@@ -148,6 +149,10 @@ function SidebarNavSections({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on primitives (path/params/badge identity/count), not the sections array itself, since role-specific builders (e.g. buildCoordinatorNavSections) return a new array every render
   }, [pathname, searchParamsKey, activeBadgeScreensKey, activeBadgeCount]);
+
+  useEffect(() => {
+    rememberScreen(searchParamsKey ? `${pathname}?${searchParamsKey}` : pathname);
+  }, [pathname, searchParamsKey]);
 
   const renderSection = (section: SidebarSection) => (
     <div key={section.title.en} className="mb-4 px-3">

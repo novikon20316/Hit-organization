@@ -9,11 +9,65 @@
 
 import { Response } from 'express';
 import admin from 'firebase-admin';
-import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
-import { classifyFeedback } from '../services/feedbackService.js';
+import { AuthenticatedRequest, hasAnyRole, getUserRoles } from '../middleware/auth.js';
+import { classifyFeedback, type OpenFeedbackForAi } from '../services/feedbackService.js';
 import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
+
+/** Where a feedback message was sent from, collected by the client so a
+ *  report like "it doesn't work" can be tied to a screen, device and build.
+ *  Every field is optional and length-capped — it's client-supplied. */
+interface FeedbackContext {
+  platform?: 'web' | 'ios' | 'android';
+  appVersion?: string;
+  screen?: string;
+  activeRole?: string;
+  device?: string;
+  language?: string;
+  /** Cloud Run revision of the API that received it — ties the report to a deploy. */
+  serverRevision?: string;
+}
+
+function cleanString(value: unknown, max: number): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : undefined;
+}
+
+function sanitizeContext(raw: unknown, req: AuthenticatedRequest): FeedbackContext {
+  const body = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const platform = body.platform === 'web' || body.platform === 'ios' || body.platform === 'android' ? body.platform : undefined;
+  const activeRole = cleanString(body.activeRole, 40);
+  const context: { [K in keyof FeedbackContext]-?: FeedbackContext[K] | undefined } = {
+    platform,
+    appVersion: cleanString(body.appVersion, 60),
+    screen: cleanString(body.screen, 300),
+    // Only a role the sender actually holds.
+    activeRole: activeRole && getUserRoles(req.user).includes(activeRole) ? activeRole : undefined,
+    device: cleanString(body.device, 200),
+    language: body.language === 'he' || body.language === 'en' ? body.language : undefined,
+    serverRevision: cleanString(process.env.K_REVISION, 80),
+  };
+  // Firestore rejects undefined field values.
+  return Object.fromEntries(Object.entries(context).filter(([, v]) => v !== undefined)) as FeedbackContext;
+}
+
+/** The most recent open real feedback, offered to the classifier so it can
+ *  flag a new message as a duplicate. Equality-only filters, so no
+ *  composite index is needed; sorted and capped in memory. */
+async function loadOpenFeedbackForAi(): Promise<OpenFeedbackForAi[]> {
+  const snap = await db.collection('feedbackMessages')
+    .where('classification', '==', 'real')
+    .where('status', '==', 'open')
+    .get();
+  return snap.docs
+    .map((doc) => ({ doc, createdAt: doc.data().createdAt?.toMillis?.() ?? 0 }))
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 40)
+    .map(({ doc }) => {
+      const data = doc.data();
+      return { id: doc.id, summary: (data.summaryEn ?? String(data.text ?? '')).slice(0, 200) };
+    });
+}
 
 // POST /api/feedback
 export const submitFeedback = async (req: AuthenticatedRequest, res: Response) => {
@@ -29,6 +83,7 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
     return res.status(400).json({ message: L(req, 'Missing feedback text.', 'חסר תוכן המשוב.') });
   }
   const trimmed = text.trim().slice(0, 2000);
+  const context = sanitizeContext(req.body.context, req);
 
   try {
     const userSnap = await db.collection('users').doc(uid).get();
@@ -38,20 +93,39 @@ export const submitFeedback = async (req: AuthenticatedRequest, res: Response) =
     await feedbackRef.set({
       userId: uid,
       userName,
-      role,
+      // The role they were viewing the app as, when known — a multi-role
+      // user's primary role says little about which screen they mean.
+      role: context.activeRole ?? role,
       text: trimmed,
+      context,
       classification: 'pending',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    const { classification, reasoning } = await classifyFeedback(trimmed);
+    const openItems = await loadOpenFeedbackForAi().catch((err) => {
+      console.error('loadOpenFeedbackForAi failed:', err);
+      return [];
+    });
+    const { classification, reasoning, category, urgency, summaryEn, duplicateOfId } = await classifyFeedback(
+      trimmed,
+      { role: context.activeRole ?? role, screen: context.screen, platform: context.platform },
+      openItems,
+    );
 
     if (classification === 'noise') {
       await feedbackRef.delete();
       return res.status(200).json({ success: true, classification, erased: true });
     }
 
-    await feedbackRef.update({ classification: 'real', aiReasoning: reasoning, status: 'open' });
+    await feedbackRef.update({
+      classification: 'real',
+      aiReasoning: reasoning,
+      category,
+      urgency,
+      summaryEn,
+      duplicateOfId,
+      status: 'open',
+    });
 
     // Notification failures must never mask the message above, which has
     // already committed by this point.
@@ -142,6 +216,11 @@ export const getAdminFeedback = async (req: AuthenticatedRequest, res: Response)
           role: data.role,
           text: data.text,
           aiReasoning: data.aiReasoning ?? null,
+          category: data.category ?? null,
+          urgency: data.urgency ?? null,
+          summaryEn: data.summaryEn ?? null,
+          duplicateOfId: data.duplicateOfId ?? null,
+          context: data.context ?? null,
           status: data.status ?? 'open',
           createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
         };

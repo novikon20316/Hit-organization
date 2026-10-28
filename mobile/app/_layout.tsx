@@ -1,5 +1,6 @@
 // app/_layout.tsx
 import { Stack, useRouter, usePathname } from "expo-router";
+import { rememberScreen } from "../utils/lastScreen";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState, useRef } from "react";
 import { View, Text, Image, ActivityIndicator, Platform, I18nManager, AppState } from 'react-native';
@@ -155,6 +156,8 @@ function RootLayoutInner() {
   const [loading, setLoading] = useState(true);
   type RouterTarget = Parameters<typeof router.replace>[0];
   const [pendingRedirect, setPendingRedirect] = useState<RouterTarget | null>(null);
+
+  useEffect(() => { rememberScreen(pathname); }, [pathname]);
 
   const checkMaintenance        = useMaintenanceCheck();
   const pathnameRef             = useRef(pathname);

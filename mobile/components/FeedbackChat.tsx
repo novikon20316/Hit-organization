@@ -13,7 +13,11 @@ import {
   View, Text, FlatList, TextInput, Pressable,
   ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import { apiClient } from '../src/api/apiClient';
+import { useActiveRole } from '../contexts/ActiveRoleContext';
+import { getLastScreen } from '../utils/lastScreen';
 import type { Lang } from './i18n';
 import { FeedbackChatStyles } from '../constants/styles';
 
@@ -27,6 +31,7 @@ interface FeedbackMessage {
 
 export default function FeedbackChat({ lang }: { lang: Lang }) {
   const isRtl = lang === 'he';
+  const { activeRole } = useActiveRole();
   const [messages, setMessages] = useState<FeedbackMessage[]>([]);
   const [loading, setLoading]   = useState(true);
   const [text, setText]         = useState('');
@@ -54,7 +59,16 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
     setSending(true);
     setText('');
     try {
-      await apiClient.post('/api/feedback', { text: trimmed });
+      // Where it was sent from — see the server's FeedbackContext.
+      const context = {
+        platform: Platform.OS === 'ios' ? 'ios' : 'android',
+        appVersion: Constants.expoConfig?.version,
+        screen: getLastScreen() ?? undefined,
+        activeRole,
+        device: [Device.manufacturer, Device.modelName, `${Platform.OS} ${Device.osVersion ?? ''}`.trim()].filter(Boolean).join(' · '),
+        language: lang,
+      };
+      await apiClient.post('/api/feedback', { text: trimmed, context });
       await fetchMessages();
     } catch (err) {
       setText(trimmed);

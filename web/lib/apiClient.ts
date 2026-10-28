@@ -537,8 +537,9 @@ export const apiClient = {
     );
   },
 
-  async submitFeedback(text: string) {
-    return request<{ success: boolean }>('/api/feedback', { method: 'POST', body: { text } });
+  /** `context` is where it was sent from (see the server's FeedbackContext). */
+  async submitFeedback(text: string, context?: { platform: 'web'; screen?: string; activeRole?: string; device?: string; language?: string }) {
+    return request<{ success: boolean }>('/api/feedback', { method: 'POST', body: { text, ...(context ? { context } : {}) } });
   },
 
   // ─── 14. REPORTS ────────────────────────────────────────────────────────────
@@ -1022,6 +1023,11 @@ export const apiClient = {
         role: string;
         text: string;
         aiReasoning: string | null;
+        category: 'bug' | 'feature_request' | 'ux' | 'question' | 'other' | null;
+        urgency: 'high' | 'medium' | 'low' | null;
+        summaryEn: string | null;
+        duplicateOfId: string | null;
+        context: Record<string, string> | null;
         status: 'open' | 'resolved';
         createdAt: string | null;
       }>;

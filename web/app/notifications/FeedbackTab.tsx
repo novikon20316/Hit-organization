@@ -5,7 +5,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
+import { getLastScreen } from '@/lib/lastScreen';
 
 interface FeedbackMessage {
   id: string;
@@ -17,6 +19,7 @@ interface FeedbackMessage {
 
 export function FeedbackTab() {
   const { lang } = useLanguage();
+  const { activeRole } = useAuth();
   const [messages, setMessages] = useState<FeedbackMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -49,7 +52,13 @@ export function FeedbackTab() {
     setSendError('');
     setText('');
     try {
-      await apiClient.submitFeedback(trimmed);
+      await apiClient.submitFeedback(trimmed, {
+        platform: 'web',
+        ...(getLastScreen() ? { screen: getLastScreen()! } : {}),
+        ...(activeRole ? { activeRole } : {}),
+        device: navigator.userAgent,
+        language: lang,
+      });
       await fetchMessages();
     } catch (err) {
       setText(trimmed);
