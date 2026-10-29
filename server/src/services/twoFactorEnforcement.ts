@@ -106,7 +106,9 @@ export function isSubjectToTwoFactorEnforcement(user: Record<string, any>, statu
     : staff;
   if (!inAudience) return false;
   if (status.facultyIds.length === 0) return true;
-  return userBelongsToFaculties(user, status.facultyIds);
+  // Institution-wide ('all') accounts aren't Data Science staff just because
+  // they can see every faculty — only people actually of the named faculties.
+  return userBelongsToFaculties(user, status.facultyIds, { includeInstitutionWide: false });
 }
 
 /** merge:true so cancelling an enforcement that was never activated (doc

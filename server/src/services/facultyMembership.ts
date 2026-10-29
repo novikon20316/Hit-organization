@@ -7,11 +7,18 @@
 //
 // Matches by home faculty, program, assigned programs, coordinator scopes, or
 // any per-role faculty list. An institution-wide account ('all') with no
-// narrowing coordinator scope covers every faculty, so it counts too.
+// narrowing coordinator scope covers every faculty, so it counts too —
+// unless the caller passes includeInstitutionWide: false (2FA enforcement:
+// a policy aimed at one faculty must not sweep in system_admin and other
+// 'all' accounts).
 
 import { MAJORS_BY_FACULTY } from '../config/majors.js';
 
-export function userBelongsToFaculties(u: Record<string, any>, facultyIds: readonly string[]): boolean {
+export function userBelongsToFaculties(
+  u: Record<string, any>,
+  facultyIds: readonly string[],
+  { includeInstitutionWide = true }: { includeInstitutionWide?: boolean } = {},
+): boolean {
   if (facultyIds.length === 0) return false;
   const ids = new Set(facultyIds);
   // Program slugs that belong to those faculties (data_science's only program
@@ -25,6 +32,6 @@ export function userBelongsToFaculties(u: Record<string, any>, facultyIds: reado
   if (scopes.some((s) => hit(s?.facultyId) || hit(s?.major))) return true;
   const facultyLists = ['coordinatorScopeFacultyIds', 'facultyAdminFacultyIds', 'programHeadFacultyIds', 'gradSchoolHeadFacultyIds', 'internalExaminerFacultyIds'];
   if (facultyLists.some((k) => (u[k] ?? []).some(hit))) return true;
-  if (u.facultyId === 'all' && scopes.length === 0) return true;
+  if (includeInstitutionWide && u.facultyId === 'all' && scopes.length === 0) return true;
   return false;
 }
