@@ -24,7 +24,7 @@
 //    (same route, different accent) since it reads the signed-in user's
 //    own activeRole rather than taking a hardcoded prop.
 
-import { Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -207,18 +207,31 @@ function SidebarNavSections({
   );
 }
 
+// Below Tailwind's md breakpoint (48rem).
+const PHONE_QUERY = '(max-width: 47.99rem)';
+function subscribePhoneQuery(onChange: () => void) {
+  const mql = window.matchMedia(PHONE_QUERY);
+  mql.addEventListener('change', onChange);
+  return () => mql.removeEventListener('change', onChange);
+}
+
 export function SidebarShell({ brand, sections, quickActions, theme, children }: SidebarShellProps) {
   const router = useRouter();
   const { lang, t, toggleLang } = useLanguage();
   const { userData, activeRole, logout } = useAuth();
   const { hasOpenRelayTasks, isOnAnyCommittee, isCommitteeSubstitute } = useNotifications();
   const pathname = usePathname();
+  // Decided in JS, not by md: classes alone — a desktop browser was showing
+  // the phone top bar and ✕ beside the permanent sidebar. On computers the
+  // phone pieces are now not rendered at all, so the desktop markup is
+  // exactly the pre-drawer one. Server render assumes desktop.
+  const isPhone = useSyncExternalStore(subscribePhoneQuery, () => window.matchMedia(PHONE_QUERY).matches, () => false);
   // Phones only (below md): the sidebar is a drawer behind the top bar's ☰
   // button. At md+ it stays permanently open, as before — a fixed 256px
   // column left a phone only ~120px for the page itself.
   // Holds the pathname it was opened on, so navigating anywhere closes it.
   const [drawerOpenOn, setDrawerOpenOn] = useState<string | null>(null);
-  const drawerOpen = drawerOpenOn === pathname;
+  const drawerOpen = isPhone && drawerOpenOn === pathname;
   const setDrawerOpen = (open: boolean) => setDrawerOpenOn(open ? pathname : null);
 
   useEffect(() => {
@@ -277,11 +290,12 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
   const tourQuickActions = quickActions ? { ...quickActions, items: quickActions.items.filter(isItemVisible) } : undefined;
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper md:flex-row">
-      {/* Phone-only top bar — the one way to reach the drawer below md. */}
+    <div className={`flex min-h-screen bg-paper ${isPhone ? 'flex-col' : ''}`}>
+      {/* Phone-only top bar — the one way to reach the drawer. */}
+      {isPhone && (
       <div
         style={accentStyle}
-        className={`sticky top-0 z-30 flex items-center gap-3 border-b px-3 py-2 md:hidden ${cls.nav}`}
+        className={`sticky top-0 z-30 flex items-center gap-3 border-b px-3 py-2 ${cls.nav}`}
       >
         <button
           type="button"
@@ -295,16 +309,19 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
         <h2 className={`min-w-0 flex-1 truncate text-base font-bold ${cls.brand}`}>{brand.name}</h2>
         <NotificationBell className={cls.itemInactive} />
       </div>
-
-      {drawerOpen && (
-        <div aria-hidden="true" onClick={() => setDrawerOpen(false)} className="fixed inset-0 z-40 bg-black/40 md:hidden" />
       )}
 
-      {/* Permanently open at md+; a drawer on phones. */}
+      {drawerOpen && (
+        <div aria-hidden="true" onClick={() => setDrawerOpen(false)} className="fixed inset-0 z-40 bg-black/40" />
+      )}
+
+      {/* Permanently open on computers; a drawer on phones. */}
       <nav
         aria-label={lang === 'he' ? 'ניווט' : 'Navigation'}
         style={accentStyle}
-        className={`${drawerOpen ? 'fixed inset-y-0 start-0 z-50 flex' : 'hidden'} w-64 max-w-[85vw] shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 md:sticky md:top-0 md:z-auto md:flex md:h-screen md:max-w-none ${cls.nav}`}
+        className={`${
+          !isPhone ? 'flex lg:sticky lg:top-0 lg:h-screen' : drawerOpen ? 'fixed inset-y-0 start-0 z-50 flex max-w-[85vw]' : 'hidden'
+        } w-64 shrink-0 flex-col gap-1 overflow-y-auto border-s py-6 ${cls.nav}`}
       >
         <div className="mb-8 flex items-center gap-3 px-4">
           <div
@@ -318,14 +335,16 @@ export function SidebarShell({ brand, sections, quickActions, theme, children }:
             <p className={`truncate text-xs ${cls.subtitle}`}>{brand.subtitle[lang]}</p>
           </div>
           <NotificationBell className={cls.itemInactive} />
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(false)}
-            aria-label={lang === 'he' ? 'סגירת תפריט' : 'Close menu'}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-admin text-lg md:hidden ${cls.itemInactive}`}
-          >
-            ✕
-          </button>
+          {isPhone && (
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label={lang === 'he' ? 'סגירת תפריט' : 'Close menu'}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-admin text-lg ${cls.itemInactive}`}
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <Suspense fallback={null}>
