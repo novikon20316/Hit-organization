@@ -15,7 +15,7 @@ import { writePrivateContact } from '../services/privateContact.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { specializationsFor } from '../config/specialization.js';
 import { uploadStudentPhoto, resolveStudentPhotoUrl } from '../services/studentPhoto.js';
-import { isTwoFactorSetupRequired } from '../services/twoFactorEnforcement.js';
+import { isTwoFactorSetupRequired, isStaffMember } from '../services/twoFactorEnforcement.js';
 import { resolvePlatform } from '../services/maintenanceStatus.js';
 import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
@@ -756,6 +756,14 @@ export const uploadUserPhoto = async (req: AuthenticatedRequest, res: Response) 
 // displayName/major/etc. elsewhere (rosters, project cards) — no extra
 // per-viewer restriction, since a face photo isn't more sensitive than the
 // profile fields already exposed that way.
+// Mirrors sharesActiveProject() in firestore.rules: enrollment writes both
+// activeProjectId (latest) and activeProjectIds (all), and trackChange.ts
+// rewrites only the scalar, so both shapes are checked.
+function sharesActiveProject(me: Record<string, any>, them: Record<string, any>): boolean {
+  const mine = new Set<string>([...(me.activeProjectIds ?? []), me.activeProjectId].filter(Boolean));
+  return [...(them.activeProjectIds ?? []), them.activeProjectId].some((id) => !!id && mine.has(id));
+}
+
 export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user?.uid) return res.status(401).json({ error: L(req, 'Unauthorized.', 'לא מורשה.') });
   const { uid } = req.params;
@@ -767,6 +775,15 @@ export const getUserPhotoUrl = async (req: AuthenticatedRequest, res: Response) 
   try {
     const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: L(req, 'User not found.', 'המשתמש לא נמצא.') });
+    // Same rule as reading a profile in firestore.rules: yourself, staff, or
+    // a partner on a shared active project. Without it any signed-in user
+    // could swap the uid in the URL and get another student's photo.
+    if (uid !== req.user.uid && !isStaffMember(req.user.role, req.user.roles ?? [])) {
+      const meDoc = await db.collection('users').doc(req.user.uid).get();
+      if (!sharesActiveProject(meDoc.data() ?? {}, userDoc.data() ?? {})) {
+        return res.status(403).json({ error: L(req, 'Access denied.', 'הגישה נדחתה.') });
+      }
+    }
     const photoUrl = resolveStudentPhotoUrl(userDoc.data()?.photoPublicId ?? null);
     return res.status(200).json({ photoUrl });
   } catch (error: any) {
