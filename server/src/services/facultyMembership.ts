@@ -1,9 +1,9 @@
 // src/services/facultyMembership.ts
 //
 // "Does this user belong to, or work on, one of these faculties?" — shared by
-// every per-faculty switch (impersonation protection in config/featureFlags.ts,
-// per-faculty 2FA enforcement in services/twoFactorEnforcement.ts), so they
-// always agree on who counts as e.g. Data Science staff.
+// every per-faculty switch (e.g. per-faculty 2FA enforcement in
+// services/twoFactorEnforcement.ts), so they always agree on who counts as
+// e.g. Data Science staff.
 //
 // Matches by home faculty, program, assigned programs, coordinator scopes, or
 // any per-role faculty list. An institution-wide account ('all') with no

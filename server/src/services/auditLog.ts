@@ -96,9 +96,8 @@ export type AuditAction =
   | 'project_records_exported'
   | 'student_thesis_eligibility_set'
   | 'student_track_overridden_by_admin'
-  // Temporary debug tooling (see config/featureFlags.ts's
-  // IMPERSONATION_ENABLED) — a system_admin signing in as another user from
-  // the web Users tab.
+  // Kept only so past entries stay typed: "sign in as another user" was
+  // removed for good on 2026-10-29 and nothing writes this any more.
   | 'impersonation_started'
   // WorkflowMilestoneSpec.preGradeSignoffs — independent, parallel signoffs
   // unlocked at student-submission time (see services/parallelSignoffs.ts

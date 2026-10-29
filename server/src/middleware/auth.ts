@@ -163,6 +163,13 @@ export function forgetTokensValidAfter(uid: string): void {
  * verifyToken — enriches req.user with role + facultyId from Firestore.
  * Use this on ALL routes so controllers can trust req.user.role.
  */
+// "Sign in as another user" (impersonation) was removed for good on
+// 2026-10-29. Sessions it created carry an `impersonatedBy` claim and could
+// otherwise stay signed in on a browser indefinitely — refuse them outright.
+function isImpersonatedSession(decoded: Record<string, unknown>): boolean {
+  return decoded.impersonatedBy !== undefined;
+}
+
 export const verifyToken = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -185,6 +192,9 @@ export const verifyToken = async (
   } catch (error: any) {
     console.error('Token verification error:', error);
     return res.status(403).json({ error: L(req, 'Invalid or expired authentication token.', 'אסימון ההזדהות אינו תקין או שפג תוקפו.') });
+  }
+  if (isImpersonatedSession(decodedToken)) {
+    return res.status(401).json({ error: L(req, 'This session is no longer valid. Please sign in again.', 'החיבור הזה אינו תקף יותר. יש להתחבר מחדש.') });
   }
 
   const uid = decodedToken.uid;
@@ -335,6 +345,9 @@ export const verifyTokenOnly = async (
 
   try {
     const decodedToken = await auth.verifyIdToken(rawToken);
+    if (isImpersonatedSession(decodedToken)) {
+      return res.status(401).json({ error: L(req, 'This session is no longer valid. Please sign in again.', 'החיבור הזה אינו תקף יותר. יש להתחבר מחדש.') });
+    }
     req.user = {
       uid:       decodedToken.uid,
       email:     decodedToken.email,

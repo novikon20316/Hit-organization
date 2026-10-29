@@ -82,20 +82,6 @@ export const finalReportLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-// Impersonation (see config/featureFlags.ts) mints live Firebase sign-in
-// tokens — throttle it per-admin-account like totpLimiter above, rather than
-// leaning solely on the blanket apiLimiter.
-export const impersonationLimiter = rateLimit({
-  store: new FirestoreRateLimitStore('impersonation'),
-  passOnStoreError: true,
-  windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: keyByUserOrIp,
-  message: { error: 'Too many impersonation attempts. Please wait before trying again.' },
-});
-
 // External read-only integration endpoint (see routes/integrations.ts) — gated
 // only by a static shared secret, not Firebase Auth, so if that secret ever
 // leaks the blanket apiLimiter's 1000/15min would let an attacker enumerate

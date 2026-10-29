@@ -8,7 +8,7 @@
 // same count.
 //
 // Used only for the low-volume, security-sensitive limiters (2FA codes,
-// signup, login security, examiner access, final report, impersonation,
+// signup, login security, examiner access, final report,
 // uploads, mass messaging) — each hit is one Firestore transaction, so the
 // blanket per-request apiLimiter stays in memory. Limiters using it set
 // passOnStoreError, so a Firestore outage lets requests through instead of

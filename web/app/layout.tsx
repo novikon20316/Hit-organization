@@ -5,7 +5,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { LiveEventToast } from "@/components/LiveEventToast";
-import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 
 // One family for the whole product, Hebrew + Latin both — switching
 // languages never breaks the type rhythm because both scripts share the
@@ -40,7 +39,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-paper text-ink">
         <LanguageProvider>
           <AuthProvider>
-            <ImpersonationBanner />
             <NotificationsProvider>
               {children}
               <LiveEventToast />

@@ -16,7 +16,6 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
 import { resolveTrackPolicy } from '../config/studentTrack.js';
 import { WEBSITE_URL, APP_LINK_URL_IOS, APP_LINK_URL_ANDROID } from '../config/links.js';
-import { IMPERSONATION_ENABLED, isImpersonationProtected } from '../config/featureFlags.js';
 import {
   validateScopeRule, validateCoordinatorScope,
   ADMIN_TIER_ROLES, DELEGATE_ADMIN_ROLES, DELEGATE_RESTRICTED_ACTIONS,
@@ -105,9 +104,6 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
     const users = usersSnap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-      // Lets the Users tab hide the Impersonate button for real users —
-      // same check impersonateUser enforces (config/featureFlags.ts).
-      impersonationProtected: isImpersonationProtected(d.data()),
     }));
 
     // Resolves each project's supervisorId to a display name — without this,
@@ -145,87 +141,10 @@ export const getAdminDashboardSummary = async (req: AuthenticatedRequest, res: R
       projects,
       milestones,
       unreadCount: notifSnap.size,
-      impersonationEnabled: IMPERSONATION_ENABLED,
     });
   } catch (error: any) {
     console.error('getAdminDashboardSummary error:', error);
     return res.status(500).json({ message: L(req, 'Failed to load admin dashboard data.', 'טעינת נתוני לוח הבקרה של המערכת נכשלה.') });
-  }
-};
-
-/**
- * POST /api/admin/users/:id/impersonate
- * Temporary debugging tool (config/featureFlags.ts's IMPERSONATION_ENABLED)
- * — lets a system_admin sign in as another user from the web Users tab,
- * without asking the real accountholder to reproduce a bug themselves.
- *
- * Mints two Firebase custom tokens: one to sign in as the target user, and
- * one (for the admin's own uid) so the client can switch back later with no
- * further server round-trip — by the time the admin is signed in as the
- * target, they no longer hold a system_admin-authenticated session to make
- * one with.
- */
-export const impersonateUser = async (req: AuthenticatedRequest, res: Response) => {
-  const adminUid = req.user?.uid;
-  const targetUid = req.params.id;
-  if (!isValidDocId(targetUid)) {
-    return res.status(400).json({ message: L(req, 'Missing target user id.', 'חסר מזהה משתמש יעד.') });
-  }
-
-  if (!hasAnyRole(req.user, ['system_admin'])) {
-    await logPermissionDenied(req, 'user_impersonation', targetUid);
-    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
-  }
-
-  if (!IMPERSONATION_ENABLED) {
-    return res.status(403).json({ message: L(req, 'Impersonation is currently disabled.', 'התחזות למשתמש מושבתת כעת.') });
-  }
-
-  if (targetUid === adminUid) {
-    return res.status(400).json({ message: L(req, 'Cannot impersonate yourself.', 'לא ניתן להתחזות לעצמך.') });
-  }
-
-  try {
-    const targetDoc = await db.collection('users').doc(targetUid).get();
-    if (!targetDoc.exists) {
-      return res.status(404).json({ message: L(req, 'User not found.', 'המשתמש לא נמצא.') });
-    }
-    const targetData = targetDoc.data()!;
-    const targetRoles = new Set<string>([targetData.role, ...(targetData.roles ?? [])].filter(Boolean));
-    if (targetRoles.has('system_admin')) {
-      return res.status(400).json({ message: L(req, 'Cannot impersonate another system_admin account.', 'לא ניתן להתחזות לחשבון מנהל מערכת אחר.') });
-    }
-    // Real, live users (IMPERSONATION_PROTECTED_FACULTIES — currently Data
-    // Science) can never be impersonated; only the still-test faculties can.
-    if (isImpersonationProtected(targetData)) {
-      await logPermissionDenied(req, 'user_impersonation', targetUid);
-      return res.status(403).json({ message: L(req, 'This user belongs to a live department and cannot be impersonated.', 'משתמש זה שייך למחלקה פעילה ולא ניתן להתחזות אליו.') });
-    }
-
-    const [targetToken, adminReturnToken] = await Promise.all([
-      admin.auth().createCustomToken(targetUid, { impersonatedBy: adminUid }),
-      admin.auth().createCustomToken(adminUid!),
-    ]);
-
-    await logAuditEvent({
-      userId: adminUid!,
-      userRole: req.user?.role ?? 'system_admin',
-      action: 'impersonation_started',
-      entityType: 'user',
-      entityId: targetUid,
-      explanation: `system_admin started impersonating ${targetData.displayName ?? targetUid} (${targetData.email ?? 'no email'}).`,
-      userDisplayName: req.user?.displayName,
-    });
-
-    return res.status(200).json({
-      targetToken,
-      adminReturnToken,
-      targetDisplayName: targetData.displayName ?? '',
-      targetEmail: targetData.email ?? '',
-    });
-  } catch (error: any) {
-    console.error('impersonateUser error:', error);
-    return res.status(500).json({ message: L(req, 'Failed to start impersonation.', 'הפעלת ההתחזות נכשלה.') });
   }
 };
 

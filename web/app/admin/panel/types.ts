@@ -15,9 +15,6 @@ export interface AdminUserRecord {
   role: AppRole;
   roles?: AppRole[];
   facultyId: FacultyId;
-  /** Real, live user (server/src/config/featureFlags.ts's
-   *  IMPERSONATION_PROTECTED_FACULTIES) — never impersonatable. */
-  impersonationProtected?: boolean;
   isActive: boolean;
   totp_enabled?: boolean;
   /** system_admin-only discard from the global 2FA-enforcement policy (see

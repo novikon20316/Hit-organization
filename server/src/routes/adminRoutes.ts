@@ -33,11 +33,9 @@ import {
   deleteAuditLogEntries,
   getLockedUsers,
   liftLoginLockout,
-  impersonateUser,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
-import { impersonationLimiter } from '../middleware/rateLimit.js';
 import { assignDefense, getDefenseZoomStartUrl, getDefenseConfig } from '../controllers/coordinatorController.js';
 import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile } from '../controllers/infoFilesController.js';
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
@@ -136,8 +134,6 @@ router.post('/users/:id/standard-supervisor', verifyToken, setStandardSupervisor
 // Excel template → matched rows for the Standard Supervisor screen to fill in.
 // Read-only preview; saving goes through the per-flag route above.
 router.post('/standard-supervisors/import-preview', verifyToken, uploadExcelFileMiddleware, previewStandardSupervisorImport);
-// Temporary debug tool — see config/featureFlags.ts's IMPERSONATION_ENABLED.
-router.post('/users/:id/impersonate', verifyToken, impersonationLimiter, impersonateUser);
 router.post('/audit-log/delete', verifyToken, deleteAuditLogEntries);
 // system_admin (any student) or faculty_admin (own faculty only) — gated
 // inside the controller, not here, matching createAdminProject's pattern.
