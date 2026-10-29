@@ -181,6 +181,11 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
     finalHeaders.set('Content-Type', 'application/json; charset=utf-8');
   }
 
+  // Right after a full page load Firebase is still restoring the saved
+  // session, so currentUser is null for a moment — a call made on mount
+  // (e.g. /setup-2fa's QR fetch after the TWO_FACTOR_REQUIRED redirect)
+  // would otherwise go out with no token and get a 401.
+  await auth.authStateReady();
   const currentUser = auth.currentUser;
   if (currentUser) {
     try {
@@ -258,8 +263,9 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   // the optional nudge already points at (see DashboardShell.tsx), same
   // mid-session-flip reasoning as the maintenance redirect above. The setup
   // screen's own calls (2fa/setup, 2fa/verify) are server-side allowlisted,
-  // so they never trigger this and there's no redirect loop.
-  if (res.status === 403 && data && typeof data === 'object' && (data as { error?: string }).error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined') {
+  // but app-wide background calls (chats, task badges) still 403 while on
+  // it — reloading /setup-2fa for those looped the page twice a second.
+  if (res.status === 403 && data && typeof data === 'object' && (data as { error?: string }).error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/setup-2fa') {
     window.location.href = '/setup-2fa';
   }
 
