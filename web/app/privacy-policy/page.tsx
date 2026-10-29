@@ -18,7 +18,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 
 const CONTACT_EMAIL = 'Support2HIT@gmail.com';
 const INSTITUTION_NAME = 'Holon Institute of Technology (HIT)';
-const EFFECTIVE_DATE = '2026-10-18';
+const EFFECTIVE_DATE = '2026-10-30';
 
 const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: string } }[] = [
   {
@@ -96,6 +96,7 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         '• Twilio — שליחת הודעות SMS ו-WhatsApp.\n' +
         '• Cloudinary — אחסון קבצים שהעלית (הגשות, קבצים ותמונות בצ׳אט, קורות חיים ומסמכים נוספים).\n' +
         '• Anthropic — עיבוד בעזרת בינה מלאכותית, כמתואר בסעיף הקודם.\n' +
+        '• Zoom — פגישות מקוונות להגנות שמתקיימות ב-Zoom או במתכונת משולבת. המערכת מוסרת ל-Zoom רק את שם הפרויקט ואת מועד ההגנה ומשכה. מי שמצטרף לפגישה מוסר ל-Zoom את השם שהוא מזין (ולפעמים אימייל), לפי תנאי השימוש והפרטיות של Zoom. קישור ההצטרפות מוצג רק למשתתפי ההגנה.\n' +
         '• ipinfo.io — זיהוי מיקום גס לפי כתובת IP, לצורך התראות אבטחה בלבד.\n' +
         'איננו מוכרים את המידע האישי שלך למפרסמים או לצדדים שלישיים.',
       en:
@@ -107,6 +108,7 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         '• Twilio: sending SMS and WhatsApp messages.\n' +
         '• Cloudinary: storage for files you upload (submissions, chat files and images, CVs and other documents).\n' +
         '• Anthropic: AI-assisted processing, as described in the previous section.\n' +
+        '• Zoom: online meetings for defenses held on Zoom or in hybrid format. The system gives Zoom only the project title and the defense date and length. People who join the meeting give Zoom the name they enter (and sometimes an email), under Zoom\'s own terms and privacy policy. The join link is shown only to the defense participants.\n' +
         '• ipinfo.io: coarse IP-based location lookup, used only for login security alerts.\n' +
         'We do not sell your personal data to advertisers or other third parties.',
     },
