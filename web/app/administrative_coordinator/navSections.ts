@@ -58,6 +58,21 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         badgeTargetScreens: ['admin_coordinator_overrides'],
       },
       {
+        key: 'defenses',
+        icon: '🎓',
+        // The Defenses tab is shared with the coordinator (/coordinator/home —
+        // administrative_secretary is one of its roles; see that file's
+        // COORDINATOR_ROLES). A project lands here once its student has
+        // finished every milestone before the defense.
+        href: '/coordinator/home?tab=defense',
+        label: { he: 'הגנות', en: 'Defenses' },
+        description: {
+          he: 'סטודנטים שהגיעו לאבן הדרך האחרונה — הקצאת בוחנים, קביעת מועד הגנה ופרטי ההגנה.',
+          en: 'Students who reached the last milestone — assign examiners, set the defense date and its details.',
+        },
+        isActive: (pathname, sp) => pathname === '/coordinator/home' && sp.get('tab') === 'defense',
+      },
+      {
         key: 'seminars',
         icon: '🎤',
         href: '/administrative_coordinator/dashboard?tab=seminars',
