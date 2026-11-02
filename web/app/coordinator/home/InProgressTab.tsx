@@ -272,6 +272,8 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
                             createdAt={p.createdAt}
                             milestones={student.milestones.map((m) => ({
                               type: m.type,
+                              nameHe: m.nameHe ?? undefined,
+                              nameEn: m.nameEn ?? undefined,
                               status: m.status,
                               grade: m.supervisorScore,
                               percentOfFinalGrade: m.percentOfFinalGrade,

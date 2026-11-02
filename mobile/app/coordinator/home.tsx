@@ -2199,6 +2199,8 @@ export default function CoordinatorHome() {
                           createdAt={p.createdAt}
                           milestones={milestones.map((m: any) => ({
                             type: m.type,
+                            nameHe: m.nameHe ?? undefined,
+                            nameEn: m.nameEn ?? undefined,
                             status: m.status,
                             grade: m.finalGrade ?? m.supervisorScore ?? null,
                             percentOfFinalGrade: m.percentOfFinalGrade,

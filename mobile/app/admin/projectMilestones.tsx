@@ -71,6 +71,8 @@ function toRoadmapMilestone(raw: Record<string, unknown> & { id: string }): Road
   return {
     id: raw.id,
     type: typeof raw.type === 'string' ? raw.type : 'research_proposal',
+    nameHe: typeof raw.nameHe === 'string' ? raw.nameHe : null,
+    nameEn: typeof raw.nameEn === 'string' ? raw.nameEn : null,
     status: typeof raw.status === 'string' ? raw.status : 'pending',
     dueDate: toISO(raw.dueDate),
     submittedAt: toISO(raw.submittedAt),
