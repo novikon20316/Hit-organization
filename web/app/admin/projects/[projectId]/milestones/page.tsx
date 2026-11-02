@@ -55,6 +55,11 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
   return {
     id: raw.id,
     type: (raw.type as MilestoneType) ?? 'research_proposal',
+    // A custom (workflow-template) milestone type has no entry in the legacy
+    // MILESTONE_LABEL map — its name only lives on the doc itself. See
+    // lib/milestoneLabel.ts.
+    nameHe: typeof raw.nameHe === 'string' ? raw.nameHe : null,
+    nameEn: typeof raw.nameEn === 'string' ? raw.nameEn : null,
     order: typeof raw.order === 'number' ? raw.order : undefined,
     status: (raw.status as MilestoneStatus) ?? 'pending',
     dueDate: toISO(raw.dueDate),
