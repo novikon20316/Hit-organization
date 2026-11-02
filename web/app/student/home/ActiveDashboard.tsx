@@ -10,6 +10,8 @@ import { apiClient } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
 import { ResearchProposalFormModal } from './ResearchProposalFormModal';
 import { ProgressReportFormModal } from './ProgressReportFormModal';
+import { SeminarDetails } from './SeminarDetails';
+import { isSeminarInProgress } from '@/lib/seminar';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -138,6 +140,9 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
 
   const actionableNextMilestone =
     milestones.find((m) => (m.status === 'pending' || m.status === 'rejected') && isUnlocked(m)) ?? null;
+  // A seminar past its supervisor approval is what the student is waiting on
+  // now — it has no submit action, and nothing after it is unlocked yet.
+  const activeSeminar = milestones.find((m) => isSeminarInProgress(m.status)) ?? null;
   const overviewDisplayMilestone =
     milestones.find((m) => (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status)) ?? actionableNextMilestone;
   // Is there a milestone currently waiting on staff (freshly submitted and
@@ -202,6 +207,13 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
               </p>
             </div>
           </div>
+
+          {activeSeminar && !overviewDisplayMilestone && (
+            <div className="role-rail rounded-student-lg border border-student-outline-variant bg-student-surface-container-lowest p-5 shadow-sm" style={{ '--rail-color': 'var(--student-primary)' } as React.CSSProperties}>
+              <p className="text-sm font-semibold text-student-on-surface">{milestoneDisplayName(activeSeminar, lang, MILESTONE_LABEL)}</p>
+              <SeminarDetails milestone={activeSeminar} />
+            </div>
+          )}
 
           {overviewDisplayMilestone && (
             <div
@@ -332,6 +344,8 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                         <p className="mt-1 text-xs font-medium text-danger">
                           ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
                         </p>
+                      ) : isSeminarInProgress(m.status) ? (
+                        <SeminarDetails milestone={m} />
                       ) : (
                         <p className="mt-1 text-xs text-student-on-surface-variant">
                           📅 {t('dueDate')} {toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })}

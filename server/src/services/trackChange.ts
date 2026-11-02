@@ -159,6 +159,7 @@ export async function changeProjectTrack(
       currentStageIndex: 0,
       stageScores: {},
       stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
     });
   }
 

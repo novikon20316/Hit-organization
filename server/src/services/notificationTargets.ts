@@ -35,7 +35,10 @@ export type NotificationTaskKind =
   | 'system_error'
   // A project's supervisor is also on the committee reviewing it —
   // administrative_secretary-only, see services/committeeConflicts.ts.
-  | 'committee_conflict';
+  | 'committee_conflict'
+  // A seminar milestone needs a date, an outcome, or has a student's message
+  // — see services/seminarScheduling.ts.
+  | 'seminar';
 
 /**
  * Resolves (role, kind) to a semantic screen key, or null if this role has
@@ -128,6 +131,12 @@ export function targetScreenFor(role: string | undefined | null, kind: Notificat
     // administrative_secretary-only — every other role has no such screen.
     case 'committee_conflict':
       return role === 'administrative_secretary' ? 'admin_coordinator_committee_conflicts' : null;
+    case 'seminar':
+      switch (role) {
+        case 'administrative_secretary': return 'admin_coordinator_seminars';
+        case 'coordinator':              return 'coordinator_defense';
+        default: return null;
+      }
     default:
       return null;
   }
@@ -142,7 +151,7 @@ export const ROLE_AGNOSTIC_SCREENS = ['committees', 'relay_tasks', 'login_securi
 
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',
-  'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict',
+  'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict', 'seminar',
 ];
 
 /**

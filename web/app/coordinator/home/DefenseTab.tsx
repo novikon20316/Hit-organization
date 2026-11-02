@@ -16,6 +16,7 @@ import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { DateConflictModal } from './DateConflictModal';
 import type { AssignedMilestone, CoordinatorPendingMilestone, ExaminerUser, Project } from './types';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
+import { SEMINAR_COLOR, isSeminarInProgress, seminarDayToDate } from '@/lib/seminar';
 
 // The matched defense date lives on the milestone's `dueDate` field (set by
 // the date-matching flow), not `defenseDate` — and it can arrive either as
@@ -248,13 +249,16 @@ function getDefenseAccent(card: DefenseCard): string {
 
 interface DefenseTabProps {
   cards: DefenseCard[];
+  /** Shown on the calendar only, read-only — the administrative coordinator
+   *  runs them from her own Seminars tab. */
+  projects: Project[];
   examiners: ExaminerUser[];
   onChanged: () => void;
   onApproveFinalReport: (milestone: CoordinatorPendingMilestone) => void;
   onOpenAssignExaminers: (milestone: CoordinatorPendingMilestone) => void;
 }
 
-export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, onOpenAssignExaminers }: DefenseTabProps) {
+export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFinalReport, onOpenAssignExaminers }: DefenseTabProps) {
   const { lang } = useLanguage();
   const [sort, setSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [logisticsTarget, setLogisticsTarget] = useState<{ project: Project; milestone: AssignedMilestone } | null>(null);
@@ -333,6 +337,21 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
     return map;
   }, [datedCards, year, month]);
 
+  const seminarsByDay = useMemo(() => {
+    const map = new Map<number, { key: string; title: string; time: string }[]>();
+    for (const p of projects) {
+      for (const m of p.milestones ?? []) {
+        if (!m.seminarSchedule || !isSeminarInProgress(m.status)) continue;
+        const d = seminarDayToDate(m.seminarSchedule.date);
+        if (d.getFullYear() !== year || d.getMonth() !== month) continue;
+        const day = d.getDate();
+        if (!map.has(day)) map.set(day, []);
+        map.get(day)!.push({ key: m.id, title: (lang === 'he' ? p.titleHe : p.titleEn) ?? '', time: m.seminarSchedule.time });
+      }
+    }
+    return map;
+  }, [projects, year, month, lang]);
+
   const totalCells = firstWeekday + daysInMonth;
   const cellCount = Math.ceil(totalCells / 7) * 7;
 
@@ -342,6 +361,10 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
       <div className="mb-5 overflow-hidden rounded-coordinator-lg border border-coordinator-outline-variant bg-coordinator-surface-container-lowest">
         <div className="flex items-center justify-between border-b border-coordinator-outline-variant bg-coordinator-surface-container-low px-4 py-2.5">
           <h3 className="text-sm font-bold text-coordinator-on-surface">{monthLabel}</h3>
+          <span className="flex items-center gap-1 text-xs text-coordinator-secondary">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEMINAR_COLOR }} />
+            {lang === 'he' ? 'סמינר' : 'Seminar'}
+          </span>
           <div className="flex gap-1">
             <button
               type="button"
@@ -408,6 +431,16 @@ export function DefenseTab({ cards, examiners, onChanged, onApproveFinalReport, 
                       </button>
                     );
                   })}
+                  {(inMonth ? (seminarsByDay.get(dayNum) ?? []) : []).map((s) => (
+                    <span
+                      key={s.key}
+                      title={s.title}
+                      className="truncate rounded-coordinator-sm px-1 py-0.5 text-start text-[10px] leading-tight text-white"
+                      style={{ backgroundColor: SEMINAR_COLOR }}
+                    >
+                      {s.time} {s.title}
+                    </span>
+                  ))}
                 </div>
               </div>
             );

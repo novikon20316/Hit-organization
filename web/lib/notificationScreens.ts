@@ -14,7 +14,7 @@ import type { AppRole } from './roles';
 
 type NotificationTaskKind =
   | 'milestone_action' | 'signoff' | 'deadline_examiner' | 'defense'
-  | 'archived_erasure' | 'applications' | 'grade_published' | 'system_error' | 'committee_conflict';
+  | 'archived_erasure' | 'applications' | 'grade_published' | 'system_error' | 'committee_conflict' | 'seminar';
 
 function targetScreenFor(role: string | undefined | null, kind: NotificationTaskKind): string | null {
   switch (kind) {
@@ -85,6 +85,12 @@ function targetScreenFor(role: string | undefined | null, kind: NotificationTask
       return role === 'system_admin' ? 'admin_system_health' : null;
     case 'committee_conflict':
       return role === 'administrative_secretary' ? 'admin_coordinator_committee_conflicts' : null;
+    case 'seminar':
+      switch (role) {
+        case 'administrative_secretary': return 'admin_coordinator_seminars';
+        case 'coordinator':              return 'coordinator_defense';
+        default: return null;
+      }
     default:
       return null;
   }
@@ -96,7 +102,7 @@ const ROLE_AGNOSTIC_SCREENS = ['committees', 'relay_tasks', 'login_security', 's
 
 const ALL_TASK_KINDS: NotificationTaskKind[] = [
   'milestone_action', 'signoff', 'deadline_examiner', 'defense',
-  'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict',
+  'archived_erasure', 'applications', 'grade_published', 'system_error', 'committee_conflict', 'seminar',
 ];
 
 /** Every targetScreen key `role` can ever be notified into — see this

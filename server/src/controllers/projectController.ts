@@ -22,6 +22,7 @@ import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
+import { isSeminarInProgress, onSeminarChainComplete, seminarHandoffFields } from '../services/seminarScheduling.js';
 import { authorizeStageActor, computeChainFinalGrade, computeGradingComponentsScore, isChainDriven, isIdentityKeyedDefense, isIdentityKeyedExaminerOnly, routingHasExaminerStage } from '../services/milestoneRouting.js';
 import type { ChainStage, GradingComponentSpec, FormFieldSpec, MilestoneFileType } from '../services/workflowTemplates.js';
 import { submissionRequirementMet, resolveMilestoneOrder, resolveProjectTemplateMilestones, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES } from '../services/workflowTemplates.js';
@@ -301,6 +302,7 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
       // milestone's pre-check-only chain (defense's shape) — see the
       // routingHasExaminerStage branch below.
       let precheckCompleted = false;
+      let seminarHandedOff = false;
       // Set when this grade hands the milestone on to a later sign-off stage
       // (e.g. supervisor:grade → coordinator:approve) — that stage's actors
       // are told it's now awaiting them, same as approveChainMilestone does.
@@ -410,6 +412,14 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
           update.chainPrecheckComplete = true;
           responseStatus = 'awaiting_examiners';
           precheckCompleted = true;
+        } else if (!nextStage && fresh.seminarScheduling) {
+          // A seminar whose chain ends on a grade — see approveChainMilestone's
+          // identical branch; the grade stands, the milestone isn't done yet.
+          update.finalGrade = computeChainFinalGrade(stageScores);
+          update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
+          Object.assign(update, seminarHandoffFields(freshRouting));
+          responseStatus = 'graded';
+          seminarHandedOff = true;
         } else {
           update.finalGrade = computeChainFinalGrade(stageScores);
           update.gradedAt   = admin.firestore.FieldValue.serverTimestamp();
@@ -486,6 +496,10 @@ export const submitMilestoneGrade = async (req: AuthenticatedRequest, res: Respo
             console.error(`submitMilestoneGrade: next-stage notify failed for ${actorUid} on milestone ${milestoneId}:`, notifyError);
           })
         ));
+      }
+
+      if (seminarHandedOff) {
+        await onSeminarChainComplete(milestoneId, data);
       }
 
       if (precheckCompleted) {
@@ -1538,6 +1552,10 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
     // Team milestone — same lock as the web submit route
     // (milestoneController.ts's submitMilestone): once any teammate has
     // submitted, block the rest until it's rejected or fully approved.
+    if (isSeminarInProgress(milestoneData.status)) {
+      return res.status(409).json({ message: L(req, 'Your supervisor already approved this seminar.', 'המנחה כבר אישר/ה את הסמינר הזה.') });
+    }
+
     if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
       return res.status(409).json({
         message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),

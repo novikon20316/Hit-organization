@@ -5,6 +5,7 @@
 // dependency. Add methods here as we port each mobile screen; this file is
 // meant to grow the same way the mobile one did.
 
+import type { SeminarAttempt, SeminarSlot } from './seminar';
 import { auth, appCheck } from './firebase';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { signOut } from 'firebase/auth';
@@ -3326,6 +3327,24 @@ export const apiClient = {
     return request<{ conflicts: CommitteeConflict[] }>('/api/committees/conflicts', { method: 'GET' });
   },
 
+  /** The administrative coordinator's seminar calendar — see
+   *  server/src/controllers/seminarController.ts. */
+  async getSeminars() {
+    return request<{ seminars: SeminarRow[]; defenses: SeminarCalendarDefense[]; today: string }>('/api/coordinator/seminars', { method: 'GET' });
+  },
+
+  async scheduleSeminar(milestoneId: string, payload: { date: string; time: string; location: string; note: string }) {
+    return request<{ success: boolean; message: string }>(`/api/coordinator/seminars/${milestoneId}/schedule`, { method: 'POST', body: payload });
+  },
+
+  async recordSeminarOutcome(milestoneId: string, payload: { performed: boolean; note: string }) {
+    return request<{ success: boolean; message: string }>(`/api/coordinator/seminars/${milestoneId}/outcome`, { method: 'POST', body: payload });
+  },
+
+  async contactSeminarCoordinator(milestoneId: string, message: string) {
+    return request<{ success: boolean; message: string }>(`/api/milestones/${milestoneId}/seminar-contact`, { method: 'POST', body: { message } });
+  },
+
   /** `milestoneId` (CS pilot) scopes the swap to that one milestone and
    *  releases its conflict-of-interest hold; omitted = whole-project swap. */
   async substituteCommitteeMember(projectId: string, originalUserId: string, replacementUserId: string, milestoneId?: string) {
@@ -3341,6 +3360,31 @@ export const apiClient = {
     return request<{ csPilot: boolean }>(`/api/milestones/${milestoneId}/pilot-features`, { method: 'GET' });
   },
 };
+
+export interface SeminarRow {
+  milestoneId: string;
+  projectId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string;
+  major: string;
+  nameHe: string;
+  nameEn: string;
+  status: string;
+  students: { id: string; name: string }[];
+  supervisorName: string;
+  schedule: SeminarSlot | null;
+  attempts: SeminarAttempt[];
+  contactRequests: { id: string; studentId: string; studentName: string; message: string; createdAt: string | null }[];
+}
+
+export interface SeminarCalendarDefense {
+  milestoneId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  date: string;
+  time: string;
+}
 
 export interface CommitteeConflict {
   projectId: string;

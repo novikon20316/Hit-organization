@@ -197,6 +197,7 @@ export async function applyTemplateRetroactively(
           // milestone gets a routing snapshot now, examiner-requiring or
           // not — see projectEnrollment.ts's identical comment.
           routing: resolveMilestoneRouting(spec, templateDefaultRouting),
+          seminarScheduling: spec.seminarScheduling ? true : admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }));
         touched = true;
@@ -228,6 +229,7 @@ export async function applyTemplateRetroactively(
           ...(spec.gradingComponents ? { gradingComponents: spec.gradingComponents } : {}),
           ...(spec.staffRecordMode === 'upload_or_form' ? { staffRecordMode: spec.staffRecordMode, staffFormFields: spec.staffFormFields ?? [] } : {}),
           ...(spec.finalGradeComponents ? { finalGradeComponents: spec.finalGradeComponents } : {}),
+          ...(spec.seminarScheduling ? { seminarScheduling: true } : {}),
         }));
         touched = true;
       }

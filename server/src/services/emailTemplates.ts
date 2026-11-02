@@ -79,6 +79,12 @@ export type NotificationType =
   // The student's view-only final report link, sent once their final grade
   // is approved — see services/finalReport.ts.
   | 'final_report_ready'
+  // Seminar milestones (services/seminarScheduling.ts): the date the
+  // administrative coordinator booked or changed, the "wasn't performed"
+  // notice, and a student's message to her about the date.
+  | 'seminar_date_set'
+  | 'seminar_not_performed'
+  | 'seminar_contact_request'
   | 'general';
 
 interface EmailTemplate {
@@ -688,6 +694,59 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
       <p>Your final grade for <strong>"${d.projectTitle || ''}"</strong> has been approved. Your final report — your details, milestones, grades and final grade — is available to view and print here:</p>
       <p><a href="${d.link || ''}">View your final report</a></p>
       <p>This link only shows the report — it cannot be used to sign in to the system. It is personal; please don't share it.</p>
+    `,
+  },
+
+  seminar_date_set: {
+    subjectHe: (d) => (d.rescheduled ? '📅 מועד הסמינר שלך עודכן' : '📅 נקבע מועד לסמינר שלך'),
+    subjectEn: (d) => (d.rescheduled ? '📅 Your seminar date changed' : '📅 Your seminar date was set'),
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p>${d.rescheduled ? 'מועד ' : 'נקבע מועד ל'}<strong>${d.milestoneTitle || 'סמינר'}</strong>${d.rescheduled ? ' עודכן' : ''}:</p>
+      <p><strong>${d.date || ''}</strong> בשעה <strong>${d.time || ''}</strong>${d.location ? `, ${d.location}` : ''}.</p>
+      ${d.note ? `<p>${d.note}</p>` : ''}
+      <p>אם המועד אינו מתאים, ניתן לפנות לרכזת האדמיניסטרטיבית דרך מסך אבני הדרך במערכת.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p>The date of <strong>${d.milestoneTitle || 'your seminar'}</strong> ${d.rescheduled ? 'changed' : 'was set'}:</p>
+      <p><strong>${d.date || ''}</strong> at <strong>${d.time || ''}</strong>${d.location ? `, ${d.location}` : ''}.</p>
+      ${d.note ? `<p>${d.note}</p>` : ''}
+      <p>If this date doesn't work for you, you can contact the administrative coordinator from the milestones screen.</p>
+    `,
+  },
+
+  seminar_not_performed: {
+    subjectHe: '📅 הסמינר לא התקיים — ייקבע מועד חדש',
+    subjectEn: '📅 Seminar not performed — a new date will be set',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p><strong>${d.milestoneTitle || 'הסמינר'}</strong> סומן כלא בוצע במועד ${d.date || ''}.</p>
+      ${d.note ? `<p>הערת הרכזת: ${d.note}</p>` : ''}
+      <p>הרכזת האדמיניסטרטיבית תקבע מועד חדש ותישלח אליך הודעה.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p><strong>${d.milestoneTitle || 'Your seminar'}</strong> was marked as not performed on ${d.date || ''}.</p>
+      ${d.note ? `<p>Coordinator's note: ${d.note}</p>` : ''}
+      <p>The administrative coordinator will set a new date and you'll be notified.</p>
+    `,
+  },
+
+  seminar_contact_request: {
+    subjectHe: '✉️ פנייה מסטודנט/ית בנוגע למועד סמינר',
+    subjectEn: '✉️ Student message about a seminar date',
+    bodyHe: (d) => `
+      <p>שלום ${d.name || ''},</p>
+      <p><strong>${d.studentName || ''}</strong> פנה/תה בנוגע ל<strong>${d.milestoneTitle || 'סמינר'}</strong>:</p>
+      <blockquote>${d.message || ''}</blockquote>
+      <p>הפנייה מופיעה במערכת בלשונית הסמינרים, ליד מועד הסמינר.</p>
+    `,
+    bodyEn: (d) => `
+      <p>Hello ${d.name || ''},</p>
+      <p><strong>${d.studentName || ''}</strong> wrote about <strong>${d.milestoneTitle || 'a seminar'}</strong>:</p>
+      <blockquote>${d.message || ''}</blockquote>
+      <p>The message is shown on the Seminars tab, next to the seminar date.</p>
     `,
   },
 

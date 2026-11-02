@@ -81,6 +81,8 @@ const MILESTONE_STATUS_LABEL: Record<string, { he: string; en: string }> = {
   awaiting_defense_date: { he: 'ממתין למועד הגנה', en: 'Awaiting defense date' },
   date_conflict:         { he: 'התנגשות מועדים', en: 'Date conflict' },
   defense_date_set:      { he: 'מועד הגנה נקבע', en: 'Defense date set' },
+  seminar_awaiting_date: { he: 'ממתין למועד סמינר', en: 'Awaiting seminar date' },
+  seminar_scheduled:     { he: 'מועד סמינר נקבע', en: 'Seminar date set' },
   scheduled:             { he: 'מתוזמן',         en: 'Scheduled' },
   completed:             { he: 'הושלם',          en: 'Completed' },
 };

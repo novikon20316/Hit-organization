@@ -28,7 +28,7 @@ import type { NotificationTaskKind } from './notificationTargets.js';
 
 export type TaskMode = 'state' | 'action' | 'applications';
 
-const ACTION_TASK_KINDS: NotificationTaskKind[] = ['signoff', 'deadline_examiner', 'defense', 'committee_conflict'];
+const ACTION_TASK_KINDS: NotificationTaskKind[] = ['signoff', 'deadline_examiner', 'defense', 'committee_conflict', 'seminar'];
 const OPEN_APPLICATION_STATUSES = new Set(['applied', 'pending', 'meeting_requested', 'meeting_proposed', 'meeting_confirmed']);
 
 export function taskModeFor(p: {

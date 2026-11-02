@@ -1,5 +1,6 @@
 // app/student/home/types.ts
 import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
+import type { SeminarAttempt, SeminarSlot } from '@/lib/seminar';
 
 export type StudentState = 'loading' | 'ineligible' | 'awaiting_grade' | 'no_project' | 'choose_supervisor' | 'active';
 export type DegreeType = 'bachelors' | 'masters';
@@ -20,6 +21,8 @@ export type MilestoneStatus =
   | 'date_conflict'
   | 'defense_date_set'
   | 'scheduled'
+  | 'seminar_awaiting_date'
+  | 'seminar_scheduled'
   | 'completed';
 
 export interface ProjectProposal {
@@ -148,6 +151,9 @@ export interface Milestone {
   fileUrls: string[];
   finalGrade: number | null;
   supervisorScore?: number | null;
+  /** See lib/seminar.ts — only on a seminar milestone. */
+  seminarSchedule?: SeminarSlot | null;
+  seminarAttempts?: SeminarAttempt[];
   defenseDate: string | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;
@@ -323,6 +329,8 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   date_conflict: { color: '#A8433A', bg: 'var(--danger-bg)', icon: '⚠️' },
   defense_date_set: { color: '#736B8C', bg: '#EDEBF2', icon: '📌' },
   scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
+  seminar_awaiting_date: { color: '#7C3AED', bg: '#F1ECFD', icon: '📅' },
+  seminar_scheduled: { color: '#7C3AED', bg: '#F1ECFD', icon: '🎤' },
   completed: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🏁' },
 };
 
@@ -339,6 +347,8 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   date_conflict: { he: 'לא נמצא תאריך משותף', en: 'No Common Date' },
   defense_date_set: { he: 'תאריך הגנה נקבע', en: 'Defense Date Set' },
   scheduled: { he: 'הגנה נקבעה', en: 'Defense Scheduled' },
+  seminar_awaiting_date: { he: 'ממתין למועד סמינר', en: 'Awaiting Seminar Date' },
+  seminar_scheduled: { he: 'מועד סמינר נקבע', en: 'Seminar Date Set' },
   coordinator_approved: { he: 'אושר ע"י רכז', en: 'Coordinator Approved' },
   completed: { he: 'הושלם', en: 'Completed' },
 };

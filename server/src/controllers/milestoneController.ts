@@ -13,6 +13,7 @@ import { notifyExaminersOfResubmission } from '../services/examinerOpinion.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
+import { isSeminarInProgress } from '../services/seminarScheduling.js';
 import { submissionRequirementMet, resolveMilestoneOrder, fileMatchesAllowedTypes, MILESTONE_FILE_TYPES, isDefenseDateConfirmed, type FormFieldSpec, type MilestoneFileType } from '../services/workflowTemplates.js';
 import { onEnterCommitteeStage } from './committeeReviewController.js';
 import { onMilestoneNeedsParallelSignoffs } from '../services/parallelSignoffs.js';
@@ -118,6 +119,10 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     const studentIds: string[] = milestoneData.studentIds ?? [];
     if (!studentIds.includes(studentId))
       return res.status(403).json({ message: L(req, 'Forbidden.', 'הגישה נדחתה.') });
+
+    if (isSeminarInProgress(milestoneData.status)) {
+      return res.status(409).json({ message: L(req, 'Your supervisor already approved this seminar.', 'המנחה כבר אישר/ה את הסמינר הזה.') });
+    }
 
     // Team milestone (more than one owner — see projectEnrollment.ts) — once
     // any teammate has submitted, lock the rest out until it's rejected

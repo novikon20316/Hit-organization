@@ -106,6 +106,10 @@ export type AuditAction =
   // and parallelSignoffController.ts), distinct from the sequential
   // committee chain's 'milestone_approved'/'milestone_rejected'.
   | 'committee_chair_decision_recorded'
+  // Seminar milestones — see services/seminarScheduling.ts.
+  | 'seminar_date_set'
+  | 'seminar_performed'
+  | 'seminar_not_performed'
   | 'examiner_one_signoff_recorded'
   // "Standard supervisor" eligibility per degree category (see
   // adminController.ts's setStandardSupervisorFlag).

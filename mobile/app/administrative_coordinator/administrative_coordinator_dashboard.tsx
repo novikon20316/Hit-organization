@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
+import { SeminarsPanel } from '@/components/SeminarsPanel';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace, type DefenseMode, type DefenseZoomMeeting } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
@@ -540,8 +541,8 @@ export default function ProjectCoordinatorDashboard() {
   // Lets a notification's "Go to dashboard" deep-link land on a specific tab
   // (?tab=...) instead of always opening on Groups — same convention the web
   // dashboard already supports.
-  type AdminCoordinatorTab = 'groups' | 'students' | 'overrides' | 'committeeConflicts';
-  const ADMIN_COORDINATOR_TABS: AdminCoordinatorTab[] = ['groups', 'students', 'overrides', 'committeeConflicts'];
+  type AdminCoordinatorTab = 'groups' | 'students' | 'overrides' | 'committeeConflicts' | 'seminars';
+  const ADMIN_COORDINATOR_TABS: AdminCoordinatorTab[] = ['groups', 'students', 'overrides', 'committeeConflicts', 'seminars'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<AdminCoordinatorTab>(
     ADMIN_COORDINATOR_TABS.includes(tabParam as AdminCoordinatorTab) ? (tabParam as AdminCoordinatorTab) : 'groups'
@@ -552,6 +553,7 @@ export default function ProjectCoordinatorDashboard() {
   const { unreadByTargetScreen, markTabSeen } = useNotifications();
   const overridesBadgeCount = unreadByTargetScreen['admin_coordinator_overrides'] ?? 0;
   const conflictsBadgeCount = unreadByTargetScreen['admin_coordinator_committee_conflicts'] ?? 0;
+  const seminarsBadgeCount = unreadByTargetScreen['admin_coordinator_seminars'] ?? 0;
   useEffect(() => {
     if (activeTab === 'overrides' && overridesBadgeCount > 0) {
       markTabSeen(['admin_coordinator_overrides']);
@@ -559,11 +561,16 @@ export default function ProjectCoordinatorDashboard() {
     if (activeTab === 'committeeConflicts' && conflictsBadgeCount > 0) {
       markTabSeen(['admin_coordinator_committee_conflicts']);
     }
-  }, [activeTab, overridesBadgeCount, conflictsBadgeCount, markTabSeen]);
+    if (activeTab === 'seminars' && seminarsBadgeCount > 0) {
+      markTabSeen(['admin_coordinator_seminars']);
+    }
+  }, [activeTab, overridesBadgeCount, conflictsBadgeCount, seminarsBadgeCount, markTabSeen]);
   // "Replace Committee Member" only makes sense for a coordinator narrowed
   // to a specific major — see web's page.tsx canSeeCommitteeConflicts for
   // the same reasoning.
   const canSeeCommitteeConflicts = (data?.scopes ?? []).some((s) => s.major);
+  // Only Computer Science has seminar milestones so far — see web's navSections.ts.
+  const canSeeSeminars = (data?.scopes ?? []).some((s) => (s.facultyId === 'sciences' || s.facultyId === 'all') && (!s.major || s.major === 'computer_science'));
   const [studentsReport, setStudentsReport] = useState<StudentReportRow[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
@@ -1100,7 +1107,7 @@ export default function ProjectCoordinatorDashboard() {
           Replace Committee Member (only for a coordinator narrowed to a
           specific major — see canSeeCommitteeConflicts above) */}
       <View style={s.filterRow}>
-        {(['groups', 'students', 'overrides', ...(canSeeCommitteeConflicts ? ['committeeConflicts' as const] : [])] as const).map((key) => (
+        {(['groups', 'students', 'overrides', ...(canSeeSeminars ? ['seminars' as const] : []), ...(canSeeCommitteeConflicts ? ['committeeConflicts' as const] : [])] as const).map((key) => (
           <TourTarget key={key} tourKey={key}>
             <Pressable
               style={[s.filterChip, { flexDirection: 'row', alignItems: 'center' }, activeTab === key && { backgroundColor: fc.primary }]}
@@ -1114,10 +1121,13 @@ export default function ProjectCoordinatorDashboard() {
                     ? (lang === 'he' ? 'דוח סטודנטים' : 'Students Report')
                     : key === 'overrides'
                       ? (lang === 'he' ? 'אישור ציונים סופיים' : 'Final Grade Approvals')
-                      : (lang === 'he' ? 'החלפת חבר ועדה' : 'Replace Committee Member')}
+                      : key === 'seminars'
+                        ? (lang === 'he' ? 'סמינרים' : 'Seminars')
+                        : (lang === 'he' ? 'החלפת חבר ועדה' : 'Replace Committee Member')}
               </Text>
               {key === 'overrides' && <TabBadge count={overridesBadgeCount} />}
               {key === 'committeeConflicts' && <TabBadge count={conflictsBadgeCount} />}
+              {key === 'seminars' && <TabBadge count={seminarsBadgeCount} />}
             </Pressable>
           </TourTarget>
         ))}
@@ -1272,7 +1282,9 @@ export default function ProjectCoordinatorDashboard() {
             ))}
           </View>
         )}
-        {activeTab === 'overrides' ? null : activeTab === 'committeeConflicts' ? (
+        {activeTab === 'overrides' ? null : activeTab === 'seminars' ? (
+          <SeminarsPanel lang={lang} isRtl={lang === 'he'} />
+        ) : activeTab === 'committeeConflicts' ? (
           <View>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 10 }}>
               {lang === 'he'

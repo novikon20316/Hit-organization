@@ -55,6 +55,7 @@ import { getStudentStatusOptions } from './controllers/studentStatusController.j
 import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders, sendSupervisorPendingReviewReminders } from './services/notificationScheduler.js';
+import { sendSeminarOutcomeReminders } from './services/seminarScheduling.js';
 import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
@@ -309,6 +310,9 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 setInterval(() => {
   sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
+}, ONE_HOUR_MS);
+setInterval(() => {
+  sendSeminarOutcomeReminders().catch((err) => console.error('sendSeminarOutcomeReminders sweep failed:', err));
 }, ONE_HOUR_MS);
 // Stuck-milestone escalation — see services/stuckMilestones.ts. Hourly so a
 // link change is picked up (and the clock restarted) within the hour.

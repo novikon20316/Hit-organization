@@ -170,6 +170,9 @@ export async function resolveWaitingOn(
   }
 
   switch (m.status) {
+    case 'seminar_awaiting_date':
+    case 'seminar_scheduled':
+      return { role: 'administrative_secretary', uids: await staff('administrative_secretary') };
     case 'submitted':
       return { role: 'supervisor', uids: supervisorIds };
     case 'examiners_assigned':
@@ -325,6 +328,11 @@ export async function sweepStuckMilestones(): Promise<void> {
       if ((m.status === 'defense_date_set' || m.status === 'scheduled') && since) {
         const defenseMs = tsMs(m.defenseDate);
         if (defenseMs && defenseMs > since.toMillis()) since = admin.firestore.Timestamp.fromMillis(defenseMs);
+      }
+      if (m.status === 'seminar_scheduled' && since) {
+        // Same as a booked defense — nothing is late before the day itself.
+        const seminarMs = m.seminarSchedule?.date ? new Date(m.seminarSchedule.date).getTime() : null;
+        if (seminarMs && seminarMs > since.toMillis()) since = admin.firestore.Timestamp.fromMillis(seminarMs);
       }
       if (!since) { await clear(); continue; }
 

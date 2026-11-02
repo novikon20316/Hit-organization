@@ -1,4 +1,5 @@
 // app/coordinator/home/types.ts
+import type { SeminarSlot } from '@/lib/seminar';
 import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import type { FacultyId } from '@/lib/i18n';
 import type { ChainStage } from '@/app/workflow-templates/types';
@@ -37,6 +38,8 @@ export interface AssignedMilestone {
    *  to the right student instead of the whole project. */
   studentIds?: string[];
   dueDate?: string | { toDate?: () => Date; _seconds?: number } | null;
+  /** Only on a seminar milestone — see lib/seminar.ts. */
+  seminarSchedule?: SeminarSlot | null;
   defenseDate?: string | null;
   defenseRoom?: string | null;
   defenseTime?: string | null;

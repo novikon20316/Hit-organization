@@ -286,6 +286,7 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
   const syncOptions = otherMilestones.filter((m) => m.type !== editing?.type);
   const [syncDueDateWith, setSyncDueDateWith] = useState(editing?.syncDueDateWith ?? '');
   const [percentOfFinalGrade, setPercentOfFinalGrade] = useState(String(editing?.percentOfFinalGrade ?? 0));
+  const [seminarScheduling, setSeminarScheduling] = useState(editing?.seminarScheduling ?? false);
   const [requiresExaminers, setRequiresExaminers] = useState(editing?.requiresExaminers ?? false);
   const [examinerCount, setExaminerCount] = useState(String(editing?.examinerCount ?? 2));
   const [components, setComponents] = useState<GradingComponentSpec[]>(editing?.gradingComponents ?? []);
@@ -457,6 +458,7 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
       ...(syncDueDateWith ? { syncDueDateWith } : {}),
       percentOfFinalGrade: parsedPercent,
       requiresExaminers,
+      ...(seminarScheduling && !requiresExaminers ? { seminarScheduling: true } : {}),
       ...(requiresExaminers ? { examinerCount: parsedExaminerCount, examinerOnlyGrading, examinerFormFields } : {}),
       gradingComponents: components,
       ...(overrideChain ? { routing } : {}),
@@ -592,6 +594,21 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
               className="h-4 w-4 accent-[var(--primary)]"
             />
           </label>
+
+          {!requiresExaminers && (
+            <label className="flex items-center justify-between rounded-lg border border-line bg-paper px-3 py-2.5">
+              <span className="text-sm font-medium text-ink">
+                {lang === 'he' ? 'סמינר (מועד ע"י הרכזת האדמיניסטרטיבית)' : 'Seminar (date set by the administrative coordinator)'}
+                <InfoTooltip text={milestoneGuideEntry('seminarScheduling').description} />
+              </span>
+              <input
+                type="checkbox"
+                checked={seminarScheduling}
+                onChange={(e) => setSeminarScheduling(e.target.checked)}
+                className="h-4 w-4 accent-[var(--primary)]"
+              />
+            </label>
+          )}
 
           {requiresExaminers && (
             <>

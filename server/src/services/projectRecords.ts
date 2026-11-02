@@ -47,7 +47,10 @@ export type RecordEntryType =
   | 'message_sent'
   | 'defense_date_resolved'
   | 'project_status_changed'
-  | 'supervisor_reassigned';
+  | 'supervisor_reassigned'
+  | 'seminar_date_set'
+  | 'seminar_performed'
+  | 'seminar_not_performed';
 
 export interface ProjectRecordEntry {
   projectId: string;

@@ -58,6 +58,21 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         badgeTargetScreens: ['admin_coordinator_overrides'],
       },
       {
+        key: 'seminars',
+        icon: '🎤',
+        href: '/administrative_coordinator/dashboard?tab=seminars',
+        label: { he: 'סמינרים', en: 'Seminars' },
+        description: {
+          he: 'לוח הסמינרים — קביעת מועד לסטודנטים שהמנחה אישר ואישור ביצוע הסמינר.',
+          en: 'The seminar calendar — set dates for students their supervisor approved, and confirm the seminar took place.',
+        },
+        isActive: (pathname, sp) => pathname === '/administrative_coordinator/dashboard' && sp.get('tab') === 'seminars',
+        badgeTargetScreens: ['admin_coordinator_seminars'],
+        // Only Computer Science has seminar milestones so far (the template's
+        // seminarScheduling flag). Mirrors the page's own re-check.
+        visible: (userData) => withinCoordinatorScope(userData, CS_MASTERS_SCOPE),
+      },
+      {
         key: 'committeeConflicts',
         icon: '🔁',
         href: '/administrative_coordinator/dashboard?tab=committeeConflicts',

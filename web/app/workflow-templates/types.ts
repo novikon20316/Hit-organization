@@ -210,6 +210,10 @@ export interface MilestoneSpec {
    *  server/src/services/workflowTemplates.ts. */
   syncDueDateWith?: string;
   requiresExaminers: boolean;
+  /** A seminar talk: no committee — after the supervisor approves, the
+   *  administrative coordinator books the date and confirms the talk took
+   *  place. Mirrors server/src/services/workflowTemplates.ts. */
+  seminarScheduling?: boolean;
   /** How many examiner slots a defense panel needs for this milestone. Only
    *  meaningful when requiresExaminers is true. Omitted means the legacy
    *  default of 2. See AssignExaminersModal.tsx and

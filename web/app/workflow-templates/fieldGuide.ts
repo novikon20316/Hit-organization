@@ -119,6 +119,14 @@ export const MILESTONE_FIELD_GUIDE: FieldGuideStep[] = [
     },
   },
   {
+    key: 'seminarScheduling',
+    label: { he: 'סמינר', en: 'Seminar' },
+    description: {
+      he: 'כאשר מסומן, אבן הדרך לא עוברת לוועדה: לאחר אישור המנחה, הרכזת האדמיניסטרטיבית קובעת מועד בלוח הסמינרים ולאחר המועד מאשרת שהסטודנט/ית ביצע/ה את הסמינר.',
+      en: "When checked, this milestone doesn't go to a committee: after the supervisor approves, the administrative coordinator sets a date on the seminar calendar and afterwards confirms the student performed it.",
+    },
+  },
+  {
     key: 'examinerOnlyGrading',
     label: { he: 'ציון בוחנים בלבד', en: 'Examiner-only grading (no supervisor stage)' },
     description: {

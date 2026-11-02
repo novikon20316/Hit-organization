@@ -55,6 +55,8 @@ export type MilestoneStatus =
   | 'graded'
   | 'coordinator_approved'
   | 'examiners_assigned'    // coordinator picked 2 examiners (after final_report)
+  | 'seminar_awaiting_date' // supervisor approved a seminar, administrative coordinator sets the date
+  | 'seminar_scheduled'     // seminar date booked, waiting on the talk itself
   | 'examiner_graded'       // at least one examiner graded
   | 'both_examiners_graded' // both examiners submitted grades
   | 'completed';

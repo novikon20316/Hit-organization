@@ -260,7 +260,7 @@ export default function ActiveDashboard({
         subtitle: m.coordinatorComment,
         date: toDate(m.submittedAt),
       });
-    } else if (m.submittedAt && ['submitted', 'supervisor_graded', 'graded', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'].includes(normalizedStatus)) {
+    } else if (m.submittedAt && ['submitted', 'supervisor_graded', 'graded', 'seminar_awaiting_date', 'seminar_scheduled', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'].includes(normalizedStatus)) {
       activityCandidates.push({
         id: `sub-${m.id}`,
         icon: '📤',

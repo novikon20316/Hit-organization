@@ -423,6 +423,8 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // target date as if it were an agreed one. Used by the
             // data_science final-grade certificate.
             defenseDate: isDefenseDateConfirmed(m?.status) ? m?.dueDate?.toDate?.()?.toISOString() ?? null : null,
+            seminarScheduling: m?.seminarScheduling ?? false,
+            seminarSchedule: m?.seminarSchedule ?? null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the
             // project card instead of a separate Grading tab.

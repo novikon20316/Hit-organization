@@ -25,6 +25,8 @@ import ResearchProposalFormModal from '@/components/modals/ResearchProposalFormM
 import ProgressReportFormModal from '@/components/modals/ProgressReportFormModal';
 import type { Milestone, MilestoneType } from '@/types';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
+import { SeminarDetails } from '@/components/SeminarDetails';
+import { isSeminarInProgress } from '@/utils/seminar';
 
 // ─── Milestone type labels ──────────────────────────────────────────────────
 // Duplicated locally rather than imported from Activedashboard.tsx/
@@ -177,7 +179,7 @@ export default function StudentMilestones() {
                     const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
                     const isDefense = m.type === 'defense';
                     const isApprovedOrDone = m.status === 'coordinator_approved' || m.status === 'completed';
-                    const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'] as string[]).includes(m.status);
+                    const isSubmittedInReview = (['submitted', 'supervisor_graded', 'graded', 'seminar_awaiting_date', 'seminar_scheduled', 'examiners_assigned', 'examiner_graded', 'both_examiners_graded'] as string[]).includes(m.status);
                     const isRejected = m.status === 'rejected';
                     const isCurrent = unlocked && !isApprovedOrDone && !isSubmittedInReview;
 
@@ -287,6 +289,17 @@ export default function StudentMilestones() {
                               </Text>
                             </Pressable>
                           </View>
+                        )}
+
+                        {isSeminarInProgress(m.status) && (
+                          <SeminarDetails
+                            milestoneId={m.id}
+                            status={m.status}
+                            schedule={m.seminarSchedule}
+                            attempts={m.seminarAttempts}
+                            lang={lang}
+                            isRtl={isRtl}
+                          />
                         )}
 
                         {/* Defense details */}

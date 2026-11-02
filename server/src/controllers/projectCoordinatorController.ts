@@ -880,6 +880,8 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         // once the status confirms that's actually what happened; see
         // isDefenseDateConfirmed's own comment.
         defenseDate: isDefenseDateConfirmed(m.status) ? m.dueDate?.toDate?.()?.toISOString?.() ?? null : null,
+        seminarScheduling: m.seminarScheduling ?? false,
+        seminarSchedule: m.seminarSchedule ?? null,
         defenseRoom: m.defenseRoom ?? null,
         defenseBuilding: m.defenseBuilding ?? null,
         defenseTime: m.defenseTime ?? null,

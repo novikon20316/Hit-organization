@@ -22,6 +22,7 @@
 
 import { useState } from 'react';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
+import { formatSeminarDay, type SeminarSlot } from '@/lib/seminar';
 import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
@@ -63,6 +64,9 @@ export interface MilestoneData {
   finalGrade: number | null;
   supervisorScore?: number | null;
   defenseDate: string | null;
+  /** Only on a seminar milestone — see lib/seminar.ts. */
+  seminarScheduling?: boolean;
+  seminarSchedule?: SeminarSlot | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
@@ -168,6 +172,17 @@ function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
   const routing = (m.routing ?? []).filter((s) => s && typeof s.role === 'string');
   if (routing.length > 0) {
     const steps = buildRoutingChain(m, routing, lang);
+    if (m.seminarScheduling) {
+      // The chain only covers the supervisor — the booked date and the
+      // talk itself are what actually finish a seminar.
+      const finished = isCompletedStatus(m.status);
+      const dateSet = finished || m.status === 'seminar_scheduled';
+      return [
+        ...steps,
+        { label: lang === 'he' ? 'קביעת מועד סמינר' : 'Seminar date set', done: dateSet, current: m.status === 'seminar_awaiting_date' },
+        { label: lang === 'he' ? 'ביצוע הסמינר' : 'Seminar performed', done: finished, current: m.status === 'seminar_scheduled' },
+      ];
+    }
     if (!isDefense) return steps;
     // A defense's routing is only its pre-check chain — the examiner
     // scheduling/grading engine takes over after it, same tail as below.
@@ -374,6 +389,15 @@ function MilestoneCard({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'ציון סופי' : 'Final grade'}</p>
             <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-ink">🏆 {milestone.finalGrade}</p>
+          </div>
+        )}
+        {milestone.seminarSchedule && (
+          <div className="col-span-2 sm:col-span-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{lang === 'he' ? 'מועד סמינר' : 'Seminar'}</p>
+            <p className="mt-0.5 text-xs text-ink">
+              🎤 {formatSeminarDay(milestone.seminarSchedule.date, lang)} · 🕐 {milestone.seminarSchedule.time}
+              {milestone.seminarSchedule.location ? ` · 🏫 ${milestone.seminarSchedule.location}` : ''}
+            </p>
           </div>
         )}
         {isDefense && milestone.defenseDate && (

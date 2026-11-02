@@ -367,7 +367,18 @@ export function resolveMilestoneRouting(
   templateDefaultRouting: MilestoneRoutingSpec | null | undefined
 ): MilestoneRoutingSpec {
   const routing = spec.routing ?? templateDefaultRouting ?? DEFAULT_ROUTING;
-  return filterRoutingForMilestone(routing, spec.requiresExaminers);
+  const filtered = filterRoutingForMilestone(routing, spec.requiresExaminers);
+  return spec.seminarScheduling ? dropSeminarOnlyStages(filtered) : filtered;
+}
+
+/** A seminar never goes to a committee, and its 'notify' FYI is replaced by
+ *  her real "set a date" task — same rejectTo repointing as
+ *  filterRoutingForMilestone above. */
+function dropSeminarOnlyStages(routing: MilestoneRoutingSpec): MilestoneRoutingSpec {
+  const dropped = new Set(routing.filter((s) => s.role === 'committee' || s.action === 'notify').map((s) => s.id));
+  return routing
+    .filter((s) => !dropped.has(s.id))
+    .map((s) => (dropped.has(s.rejectTo) ? { ...s, rejectTo: 'student' } : s));
 }
 
 // Legacy fallback — the milestone TYPE ordering every faculty used before a
@@ -580,6 +591,14 @@ export interface WorkflowMilestoneSpec {
    *  unrestricted (every milestone created before this feature existed, or
    *  one whose submissionRequirement never called for a file at all). */
   allowedFileTypes?: MilestoneFileType[];
+  /** A seminar talk (see seminarScheduling.ts): after the supervisor's chain
+   *  the administrative coordinator books a date on her calendar and later
+   *  confirms the student gave the talk — that confirmation, not the last
+   *  chain stage, is what finishes the milestone. No committee: committee and
+   *  'notify' stages are dropped from this milestone's routing (see
+   *  resolveMilestoneRouting), so it can inherit the template's default
+   *  chain. Omitted keeps a normal milestone. */
+  seminarScheduling?: boolean;
 }
 
 export interface ExaminerOpinionFormSpec {

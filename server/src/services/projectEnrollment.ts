@@ -351,6 +351,7 @@ export async function enrollStudentInProject(
         currentStageIndex: 0,
         stageScores: {},
         stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
       });
     }
   });

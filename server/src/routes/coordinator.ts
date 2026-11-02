@@ -12,6 +12,7 @@ import {
   approveExaminerRecommendation,
   rejectExaminerRecommendation,
 } from '../controllers/coordinatorController.js';
+import { getSeminars, scheduleSeminar, recordSeminarOutcome } from '../controllers/seminarController.js';
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -40,6 +41,9 @@ router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense)
 router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl)
 router.get('/defense-config', verifyToken, getDefenseConfig)
 router.post('/milestones/:milestoneId/resolve-date-conflict', verifyToken, resolveDefenseDateConflict)
+router.get('/seminars', verifyToken, getSeminars)
+router.post('/seminars/:milestoneId/schedule', verifyToken, scheduleSeminar)
+router.post('/seminars/:milestoneId/outcome', verifyToken, recordSeminarOutcome)
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffCoordinator);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterCoordinator);
 

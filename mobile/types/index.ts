@@ -55,6 +55,8 @@ export type MilestoneStatus =
   | 'date_conflict'          // examiners had no common date — coordinator must resolve
   | 'defense_date_set'       // date locked in, waiting on coordinator for time/room/building
   | 'scheduled'              // full defense logistics set
+  | 'seminar_awaiting_date'  // supervisor approved a seminar, administrative coordinator sets the date
+  | 'seminar_scheduled'      // seminar date booked, waiting on the talk itself
   | 'completed';
 
 // A defense milestone's `dueDate` is dual-purpose: it's set at creation to a
@@ -971,6 +973,9 @@ export interface Milestone {
   submittedAt: string | null;
   fileUrls:    string[];
   finalGrade:  number | null;
+  /** Only on a seminar milestone — see utils/seminar.ts. */
+  seminarSchedule?: { date: string; time: string; location?: string; note?: string } | null;
+  seminarAttempts?: { date: string; time: string; location?: string; outcome: 'performed' | 'not_performed'; note?: string }[];
   defenseDate: string | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;

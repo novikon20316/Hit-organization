@@ -53,6 +53,10 @@ const EXAMINER_MILESTONE_FIELDS = ['examinerIds', 'examinerNames'] as const;
 // The project doc carries its own copy of the panel and logistics.
 const PROJECT_FIELDS = [...LOGISTICS_FIELDS, 'examinerIds', 'examinerNames', 'defenseExaminerIds', 'defenseDate'] as const;
 
+// Seminars share the defense calendar (see seminarController.ts), so they
+// share its signal too.
+const SEMINAR_MILESTONE_FIELDS = ['status', 'seminarSchedule', 'seminarAttempts', 'seminarContactRequests'] as const;
+
 const SIGNAL_DOC_ID = 'defenseScheduleChangeSignal';
 
 export function startDefenseScheduleChangeWatcher(): void {
@@ -66,6 +70,11 @@ export function startDefenseScheduleChangeWatcher(): void {
       name: 'examiner milestones',
       query: db.collection('milestones').where('requiresExaminers', '==', true),
       relevant: pickFields(EXAMINER_MILESTONE_FIELDS),
+    },
+    {
+      name: 'seminar milestones',
+      query: db.collection('milestones').where('seminarScheduling', '==', true),
+      relevant: pickFields(SEMINAR_MILESTONE_FIELDS),
     },
     { name: 'projects', query: db.collection('projects'), relevant: pickFields(PROJECT_FIELDS) },
   ]);

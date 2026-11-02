@@ -112,6 +112,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   coordinator_archived: '/coordinator/home?tab=archived',
   admin_coordinator_overrides: '/administrative_coordinator/dashboard?tab=overrides',
   admin_coordinator_committee_conflicts: '/administrative_coordinator/dashboard?tab=committeeConflicts',
+  admin_coordinator_seminars: '/administrative_coordinator/dashboard?tab=seminars',
   supervisor_applications: '/supervisor/dashboard?tab=applications',
   supervisor_signoffs: '/supervisor/dashboard?tab=signoffs',
   supervisor_projects: '/supervisor/dashboard?tab=projects',

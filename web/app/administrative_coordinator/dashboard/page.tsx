@@ -36,6 +36,7 @@ import { StudentsReportTab } from './StudentsReportTab';
 import { GradeOverridesTab } from './GradeOverridesTab';
 import { ThesisOpinionsSection } from './ThesisOpinionsSection';
 import { CommitteeConflictsTab } from './CommitteeConflictsTab';
+import { SeminarsTab } from './SeminarsTab';
 import { UngradedCsMastersTab } from '@/components/students/UngradedCsMastersTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -261,10 +262,11 @@ function AdministrativeCoordinatorDashboardContent() {
   // land back on the Students Report tab instead of always resetting to
   // Groups.
   const paramTab = searchParams.get('tab');
-  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' | 'users' | 'committeeConflicts' =
+  const activeTab: 'groups' | 'students' | 'overrides' | 'statistics' | 'ungraded' | 'users' | 'committeeConflicts' | 'seminars' =
     paramTab === 'students' || paramTab === 'overrides' || paramTab === 'statistics' || paramTab === 'users'
       || (paramTab === 'ungraded' && canSeeUngraded)
       || (paramTab === 'committeeConflicts' && canSeeCommitteeConflicts)
+      || (paramTab === 'seminars' && canSeeUngraded)
       ? paramTab
       : 'groups';
   const [facultyId, setFacultyId] = useState('');
@@ -403,6 +405,8 @@ function AdministrativeCoordinatorDashboardContent() {
         </div>
       ) : activeTab === 'committeeConflicts' ? (
         <CommitteeConflictsTab />
+      ) : activeTab === 'seminars' ? (
+        <SeminarsTab />
       ) : activeTab === 'students' ? (
         <div data-field-guide-id="reportList">
           <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />

@@ -26,6 +26,7 @@ import { notifyUser, clearStaleMilestoneNotifications } from '../services/notify
 import { targetScreenFor } from '../services/notificationTargets.js';
 import { L } from '../utils/localize.js';
 import { isCsPilotMajor } from '../config/csPilot.js';
+import { onSeminarChainComplete, seminarHandoffFields } from '../services/seminarScheduling.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -794,7 +795,7 @@ export const getCoordinatorDashboard = async (req: AuthenticatedRequest, res: Re
  *  approve — grade is already final by this point, notify student(s) with
  *  their grade plus the supervisor, best-effort (a notify failure must never
  *  turn an already-committed approval into a 500). */
-async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.DocumentData, milestoneId: string): Promise<void> {
+export async function notifyMilestoneApprovalComplete(milestone: FirebaseFirestore.DocumentData, milestoneId: string): Promise<void> {
   const projectId: string | undefined = milestone.projectId;
   const supervisorId: string | undefined = milestone.supervisorId;
   const studentIds: string[] = milestone.studentIds ?? [];
@@ -956,6 +957,10 @@ async function approveChainMilestone(
   // normal finalize/notify path below is skipped in favor of a distinct
   // "ready for examiners" notification.
   let precheckCompleted = false;
+  // Set when this call finished a seminar milestone's chain — handed to the
+  // administrative coordinator to book a date, not finished (see
+  // seminarScheduling.ts). Same skip of the finalize path as precheckCompleted.
+  let seminarHandedOff = false;
   // Set when this stage requires more than one signer independently — either
   // supervisor dual-sign (opt-in, see ChainStage.requireAllAssignedSupervisors)
   // or an 'examiner' stage (always, every assigned examiner — a panel, not a
@@ -1080,6 +1085,9 @@ async function approveChainMilestone(
         // 'coordinator_approved'/finalized — see isChainDriven.
         update.chainPrecheckComplete = true;
         precheckCompleted = true;
+      } else if (fresh.seminarScheduling) {
+        Object.assign(update, seminarHandoffFields(freshRouting));
+        seminarHandedOff = true;
       } else {
         update.status = 'coordinator_approved';
         update.coordinatorApprovedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -1276,6 +1284,10 @@ async function approveChainMilestone(
     // since neither is true here: nobody approved a finished milestone, and
     // nobody is stuck waiting on a chain stage — the next real step is
     // assigning examiners (coordinatorController.ts's assignExaminers).
+    if (seminarHandedOff) {
+      await onSeminarChainComplete(milestoneId, milestone);
+    }
+
     if (precheckCompleted) {
       const coordinatorIds = await resolveStaffForScope('coordinator', resource, projectSupervisorIds, milestone.examinerIds ?? [], false);
       const milestoneTitle = { he: milestone.nameHe ?? milestone.type ?? '', en: milestone.nameEn ?? milestone.type ?? '' };
@@ -1305,6 +1317,8 @@ async function approveChainMilestone(
         ? 'Milestone approved by coordinator.'
         : precheckCompleted
         ? 'Pre-checks complete — ready to assign examiners.'
+        : seminarHandedOff
+        ? 'Approved — the administrative coordinator will set the seminar date.'
         : 'Stage approved — advanced to the next reviewer.',
     });
   } catch (error: any) {

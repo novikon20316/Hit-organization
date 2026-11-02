@@ -11,6 +11,7 @@
 // web's components/MilestoneTimeline.tsx card layout so both platforms read
 // as one design.
 
+import { formatSeminarDay } from '@/utils/seminar';
 import React, { useState } from 'react';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/utils/defenseDisplay';
 import type { DefenseMode, DefenseZoomMeeting } from '@/utils/defenseDisplay';
@@ -33,6 +34,9 @@ export interface RoadmapMilestone {
   fileUrls?: string[];
   finalGrade?: number | null;
   defenseDate?: string | null;
+  /** Only on a seminar milestone — see utils/seminar.ts. */
+  seminarScheduling?: boolean;
+  seminarSchedule?: { date: string; time: string; location?: string } | null;
   defenseRoom?: string | null;
   defenseBuilding?: string | null;
   defenseTime?: string | null;
@@ -86,6 +90,8 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   date_conflict: { color: p.error, bg: p.errorContainer, icon: '⚠️', he: 'התנגשות מועדים', en: 'Date Conflict' },
   defense_date_set: { color: '#736b8c', bg: '#edebf2', icon: '📌', he: 'מועד הגנה נקבע', en: 'Date Set' },
   scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מתוזמן', en: 'Scheduled' },
+  seminar_awaiting_date: { color: '#7c3aed', bg: '#f1ecfd', icon: '📅', he: 'ממתין למועד סמינר', en: 'Awaiting Seminar Date' },
+  seminar_scheduled: { color: '#7c3aed', bg: '#f1ecfd', icon: '🎤', he: 'מועד סמינר נקבע', en: 'Seminar Date Set' },
   completed: { color: p.success, bg: p.successContainer, icon: '🏁', he: 'הושלם', en: 'Completed' },
 };
 
@@ -157,6 +163,14 @@ function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[]
     const done = allDone || (submitted && (i < idx || (i === idx && currentFinished)));
     steps.push({ label: chainStageLabel(stage, lang), done, current: submitted && !done && i === idx });
   });
+  if (m.seminarScheduling) {
+    // The chain only covers the supervisor — the booked date and the talk
+    // itself are what actually finish a seminar.
+    steps.push(
+      { label: lang === 'he' ? 'קביעת מועד סמינר' : 'Seminar date set', done: allDone || m.status === 'seminar_scheduled', current: m.status === 'seminar_awaiting_date' },
+      { label: lang === 'he' ? 'ביצוע הסמינר' : 'Seminar performed', done: allDone, current: m.status === 'seminar_scheduled' },
+    );
+  }
   if (m.type === 'defense') {
     // A defense's routing is only its pre-check chain — the examiner
     // scheduling/grading engine takes over after it.
@@ -306,6 +320,12 @@ export function MilestoneRoadmap({ milestones, lang, isRtl }: Props) {
               )}
             </View>
 
+            {!!m.seminarSchedule && (
+              <Text style={[s.defenseText, isRtl && s.textRight]}>
+                🎤 {formatSeminarDay(m.seminarSchedule.date, lang)}  ·  🕐 {m.seminarSchedule.time}
+                {m.seminarSchedule.location ? `  ·  🏫 ${m.seminarSchedule.location}` : ''}
+              </Text>
+            )}
             {isDefense && !!m.defenseDate && (
               <Text style={[s.defenseText, isRtl && s.textRight]}>
                 🎓 {formatDate(m.defenseDate, lang)}

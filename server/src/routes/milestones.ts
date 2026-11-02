@@ -16,6 +16,7 @@ import { verifyFileSignatures } from '../services/fileSignature.js';
 import { resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { isCsPilotMajor } from '../config/csPilot.js';
 import { getMilestoneStudentContacts } from '../controllers/studentContactsController.js';
+import { contactSeminarCoordinator } from '../controllers/seminarController.js';
 const router = Router();
 
 // GET /api/milestones  — fetch milestones by query params
@@ -34,6 +35,8 @@ router.get('/:milestoneId/examiner-opinions', verifyToken, getExaminerOpinions)
 // POST /api/milestones/:milestoneId/revision-decision — advisor/coordinator decides
 // proceed_to_defense/require_corrections/re_judge/add_examiner after examiner opinions are in
 router.post('/:milestoneId/revision-decision', verifyToken, submitRevisionDecision)
+// A student's message to the administrative coordinator about their seminar date.
+router.post('/:milestoneId/seminar-contact', verifyToken, contactSeminarCoordinator)
 // GET /api/milestones/:id/committee-review — submission + votes so far, for a committee member/chairman
 // GET /api/milestones/:id/student-contacts — teammates' details for the
 // student forms (phones are server-only, see services/privateContact.ts).

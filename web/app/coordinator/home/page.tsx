@@ -538,6 +538,7 @@ function CoordinatorHomeContent() {
           <FieldGuideOverlay guideKey={DEFENSE_TAB_GUIDE_KEY} steps={DEFENSE_TAB_FIELD_GUIDE} />
           <DefenseTab
             cards={defenseCards}
+            projects={projects}
             examiners={examiners}
             onChanged={fetchAll}
             onApproveFinalReport={setAssigningMilestone}
