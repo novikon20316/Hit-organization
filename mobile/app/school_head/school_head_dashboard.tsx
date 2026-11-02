@@ -25,6 +25,7 @@ import { tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles } from '../../constants/styles';
 import { ap } from '../../constants/theme';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import StudentsListSection from '@/components/StudentsListSection';
 import ChatbotFab from '@/components/ChatbotFab';
 import { useNotifications } from '@/src/context/NotificationsContext';
@@ -318,6 +319,7 @@ export default function SchoolHeadDashboard() {
         {/* ── PENDING APPROVALS ── */}
         {activeTab === 'approvals' && (
           <>
+            <PendingSignoffsWidget lang={lang} />
             <ExceptionalActionQueue lang={lang} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'} />

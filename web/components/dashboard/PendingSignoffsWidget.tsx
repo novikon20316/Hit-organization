@@ -12,13 +12,16 @@
 // pending, so it never clutters a dashboard for staff who don't hold a
 // configured sign-off role.
 
+import Link from 'next/link';
 import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient } from '@/lib/apiClient';
+import { EvaluationFormModal } from '@/components/EvaluationFormModal';
+import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal';
 
-type SignoffType = 'examiners' | 'final_grade' | 'chain_stage';
+type SignoffType = 'examiners' | 'final_grade' | 'chain_stage' | 'form_signature' | 'form_final_approval';
 type Urgency = 'low' | 'medium' | 'high';
 
 interface StageFormField {
@@ -47,12 +50,18 @@ interface PendingSignoffItem {
    *  alone tells us whether the "I've read the proposal thoroughly"
    *  checkbox is required before Approve/Reject (supervisor stages only). */
   stageRole?: string;
+  /** Only for the form_* types — which finished form this is. */
+  formKind?: 'evaluation' | 'opinion';
+  formRoleLabelHe?: string;
+  formRoleLabelEn?: string;
 }
 
 const TYPE_LABEL: Record<SignoffType, { he: string; en: string }> = {
   examiners: { he: 'אישור בוחנים', en: 'Examiner Approval' },
   final_grade: { he: 'אישור ציון סופי', en: 'Final Grade' },
   chain_stage: { he: 'אישור אבן דרך', en: 'Milestone Approval' },
+  form_signature: { he: 'חתימה על טופס הערכה', en: 'Form Signature' },
+  form_final_approval: { he: 'אישור סופי של טופס הערכה', en: 'Form Final Approval' },
 };
 
 const URGENCY_COLOR: Record<Urgency, string> = {
@@ -89,6 +98,7 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   // Approve/Reject below until ticked, mirroring GradeMilestoneModal.tsx's
   // identical checkbox for the same server-side confirmedProposalRead gate.
   const [confirmedReadIds, setConfirmedReadIds] = useState<Record<string, boolean>>({});
+  const [openForm, setOpenForm] = useState<{ id: string; kind: 'evaluation' | 'opinion' } | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -181,6 +191,9 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
             </div>
             <p className="mt-1.5 text-sm font-semibold text-ink">{item.studentName}</p>
             <p className="mt-0.5 text-xs text-muted">{item.title}</p>
+            {item.type === 'form_signature' && (
+              <p className="mt-0.5 text-xs text-muted">{lang === 'he' ? `נדרשת חתימתך כ${item.formRoleLabelHe ?? ''}` : `Your signature is needed as ${item.formRoleLabelEn ?? ''}`}</p>
+            )}
 
             {item.type === 'chain_stage' && item.stageRole === 'supervisor' && (
               <label className="mt-2 flex items-start gap-1.5 text-[11px] text-ink">
@@ -241,6 +254,22 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                 ))}
               </div>
             )}
+            {item.type === 'form_signature' ? (
+              <button
+                type="button"
+                onClick={() => setOpenForm({ id: item.id, kind: item.formKind ?? 'evaluation' })}
+                className="mt-3 w-full rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+              >
+                📄 {lang === 'he' ? 'פתח/י את הטופס וחתום/י' : 'Open the form and sign'}
+              </button>
+            ) : item.type === 'form_final_approval' ? (
+              <Link
+                href="/administrative_coordinator/dashboard?tab=overrides"
+                className="mt-3 block w-full rounded-lg bg-success px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90"
+              >
+                📄 {lang === 'he' ? 'מעבר לאישור הסופי' : 'Go to final approval'}
+              </Link>
+            ) : (
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -263,9 +292,12 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
                     : `✅ ${lang === 'he' ? 'אשר' : 'Approve'}`}
               </button>
             </div>
+            )}
           </div>
         ))}
       </div>
+      {openForm?.kind === 'evaluation' && <EvaluationFormModal milestoneId={openForm.id} onClose={() => setOpenForm(null)} onChanged={fetchItems} />}
+      {openForm?.kind === 'opinion' && <ExaminerOpinionFormModal milestoneId={openForm.id} onClose={() => setOpenForm(null)} onChanged={fetchItems} />}
     </div>
   );
 }

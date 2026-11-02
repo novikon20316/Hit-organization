@@ -8,7 +8,9 @@
 // the change or keeps the automatic grade (gradSchoolHeadController.ts's
 // decideGradeOverride — same controller/gating as the grad_school_head's
 // existing final-grade sign-off, since finalGradeSignoffRole is configurable
-// per template and set to administrative_secretary for data_science).
+// per template and set to administrative_secretary for data_science). Her
+// approval of a defense is also what marks the student as having finished
+// the project or thesis, with its date and time (projectCompletion.ts).
 
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -58,6 +60,7 @@ export function GradeOverridesTab() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [formFor, setFormFor] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   const fetchRows = () => {
     setLoading(true);
@@ -77,10 +80,15 @@ export function GradeOverridesTab() {
   }, []);
 
   const decide = async (milestoneId: string, decision: 'approve_override' | 'keep_auto') => {
+    if (!window.confirm(lang === 'he'
+      ? 'אישור סופי: הציון יינעל, והסטודנט/ים יסומנו במערכת כמי שסיימו, עם תאריך ושעת האישור. להמשיך?'
+      : 'Final approval: the grade is locked and the student(s) are marked as finished, with the date and time of this approval. Continue?')) return;
     setBusyId(milestoneId);
+    setNotice('');
     try {
       await apiClient.decideGradeOverride(milestoneId, decision);
       await fetchRows();
+      setNotice(lang === 'he' ? 'האישור הסופי נשמר ונרשם בתיק הפרויקט.' : 'The final approval was saved in the project record.');
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'הפעולה נכשלה' : 'The action failed');
     } finally {
@@ -90,11 +98,19 @@ export function GradeOverridesTab() {
 
   if (loading) return <p className="text-sm text-administrative-coordinator-on-surface-variant">…</p>;
   if (error) return <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>;
+  const noticeLine = notice && <p className="mb-3 rounded-md bg-success-bg px-3 py-2 text-sm text-success" role="status">{notice}</p>;
   if (rows.length === 0) {
-    return <p className="text-sm text-administrative-coordinator-on-surface-variant">✅ {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}</p>;
+    return (
+      <>
+        {noticeLine}
+        <p className="text-sm text-administrative-coordinator-on-surface-variant">✅ {lang === 'he' ? 'אין ציונים סופיים ממתינים לאישור' : 'No final grades pending approval'}</p>
+      </>
+    );
   }
 
   return (
+    <>
+    {noticeLine}
     <div className="grid gap-3 sm:grid-cols-2">
       {rows.map((r) => (
         <div key={r.milestoneId} className="role-rail rounded-administrative-coordinator border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-lowest p-4" style={{ '--rail-color': 'var(--accent)' } as React.CSSProperties}>
@@ -240,5 +256,6 @@ export function GradeOverridesTab() {
       ))}
       {formFor && <EvaluationFormModal milestoneId={formFor} onClose={() => setFormFor(null)} />}
     </div>
+    </>
   );
 }

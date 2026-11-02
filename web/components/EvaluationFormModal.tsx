@@ -6,9 +6,10 @@
 // original: a system-filled header, the students table, the criteria with
 // their "נותן ההערכה" (supervisor/examiner) marks and one score column per
 // student, the totals, and the digital signatures. Built for Electrical
-// Engineering's B.Sc. form (one milestone) and M.Sc. project form (split
-// across the project-book and presentation milestones — one section each,
-// each with its own graders, submission and approval).
+// Engineering's B.Sc. form. Forms with sections.formLayout 'graderColumns'
+// (the M.Sc. project form) instead show one column per grader, like the
+// paper form. Older projects' M.Sc. forms are split across two milestones —
+// one section each, each with its own graders, submission and approval.
 //
 // One component for every viewer: the supervisor fills the supervisor rows
 // and later approves/changes the computed grades, an examiner fills the
@@ -18,7 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, type EvaluationFormSection, type EvaluationFormSignature, type EvaluationFormView } from '@/lib/apiClient';
+import { apiClient, type EvaluationFormSection, type EvaluationFormSignature, type EvaluationFormView, type FormSignoffLine } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 
@@ -74,6 +75,30 @@ export function SignatureBlock({ label, signature, pendingText, he }: { label: s
           : `⚠ ${he ? 'החתימה אינה תקפה — הנתונים שונו לאחר החתימה' : 'Signature invalid — the data changed after signing'}`}
       </p>
     </div>
+  );
+}
+
+/** The staff signature lines of a finished form (server: formSignoffs.ts) —
+ *  whoever's turn it is gets a sign button on their own line. */
+export function FormSignoffBlocks({ lines, busy, onSign, he }: { lines: FormSignoffLine[]; busy: boolean; onSign: () => void; he: boolean }) {
+  return (
+    <>
+      {lines.map((line) => (
+        <div key={line.role}>
+          <SignatureBlock
+            he={he}
+            label={he ? `חתימת ${line.labelHe}` : `${line.labelEn}'s signature`}
+            signature={line.signature}
+            pendingText={he ? `ממתין לחתימת ${line.labelHe}` : `Awaiting the ${line.labelEn.toLowerCase()}'s signature`}
+          />
+          {line.canSign && (
+            <button type="button" onClick={onSign} disabled={busy} className="mt-2 w-full rounded-lg bg-primary py-2 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+              {busy ? '…' : he ? '✍️ חתום/י על הטופס' : '✍️ Sign the form'}
+            </button>
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -169,12 +194,28 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
           reason: overrideReason,
         });
       }
-      setMessage(he ? 'ההחלטה נשלחה לאישור הרכז/ת.' : "The decision was sent for the coordinator's approval.");
+      setMessage(he ? 'ההחלטה נחתמה ונשלחה להמשך אישור.' : 'The decision was signed and sent on for approval.');
       setOverridingSection(null);
       onChanged?.();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : he ? 'שליחת ההחלטה נכשלה' : 'Failed to submit the decision');
+    } finally {
+      setBusySection(null);
+    }
+  };
+
+  const signSection = async (sec: EvaluationFormSection) => {
+    setBusySection(sec.milestoneId);
+    setError('');
+    setMessage('');
+    try {
+      await apiClient.signForm(sec.milestoneId);
+      setMessage(he ? 'הטופס נחתם.' : 'The form was signed.');
+      onChanged?.();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'חתימת הטופס נכשלה' : 'Failed to sign the form');
     } finally {
       setBusySection(null);
     }
@@ -213,14 +254,95 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
     const computed = sec.totals.every((t) => t.milestoneGrade != null);
     const canDecide = sec.viewer.role === 'supervisor' && computed && !sec.gradeApproved && sec.gradeOverrideStatus !== 'pending';
     const busy = busySection === sec.milestoneId;
+    const graderColumns = sec.formLayout === 'graderColumns';
+
+    const scoreInput = (c: { key: string; labelHe: string; labelEn: string; maxScore: number }, studentId: string, studentName: string) => (
+      <input
+        type="number"
+        min={0}
+        max={c.maxScore}
+        inputMode="numeric"
+        aria-label={`${he ? c.labelHe : c.labelEn} — ${studentName}`}
+        value={sectionDraft[studentId]?.[c.key] ?? ''}
+        onChange={(e) => setDraft({
+          ...draft,
+          [sec.milestoneId]: { ...sectionDraft, [studentId]: { ...sectionDraft[studentId], [c.key]: clampScoreInput(e.target.value, c.maxScore) } },
+        })}
+        className="w-16 rounded-md border border-line bg-surface px-2 py-1 text-center text-sm text-ink focus:border-primary focus:outline-none"
+      />
+    );
+
+    // The paper form's grader table: one row per item, the same item's
+    // supervisor and examiner components side by side, one column per grader.
+    const graderRows = [...new Set(rows.map((c) => c.labelHe))].map((labelHe) => ({
+      labelHe,
+      labelEn: rows.find((c) => c.labelHe === labelHe)!.labelEn,
+      supervisor: rows.find((c) => c.labelHe === labelHe && c.giver === 'supervisor'),
+      examiner: rows.find((c) => c.labelHe === labelHe && c.giver === 'examiner'),
+    }));
+    const signatureCell = (signature: EvaluationFormSignature | null) => (signature ? (
+      <span className="block text-xs">
+        <span className="block font-medium text-ink">{signature.signerName}</span>
+        <span className="block font-mono text-muted" dir="ltr">{signature.code}</span>
+      </span>
+    ) : '');
+
+    const graderTable = (s: { id: string; name: string }) => (
+      <div key={s.id} className="mt-2 overflow-x-auto">
+        {form.students.length > 1 && <p className="mb-1 text-xs font-semibold text-ink">{s.name}</p>}
+        <table className="w-full min-w-[520px] border-collapse">
+          <thead>
+            <tr>
+              <th className={th} />
+              <th className={th}>{he ? 'מנחה' : 'Supervisor'}</th>
+              {sec.examiners.map((e) => <th key={e.uid} className={th}>{he ? e.positionHe : e.positionEn}<span className="block font-normal text-muted">{e.name}</span></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {graderRows.map((row) => (
+              <tr key={row.labelHe}>
+                <td className={`${td} font-semibold`}>{he ? row.labelHe : row.labelEn}</td>
+                <td className={`${td} text-center`}>
+                  {row.supervisor ? (
+                    <>
+                      <span className="block text-xs text-muted">{formatNumber(row.supervisor.percentPerGrader)}%</span>
+                      {myGiver === 'supervisor' ? scoreInput(row.supervisor, s.id, s.name) : cellValue('supervisor', s.id, row.supervisor.key)}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted">{he ? `מנחה אינו מעריך ${row.labelHe} בשלב זה` : `The supervisor doesn't assess this at this stage`}</span>
+                  )}
+                </td>
+                {sec.examiners.map((e, index) => {
+                  const c = row.examiner;
+                  if (!c) return <td key={e.uid} className={td} />;
+                  const value = e.scores?.[s.id]?.[c.key];
+                  return (
+                    <td key={e.uid} className={`${td} text-center`}>
+                      <span className="block text-xs text-muted">{formatNumber(c.percentPerGrader)}%</span>
+                      {myGiver === 'examiner' && sec.viewer.examinerIndex === index ? scoreInput(c, s.id, s.name) : value ?? (e.submitted ? '🔒' : '')}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr>
+              <td className={`${td} font-semibold`}>{he ? 'חתימה' : 'Signature'}</td>
+              <td className={`${td} text-center`}>{signatureCell(sec.supervisor.signature)}</td>
+              {sec.examiners.map((e) => <td key={e.uid} className={`${td} text-center`}>{signatureCell(e.signature)}</td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
 
     return (
       <section key={sec.milestoneId} className={multiSection ? 'mt-6 rounded-xl border border-line p-3 sm:p-4' : 'mt-5'} aria-labelledby={`sec-${sec.milestoneId}`}>
         <h3 id={`sec-${sec.milestoneId}`} className="text-sm font-semibold text-ink">
-          {multiSection ? `${he ? sec.nameHe : sec.nameEn} · ${sec.percent}%` : he ? 'מרכיבי הציון' : 'Grade components'}
+          {multiSection || graderColumns ? `${he ? sec.nameHe : sec.nameEn} · ${sec.percent}%` : he ? 'מרכיבי הציון' : 'Grade components'}
         </h3>
         {myGiver && <p className="mt-1 text-xs text-muted">{weighted ? (he ? 'ציון 0–100 לכל מרכיב' : 'Score each component 0–100') : he ? 'יש לתת ניקוד עפ"י טווח הנקודות' : 'Score each criterion within its point range'}</p>}
 
+        {graderColumns ? form.students.map(graderTable) : (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[600px] border-collapse">
             <thead>
@@ -260,23 +382,7 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
                     </td>
                     {form.students.map((s) => (
                       <td key={s.id} className={`${td} text-center`}>
-                        {isMine ? (
-                          <input
-                            type="number"
-                            min={0}
-                            max={c.maxScore}
-                            inputMode="numeric"
-                            aria-label={`${he ? c.labelHe : c.labelEn} — ${s.name}`}
-                            value={sectionDraft[s.id]?.[c.key] ?? ''}
-                            onChange={(e) => setDraft({
-                              ...draft,
-                              [sec.milestoneId]: { ...sectionDraft, [s.id]: { ...sectionDraft[s.id], [c.key]: clampScoreInput(e.target.value, c.maxScore) } },
-                            })}
-                            className="w-16 rounded-md border border-line bg-surface px-2 py-1 text-center text-sm text-ink focus:border-primary focus:outline-none"
-                          />
-                        ) : (
-                          cellValue(c.giver, s.id, c.key)
-                        )}
+                        {isMine ? scoreInput(c, s.id, s.name) : cellValue(c.giver, s.id, c.key)}
                       </td>
                     ))}
                   </tr>
@@ -298,7 +404,8 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
             </tbody>
           </table>
         </div>
-        {weighted && sec.totals.some((t) => t.milestoneGrade != null) && (
+        )}
+        {weighted && !graderColumns && sec.totals.some((t) => t.milestoneGrade != null) && (
           <p className="mt-1 text-xs text-muted">{he ? `ציון אבן הדרך (מתוך 100) → תרומה לציון הסופי (${sec.percent}%)` : `Milestone grade (out of 100) → contribution to the final grade (${sec.percent}%)`}</p>
         )}
 
@@ -327,7 +434,8 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
         {(sec.approvals.supervisor || sec.approvals.coordinator || computed) && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <SignatureBlock he={he} label={he ? 'חתימת המנחה (אישור הציון)' : "Supervisor's signature (grade approval)"} signature={sec.approvals.supervisor} pendingText={he ? 'ממתין לאישור המנחה' : "Awaiting the supervisor's approval"} />
-            <SignatureBlock he={he} label={he ? 'חתימת רכז/ת פרויקטים' : "Projects coordinator's signature"} signature={sec.approvals.coordinator} pendingText={he ? 'ממתין לאישור הרכז/ת' : "Awaiting the coordinator's approval"} />
+            <FormSignoffBlocks he={he} lines={sec.formSignoffs} busy={busy} onSign={() => signSection(sec)} />
+            <SignatureBlock he={he} label={he ? 'אישור סופי — רכז/ת מנהלי/ת' : 'Final approval — administrative coordinator'} signature={sec.approvals.coordinator} pendingText={he ? 'ממתין לאישור הסופי של הרכז/ת המנהלי/ת' : "Awaiting the administrative coordinator's final approval"} />
           </div>
         )}
 
@@ -335,7 +443,7 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
           <p className="mt-3 rounded-md bg-surface px-3 py-2 text-sm text-muted">{he ? sec.viewer.lockedReasonHe : sec.viewer.lockedReasonEn}</p>
         )}
         {sec.viewer.role === 'supervisor' && sec.gradeOverrideStatus === 'pending' && (
-          <p className="mt-3 rounded-md bg-surface px-3 py-2 text-sm text-muted">{he ? 'הציונים ממתינים לאישור הרכז/ת.' : "The grades are awaiting the coordinator's approval."}</p>
+          <p className="mt-3 rounded-md bg-surface px-3 py-2 text-sm text-muted">{he ? 'הציונים ממתינים להשלמת החתימות ולאישור הסופי.' : 'The grades are awaiting the remaining signatures and final approval.'}</p>
         )}
         {sec.gradeApproved && (
           <p className="mt-3 rounded-md bg-success-bg px-3 py-2 text-sm font-semibold text-success">{he ? 'הציונים אושרו סופית.' : 'The grades were finalized.'}</p>
@@ -473,7 +581,10 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
                   <tr key={s.id}>
                     <td className={td}>{s.name}</td>
                     <td className={td} dir="ltr">{s.idNumber ?? '—'}</td>
-                    <td className={`${td} font-semibold`}>{t?.projectFinalGrade ?? '—'}</td>
+                    <td className={`${td} font-semibold`}>
+                      {t?.projectFinalGrade ?? '—'}
+                      {t?.projectFinalGrade != null && !t.projectFinalGradeIsFinal && <span className="ms-1 text-xs font-normal text-muted">{he ? '(טרם אושר)' : '(not approved yet)'}</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -485,12 +596,14 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
             grade — e.g. "דוח ביניים / מנחה 10%". */}
         {form.studentTotals.some((t) => t.otherMilestones.length > 0) && (
           <div className="mt-5 overflow-x-auto">
+            {form.sections.some((sec) => sec.formLayout === 'graderColumns') && <h3 className="mb-2 text-sm font-semibold text-ink">{he ? 'מרכיבי הציון' : 'Grade components'}</h3>}
             <table className="w-full border-collapse">
               <thead>
                 <tr>
                   <th className={th}>{he ? 'מרכיב' : 'Component'}</th>
                   <th className={th}>{he ? 'משקל הציון' : 'Weight'}</th>
                   {form.students.map((s) => <th key={s.id} className={th}>{form.students.length > 1 ? s.name : he ? 'ציון' : 'Grade'}</th>)}
+                  <th className={th}>{he ? 'הערות' : 'Comments'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -502,6 +615,7 @@ export function EvaluationFormModal({ milestoneId, onClose, onChanged }: Evaluat
                       const g = form.studentTotals.find((x) => x.studentId === s.id)?.otherMilestones.find((x) => x.type === o.type)?.grade;
                       return <td key={s.id} className={`${td} text-center`}>{g ?? (he ? 'טרם נוקד' : 'Not graded yet')}</td>;
                     })}
+                    <td className={td}>{o.comment ?? ''}</td>
                   </tr>
                 ))}
               </tbody>

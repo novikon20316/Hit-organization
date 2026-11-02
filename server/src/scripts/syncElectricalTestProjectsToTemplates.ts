@@ -17,18 +17,29 @@
 //     as they are; template milestones the project lacks are reported, not
 //     created.
 //
+// --reset-ungraded additionally resets a milestone that was submitted but
+// never graded (back to pending, so the student resubmits it) — needed when
+// a template changes how a milestone is graded, like the M.Sc. project book
+// and last milestone in updateElectricalEvaluationForms.ts. That script also
+// made the last milestone a 'defense'; the project's old copy is matched here
+// by its previous type and renamed.
+//
 // SAFE BY DEFAULT: dry run unless you pass --apply.
 //
 // Usage (from server/):
-//   npx tsx src/scripts/syncElectricalTestProjectsToTemplates.ts           # dry run
-//   npx tsx src/scripts/syncElectricalTestProjectsToTemplates.ts --apply   # writes
+//   npx tsx src/scripts/syncElectricalTestProjectsToTemplates.ts                    # dry run
+//   npx tsx src/scripts/syncElectricalTestProjectsToTemplates.ts --reset-ungraded   # dry run, with resets
+//   npx tsx src/scripts/syncElectricalTestProjectsToTemplates.ts --apply            # writes
 
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { deriveProcessType, findApprovedTemplateId, resolveMilestoneRouting, type ProcessType } from '../services/workflowTemplates.js';
 
 const APPLY = process.argv.includes('--apply');
+const RESET_UNGRADED = process.argv.includes('--reset-ungraded');
 const FACULTY_ID = 'electrical';
+// What the M.Sc. project's last milestone was called before it became 'defense'.
+const PREVIOUS_TYPE: Record<string, string> = { defense: 'custom_2m4cylbo' };
 const DELETE = admin.firestore.FieldValue.delete();
 
 async function main() {
@@ -58,17 +69,23 @@ async function main() {
     batch.update(projectDoc.ref, { workflowTemplateRefs: newRefs, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
     for (const spec of template.milestones) {
-      const doc = milestones.docs.find((m) => m.data().type === spec.type);
+      const doc = milestones.docs.find((m) => m.data().type === spec.type)
+        ?? milestones.docs.find((m) => m.data().type === PREVIOUS_TYPE[spec.type]);
       if (!doc) {
         console.log(`  ${spec.type} (${spec.nameHe}): not on this project — not created.`);
         continue;
       }
       const m = doc.data();
-      if (m.status !== 'pending') {
+      const ungraded = m.finalGrade == null && !m.gradeApproved && !m.supervisorEvaluation;
+      if (m.status !== 'pending' && !(RESET_UNGRADED && ungraded)) {
         console.log(`  ${spec.type} (${spec.nameHe}): status ${m.status} — left as is.`);
         continue;
       }
       const update: Record<string, unknown> = {
+        type: spec.type,
+        status: 'pending',
+        submittedAt: DELETE,
+        formSignatures: DELETE,
         nameHe: spec.nameHe,
         nameEn: spec.nameEn,
         order: spec.order,

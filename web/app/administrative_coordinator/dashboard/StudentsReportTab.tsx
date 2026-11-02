@@ -34,6 +34,8 @@ interface StudentReportRow {
   milestoneNameEn: string | null;
   days: number | null;
   medianGrade: number | null;
+  /** When the administrative coordinator's final approval closed the project. */
+  completedAt?: string | null;
   facultyId: string | null;
   major: string | null;
   degreeType: 'bachelors' | 'masters' | null;
@@ -347,6 +349,11 @@ export function StudentsReportTab({ enableMessaging = false }: { enableMessaging
                     <span className="font-medium" style={{ color: STATUS_COLOR[r.status] }}>
                       {statusText(r, lang)}
                     </span>
+                    {r.completedAt && (
+                      <span className="block text-xs text-administrative-coordinator-on-surface-variant">
+                        {new Date(r.completedAt).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{projectTitle ?? '—'}</td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.supervisorName ?? '—'}</td>

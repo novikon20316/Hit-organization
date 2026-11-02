@@ -40,6 +40,8 @@ export type RecordEntryType =
   | 'grade_submitted'
   | 'grade_changed'
   | 'final_grade_approved'
+  | 'form_signed'
+  | 'project_completed'
   | 'examiner_assigned'
   | 'examiner_removed'
   | 'message_sent'

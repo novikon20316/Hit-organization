@@ -127,6 +127,9 @@ export interface FinalGradeComponents {
   formGroup?: string;
   totalsDisplay?: 'points' | 'weighted';
   examinerLabels?: Array<{ he: string; en: string }>;
+  formSignoffRoles?: string[];
+  formLayout?: 'criteria' | 'graderColumns';
+  gradeDecimals?: number;
 }
 
 // Valid roles for a chain STAGE — includes 'examiner', which resolves to a

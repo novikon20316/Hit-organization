@@ -1293,12 +1293,16 @@ export const apiClient = {
     return request<{
       items: Array<{
         id: string;
-        type: 'examiners' | 'final_grade' | 'chain_stage';
+        type: 'examiners' | 'final_grade' | 'chain_stage' | 'form_signature' | 'form_final_approval';
         studentName: string;
         facultyId: string;
         title: string;
         submittedAt: string;
         urgency: 'low' | 'medium' | 'high';
+        /** Only for the form_* types — see services/pendingSignoffs.ts. */
+        formKind?: 'evaluation' | 'opinion';
+        formRoleLabelHe?: string;
+        formRoleLabelEn?: string;
         /** Only present for type === 'chain_stage' — see
          *  services/pendingSignoffs.ts's PendingSignoffItem. */
         stageId?: string;
@@ -1996,6 +2000,11 @@ export const apiClient = {
   /** decision: 'approve_override' applies the supervisor's proposed grade;
    *  'keep_auto' reverts to the automatically-computed one. Either way the
    *  grade is finalized (gradeApproved: true). */
+  /** Sign a finished form as the staff role that's next (see formSignoffs.ts). */
+  async signForm(milestoneId: string) {
+    return request<{ success: boolean; nextRole: string | null }>(`/api/projects/milestones/${milestoneId}/form-signature`, { method: 'POST' });
+  },
+
   async decideGradeOverride(milestoneId: string, decision: 'approve_override' | 'keep_auto') {
     return request<{ success: boolean; finalGrade: number }>(`/api/grad-school-head/milestones/${milestoneId}/grade-override-decision`, { method: 'POST', body: { decision } });
   },
@@ -3578,6 +3587,15 @@ export interface EvaluationFormSignature {
   valid: boolean;
 }
 
+/** One staff signature line on a finished form (see formSignoffs.ts). */
+export interface FormSignoffLine {
+  role: string;
+  labelHe: string;
+  labelEn: string;
+  signature: EvaluationFormSignature | null;
+  canSign: boolean;
+}
+
 export interface EvaluationFormSection {
   milestoneId: string;
   nameHe: string;
@@ -3586,6 +3604,7 @@ export interface EvaluationFormSection {
   /** This milestone's share of the project's final grade. */
   percent: number;
   totalsDisplay: 'points' | 'weighted';
+  formLayout: 'criteria' | 'graderColumns';
   rubrics: Array<{
     kind: 'supervisorEvaluation' | 'examinerDefenseEvaluation' | 'examinerProjectEvaluation';
     giver: 'supervisor' | 'examiner';
@@ -3601,6 +3620,8 @@ export interface EvaluationFormSection {
     lockedReasonEn: string | null;
     positionHe: string | null;
     positionEn: string | null;
+    /** This viewer's place on the examiner panel, -1 when not on it. */
+    examinerIndex: number;
   };
   /** scores: studentId -> componentKey -> score; null when hidden from this viewer. */
   supervisor: {
@@ -3632,6 +3653,7 @@ export interface EvaluationFormSection {
   }>;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+  formSignoffs: FormSignoffLine[];
   approvals: { supervisor: EvaluationFormSignature | null; coordinator: EvaluationFormSignature | null };
 }
 
@@ -3648,8 +3670,10 @@ export interface EvaluationFormView {
   sections: EvaluationFormSection[];
   studentTotals: Array<{
     studentId: string;
-    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
+    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null; comment: string | null }>;
     projectFinalGrade: number | null;
+    /** False while it's computed from grades that aren't approved yet. */
+    projectFinalGradeIsFinal: boolean;
   }>;
 }
 
@@ -3697,6 +3721,8 @@ export interface ExaminerOpinionView {
   gradeApproved: boolean;
   students: Array<{ id: string; name: string }>;
   history: Array<ExaminerOpinionEntry>;
+  /** Absent on an external examiner's view. */
+  formSignoffs?: FormSignoffLine[];
 }
 
 export interface ExaminerOpinionParseResult {

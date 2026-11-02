@@ -27,6 +27,7 @@ import { isValidDocId } from '../services/idValidation.js';
 import { L } from '../utils/localize.js';
 import { notifyUser } from '../services/notify.js';
 import { hasFinalReportLinks } from '../services/finalReport.js';
+import { formSignoffsComplete } from '../services/formSignoffs.js';
 import { getPrivateContact, getPrivateContacts } from '../services/privateContact.js';
 import admin from 'firebase-admin';
 
@@ -459,6 +460,9 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
       // final grade, which stays null until every milestone is done. null
       // here just means "nothing graded yet," shown as '-' on the report.
       let medianGrade: number | null = null;
+      // When the administrative coordinator's final approval closed the
+      // project (see projectCompletion.ts).
+      let completedAt: string | null = null;
 
       if (enrolled && project) {
         projectTitleHe = project.titleHe || project.titleEn || '';
@@ -494,6 +498,11 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
           // Enrolled but no milestone docs yet (shouldn't normally happen —
           // enrollment always creates them — but don't crash on stale data).
           status = 'in_project';
+        }
+        if (project.status === 'completed') {
+          status = 'finished';
+          days = null;
+          completedAt = project.completedAt?.toDate?.()?.toISOString?.() ?? null;
         }
       } else {
         const pending = applicationsByStudent[s.id] ?? [];
@@ -532,6 +541,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
         milestoneNameEn,
         days,
         medianGrade,
+        completedAt,
         // Written by server/src/controllers/userController.ts's
         // logLogin/logout handlers — ISO strings, null if never recorded.
         lastLoginAt: s.lastLoginAt ?? null,
@@ -933,7 +943,10 @@ export const getPendingGradeOverrides = async (req: AuthenticatedRequest, res: R
         snap.docs.forEach((d) => milestoneDocsById.set(d.id, d));
       }));
     }
-    const milestones = [...milestoneDocsById.values()].map((d) => ({ id: d.id, ...d.data() } as Record<string, any>));
+    // A form still waiting on staff signatures isn't hers yet (formSignoffs.ts).
+    const milestones = [...milestoneDocsById.values()]
+      .map((d) => ({ id: d.id, ...d.data() } as Record<string, any>))
+      .filter((m) => formSignoffsComplete(m));
 
     const projectIds = [...new Set(milestones.map((m) => m.projectId).filter(Boolean))];
     const projectSnaps = await Promise.all(projectIds.map((id) => db.collection('projects').doc(id).get()));

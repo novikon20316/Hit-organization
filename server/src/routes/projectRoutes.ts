@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { verifyToken } from '../middleware/auth.js';
 import { uploadMiddleware, handleUploadError } from '../controllers/milestoneController.js';
 import { verifyFileSignatures } from '../services/fileSignature.js';
-import { getEvaluationForm, submitEvaluationForm } from '../controllers/evaluationFormController.js';
+import { getEvaluationForm, submitEvaluationForm, submitFormSignature } from '../controllers/evaluationFormController.js';
 import { getExaminerOpinionForm, parseExaminerOpinionUpload, submitExaminerOpinionForm, approveThesisFinalGrade, sendThesisBackForCorrections } from '../controllers/examinerOpinionController.js';
 import {
   getStudentProject,
@@ -38,6 +38,7 @@ router.post('/milestones/:milestoneId/examiner-form', verifyToken, submitExamine
 // evaluationFormController.ts.
 router.get('/milestones/:milestoneId/evaluation-form', verifyToken, getEvaluationForm);
 router.post('/milestones/:milestoneId/evaluation-form', verifyToken, submitEvaluationForm);
+router.post('/milestones/:milestoneId/form-signature', verifyToken, submitFormSignature);
 // Examiner opinion form (thesis) — see examinerOpinionController.ts.
 router.get('/milestones/:milestoneId/examiner-opinion', verifyToken, getExaminerOpinionForm);
 router.post('/milestones/:milestoneId/examiner-opinion/parse', verifyToken, uploadMiddleware, handleUploadError, verifyFileSignatures, parseExaminerOpinionUpload);

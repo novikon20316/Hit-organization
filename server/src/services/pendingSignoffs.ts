@@ -15,11 +15,12 @@ import { db } from '../config/firebase.js';
 import { resolveStaffForScope, type AuthUser, type ResourceScope } from './scopeAuthorization.js';
 import { deriveProcessType, resolveFinalGradeSignoffRole, type ChainRole, type ChainStage, type FormFieldSpec } from './workflowTemplates.js';
 import { isChainDriven } from './milestoneRouting.js';
+import { formAwaitingSignoffs, formSignoffLabel, formSigners, formSignoffsComplete, nextFormSignoffRole } from './formSignoffs.js';
 import { urgencyFromAge } from './studentProgress.js';
 
 export interface PendingSignoffItem {
   id: string;
-  type: 'examiners' | 'final_grade' | 'chain_stage';
+  type: 'examiners' | 'final_grade' | 'chain_stage' | 'form_signature' | 'form_final_approval';
   studentName: string;
   facultyId: string;
   title: string;
@@ -41,6 +42,12 @@ export interface PendingSignoffItem {
    *  See approveChainMilestone/rejectChainMilestone's own confirmedProposalRead
    *  gate in coordinatorController.ts, which this exists to satisfy. */
   stageRole?: ChainRole;
+  /** Only meaningful for 'form_signature' / 'form_final_approval' — which
+   *  form to open: the per-student evaluation form or the thesis opinion form. */
+  formKind?: 'evaluation' | 'opinion';
+  /** Only for 'form_signature' — the line the viewer signs. */
+  formRoleLabelHe?: string;
+  formRoleLabelEn?: string;
 }
 
 function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacultyId: string): ResourceScope {
@@ -53,7 +60,7 @@ function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacult
 }
 
 export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingSignoffItem[]> {
-  const [examinerRecsSnap, defenseMilestonesSnap, researchProposalsSnap] = await Promise.all([
+  const [examinerRecsSnap, defenseMilestonesSnap, researchProposalsSnap, pendingFormsSnap, approvedThesesSnap] = await Promise.all([
     db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
     db.collection('milestones').where('type', '==', 'defense').where('status', '==', 'graded').get(),
     // Chain-driven 'approve' stages on the research_proposal milestone (the
@@ -61,6 +68,11 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
     // milestone type for now, not every chain-driven milestone in the app;
     // generalize this query if a future chain needs the same treatment.
     db.collection('milestones').where('type', '==', 'research_proposal').get(),
+    // Finished forms: a grade the supervisor confirmed, or a thesis every
+    // examiner approved. Their defense milestone never reaches 'graded', so
+    // the final_grade query above can't see them.
+    db.collection('milestones').where('gradeOverride.status', '==', 'pending').get(),
+    db.collection('milestones').where('opinionOutcome.result', '==', 'continue').get(),
   ]);
 
   // Every cache below is scoped to this one call — avoids re-fetching the
@@ -193,6 +205,37 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
       stageFormFields: stage.formFields ?? [],
       stageRole: stage.role,
     });
+  }
+
+  // Finished forms waiting on this user: their signature if staff still have
+  // to sign, otherwise the final approval.
+  for (const doc of [...pendingFormsSnap.docs, ...approvedThesesSnap.docs]) {
+    const data = doc.data();
+    if (data.gradeApproved) continue;
+    const project = await getProject(data.projectId);
+    if (!project || project.isArchived) continue;
+    const resource = resourceScopeOf(project, data.facultyId ?? '');
+    const base = {
+      id: doc.id,
+      studentName: await studentNameFor(project),
+      facultyId: resource.facultyId,
+      title: `${project.titleHe || project.titleEn || ''} — ${data.nameHe || data.nameEn || ''}`,
+      submittedAt: data.gradeOverride?.proposedAt?.toDate?.()?.toISOString?.() ?? data.opinionOutcome?.decidedAt ?? '',
+      urgency: urgencyFromAge(data.gradeOverride?.proposedAt ?? data.updatedAt),
+      formKind: data.examinerOpinionForm ? 'opinion' as const : 'evaluation' as const,
+    };
+    const signingRole = formAwaitingSignoffs(data) ? nextFormSignoffRole(data) : null;
+    if (signingRole) {
+      if (!(await formSigners(signingRole, data, project)).includes(user.uid)) continue;
+      const label = formSignoffLabel(signingRole);
+      items.push({ ...base, type: 'form_signature', formRoleLabelHe: label.he, formRoleLabelEn: label.en });
+    } else if (formSignoffsComplete(data)) {
+      const role = await getFinalGradeSignoffRole(resource.facultyId, deriveProcessType(project.degreeType, project.projectType), project.major ?? null);
+      // The queue this links to is the administrative coordinator's.
+      if (role !== 'administrative_secretary') continue;
+      if (!(await getResolvedUids(role, resource, [])).includes(user.uid)) continue;
+      items.push({ ...base, type: 'form_final_approval' });
+    }
   }
 
   return items;

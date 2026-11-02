@@ -677,6 +677,8 @@ const RECORD_TYPE_HE: Record<string, string> = {
   grade_submitted: 'ציון הוזן',
   grade_changed: 'ציון עודכן',
   final_grade_approved: 'ציון סופי אושר',
+  form_signed: 'טופס הערכה נחתם',
+  project_completed: 'הסטודנט/ית סיים/ה את הפרויקט',
   examiner_assigned: 'בוחן/ת שובץ/ה',
   examiner_removed: 'בוחן/ת הוסר/ה',
   message_sent: 'הודעה נשלחה',

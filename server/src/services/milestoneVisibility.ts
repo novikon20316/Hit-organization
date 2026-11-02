@@ -73,6 +73,7 @@ const GRADE_BEARING_FIELDS = [
   'autoCalculatedFinalGradeByStudent',
   'supervisorEvaluation',
   'gradeOverride',
+  'formSignatures',
   'stageScores',
   'coordinatorComment',
 ] as const;

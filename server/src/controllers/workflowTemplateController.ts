@@ -123,7 +123,7 @@ function effectiveCoordinatorScopes(user: AuthenticatedRequest['user']): { facul
 // graded examiner-only (e.g. a Poster session) with no supervisor stage.
 // 'committee' routes to the department's thesis/final_project committee —
 // see workflowTemplates.ts's ChainRole doc comment.
-const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'program_head', 'division_head', 'dean', 'committee'];
+const CHAIN_ROLES: ChainRole[] = ['supervisor', 'examiner', 'coordinator', 'faculty_admin', 'administrative_secretary', 'grad_school_head', 'school_head', 'program_head', 'division_head', 'dean', 'committee'];
 // examinerSignoffRole/finalGradeSignoffRole are a single overall approver
 // resolved without any per-milestone examinerIds in scope — 'examiner' would
 // always resolve to nobody there (or, worse, read as "an examiner approves
@@ -298,6 +298,15 @@ function validateFinalGradeRubric(input: any): { components: GradingComponentSpe
   return { components, weight };
 }
 
+/** Staff who sign a finished form (see formSignoffs.ts) — only roles that
+ *  resolve to people in scope, each once. Null on anything else. */
+function validateFormSignoffRoles(input: unknown): ChainRole[] | null {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) return null;
+  if (input.some((r) => !SIGNOFF_ROLES.includes(r)) || new Set(input).size !== input.length) return null;
+  return input as ChainRole[];
+}
+
 /** Validates the full three-rubric finalGradeComponents structure — 'field
  *  not sent at all' means 'this milestone uses the single shared
  *  gradingComponents rubric instead' (always valid); once present, all three
@@ -309,8 +318,10 @@ function validateFinalGradeComponents(input: any): { ok: true; value?: WorkflowM
   const examinerProjectEvaluation = validateFinalGradeRubric(input.examinerProjectEvaluation);
   const examinerDefenseEvaluation = validateFinalGradeRubric(input.examinerDefenseEvaluation);
   if (!supervisorEvaluation || !examinerProjectEvaluation || !examinerDefenseEvaluation) return { ok: false };
+  // Epsilon tolerance since a rubric's share may not be a whole percent of
+  // its milestone (the M.Sc. project defense's 30/20/20 out of 70).
   const weightSum = supervisorEvaluation.weight + examinerProjectEvaluation.weight + examinerDefenseEvaluation.weight;
-  if (weightSum !== 100) return { ok: false };
+  if (Math.abs(weightSum - 100) > 0.01) return { ok: false };
   const value: NonNullable<WorkflowMilestoneSpec['finalGradeComponents']> = { supervisorEvaluation, examinerProjectEvaluation, examinerDefenseEvaluation };
   // Per-student paper-form mode (see workflowTemplates.ts's perStudent) —
   // must survive an editor round-trip, or re-saving the template would
@@ -334,6 +345,11 @@ function validateFinalGradeComponents(input: any): { ok: true; value?: WorkflowM
         .map((l: any) => ({ he: l.he.trim(), en: l.en.trim() }));
       if (labels.length > 0) value.examinerLabels = labels;
     }
+    const formSignoffRoles = validateFormSignoffRoles(input.formSignoffRoles);
+    if (formSignoffRoles === null) return { ok: false };
+    if (formSignoffRoles.length > 0) value.formSignoffRoles = formSignoffRoles;
+    if (input.formLayout === 'graderColumns') value.formLayout = 'graderColumns';
+    if (Number.isInteger(input.gradeDecimals) && input.gradeDecimals > 0 && input.gradeDecimals <= 2) value.gradeDecimals = input.gradeDecimals;
   }
   return { ok: true, value };
 }
@@ -457,6 +473,8 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     if (opinionForm && typeof opinionForm === 'object' && Array.isArray(opinionForm.conclusions) && Array.isArray(opinionForm.confidentialityOptions)) {
       const headerFields = validateFormFields(opinionForm.headerFields);
       if (headerFields === null) return null;
+      const formSignoffRoles = validateFormSignoffRoles(opinionForm.formSignoffRoles);
+      if (formSignoffRoles === null) return null;
       spec.examinerOpinionForm = {
         titleHe: String(opinionForm.titleHe ?? ''),
         titleEn: String(opinionForm.titleEn ?? ''),
@@ -467,6 +485,7 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
         confidentialityOptions: opinionForm.confidentialityOptions
           .filter((c: any) => c && typeof c.value === 'string' && ['none', 'hide_name', 'hide_marked'].includes(c.effect))
           .map((c: any) => ({ value: c.value, labelHe: String(c.labelHe ?? ''), labelEn: String(c.labelEn ?? ''), effect: c.effect })),
+        ...(formSignoffRoles.length > 0 ? { formSignoffRoles } : {}),
       };
     }
     if (syncDueDateWith) spec.syncDueDateWith = syncDueDateWith;

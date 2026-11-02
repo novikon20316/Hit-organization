@@ -29,6 +29,7 @@ import type { AppRole } from '@/lib/roles';
 import { majorsForFaculty } from '@/lib/permissions';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
 
 const SCHOOL_HEAD_ROLES: AppRole[] = ['school_head', 'system_admin'];
@@ -264,6 +265,8 @@ function SchoolHeadDashboardContent() {
         <StatCard value={stats.stuckCount} label={lang === 'he' ? 'תקועים' : 'Stuck'} color="var(--danger)" href="/school_head/dashboard?tab=stuck" />
         <StatCard value={stats.completedThisYear} label={lang === 'he' ? 'סיימו השנה' : 'Completed'} color="var(--success)" href="/school_head/dashboard?tab=grades" />
       </div>
+
+      <PendingSignoffsWidget />
 
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
 

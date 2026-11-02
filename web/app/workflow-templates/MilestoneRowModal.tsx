@@ -439,12 +439,12 @@ export function MilestoneRowModal({ open, editing, otherMilestones, committees, 
       // Per-student form settings aren't edited here — carried over as-is
       // so saving the milestone doesn't silently turn the per-student
       // evaluation form back into one shared score per team.
-      const { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels } = editing?.finalGradeComponents ?? {};
+      const { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels, formSignoffRoles, formLayout, gradeDecimals } = editing?.finalGradeComponents ?? {};
       finalGradeComponents = {
         supervisorEvaluation: { components: supervisorEvalComponents, weight: w1 },
         examinerProjectEvaluation: { components: examinerProjectComponents, weight: w2 },
         examinerDefenseEvaluation: { components: examinerDefenseComponents, weight: w3 },
-        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels } : {}),
+        ...(perStudent ? { perStudent, formTitleHe, formTitleEn, headerFields, formGroup, totalsDisplay, examinerLabels, formSignoffRoles, formLayout, gradeDecimals } : {}),
       };
     }
 

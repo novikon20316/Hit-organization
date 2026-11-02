@@ -25,9 +25,12 @@ import {
   buildOpinionView, submitOpinion, parseUploadedOpinionForm, opinionPanel, loadOpinions, OpinionError,
   OPINIONS, OPINION_DRAFTS, OPINION_HISTORY, opinionDocId,
 } from '../services/examinerOpinion.js';
+import { formSignoffLines, formSignoffsComplete } from '../services/formSignoffs.js';
+import { recordProjectCompletion } from '../services/projectCompletion.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { gradesAsSignedScores, signerFacultyFor } from './evaluationFormController.js';
 
-const STAFF_VIEW_ROLES = ['administrative_secretary', 'coordinator', 'faculty_admin', 'grad_school_head', 'program_head', 'division_head', 'dean', 'system_admin'];
+const STAFF_VIEW_ROLES = ['administrative_secretary', 'coordinator', 'faculty_admin', 'grad_school_head', 'school_head', 'program_head', 'division_head', 'dean', 'system_admin'];
 
 async function loadOpinionMilestone(req: AuthenticatedRequest, res: Response) {
   const { milestoneId } = req.params;
@@ -90,12 +93,16 @@ export const getExaminerOpinionForm = async (req: AuthenticatedRequest, res: Res
   try {
     const loaded = await loadOpinionMilestone(req, res);
     if (!loaded) return;
-    const { milestoneId, data, scope } = loaded;
+    const { milestoneId, data, scope, project } = loaded;
     const isExaminer = (data.examinerIds ?? []).includes(uid);
     const isSupervisor = data.supervisorId === uid || data.secondarySupervisorId === uid;
-    if (isStaffInScope(req, scope)) return res.status(200).json(await buildOpinionView(milestoneId, data, { kind: 'staff' }));
-    if (isExaminer) return res.status(200).json(await buildOpinionView(milestoneId, data, { kind: 'examiner', key: uid }));
-    if (isSupervisor) return res.status(200).json(await buildOpinionView(milestoneId, data, { kind: 'supervisor' }));
+    const respond = async (viewer: Parameters<typeof buildOpinionView>[2]) => res.status(200).json({
+      ...(await buildOpinionView(milestoneId, data, viewer)),
+      formSignoffs: await formSignoffLines(milestoneId, data, project, uid),
+    });
+    if (isStaffInScope(req, scope)) return await respond({ kind: 'staff' });
+    if (isExaminer) return await respond({ kind: 'examiner', key: uid });
+    if (isSupervisor) return await respond({ kind: 'supervisor' });
     return res.status(403).json({ message: L(req, 'You do not have access to this form.', 'אין לך גישה לטופס זה.') });
   } catch (err) {
     return sendOpinionError(req, res, err, 'Failed to load the examiner form.', 'טעינת טופס הבוחן נכשלה.');
@@ -203,6 +210,9 @@ export const approveThesisFinalGrade = async (req: AuthenticatedRequest, res: Re
     if (data.opinionOutcome?.result !== 'continue') {
       return res.status(409).json({ message: L(req, 'The final grade can be approved only after every examiner approved the thesis.', 'ניתן לאשר את הציון הסופי רק לאחר שכל הבוחנים אישרו את העבודה.') });
     }
+    if (!formSignoffsComplete(data)) {
+      return res.status(409).json({ message: L(req, 'The form is still missing a required signature.', 'חסרה עדיין חתימה נדרשת על הטופס.') });
+    }
     if (data.gradeApproved) {
       return res.status(409).json({ message: L(req, 'This grade has already been approved.', 'ציון זה כבר אושר.') });
     }
@@ -254,6 +264,15 @@ export const approveThesisFinalGrade = async (req: AuthenticatedRequest, res: Re
       entityId: milestoneId,
       newValue: { finalGrade, finalGradeByStudent: grades },
     });
+    const actorRole = req.user?.role ?? 'administrative_secretary';
+    await logProjectRecordEntry({
+      projectId: data.projectId,
+      type: 'final_grade_approved',
+      actorId: uid,
+      actorRole,
+      data: { milestoneId, finalGrade, finalGradeByStudent: grades },
+    });
+    await recordProjectCompletion({ milestoneId, milestone: { ...data, finalGrade, finalGradeByStudent: grades }, actorId: uid, actorRole });
 
     // Michlol (stub until the integration exists) — one transfer per grade.
     const byGrade = new Map<number, string[]>();
@@ -397,7 +416,12 @@ export const getThesisOpinionQueue = async (req: AuthenticatedRequest, res: Resp
     const snaps = facultyIds
       ? await Promise.all(facultyIds.map((f) => db.collection('milestones').where('facultyId', '==', f).where('opinionOutcome.result', 'in', ['continue', 'revise', 'reject']).get()))
       : [await db.collection('milestones').where('opinionOutcome.result', 'in', ['continue', 'revise', 'reject']).get()];
-    const docs = snaps.flatMap((s) => s.docs).filter((d) => !d.data().gradeApproved && d.data().examinerOpinionForm);
+    // An approved thesis reaches her once its staff signatures are in (a
+    // returned one comes straight back to her).
+    const docs = snaps.flatMap((s) => s.docs).filter((d) => {
+      const m = d.data();
+      return !m.gradeApproved && m.examinerOpinionForm && (m.opinionOutcome?.result !== 'continue' || formSignoffsComplete(m));
+    });
 
     const items = await Promise.all(docs.map(async (d) => {
       const m = d.data();

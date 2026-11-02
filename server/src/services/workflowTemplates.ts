@@ -534,6 +534,21 @@ export interface WorkflowMilestoneSpec {
     /** The examiners' lines on the paper form, by panel position (e.g.
      *  "בוחן I", "בוחן II"). Omitted: "בוחן 1 / יו\"ר", "בוחן 2", ... */
     examinerLabels?: Array<{ he: string; en: string }>;
+    /** Staff who must digitally sign the finished form, in order, after the
+     *  supervisor confirms the grades and before it reaches the final
+     *  approver (finalGradeSignoffRole) — e.g. ['coordinator'] for
+     *  Electrical's M.Sc. project form. Omitted: straight to the final
+     *  approver. See formSignoffs.ts. */
+    formSignoffRoles?: ChainRole[];
+    /** 'graderColumns' lays the form out like a paper form with one column
+     *  per grader (supervisor, examiner I, examiner II) instead of the
+     *  default criteria table. Only changes how the form is displayed. */
+    formLayout?: 'criteria' | 'graderColumns';
+    /** Decimal places kept on each student's computed milestone grade —
+     *  for rubric weights that aren't whole shares of the project grade,
+     *  where rounding the milestone first would skew the project's final
+     *  grade. Omitted: whole numbers. */
+    gradeDecimals?: number;
   };
   /** A non-scored written opinion every assigned examiner submits — a
    *  conclusion picked from a fixed list, a confidentiality request and a
@@ -577,6 +592,10 @@ export interface ExaminerOpinionFormSpec {
    *  then sees: everything, the opinion without the examiner's name, or
    *  the opinion without its confidential part. */
   confidentialityOptions: Array<{ value: string; labelHe: string; labelEn: string; effect: 'none' | 'hide_name' | 'hide_marked' }>;
+  /** Staff who must digitally sign, in order, once every examiner approved
+   *  the thesis and before the final approver enters the grade — see
+   *  finalGradeComponents.formSignoffRoles and formSignoffs.ts. */
+  formSignoffRoles?: ChainRole[];
 }
 
 export type WorkflowTemplateStatus = 'pending_approval' | 'approved' | 'rejected' | 'superseded';

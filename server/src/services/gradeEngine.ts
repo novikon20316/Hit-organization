@@ -173,13 +173,14 @@ export function rubricMaxPoints(components: RubricComponentLike[]): number {
 export function computePerStudentAutoGrades(
   milestone: {
     studentIds?: string[];
-    finalGradeComponents: Record<'supervisorEvaluation' | 'examinerProjectEvaluation' | 'examinerDefenseEvaluation', { components: RubricComponentLike[]; weight: number }>;
+    finalGradeComponents: Record<'supervisorEvaluation' | 'examinerProjectEvaluation' | 'examinerDefenseEvaluation', { components: RubricComponentLike[]; weight: number }> & { gradeDecimals?: number };
     supervisorEvaluation?: PerStudentEval;
     examinerEvaluations?: Record<string, { project?: PerStudentEval; defense?: PerStudentEval }>;
   },
   examinerIds: string[],
 ): Record<string, number> {
   const rubrics = milestone.finalGradeComponents;
+  const precision = 10 ** (rubrics.gradeDecimals ?? 0);
   const result: Record<string, number> = {};
   for (const studentId of milestone.studentIds ?? []) {
     let grade = 0;
@@ -197,7 +198,7 @@ export function computePerStudentAutoGrades(
       }
       grade += (points / max) * rubrics[kind].weight;
     }
-    result[studentId] = Math.round(grade);
+    result[studentId] = Math.round(grade * precision) / precision;
   }
   return result;
 }
@@ -248,7 +249,11 @@ export function computeProjectFinalGrade(
   // regardless of how any single milestone's own (possibly >100) score
   // contributed to weightedSum above. A no-op for every template whose
   // milestones all cap at 100, which is every one but the above.
-  return Math.min(100, Math.round(weightedSum));
+  // The small nudge keeps an exact .5 rounding up when a milestone grade was
+  // kept to two decimals (finalGradeComponents.gradeDecimals) — e.g. a true
+  // 84.5 summing to 84.4965. Whole grades with whole percents land on
+  // hundredths, so it can't move any of those across a rounding boundary.
+  return Math.min(100, Math.round(weightedSum + 0.004));
 }
 
 /**

@@ -79,6 +79,8 @@ export type AuditAction =
   | 'final_grade_override_proposed'
   | 'grade_override_approved'
   | 'grade_override_rejected'
+  // Staff signature on a finished evaluation form — see formSignoffs.ts.
+  | 'form_signature_added'
   // Student thesis/project track assignment (see services/studentTrack.ts) —
   // distinct from 'track_changed' above, which is trackChange.ts's
   // already-enrolled-project switch.

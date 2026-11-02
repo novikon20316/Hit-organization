@@ -14,6 +14,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { apiClient } from '../../src/api/apiClient';
 import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
+import { FormSignoffCards, type FormSignoffLine } from './EvaluationFormModal';
 
 interface Choice { value: string; labelHe: string; labelEn: string }
 interface Signature { signerName: string; positionHe: string; positionEn: string; facultyNameHe: string; facultyNameEn: string; signedAt: string; code: string; valid: boolean }
@@ -34,6 +35,7 @@ interface View_ {
   finalGrade: number | null;
   gradeApproved: boolean;
   students: Array<{ id: string; name: string }>;
+  formSignoffs?: FormSignoffLine[];
 }
 type PickedFile = { uri: string; name: string; mimeType?: string };
 
@@ -158,6 +160,21 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
       await load();
     } catch (err: any) {
       setError(err.response?.data?.message || (he ? 'שליחת הטופס נכשלה' : 'Failed to submit the form'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signForm = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.post(`/api/projects/milestones/${milestoneId}/form-signature`);
+      setMessage(he ? 'הטופס נחתם.' : 'The form was signed.');
+      onChanged?.();
+      await load();
+    } catch (err: any) {
+      setError(err.response?.data?.message || (he ? 'חתימת הטופס נכשלה' : 'Failed to sign the form'));
     } finally {
       setBusy(false);
     }
@@ -327,7 +344,14 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
               </Text>
             ))}
 
-            {view.viewer.kind === 'staff' && view.outcome?.result === 'continue' && !view.gradeApproved && (
+            {view.outcome?.result === 'continue' && (view.formSignoffs ?? []).length > 0 && (
+              <View style={{ marginTop: 16, gap: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: ap.onSurface, textAlign: align }}>{he ? 'חתימות על הטופס' : 'Form signatures'}</Text>
+                <FormSignoffCards he={he} lines={view.formSignoffs ?? []} busy={busy} onSign={signForm} />
+              </View>
+            )}
+
+            {view.viewer.kind === 'staff' && view.outcome?.result === 'continue' && !view.gradeApproved && (view.formSignoffs ?? []).every((line) => line.signature) && (
               <View style={[card, { marginTop: 16, gap: 8 }]}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: ap.onSurface, textAlign: align }}>{he ? 'הזנת הציון הסופי ואישורו' : 'Enter and approve the final grade'}</Text>
                 {view.students.map((s) => (

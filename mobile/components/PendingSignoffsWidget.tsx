@@ -12,11 +12,14 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import EvaluationFormModal from './modals/EvaluationFormModal';
+import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import type { Lang } from './i18n';
 
-type SignoffType = 'examiners' | 'final_grade' | 'chain_stage';
+type SignoffType = 'examiners' | 'final_grade' | 'chain_stage' | 'form_signature' | 'form_final_approval';
 type Urgency = 'low' | 'medium' | 'high';
 
 interface StageFormField {
@@ -45,12 +48,18 @@ interface PendingSignoffItem {
    *  this alone tells us whether the "I've read the proposal thoroughly"
    *  checkbox is required (supervisor stages only). */
   stageRole?: string;
+  /** Only for the form_* types — which finished form this is. */
+  formKind?: 'evaluation' | 'opinion';
+  formRoleLabelHe?: string;
+  formRoleLabelEn?: string;
 }
 
 const TYPE_LABEL: Record<SignoffType, { he: string; en: string }> = {
   examiners: { he: 'אישור בוחנים', en: 'Examiner Approval' },
   final_grade: { he: 'אישור ציון סופי', en: 'Final Grade' },
   chain_stage: { he: 'אישור אבן דרך', en: 'Milestone Approval' },
+  form_signature: { he: 'חתימה על טופס הערכה', en: 'Form Signature' },
+  form_final_approval: { he: 'אישור סופי של טופס הערכה', en: 'Form Final Approval' },
 };
 
 const URGENCY_COLOR: Record<Urgency, string> = {
@@ -60,6 +69,8 @@ const URGENCY_COLOR: Record<Urgency, string> = {
 };
 
 export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: Lang; showEmptyState?: boolean }) {
+  const router = useRouter();
+  const [openForm, setOpenForm] = useState<{ id: string; kind: 'evaluation' | 'opinion' } | null>(null);
   const [items, setItems] = useState<PendingSignoffItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -167,6 +178,11 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
           </View>
           <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B', marginTop: 6 }}>{item.studentName}</Text>
           <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>{item.title}</Text>
+          {item.type === 'form_signature' && (
+            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+              {lang === 'he' ? `נדרשת חתימתך כ${item.formRoleLabelHe ?? ''}` : `Your signature is needed as ${item.formRoleLabelEn ?? ''}`}
+            </Text>
+          )}
 
           {item.type === 'chain_stage' && item.stageRole === 'supervisor' && (
             <Pressable
@@ -225,6 +241,21 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
               )}
             </View>
           ))}
+          {item.type === 'form_signature' || item.type === 'form_final_approval' ? (
+            <Pressable
+              style={{ backgroundColor: '#D1FAE5', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 }}
+              onPress={() => (item.type === 'form_signature'
+                ? setOpenForm({ id: item.id, kind: item.formKind ?? 'evaluation' })
+                : router.push('/administrative_coordinator/administrative_coordinator_dashboard?tab=overrides' as any))}
+              accessibilityRole="button"
+            >
+              <Text style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>
+                📄 {item.type === 'form_signature'
+                  ? (lang === 'he' ? 'פתח/י את הטופס וחתום/י' : 'Open the form and sign')
+                  : (lang === 'he' ? 'מעבר לאישור הסופי' : 'Go to final approval')}
+              </Text>
+            </Pressable>
+          ) : (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
             {rejectTargetId === item.id ? (
               <>
@@ -272,8 +303,11 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
               </>
             )}
           </View>
+          )}
         </View>
       ))}
+      {openForm?.kind === 'evaluation' && <EvaluationFormModal visible lang={lang} milestoneId={openForm.id} onClose={() => setOpenForm(null)} onChanged={fetchItems} />}
+      {openForm?.kind === 'opinion' && <ExaminerOpinionFormModal visible lang={lang} milestoneId={openForm.id} onClose={() => setOpenForm(null)} onChanged={fetchItems} />}
     </View>
   );
 }

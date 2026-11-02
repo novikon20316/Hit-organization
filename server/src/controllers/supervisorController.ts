@@ -26,6 +26,7 @@ import {
   isCalendarConnected, disconnectCalendar,
 } from '../services/googleCalendarService.js';
 import { WEBSITE_URL } from '../config/links.js';
+import { nextFormSignoffRole, notifyFormSignoffDue } from '../services/formSignoffs.js';
 import { L } from '../utils/localize.js';
 
 const db = admin.firestore();
@@ -1501,6 +1502,19 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       oldValue: { autoCalculatedFinalGrade: data.autoCalculatedFinalGrade },
       newValue: { proposedGrade, ...(proposedGrades ? { proposedGrades } : {}), ...(reasonTrimmed ? { reason: reasonTrimmed } : {}) },
     });
+
+    // A form that staff still have to sign goes to them first — the final
+    // approver hears about it after the last signature (see formSignoffs.ts).
+    const firstSignoffRole = nextFormSignoffRole(data);
+    if (firstSignoffRole) {
+      try {
+        const project = (await db.collection('projects').doc(data.projectId ?? '').get()).data() ?? {};
+        await notifyFormSignoffDue(milestoneId, data, project, firstSignoffRole);
+      } catch (notifyErr) {
+        console.error('decideFinalGrade: failed to notify form signer:', notifyErr);
+      }
+      return res.status(200).json({ success: true, status: 'pending_form_signatures' });
+    }
 
     // Notify whoever resolveFinalGradeSignoffRole resolves to (the
     // coordinator, for data_science) that a grade is awaiting sign-off —

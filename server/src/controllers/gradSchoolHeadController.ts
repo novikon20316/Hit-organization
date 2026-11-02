@@ -32,6 +32,8 @@ import { assignExaminersAndNotify, type ExaminerAssignmentInput } from '../servi
 import { openDefenseSchedulingIfPanelReady } from '../services/defenseScheduling.js';
 import { deriveProcessType, resolveFinalGradeSignoffRole } from '../services/workflowTemplates.js';
 import { issueFinalReportLinks } from '../services/finalReport.js';
+import { formSignoffsComplete } from '../services/formSignoffs.js';
+import { recordProjectCompletion, reopenProjectCompletion } from '../services/projectCompletion.js';
 import { L } from '../utils/localize.js';
 
 const GRAD_SCHOOL_HEAD_ROLES = ['grad_school_head', 'system_admin'];
@@ -377,6 +379,9 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
     if (milestone.gradeApproved) {
       return res.status(400).json({ message: L(req, 'This grade has already been finalized.', 'הציון כבר אושר באופן סופי.') });
     }
+    if (!formSignoffsComplete(milestone)) {
+      return res.status(409).json({ message: L(req, 'The form is still missing a required signature.', 'חסרה עדיין חתימה נדרשת על הטופס.') });
+    }
 
     // Same configurable sign-off gating as approveFinalGrade above.
     const projectSnap = await db.collection('projects').doc(milestone.projectId ?? '').get();
@@ -402,10 +407,10 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       ? averageGrade(finalGradeByStudent)
       : decision === 'approve_override' ? milestone.gradeOverride.proposedGrade : milestone.autoCalculatedFinalGrade;
 
-    // Per-student forms: the coordinator's sign-off is the form's
-    // "חתימת רכז פרויקטים" line — digitally signed over the final grades —
-    // and the milestone reaches a completed status, which is also what
-    // releases the grade to the student (milestoneVisibility.ts). The prior
+    // Per-student forms: this is the form's final approval — digitally
+    // signed over the final grades — and the milestone reaches a completed
+    // status, which is also what releases the grade to the student
+    // (milestoneVisibility.ts). The prior
     // status is kept so an unlock can restore it.
     let approvalSignature: Awaited<ReturnType<typeof signEvaluation>> | undefined;
     if (finalGradeByStudent) {
@@ -413,7 +418,7 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       const signer = signerSnap.data() ?? {};
       approvalSignature = await signEvaluation({
         milestoneId, signerUid: uid, signerName: signer.displayName || signer.displayNameHe || uid,
-        role: 'coordinator', positionHe: 'רכז/ת פרויקטים — אישור סופי', positionEn: 'Projects coordinator — final approval',
+        role: 'coordinator', positionHe: 'רכז/ת מנהלי/ת — אישור סופי', positionEn: 'Administrative coordinator — final approval',
         facultyId: signerFacultyFor(signer, milestone.facultyId ?? ''), scores: gradesAsSignedScores(finalGradeByStudent),
       });
     }
@@ -464,8 +469,24 @@ export const decideGradeOverride = async (req: AuthenticatedRequest, res: Respon
       newValue: { finalGrade, ...(finalGradeByStudent ? { finalGradeByStudent } : {}) },
     });
 
+    // The defense closes the project; from here on "the final grade" means
+    // the whole project's, not this milestone's share of it.
+    const actorRole = req.user?.role ?? 'administrative_secretary';
+    const projectGrades = isFinalGrade
+      ? await recordProjectCompletion({ milestoneId, milestone: { ...milestone, finalGrade, ...(finalGradeByStudent ? { finalGradeByStudent } : {}) }, actorId: uid, actorRole })
+      : {};
+    if (isFinalGrade) {
+      await logProjectRecordEntry({
+        projectId: milestone.projectId,
+        type: 'final_grade_approved',
+        actorId: uid,
+        actorRole,
+        data: { milestoneId, finalGrade, ...(finalGradeByStudent ? { finalGradeByStudent } : {}) },
+      });
+    }
+
     const studentIds: string[] = milestone.studentIds ?? [];
-    const gradeFor = (studentId: string): number => finalGradeByStudent?.[studentId] ?? finalGrade;
+    const gradeFor = (studentId: string): number => projectGrades[studentId] ?? finalGradeByStudent?.[studentId] ?? finalGrade;
     if (isFinalGrade) {
       // One transfer per distinct grade, so each student's own grade is what
       // goes to Michlol.
@@ -598,6 +619,7 @@ export const approveFinalGrade = async (req: AuthenticatedRequest, res: Response
       actorRole: req.user?.role ?? 'grad_school_head',
       data: { milestoneId, finalGrade: milestone.finalGrade },
     });
+    await recordProjectCompletion({ milestoneId, milestone, actorId: uid, actorRole: req.user?.role ?? 'grad_school_head' });
 
     const studentIds: string[] = milestone.studentIds ?? [];
     const transfer = await transferGradeToMichlol({
@@ -705,6 +727,7 @@ export const revertFinalGradeApproval = async (req: AuthenticatedRequest, res: R
       gradeUnlockedBy: uid,
       gradeUnlockedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await reopenProjectCompletion({ milestoneId, milestone, actorId: uid, actorRole: req.user?.role ?? 'grad_school_head', reason });
 
     await logAuditEvent({
       userId: uid,

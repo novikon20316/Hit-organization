@@ -4,12 +4,13 @@
 // template: finalGradeComponents.perStudent) — mobile port of
 // web/components/EvaluationFormModal.tsx. The paper form's wide criteria
 // table doesn't fit a phone, so each criterion is a card with its
-// "נותן ההערכה" (supervisor/examiner) tag and one score per student. A form
-// split across milestones (Electrical M.Sc. project: book + presentation)
+// "נותן ההערכה" (supervisor/examiner) tag and one score per student — also
+// for the web's one-column-per-grader layout, which doesn't fit either. A
+// form split across milestones (older M.Sc. projects: book + presentation)
 // shows one section per milestone, each with its own graders, submission,
 // signatures and approval. One component for the supervisor (fill, then
-// approve/change the computed grades), an examiner (fill), and staff
-// (read-only).
+// approve/change the computed grades), an examiner (fill), staff who sign
+// the finished form, and staff (read-only).
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
@@ -23,6 +24,7 @@ interface Signature {
   facultyId: string; facultyNameHe: string; facultyNameEn: string; signedAt: string; code: string; valid: boolean;
 }
 type Scores = Record<string, Record<string, number>>;
+export interface FormSignoffLine { role: string; labelHe: string; labelEn: string; signature: Signature | null; canSign: boolean }
 interface Section {
   milestoneId: string; nameHe: string; nameEn: string; type: string; percent: number;
   totalsDisplay: 'points' | 'weighted';
@@ -33,6 +35,7 @@ interface Section {
   totals: Array<{ studentId: string; points: number | null; maxPoints: number; milestoneGrade: number | null; contribution: number | null }>;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
+  formSignoffs: FormSignoffLine[];
   approvals: { supervisor: Signature | null; coordinator: Signature | null };
 }
 interface FormView {
@@ -43,8 +46,9 @@ interface FormView {
   sections: Section[];
   studentTotals: Array<{
     studentId: string;
-    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null }>;
+    otherMilestones: Array<{ type: string; nameHe: string; nameEn: string; percent: number; grade: number | null; comment: string | null }>;
     projectFinalGrade: number | null;
+    projectFinalGradeIsFinal: boolean;
   }>;
 }
 
@@ -71,7 +75,7 @@ function formatNumber(n: number | null | undefined): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function SignatureCard({ label, signature, pendingText, he }: { label: string; signature: Signature | null; pendingText: string; he: boolean }) {
+export function SignatureCard({ label, signature, pendingText, he }: { label: string; signature: Signature | null; pendingText: string; he: boolean }) {
   const align = he ? 'right' : 'left';
   return (
     <View style={{ borderWidth: 1, borderStyle: signature ? 'solid' : 'dashed', borderColor: signature && !signature.valid ? ap.error : ap.outlineVariant, backgroundColor: signature && !signature.valid ? ap.errorContainer : '#fff', borderRadius: 8, padding: 12 }}>
@@ -98,6 +102,30 @@ function SignatureCard({ label, signature, pendingText, he }: { label: string; s
         <Text style={{ marginTop: 6, fontSize: 13, color: ap.outline, textAlign: align }}>{pendingText}</Text>
       )}
     </View>
+  );
+}
+
+/** The staff signature lines of a finished form (server: formSignoffs.ts) —
+ *  whoever's turn it is gets a sign button on their own line. */
+export function FormSignoffCards({ lines, busy, onSign, he }: { lines: FormSignoffLine[]; busy: boolean; onSign: () => void; he: boolean }) {
+  return (
+    <>
+      {lines.map((line) => (
+        <View key={line.role} style={{ gap: 8 }}>
+          <SignatureCard
+            he={he}
+            label={he ? `חתימת ${line.labelHe}` : `${line.labelEn}'s signature`}
+            signature={line.signature}
+            pendingText={he ? `ממתין לחתימת ${line.labelHe}` : `Awaiting the ${line.labelEn.toLowerCase()}'s signature`}
+          />
+          {line.canSign && (
+            <Pressable onPress={onSign} disabled={busy} accessibilityRole="button" style={{ borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: ap.primary, opacity: busy ? 0.5 : 1 }}>
+              <Text style={{ color: ap.onPrimary, fontWeight: '700' }}>{busy ? '…' : he ? '✍️ חתום/י על הטופס' : '✍️ Sign the form'}</Text>
+            </Pressable>
+          )}
+        </View>
+      ))}
+    </>
   );
 }
 
@@ -184,12 +212,28 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
       await apiClient.post(`/api/supervisor/milestones/${sec.milestoneId}/final-grade-decision`, decision === 'approve'
         ? { decision: 'approve' }
         : { decision: 'override', grades: Object.fromEntries(form.students.map((s) => [s.id, Number(overrideGrades[s.id])])), reason: overrideReason });
-      setMessage(he ? 'ההחלטה נשלחה לאישור הרכז/ת.' : "The decision was sent for the coordinator's approval.");
+      setMessage(he ? 'ההחלטה נחתמה ונשלחה להמשך אישור.' : 'The decision was signed and sent on for approval.');
       setOverridingSection(null);
       onChanged?.();
       await load();
     } catch (err: any) {
       setError(err.response?.data?.message || (he ? 'שליחת ההחלטה נכשלה' : 'Failed to submit the decision'));
+    } finally {
+      setBusySection(null);
+    }
+  };
+
+  const signSection = async (sec: Section) => {
+    setBusySection(sec.milestoneId);
+    setError('');
+    setMessage('');
+    try {
+      await apiClient.post(`/api/projects/milestones/${sec.milestoneId}/form-signature`);
+      setMessage(he ? 'הטופס נחתם.' : 'The form was signed.');
+      onChanged?.();
+      await load();
+    } catch (err: any) {
+      setError(err.response?.data?.message || (he ? 'חתימת הטופס נכשלה' : 'Failed to sign the form'));
     } finally {
       setBusySection(null);
     }
@@ -310,7 +354,8 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
           {(sec.approvals.supervisor || sec.approvals.coordinator || computed) && (
             <>
               <SignatureCard he={he} label={he ? 'חתימת המנחה (אישור הציון)' : "Supervisor's signature (grade approval)"} signature={sec.approvals.supervisor} pendingText={he ? 'ממתין לאישור המנחה' : "Awaiting the supervisor's approval"} />
-              <SignatureCard he={he} label={he ? 'חתימת רכז/ת פרויקטים' : "Projects coordinator's signature"} signature={sec.approvals.coordinator} pendingText={he ? 'ממתין לאישור הרכז/ת' : "Awaiting the coordinator's approval"} />
+              <FormSignoffCards he={he} lines={sec.formSignoffs} busy={busy} onSign={() => signSection(sec)} />
+              <SignatureCard he={he} label={he ? 'אישור סופי — רכז/ת מנהלי/ת' : 'Final approval — administrative coordinator'} signature={sec.approvals.coordinator} pendingText={he ? 'ממתין לאישור הסופי של הרכז/ת המנהלי/ת' : "Awaiting the administrative coordinator's final approval"} />
             </>
           )}
         </View>
@@ -319,7 +364,7 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
           <Text style={{ marginTop: 12, fontSize: 13, color: ap.onSurfaceVariant, textAlign: align }}>{he ? sec.viewer.lockedReasonHe : sec.viewer.lockedReasonEn}</Text>
         )}
         {sec.viewer.role === 'supervisor' && sec.gradeOverrideStatus === 'pending' && (
-          <Text style={{ marginTop: 12, fontSize: 13, color: ap.onSurfaceVariant, textAlign: align }}>{he ? 'הציונים ממתינים לאישור הרכז/ת.' : "The grades are awaiting the coordinator's approval."}</Text>
+          <Text style={{ marginTop: 12, fontSize: 13, color: ap.onSurfaceVariant, textAlign: align }}>{he ? 'הציונים ממתינים להשלמת החתימות ולאישור הסופי.' : 'The grades are awaiting the remaining signatures and final approval.'}</Text>
         )}
         {sec.gradeApproved && (
           <Text style={{ marginTop: 12, fontSize: 13, fontWeight: '700', color: '#1B7F3B', textAlign: align }}>{he ? 'הציונים אושרו סופית.' : 'The grades were finalized.'}</Text>
@@ -463,6 +508,7 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
                     </Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: ap.onSurface }}>
                       {he ? 'ציון סופי משוקלל: ' : 'Weighted final: '}{t?.projectFinalGrade ?? '—'}
+                      {t?.projectFinalGrade != null && !t.projectFinalGradeIsFinal ? (he ? ' (טרם אושר)' : ' (not approved yet)') : ''}
                     </Text>
                   </View>
                 );
@@ -479,6 +525,7 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
                       const g = form.studentTotals.find((x) => x.studentId === s.id)?.otherMilestones.find((x) => x.type === o.type)?.grade;
                       return `${form.students.length > 1 ? `${s.name} ` : ''}${g ?? (he ? 'טרם נוקד' : 'not graded yet')}`;
                     }).join(' · ')}
+                    {o.comment ? ` — ${o.comment}` : ''}
                   </Text>
                 ))}
               </View>

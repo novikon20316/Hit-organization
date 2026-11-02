@@ -35,6 +35,8 @@ import { academicYearToHebrew } from '../services/hebrewYear.js';
 import { hasActionGrant, withinCoordinatorScope } from '../services/scopeAuthorization.js';
 import { isDefenseDateConfirmed, resolveProjectTemplateMilestones, type FormFieldSpec, type GradingComponentSpec } from '../services/workflowTemplates.js';
 import { signEvaluation, verifyEvaluationSignature, type EvaluationSignature, type SignedScores } from '../services/evaluationSignature.js';
+import { formAwaitingSignoffs, formSignoffLabel, formSignoffLines, formSigners, nextFormSignoffRole, notifyFinalApprovalDue, notifyFormSignoffDue, signedFormPayload } from '../services/formSignoffs.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { maybeFinalizeAutoCalculatedGrade } from './projectController.js';
 
 dayjs.extend(utc);
@@ -45,7 +47,7 @@ type RubricKind = 'supervisorEvaluation' | 'examinerDefenseEvaluation' | 'examin
 // Paper order: the supervisor's rows, then the presentation, then the book.
 const RUBRIC_ORDER: RubricKind[] = ['supervisorEvaluation', 'examinerDefenseEvaluation', 'examinerProjectEvaluation'];
 
-const STAFF_VIEW_ROLES = ['administrative_secretary', 'coordinator', 'faculty_admin', 'grad_school_head', 'program_head', 'division_head', 'dean', 'system_admin'];
+const STAFF_VIEW_ROLES = ['administrative_secretary', 'coordinator', 'faculty_admin', 'grad_school_head', 'school_head', 'program_head', 'division_head', 'dean', 'system_admin'];
 
 interface StoredStudentScores { scores: Record<string, { score: number; maxScore: number; weight: number }>; total: number }
 interface StoredRubricEval { byStudent?: Record<string, StoredStudentScores>; total: number; comment?: string; submittedAt?: FirebaseFirestore.Timestamp }
@@ -311,6 +313,7 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
         type: m.type,
         percent,
         totalsDisplay: rubrics.totalsDisplay ?? 'points',
+        formLayout: rubrics.formLayout ?? 'criteria',
         rubrics: RUBRIC_ORDER.map((kind) => {
           const share = (percent * rubrics[kind].weight) / 100;
           const giver: 'supervisor' | 'examiner' = kind === 'supervisorEvaluation' ? 'supervisor' : 'examiner';
@@ -332,14 +335,18 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
           lockedReasonEn: gate && !gate.open ? gate.en : null,
           positionHe: position?.he ?? null,
           positionEn: position?.en ?? null,
+          examinerIndex,
         },
         supervisor,
         examiners,
         totals,
         gradeApproved: !!m.gradeApproved,
         gradeOverrideStatus: m.gradeOverride?.status ?? null,
-        // The bottom-of-form signature lines: the supervisor's approval of
-        // the computed grades and the coordinator's final sign-off.
+        // Staff who sign the finished form before the final approval — by
+        // track, see formSignoffs.ts.
+        formSignoffs: await formSignoffLines(m.id, m, project, uid),
+        // The bottom-of-form lines: the supervisor's approval of the computed
+        // grades and the final sign-off (the administrative coordinator).
         approvals: {
           supervisor: await verified(m.id, m.gradeOverride?.signature, gradesAsSignedScores(m.gradeOverride?.proposedGrades)),
           coordinator: await verified(m.id, m.gradeApprovalSignature, gradesAsSignedScores(m.finalGradeByStudent)),
@@ -359,13 +366,19 @@ export const getEvaluationForm = async (req: AuthenticatedRequest, res: Response
         .filter((t) => (t.percentOfFinalGrade ?? 0) > 0 && !own.some((s) => s.type === t.type && sectionIds.has(s.id)))
         .map((t) => {
           const doc = own.find((s) => s.type === t.type);
-          return { type: t.type, nameHe: t.nameHe, nameEn: t.nameEn, percent: t.percentOfFinalGrade ?? 0, grade: doc ? gradeFor(doc) : null };
+          return { type: t.type, nameHe: t.nameHe, nameEn: t.nameEn, percent: t.percentOfFinalGrade ?? 0, grade: doc ? gradeFor(doc) : null, comment: doc?.supervisorComment ?? null };
         });
-      const actual = own.map((s) => ({ type: s.type as string, finalGrade: sectionIds.has(s.id) ? (s.gradeApproved ? gradeFor(s) : null) : gradeFor(s) }));
+      // The form's own grade counts as soon as it's computed, so the signers
+      // see the weighted final grade they're signing; it stays provisional
+      // until approved.
+      const provisional = (s: FirebaseFirestore.DocumentData): number | null =>
+        s.gradeOverride?.proposedGrades?.[studentId] ?? s.autoCalculatedFinalGradeByStudent?.[studentId] ?? null;
+      const actual = own.map((s) => ({ type: s.type as string, finalGrade: sectionIds.has(s.id) && !s.gradeApproved ? provisional(s) : gradeFor(s) }));
       return {
         studentId,
         otherMilestones: showProjectTotals ? otherMilestones : [],
         projectFinalGrade: showProjectTotals ? computeProjectFinalGrade(templateMilestones, actual) : null,
+        projectFinalGradeIsFinal: own.filter((s) => sectionIds.has(s.id)).every((s) => s.gradeApproved),
       };
     });
 
@@ -495,5 +508,88 @@ export const submitEvaluationForm = async (req: AuthenticatedRequest, res: Respo
   } catch (error: any) {
     console.error('submitEvaluationForm error:', error);
     return res.status(500).json({ message: L(req, 'Failed to submit the evaluation form.', 'שליחת טופס ההערכה נכשלה.') });
+  }
+};
+
+// ─── POST /api/projects/milestones/:milestoneId/form-signature ───────────────
+// The signature of whichever staff role is next on the finished form (see
+// formSignoffs.ts) — shared by the evaluation form and the thesis opinion
+// form. When it's the last one, the form moves to the final approver.
+export const submitFormSignature = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const { milestoneId } = req.params;
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: L(req, 'Invalid milestoneId.', 'מזהה אבן הדרך אינו תקין.') });
+  }
+
+  try {
+    const ref = db.collection('milestones').doc(milestoneId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
+    const data = snap.data()!;
+    const role = nextFormSignoffRole(data);
+    if (!role || !formAwaitingSignoffs(data)) {
+      return res.status(409).json({ message: L(req, 'This form is not awaiting a signature right now.', 'טופס זה אינו ממתין לחתימה כעת.') });
+    }
+    const projectSnap = await db.collection('projects').doc(data.projectId ?? '').get();
+    const project = projectSnap.data() ?? {};
+    if (!(await formSigners(role, data, project)).includes(uid)) {
+      return res.status(403).json({ message: L(req, 'You may not sign this form.', 'אינך רשאי/ת לחתום על טופס זה.') });
+    }
+
+    const signerSnap = await db.collection('users').doc(uid).get();
+    const signer = signerSnap.data() ?? {};
+    const signerName: string = signer.displayName || signer.displayNameHe || uid;
+    const label = formSignoffLabel(role);
+    const signature = await signEvaluation({
+      milestoneId, signerUid: uid, signerName,
+      role: role === 'supervisor' ? 'supervisor' : 'coordinator',
+      positionHe: label.he, positionEn: label.en,
+      facultyId: signerFacultyFor(signer, data.facultyId ?? ''), scores: signedFormPayload(data),
+    });
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = (await tx.get(ref)).data() ?? {};
+        if (nextFormSignoffRole(fresh) !== role || !formAwaitingSignoffs(fresh)) throw new Error('ALREADY_SIGNED');
+        tx.update(ref, {
+          [`formSignatures.${role}`]: signature,
+          [`${role}SignedAt`]: admin.firestore.FieldValue.serverTimestamp(),
+          [`${role}SignedByName`]: signerName,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (err: any) {
+      if (err?.message === 'ALREADY_SIGNED') return res.status(409).json({ message: L(req, 'This form was already signed.', 'טופס זה כבר נחתם.') });
+      throw err;
+    }
+
+    await logAuditEvent({
+      userId: uid,
+      userRole: req.user?.role ?? role,
+      action: 'form_signature_added',
+      entityType: 'milestone',
+      entityId: milestoneId,
+      newValue: { role },
+    });
+    await logProjectRecordEntry({
+      projectId: data.projectId,
+      type: 'form_signed',
+      actorId: uid,
+      actorRole: role,
+      actorDisplayName: signerName,
+      data: { milestoneId, role },
+    });
+
+    const signed = { ...data, formSignatures: { ...(data.formSignatures ?? {}), [role]: signature } };
+    const next = nextFormSignoffRole(signed);
+    if (next) await notifyFormSignoffDue(milestoneId, signed, project, next);
+    else await notifyFinalApprovalDue(milestoneId, signed, project);
+
+    return res.status(200).json({ success: true, nextRole: next });
+  } catch (error: any) {
+    console.error('submitFormSignature error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to sign the form.', 'חתימת הטופס נכשלה.') });
   }
 };

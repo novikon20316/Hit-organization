@@ -36,6 +36,7 @@ import { academicYearToHebrew } from './hebrewYear.js';
 import { isDefenseDateConfirmed, type ExaminerOpinionFormSpec, type FormFieldSpec } from './workflowTemplates.js';
 import { signEvaluation, verifyEvaluationSignature, type EvaluationSignature, type SignedPayload } from './evaluationSignature.js';
 import { resolveStaffForScope } from './scopeAuthorization.js';
+import { nextFormSignoffRole, notifyFormSignoffDue } from './formSignoffs.js';
 import { notifyUser } from './notify.js';
 import { targetScreenFor } from './notificationTargets.js';
 
@@ -363,11 +364,16 @@ export async function resolveOutcome(milestoneRef: FirebaseFirestore.DocumentRef
     const projectSnap = await db.collection('projects').doc(m.projectId ?? '').get();
     const project = projectSnap.data() ?? {};
     const scope = { facultyId: project.facultyId ?? m.facultyId ?? '', major: project.major || undefined, degreeLevel: project.degreeType || undefined, processType: project.projectType || undefined };
-    const coordinators = await resolveStaffForScope('administrative_secretary', scope, [], [], false);
+    // An approved thesis still needs its staff signatures (formSignoffs.ts) —
+    // the administrative coordinator hears about it after the last one.
+    const signoffRole = result === 'continue' ? nextFormSignoffRole(m) : null;
+    const coordinators = signoffRole ? [] : await resolveStaffForScope('administrative_secretary', scope, [], [], false);
     const supervisors = [m.supervisorId, m.secondarySupervisorId].filter(Boolean) as string[];
     const title = project.titleHe || project.titleEn || '';
     const texts = {
-      continue: { he: 'כל הבוחנים אישרו את העבודה — ניתן להזין ולאשר את הציון הסופי.', en: 'All examiners approved the thesis — the final grade can now be entered and approved.' },
+      continue: signoffRole
+        ? { he: 'כל הבוחנים אישרו את העבודה — הטופס ממתין לחתימות.', en: 'All examiners approved the thesis — the form is awaiting signatures.' }
+        : { he: 'כל הבוחנים אישרו את העבודה — ניתן להזין ולאשר את הציון הסופי.', en: 'All examiners approved the thesis — the final grade can now be entered and approved.' },
       revise: { he: 'בוחן/ת ביקש/ה תיקונים מהותיים בעבודה — יש לעדכן את הסטודנט/ית.', en: 'An examiner requested major corrections — please update the student.' },
       reject: { he: 'בוחן/ת קבע/ה שהעבודה אינה ראויה להתקבל — יש לעדכן את הסטודנט/ית.', en: 'An examiner found the thesis not acceptable — please update the student.' },
     }[result as 'continue' | 'revise' | 'reject'];
@@ -396,6 +402,7 @@ export async function resolveOutcome(milestoneRef: FirebaseFirestore.DocumentRef
         relatedMilestoneId: milestoneRef.id,
         ...targetScreenOf('supervisor'),
       }).catch((err) => console.error('resolveOutcome: supervisor notify failed:', err))),
+      ...(signoffRole ? [notifyFormSignoffDue(milestoneRef.id, m, project, signoffRole)] : []),
     ]);
   } catch (err) {
     console.error('resolveOutcome: notification fan-out failed:', err);

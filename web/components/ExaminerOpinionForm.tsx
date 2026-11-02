@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type ExaminerOpinionParseResult, type ExaminerOpinionView } from '@/lib/apiClient';
-import { SignatureBlock } from './EvaluationFormModal';
+import { FormSignoffBlocks, SignatureBlock } from './EvaluationFormModal';
 
 export interface ExaminerOpinionSource {
   load: () => Promise<ExaminerOpinionView>;
@@ -98,6 +98,22 @@ export function ExaminerOpinionForm({ source, onChanged }: { source: ExaminerOpi
   };
   const hideMarked = view.confidentialityOptions.find((o) => o.value === confidentiality)?.effect === 'hide_marked';
   const canSubmit = !!conclusion && !!confidentiality && !!institution.trim() && (opinion.trim() || attachments.length > 0) && (!hideMarked || confidentialOpinion.trim());
+
+  const signForm = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await apiClient.signForm(view.milestoneId);
+      setMessage(he ? 'הטופס נחתם.' : 'The form was signed.');
+      onChanged?.();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'חתימת הטופס נכשלה' : 'Failed to sign the form');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -332,7 +348,16 @@ export function ExaminerOpinionForm({ source, onChanged }: { source: ExaminerOpi
       </div>
 
       {/* Administrative coordinator actions */}
-      {view.viewer.kind === 'staff' && view.outcome?.result === 'continue' && !view.gradeApproved && (
+      {view.outcome?.result === 'continue' && (view.formSignoffs ?? []).length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold">{he ? 'חתימות על הטופס' : 'Form signatures'}</h3>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <FormSignoffBlocks he={he} lines={view.formSignoffs ?? []} busy={busy} onSign={signForm} />
+          </div>
+        </div>
+      )}
+
+      {view.viewer.kind === 'staff' && view.outcome?.result === 'continue' && !view.gradeApproved && (view.formSignoffs ?? []).every((line) => line.signature) && (
         <div className="mt-6 rounded-lg border border-line p-3">
           <p className="text-sm font-semibold">{he ? 'הזנת הציון הסופי ואישורו' : 'Enter and approve the final grade'}</p>
           <div className="mt-3 grid gap-2">
