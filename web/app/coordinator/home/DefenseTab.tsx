@@ -14,6 +14,7 @@ import { facultyLabel } from '@/lib/i18n';
 import { PendingMilestoneCard } from './PendingMilestoneCard';
 import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { DateConflictModal } from './DateConflictModal';
+import { ReserveDateModal } from './ReserveDateModal';
 import type { AssignedMilestone, CoordinatorPendingMilestone, ExaminerUser, Project } from './types';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
 import { SEMINAR_COLOR, isSeminarInProgress, seminarDayToDate } from '@/lib/seminar';
@@ -247,6 +248,20 @@ function getDefenseAccent(card: DefenseCard): string {
   return '#10B981';
 }
 
+/** Secondary action under a card's main button: fix the defense date directly. */
+function ReserveDateButton({ onClick }: { onClick: () => void }) {
+  const { lang } = useLanguage();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-primary hover:text-primary"
+    >
+      📅 {lang === 'he' ? 'שריין מועד הגנה' : 'Reserve defense date'}
+    </button>
+  );
+}
+
 interface DefenseTabProps {
   cards: DefenseCard[];
   /** Shown on the calendar only, read-only — the administrative coordinator
@@ -263,6 +278,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
   const [sort, setSort] = useState<'daysLeft' | 'needsExaminers' | 'name'>('daysLeft');
   const [logisticsTarget, setLogisticsTarget] = useState<{ project: Project; milestone: AssignedMilestone } | null>(null);
   const [conflictTarget, setConflictTarget] = useState<AssignedMilestone | null>(null);
+  const [reserveTarget, setReserveTarget] = useState<{ project: Project; milestone: AssignedMilestone } | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -513,6 +529,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
                       ? `🔄 ${lang === 'he' ? 'פתח מסלול הגנה' : 'Re-open defense scheduling'}`
                       : `👥 ${lang === 'he' ? 'שבץ בוחנים' : 'Assign examiners'}`}
                   </button>
+                  <ReserveDateButton onClick={() => setReserveTarget({ project, milestone })} />
                 </div>
               );
             }
@@ -528,6 +545,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
                   <p className="mt-1 text-xs font-semibold" style={{ color: accent }}>
                     ⏳ {lang === 'he' ? 'ממתין לתאריכים מהבוחנים' : 'Waiting on dates from examiners'}
                   </p>
+                  <ReserveDateButton onClick={() => setReserveTarget({ project, milestone })} />
                 </div>
               );
             }
@@ -546,6 +564,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
                   >
                     🛠️ {lang === 'he' ? 'פתור התנגשות' : 'Resolve conflict'}
                   </button>
+                  <ReserveDateButton onClick={() => setReserveTarget({ project, milestone })} />
                 </div>
               );
             }
@@ -565,6 +584,18 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
                   >
                     📍 {lang === 'he' ? 'קבע פרטים' : 'Set logistics'}
                   </button>
+                  {(milestone.defensePanel ?? []).length === 0 && (
+                    <>
+                      <p className="mt-2 text-xs text-muted">👥 {lang === 'he' ? 'טרם שובצו בוחנים להגנה' : 'No examiners assigned yet for this defense'}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleReopenScheduling(project, milestone)}
+                        className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-primary hover:text-primary"
+                      >
+                        👥 {lang === 'he' ? 'שבץ בוחנים' : 'Assign examiners'}
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             }
@@ -632,6 +663,19 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
           onClose={() => setLogisticsTarget(null)}
           onSaved={() => {
             setLogisticsTarget(null);
+            onChanged();
+          }}
+        />
+      )}
+
+      {reserveTarget && (
+        <ReserveDateModal
+          milestoneId={reserveTarget.milestone.id}
+          projectTitle={(lang === 'he' ? reserveTarget.project.titleHe : reserveTarget.project.titleEn) ?? ''}
+          overridesExaminerDates={reserveTarget.milestone.status === 'awaiting_defense_date' || reserveTarget.milestone.status === 'date_conflict'}
+          onClose={() => setReserveTarget(null)}
+          onReserved={() => {
+            setReserveTarget(null);
             onChanged();
           }}
         />

@@ -1273,6 +1273,17 @@ export const apiClient = {
     );
   },
 
+  /** POST /api/coordinator/milestones/:milestoneId/reserve-defense-date — the
+   *  coordinator fixes the defense date herself (YYYY-MM-DD, Sunday-Thursday)
+   *  instead of waiting for the examiners' dates. See coordinatorController.ts
+   *  reserveDefenseDateHandler. */
+  async reserveDefenseDate(milestoneId: string, date: string) {
+    return request<{ success: boolean; message: string; date: string }>(
+      `/api/coordinator/milestones/${milestoneId}/reserve-defense-date`,
+      { method: 'POST', body: { date } }
+    );
+  },
+
   /** GET /api/staff/:uid/deadlines — role-check server-side now includes
    *  supervisor/coordinator/faculty_admin (see staffController.ts
    *  getDeadLines); caller must pass their OWN uid, the server 403s

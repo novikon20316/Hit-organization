@@ -8,6 +8,7 @@ import {
   getDefenseZoomStartUrl,
   getDefenseConfig,
   resolveDefenseDateConflict,
+  reserveDefenseDateHandler,
   getCoordinatorExaminerRecommendations,
   approveExaminerRecommendation,
   rejectExaminerRecommendation,
@@ -41,6 +42,7 @@ router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense)
 router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl)
 router.get('/defense-config', verifyToken, getDefenseConfig)
 router.post('/milestones/:milestoneId/resolve-date-conflict', verifyToken, resolveDefenseDateConflict)
+router.post('/milestones/:milestoneId/reserve-defense-date', verifyToken, reserveDefenseDateHandler)
 router.get('/seminars', verifyToken, getSeminars)
 router.post('/seminars/:milestoneId/schedule', verifyToken, scheduleSeminar)
 router.post('/seminars/:milestoneId/outcome', verifyToken, recordSeminarOutcome)

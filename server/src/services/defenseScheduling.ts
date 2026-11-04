@@ -177,6 +177,13 @@ export async function initDefenseScheduling(projectId: string, panel: DefensePan
   if (routing.length > 0 && !routingHasExaminerStage(routing) && !milestoneData.chainPrecheckComplete) {
     throw new Error('This defense milestone still has unfinished pre-checks in its approval chain.');
   }
+  // A coordinator already reserved the date directly (reserveDefenseDate
+  // below) — the panel joins that date instead of reopening date matching,
+  // which would overwrite it and send the examiners off to pick dates.
+  if (milestoneData.dateReservedBy && (milestoneData.status === 'defense_date_set' || milestoneData.status === 'scheduled')) {
+    await attachPanelToReservedDate(projectId, milestoneRef, milestoneData, panel);
+    return;
+  }
   const { windowStart, windowEnd } = computeDefenseWindow(new Date());
   const panelKeys = panel.map(examinerKeyOf);
   // Internal examiners' dashboards are found via an `examinerIds
@@ -219,6 +226,160 @@ export async function initDefenseScheduling(projectId: string, panel: DefensePan
   });
 
   await notifyPanelToSubmitDates(panel, projectId);
+}
+
+async function attachPanelToReservedDate(
+  projectId: string,
+  milestoneRef: FirebaseFirestore.DocumentReference,
+  milestone: FirebaseFirestore.DocumentData,
+  panel: DefensePanelMember[],
+): Promise<void> {
+  const internalIds = panel.filter((m) => m.type === 'internal').map((m) => m.ref);
+  const dateISO = dayjs(milestone.dueDate.toDate()).tz(TZ).format('YYYY-MM-DD');
+  await milestoneRef.update({
+    defensePanel: panel,
+    examinerIds: internalIds,
+    examinerNames: panel.map((m) => m.displayName),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.collection('projects').doc(projectId).update({
+    defensePanel: panel,
+    // Logistics were already set — the project doc mirrors the panel's internal members.
+    ...(milestone.status === 'scheduled' ? { defenseExaminerIds: internalIds } : {}),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const dateLabel = dayjs.tz(dateISO, TZ).format('DD/MM/YYYY');
+  for (const member of panel.filter((m) => m.type === 'internal')) {
+    await db.collection('notifications').add({
+      recipientId: member.ref,
+      type: 'defense_date_matched',
+      priority: 'normal',
+      titleHe: 'נקבע מועד הגנה',
+      titleEn: 'Defense date set',
+      bodyHe: `ההגנה נקבעה לתאריך ${dateLabel}.`,
+      bodyEn: `The defense is set for ${dateLabel}.`,
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      relatedProjectId: projectId,
+      relatedMilestoneId: milestoneRef.id,
+      chatId: null,
+      targetScreen: 'examiner_schedule',
+    });
+  }
+  await afterDateFinalized(milestoneRef.id, dateISO);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reserving the date directly — the coordinator picks it, no examiner matching.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A refusal with the message to show the caller (and the HTTP status to use). */
+export class DefenseDateError extends Error {
+  constructor(public readonly en: string, public readonly he: string, public readonly status = 409) {
+    super(en);
+  }
+}
+
+/** Format, not in the past, Sunday-Thursday (the same rule as examiners' candidate dates). */
+export function validateReservedDate(dateISO: unknown): { en: string; he: string } | null {
+  // The round trip rejects dates dayjs would silently roll over (2026-13-45, 2026-02-30).
+  if (typeof dateISO !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO) || dayjs.tz(dateISO, TZ).format('YYYY-MM-DD') !== dateISO) {
+    return { en: 'Date must be in YYYY-MM-DD format.', he: 'התאריך חייב להיות בפורמט YYYY-MM-DD.' };
+  }
+  const parsed = dayjs.tz(dateISO, TZ);
+  if (parsed.isBefore(dayjs().tz(TZ).startOf('day'))) {
+    return { en: 'The defense date cannot be in the past.', he: 'תאריך ההגנה לא יכול להיות בעבר.' };
+  }
+  if (!isSunThu(parsed)) {
+    return { en: 'Defenses run Sunday to Thursday — please pick another day.', he: 'הגנות מתקיימות בימים א׳–ה׳ בלבד — יש לבחור יום אחר.' };
+  }
+  return null;
+}
+
+const FINISHED_MILESTONE_STATUSES = new Set(['coordinator_approved', 'completed']);
+
+/**
+ * The coordinator fixes the defense date herself. Allowed while the defense is
+ * 'pending' (the student reached it and nothing was set up yet — every earlier
+ * milestone must be finished), or still waiting on the examiners' dates
+ * ('awaiting_defense_date' / 'date_conflict' — this overrides the matching).
+ * Moves it to 'defense_date_set', the same state date matching ends in, so
+ * the logistics step (time, place, format) and everything after it is
+ * unchanged. Examiners can be assigned before or after: see
+ * attachPanelToReservedDate.
+ */
+export async function reserveDefenseDate(milestoneId: string, coordinatorId: string, dateISO: string): Promise<void> {
+  const milestoneRef = db.collection('milestones').doc(milestoneId);
+
+  await db.runTransaction(async (transaction) => {
+    const milestoneSnap = await transaction.get(milestoneRef);
+    if (!milestoneSnap.exists) throw new DefenseDateError('Milestone not found.', 'אבן הדרך לא נמצאה.', 404);
+    const milestone = milestoneSnap.data()!;
+    if (milestone.type !== 'defense') throw new DefenseDateError('This is not a defense milestone.', 'זו אינה אבן דרך של הגנה.', 400);
+    if (!['pending', 'awaiting_defense_date', 'date_conflict'].includes(milestone.status)) {
+      throw new DefenseDateError(
+        'A date was already set for this defense — change it from its details.',
+        'כבר נקבע מועד להגנה זו — ניתן לשנות אותו דרך פרטי ההגנה.',
+      );
+    }
+
+    const projectRef = db.collection('projects').doc(milestone.projectId);
+    const [projectSnap, siblingsSnap] = await Promise.all([
+      transaction.get(projectRef),
+      transaction.get(db.collection('milestones').where('projectId', '==', milestone.projectId)),
+    ]);
+    if (!projectSnap.exists) throw new DefenseDateError('Project not found.', 'הפרויקט לא נמצא.', 404);
+    const project = projectSnap.data()!;
+
+    if (milestone.status === 'pending') {
+      const routing = milestone.routing ?? [];
+      if (routing.length > 0 && !routingHasExaminerStage(routing) && !milestone.chainPrecheckComplete) {
+        throw new DefenseDateError('This defense still has unfinished pre-checks.', 'להגנה זו עדיין יש בדיקות מקדימות שלא הסתיימו.');
+      }
+      const myOrder: number = typeof milestone.order === 'number' ? milestone.order : Number.MAX_SAFE_INTEGER;
+      const unfinished = siblingsSnap.docs.some((d) => {
+        const other = d.data();
+        return d.id !== milestoneId && typeof other.order === 'number' && other.order < myOrder && !FINISHED_MILESTONE_STATUSES.has(other.status);
+      });
+      if (unfinished) {
+        throw new DefenseDateError(
+          'The student has not finished the earlier milestones yet.',
+          'הסטודנט/ית עדיין לא סיים/ה את אבני הדרך הקודמות.',
+        );
+      }
+    }
+
+    const dateMatching = milestone.dateMatching;
+    const rounds: any[] = Array.isArray(dateMatching?.rounds) ? [...dateMatching.rounds] : [];
+    const currentRound: number | undefined = dateMatching?.currentRound;
+    if (currentRound !== undefined && rounds[currentRound]) {
+      rounds[currentRound] = {
+        ...rounds[currentRound],
+        outcome: 'resolved',
+        matchedDate: dateISO,
+        resolvedBy: { coordinatorId, decidedAt: admin.firestore.Timestamp.now(), action: 'reserved_directly' },
+      };
+    }
+
+    finalizeMatchedDate(transaction, {
+      milestoneRef, projectRef, milestone,
+      submissions: dateMatching?.submissions ?? {}, rounds,
+      matchedDate: dateISO,
+      studentIds: project.enrolledStudentIds ?? [], studentNames: '',
+      supervisorId: project.supervisorId ?? null, facultyId: project.facultyId,
+      panel: milestone.defensePanel ?? [],
+      resolutionNote: 'המועד נקבע על ידי הרכז/ת.',
+    });
+    transaction.update(milestoneRef, {
+      dateReservedBy: coordinatorId,
+      dateReservedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  // Examiners already on the panel (the override cases) get the usual
+  // follow-up: external examiners are emailed and get their defense-day code.
+  await afterDateFinalized(milestoneId, dateISO);
 }
 
 async function notifyPanelToSubmitDates(panel: DefensePanelMember[], projectId: string): Promise<void> {

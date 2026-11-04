@@ -16,6 +16,9 @@ import {
   resolveReplaceExaminer,
   openDefenseSchedulingIfPanelReady,
   findDefenseMilestoneRef,
+  reserveDefenseDate,
+  validateReservedDate,
+  DefenseDateError,
 } from '../services/defenseScheduling.js';
 import { hasActionGrant, withinCoordinatorScope, resolveProjectScope, resolveMilestoneScope, resolveStaffForScope, type ResourceScope } from '../services/scopeAuthorization.js';
 import { deriveProcessType, resolveExaminerSignoffRole, isDefenseDateConfirmed, type ChainStage } from '../services/workflowTemplates.js';
@@ -2348,5 +2351,59 @@ export const resolveDefenseDateConflict = async (req: AuthenticatedRequest, res:
   } catch (error: any) {
     console.error('resolveDefenseDateConflict error:', error);
     return res.status(500).json({ message: L(req, 'Failed to resolve date conflict.', 'פתרון התנגשות התאריכים נכשל.') });
+  }
+};
+
+/**
+ * POST /api/coordinator/milestones/:milestoneId/reserve-defense-date
+ * Body: { date: 'YYYY-MM-DD' }
+ * The coordinator fixes the defense date herself instead of waiting for the
+ * examiners' candidate dates — see services/defenseScheduling.ts's
+ * reserveDefenseDate for which states allow it. Leaves the defense at
+ * 'defense_date_set', ready for assignDefense's time/place step.
+ */
+export const reserveDefenseDateHandler = async (req: AuthenticatedRequest, res: Response) => {
+  const { milestoneId } = req.params;
+  const date = req.body?.date;
+  const coordinatorId = req.user?.uid;
+
+  if (!milestoneId || typeof milestoneId !== 'string') {
+    return res.status(400).json({ message: L(req, 'Invalid or missing milestoneId.', 'מזהה אבן הדרך לא תקין או חסר.') });
+  }
+  if (!coordinatorId) {
+    return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  }
+  if (!req.user || !hasAnyRole(req.user, COORDINATOR_ROLES)) {
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז בלבד.') });
+  }
+  const reserveScope = await resolveMilestoneScope(milestoneId);
+  if (!reserveScope) {
+    return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
+  }
+  if (!withinCoordinatorScope(req.user, reserveScope) && !hasActionGrant(req.user, 'assign_supervisor_examiner', reserveScope)) {
+    return res.status(403).json({ message: L(req, 'This milestone is outside your assigned scope.', 'אבן דרך זו מחוץ לתחום האחריות שהוקצה לך.') });
+  }
+  const invalid = validateReservedDate(date);
+  if (invalid) return res.status(400).json({ message: L(req, invalid.en, invalid.he) });
+
+  try {
+    await reserveDefenseDate(milestoneId, coordinatorId, date as string);
+    const milestone = (await db.collection('milestones').doc(milestoneId).get()).data();
+    if (milestone?.projectId) {
+      await logProjectRecordEntry({
+        projectId: milestone.projectId,
+        type: 'defense_date_resolved',
+        actorId: coordinatorId,
+        actorRole: req.user.role,
+        data: { milestoneId, date, how: 'reserved_by_coordinator' },
+      });
+    }
+    return res.status(200).json({ success: true, message: 'Defense date reserved.', date });
+  } catch (error: any) {
+    if (error instanceof DefenseDateError) {
+      return res.status(error.status).json({ message: L(req, error.en, error.he) });
+    }
+    console.error('reserveDefenseDate error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to reserve the defense date.', 'שריון מועד ההגנה נכשל.') });
   }
 };
