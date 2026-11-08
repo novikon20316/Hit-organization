@@ -7,6 +7,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { academicYearToHebrew } from '../services/hebrewYear.js';
 import { isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { isStaffMember } from '../services/twoFactorEnforcement.js';
+import { loadOpinions, opinionPanel } from '../services/examinerOpinion.js';
 import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
 
@@ -36,6 +37,8 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
     const assignedMilestones = await Promise.all(
       milestonesSnap.docs.map(async (milestoneDoc) => {
         const milestoneData = milestoneDoc.data();
+        // Legacy positional milestones: which of the two slots is this examiner's.
+        const myLegacyIndex = (milestoneData.examinerIds ?? [])[0] === examinerId ? 1 : 2;
 
         let projectTitleHe = 'Unknown';
         let projectTitleEn = 'Unknown';
@@ -137,12 +140,19 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           // Identity-keyed defense milestones (post-generalization) carry
           // examinerScores instead — echoed alongside the legacy fields
           // (which stay null/absent for a new-model milestone) so the client
-          // can branch on whichever is present.
-          examinerScores: milestoneData.examinerScores ?? null,
-          examiner1Score: milestoneData.examiner1Score || null,
-          examiner2Score: milestoneData.examiner2Score || null,
-          examiner1GradeId: milestoneData.examiner1GradeId || null,
-          examiner2GradeId: milestoneData.examiner2GradeId || null,
+          // can branch on whichever is present. Only THIS examiner's own
+          // entries (fixed 2026-11-08): a co-examiner's score is theirs alone
+          // until the panel is done, same rule as examinerEvaluations below.
+          // panelProgress carries the one thing the others may know — how
+          // many have submitted.
+          examinerScores: milestoneData.examinerScores
+            ? (milestoneData.examinerScores[examinerId] !== undefined ? { [examinerId]: milestoneData.examinerScores[examinerId] } : {})
+            : null,
+          examiner1Score: myLegacyIndex === 1 ? milestoneData.examiner1Score || null : null,
+          examiner2Score: myLegacyIndex === 2 ? milestoneData.examiner2Score || null : null,
+          examiner1GradeId: myLegacyIndex === 1 ? milestoneData.examiner1GradeId || null : null,
+          examiner2GradeId: myLegacyIndex === 2 ? milestoneData.examiner2GradeId || null : null,
+          panelProgress: await panelProgress(milestoneDoc.id, milestoneData),
           gradeWeights: milestoneData.gradeWeights || null,
           // Three-rubric final-grade workflow (see workflowTemplates.ts's
           // finalGradeComponents) — empty/absent means this milestone still
@@ -159,7 +169,9 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           // carry neither examinerScores nor finalGradeComponents, so the
           // client needs these to tell "already graded" apart from "not yet"
           // — see AssignmentCard.tsx's `graded` computation.
-          stageScores: milestoneData.stageScores ?? null,
+          stageScores: milestoneData.stageScores
+            ? Object.fromEntries(Object.entries(milestoneData.stageScores as Record<string, { gradedBy?: string }>).filter(([, e]) => e?.gradedBy === examinerId))
+            : null,
           routing: milestoneData.routing ?? null,
           // No-supervisor-stage milestones (see workflowTemplates.ts's
           // examinerOnlyGrading) plus their non-scored yes/no Q&A form, if
@@ -208,6 +220,30 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
     res.status(500).json({ message: L(req, 'Internal server error', 'שגיאת שרת פנימית.') });
   }
 };
+
+/** How many of the panel have submitted their grade/form/opinion — a count
+ *  only, never who or what (E1, agreed 2026-11-08). Mirrors the shapes the
+ *  examiner client checks for "already graded". */
+async function panelProgress(milestoneId: string, m: FirebaseFirestore.DocumentData): Promise<{ submitted: number; total: number }> {
+  const panel: string[] = m.examinerIds ?? [];
+  const total = Math.max(panel.length, (m.defensePanel ?? []).length);
+  let submitted = 0;
+  if (m.examinerOpinionForm) {
+    const keys = (await opinionPanel(m)).map((p) => p.key);
+    submitted = Object.keys(await loadOpinions(milestoneId, keys)).length;
+  } else if (m.finalGradeComponents) {
+    submitted = Object.values(m.examinerEvaluations ?? {}).filter((e: any) => e?.project && e?.defense).length;
+  } else if ((m.examinerFormFields ?? []).length > 0) {
+    submitted = Object.keys(m.examinerFormAnswers ?? {}).length;
+  } else if (m.stageScores) {
+    submitted = new Set(Object.values(m.stageScores as Record<string, { gradedBy?: string }>).map((e) => e?.gradedBy).filter((g) => g && panel.includes(g))).size;
+  } else if (m.examinerScores) {
+    submitted = Object.values(m.examinerScores).filter((v) => v != null).length;
+  } else {
+    submitted = [m.examiner1Score, m.examiner2Score].filter((v) => v != null).length;
+  }
+  return { submitted: Math.min(submitted, total), total };
+}
 
 /**
  * POST /api/examiner/milestones/:milestoneId/defense-dates

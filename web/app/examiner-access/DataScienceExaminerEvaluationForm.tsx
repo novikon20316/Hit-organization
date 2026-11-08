@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePolledDefenseScheduleRefresh } from '@/hooks/usePolledDefenseScheduleRefresh';
 import { apiClient } from '@/lib/apiClient';
+import { useServerDraft, externalDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { ExaminerTokenDoc } from '@/lib/examinerTokens';
@@ -32,9 +34,10 @@ interface RubricField {
 }
 
 function RubricSection({
-  title, rubric, mandatory, done, onSubmit,
+  title, rubric, mandatory, done, draftPath, onSubmit,
 }: {
   title: string;
+  draftPath: string;
   rubric: RubricField[];
   mandatory: boolean;
   done: boolean;
@@ -45,6 +48,10 @@ function RubricSection({
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const draft = useServerDraft(done ? null : draftPath, { scores, comment }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setComment(d.comment ?? '');
+  });
 
   const total = Math.round(rubric.reduce((sum, c) => sum + ((Number(scores[c.key]) || 0) / c.maxScore) * c.maxScore, 0));
 
@@ -75,6 +82,7 @@ function RubricSection({
     setSubmitting(true);
     try {
       await onSubmit(Object.fromEntries(rubric.map((c) => [c.key, Number(scores[c.key]) || 0])), comment);
+      draft.clear();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'שליחת ההערכה נכשלה' : 'Failed to submit the evaluation');
     } finally {
@@ -117,6 +125,13 @@ function RubricSection({
           className="w-full rounded-examinor border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-sm text-examinor-on-surface transition-colors focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-examinor-primary/15"
         />
       </label>
+      <div className="mt-2">
+        <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+          draft.clear();
+          setScores(Object.fromEntries(rubric.map((c) => [c.key, ''])));
+          setComment('');
+        }} />
+      </div>
       {!!error && <p className="mt-2 rounded-examinor bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
       <button
         type="button"
@@ -248,6 +263,7 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
         rubric={components.examinerProjectEvaluation.components}
         mandatory
         done={projectDone}
+        draftPath={externalDraftPath(token, 'evaluation_project')}
         onSubmit={(scores, comment) => submit('project', scores, comment)}
       />
       <RubricSection
@@ -255,6 +271,7 @@ export function DataScienceExaminerEvaluationForm({ token, tokenDoc, onSubmitted
         rubric={components.examinerDefenseEvaluation.components}
         mandatory={false}
         done={defenseDone}
+        draftPath={externalDraftPath(token, 'evaluation_defense')}
         onSubmit={(scores, comment) => submit('defense', scores, comment)}
       />
 

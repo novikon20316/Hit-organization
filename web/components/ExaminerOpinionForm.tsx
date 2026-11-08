@@ -15,6 +15,8 @@
 // (`source`), since external examiners go through their access token.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useServerDraft, examinerDraftPath, externalDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from './DraftNotice';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type ExaminerOpinionParseResult, type ExaminerOpinionView } from '@/lib/apiClient';
 import { FormSignoffBlocks, SignatureBlock } from './EvaluationFormModal';
@@ -23,6 +25,8 @@ export interface ExaminerOpinionSource {
   load: () => Promise<ExaminerOpinionView>;
   parse: (file: File) => Promise<ExaminerOpinionParseResult>;
   submit: (formData: FormData) => Promise<unknown>;
+  /** Where this examiner's unsent draft autosaves — hooks/useServerDraft.ts. */
+  draftPath: string;
 }
 
 export function internalOpinionSource(milestoneId: string): ExaminerOpinionSource {
@@ -30,6 +34,7 @@ export function internalOpinionSource(milestoneId: string): ExaminerOpinionSourc
     load: () => apiClient.getExaminerOpinionForm(milestoneId),
     parse: (file) => apiClient.parseExaminerOpinionUpload(milestoneId, file),
     submit: (formData) => apiClient.submitExaminerOpinion(milestoneId, formData),
+    draftPath: examinerDraftPath(milestoneId, 'opinion'),
   };
 }
 
@@ -38,6 +43,7 @@ export function externalOpinionSource(token: string): ExaminerOpinionSource {
     load: () => apiClient.getExternalExaminerOpinionForm(token),
     parse: (file) => apiClient.parseExternalExaminerOpinionUpload(token, file),
     submit: (formData) => apiClient.submitExternalExaminerOpinion(token, formData),
+    draftPath: externalDraftPath(token, 'opinion'),
   };
 }
 
@@ -85,6 +91,20 @@ export function ExaminerOpinionForm({ source, onChanged }: { source: ExaminerOpi
   }, [source, he]);
 
   useEffect(() => { load(); }, [load]);
+
+  const draftable = view?.viewer.kind === 'examiner' && view.viewer.canEdit;
+  const draft = useServerDraft(
+    draftable ? source.draftPath : null,
+    { conclusion, confidentiality, opinion, confidentialOpinion, institution },
+    (d) => {
+      setConclusion(d.conclusion ?? '');
+      setConfidentiality(d.confidentiality ?? '');
+      setOpinion(d.opinion ?? '');
+      setConfidentialOpinion(d.confidentialOpinion ?? '');
+      setInstitution(d.institution ?? '');
+    },
+    !!view,
+  );
 
   if (!view) {
     return loadError
@@ -152,6 +172,7 @@ export function ExaminerOpinionForm({ source, onChanged }: { source: ExaminerOpi
       attachments.forEach((f) => formData.append('files', f));
       await source.submit(formData);
       setMessage(he ? 'חוות הדעת נחתמה והוגשה.' : 'The opinion was signed and submitted.');
+      draft.clear();
       setAttachments([]);
       onChanged?.();
       await load();
@@ -301,6 +322,9 @@ export function ExaminerOpinionForm({ source, onChanged }: { source: ExaminerOpi
             <button type="button" onClick={handleSubmit} disabled={busy || !canSubmit} className="mt-2 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
               {busy ? '…' : he ? '✍️ חתום/י והגש/י' : '✍️ Sign & submit'}
             </button>
+            <div className="mt-2">
+              <DraftNotice he={he} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => { draft.clear(); load(); }} />
+            </div>
           </div>
         </div>
       )}

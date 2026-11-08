@@ -401,7 +401,11 @@ service cloud.firestore {
         request.auth.uid in resource.data.get('studentIds', []) ||
         resource.data.get('supervisorId', '') == request.auth.uid ||
         resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
-        request.auth.uid in resource.data.get('examinerIds', []) ||
+        // Examiners are deliberately NOT here (removed 2026-11-08): the doc
+        // carries every co-examiner's scores, rubric evaluations and form
+        // answers, and Firestore can't hide single fields. Examiner screens
+        // read only through GET /api/examiner/dashboard, which returns each
+        // examiner's own entries plus a submitted-count.
         // A staff member the administrative coordinator substituted onto this
         // milestone's committee in place of a conflicted supervisor (see
         // committeeController.ts's substituteCommitteeMember) — needed for

@@ -119,6 +119,10 @@ export interface AssignedMilestone {
   // AssignmentCard.tsx's `graded` check needs these to tell "already
   // graded" apart from "not yet" for this examiner.
   stageScores?: Record<string, { score: number; gradedBy: string }> | null;
+  /** How many of the panel have submitted — a count only (server
+   *  examinerController.ts's panelProgress); co-examiners' own scores are
+   *  never sent. */
+  panelProgress?: { submitted: number; total: number } | null;
   routing?: Array<{ id: string; role: string; action: string }> | null;
   // True means this milestone has NO supervisor grading stage at all — see
   // server/src/services/workflowTemplates.ts's examinerOnlyGrading. Used by

@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useServerDraft, examinerDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import { EXAMINER_GRADING_CRITERIA, MILESTONE_LABEL, type AssignedMilestone } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -58,6 +60,10 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
+  const draft = useServerDraft(examinerDraftPath(m.id, 'grade'), { scores, comments }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setComments(d.comments ?? '');
+  });
 
   const totalScore = Math.round(
     totalFields.reduce((sum, f) => sum + ((parseFloat(scores[f.key]) || 0) / f.max) * f.weight, 0)
@@ -81,6 +87,7 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
         comments,
         criteria: Object.fromEntries(activeFields.map((f) => [f.key, parseFloat(scores[f.key]) || 0])),
       });
+      draft.clear();
       onGraded();
       onClose();
     } catch (err) {
@@ -187,6 +194,13 @@ export function GradeExaminerModal({ milestone: m, onClose, onGraded }: GradeExa
           />
         </label>
 
+        <div className="mt-4">
+          <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+            draft.clear();
+            setScores(Object.fromEntries(activeFields.map((f) => [f.key, ''])));
+            setComments('');
+          }} />
+        </div>
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-4 flex gap-2">

@@ -2,12 +2,13 @@
 
 // app/examinor/home/AssignmentCard.tsx
 import { useState } from 'react';
-import { defenseModeIcon, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
+import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
 import { getFacultyColor } from '@/lib/facultyColors';
 import { MILESTONE_LABEL, type AssignedMilestone, type GradeWeights, type IdentityGradeWeights } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { AvailabilityCalendar } from '@/components/AvailabilityCalendar';
 import { EvaluationFormModal } from '@/components/EvaluationFormModal';
 import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal';
 
@@ -44,13 +45,57 @@ function toDateInputValue(d: Date | null): string | undefined {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** E1 — everything about one defense in one place: when, where (room or
+ *  the Zoom link), the student's latest submitted files, this examiner's own
+ *  status, and — once grading is open — how many of the panel have
+ *  submitted (a count only). */
+function DefenseSummary({ m, lang, graded, gradingOpen }: { m: AssignedMilestone; lang: 'he' | 'en'; graded: boolean; gradingOpen: boolean }) {
+  const he = lang === 'he';
+  const mode = resolveDefenseMode(m);
+  const latestWithFiles = [...m.milestoneHistory].reverse().find((h) => h.fileUrls.length > 0);
+  return (
+    <div className="mt-3 grid gap-1.5 rounded-lg bg-examinor-surface-container-low p-3 text-xs text-examinor-on-surface">
+      <p className="font-semibold">🎓 {he ? 'ההגנה במבט אחד' : 'Defense at a glance'}</p>
+      <p>
+        📅 {m.defenseDate
+          ? `${new Date(m.defenseDate).toLocaleDateString(he ? 'he-IL' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${m.defenseTime ? ` · ${m.defenseTime}` : ''}`
+          : he ? 'המועד טרם נקבע' : 'Date not set yet'}
+      </p>
+      {m.defenseDate && <p>{defenseModeIcon(mode)} {defenseModeLabel(mode, lang)}</p>}
+      {m.defenseDate && showsDefensePlace(m) && (m.defenseRoom || m.defenseBuilding) && (
+        <p>📍 {[m.defenseRoom, m.defenseBuilding].filter(Boolean).join(' · ')}</p>
+      )}
+      {m.defenseDate && showsDefenseLink(m) && m.onlineDefenseLink && (
+        <a href={m.onlineDefenseLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-examinor-primary hover:underline">
+          🎥 {he ? 'כניסה לפגישת Zoom' : 'Join the Zoom meeting'}
+        </a>
+      )}
+      {latestWithFiles && (
+        <p className="flex flex-wrap gap-x-2">
+          <span>📄 {milestoneDisplayName(latestWithFiles, lang, MILESTONE_LABEL)}:</span>
+          {latestWithFiles.fileUrls.map((url, i) => (
+            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-examinor-primary hover:underline">
+              {he ? `קובץ ${i + 1}` : `File ${i + 1}`}
+            </a>
+          ))}
+        </p>
+      )}
+      <p className="font-medium">
+        {graded ? `✅ ${he ? 'הציון שלך הוגש' : 'You have submitted'}` : `⏳ ${he ? 'טרם הגשת' : 'You have not submitted yet'}`}
+        {gradingOpen && m.panelProgress && m.panelProgress.total > 1
+          ? ` · ${he ? `${m.panelProgress.submitted} מתוך ${m.panelProgress.total} בוחנים הגישו` : `${m.panelProgress.submitted} of ${m.panelProgress.total} examiners submitted`}`
+          : ''}
+      </p>
+    </div>
+  );
+}
+
 export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeKind, onGradeForm, onSignoff }: AssignmentCardProps) {
   const { lang } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   // Dates the examiner has picked so far (chips), plus whatever's currently
   // selected in the native date input but not yet added to the list.
   const [pickedDates, setPickedDates] = useState<string[]>([]);
-  const [dateInput, setDateInput] = useState('');
   const [submittingDates, setSubmittingDates] = useState(false);
   const [dateMessage, setDateMessage] = useState('');
 
@@ -99,13 +144,13 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           : examinerIndex === 1 ? m.examiner1Score !== null : m.examiner2Score !== null;
   // Panel size is configurable per faculty/degree (see workflowTemplates.ts's
   // examinerCount) — every OTHER examiner on the panel, not just a single
-  // assumed peer.
+  // assumed peer. Names only: whether each one has graded is no longer sent
+  // (see panelProgress for the count everyone may see).
   const otherExaminers = m.examinerIds
     .filter((id) => id !== uid)
     .map((otherUid) => ({
       uid: otherUid,
       name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
-      graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
     }));
   const isMyDefensePanel = (m.defensePanel ?? []).some((p) => p.type === 'internal' && p.ref === uid);
   // BUG FIX: the date-picking form was gated only on m.status ===
@@ -138,42 +183,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
   const isParallelSignoff = !!m.preGradeSignoffs?.examinerOne;
   const isExaminerOne = m.examinerIds[0] === uid;
 
-  // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
-  // deliberately duplicated rather than trusted-away, so a rejected date is
-  // explained the moment it's picked, in the examiner's own selected
-  // language, instead of only surfacing as a raw English string from the
-  // server after a round-trip on Submit (e.g. "Date 2026-09-05 falls on a
-  // weekend..." shown verbatim regardless of whether the page is in
-  // Hebrew). The server re-validates independently regardless — this is
-  // purely a client-side UX improvement, not the source of truth.
-  const validatePickedDate = (raw: string): string | null => {
-    const d = new Date(`${raw}T00:00:00`);
-    if (isNaN(d.getTime())) return lang === 'he' ? 'פורמט תאריך לא תקין' : 'Invalid date format';
-    const day = d.getDay(); // 0=Sun .. 6=Sat
-    if (day === 5 || day === 6) return lang === 'he' ? 'יש לבחור תאריכים בימים ראשון עד חמישי בלבד' : 'Dates must be Sunday through Thursday';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (d < today) return lang === 'he' ? 'לא ניתן לבחור תאריך שכבר עבר' : 'Cannot pick a date that has already passed';
-    const windowStartStr = toDateInputValue(toDateSafe(m.dateMatching?.windowStart));
-    const windowEndStr = toDateInputValue(toDateSafe(m.dateMatching?.windowEnd));
-    if (windowStartStr && raw < windowStartStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
-    if (windowEndStr && raw > windowEndStr) return lang === 'he' ? 'התאריך מחוץ לטווח האפשרי' : 'This date is outside the allowed window';
-    return null;
-  };
-
-  const addPickedDate = () => {
-    if (!dateInput) return;
-    const validationError = validatePickedDate(dateInput);
-    if (validationError) {
-      setDateMessage(validationError);
-      return;
-    }
-    setDateMessage('');
-    setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
-    setDateInput('');
-  };
-  const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
-
+  // Candidate dates come from AvailabilityCalendar, which only offers days
+  // the server's validateCandidateDates (defenseScheduling.ts) would accept —
+  // Sun–Thu, not past, inside the window. The server still re-validates.
   const handleSubmitDates = async () => {
     // A date sitting in the native picker but never explicitly added (the
     // examiner picked a date and hit Submit directly, without noticing "+
@@ -181,17 +193,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
     // stayed empty, and Submit showed "add at least one date" even though
     // they'd clearly selected one. Fold it in here instead of requiring a
     // second explicit action.
-    let datesToSubmit = pickedDates;
-    if (dateInput && !pickedDates.includes(dateInput)) {
-      const validationError = validatePickedDate(dateInput);
-      if (validationError) {
-        setDateMessage(validationError);
-        return;
-      }
-      datesToSubmit = [...pickedDates, dateInput].sort();
-      setPickedDates(datesToSubmit);
-      setDateInput('');
-    }
+    const datesToSubmit = pickedDates;
     if (datesToSubmit.length === 0) {
       setDateMessage(lang === 'he' ? 'יש להוסיף לפחות תאריך אחד' : 'Add at least one date');
       return;
@@ -206,10 +208,9 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
       onChanged();
     } catch (err) {
       // Deliberately NOT displaying err.message — that's the server's raw,
-      // always-English validation text (see validatePickedDate's own
-      // comment above for why). The cases it would normally explain
-      // (weekend, past, outside window) are now caught client-side before
-      // ever reaching the server, so a rejection here is almost always
+      // always-English validation text. The cases it would normally explain
+      // (weekend, past, outside window) can't be picked in the calendar at
+      // all, so a rejection here is almost always
       // something generic (network, already resolved) that this covers fine.
       setDateMessage(lang === 'he' ? 'שליחת התאריכים נכשלה — נסה/י שוב' : 'Failed to submit dates — please try again');
     } finally {
@@ -230,9 +231,7 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
             otherExaminers.length > 0 && (
               <p className="text-xs text-examinor-on-surface-variant">
                 🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
-                {otherExaminers
-                  .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
-                  .join(', ')}
+                {otherExaminers.map((oe) => oe.name).join(', ')}
               </p>
             )
           ) : (
@@ -248,6 +247,10 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
           </p>
         )}
       </button>
+
+      {(m.type === 'defense' || isMyDefensePanel) && (
+        <DefenseSummary m={m} lang={lang} graded={graded} gradingOpen={!isBeforeDefense} />
+      )}
 
       {m.status === 'awaiting_defense_date' && isMyDefensePanel && hasSubmittedThisRound && (
         <p className="mt-3 rounded-lg bg-[#FBF3E3] p-3 text-xs font-semibold text-accent">
@@ -270,42 +273,13 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
             </p>
           )}
 
-          {pickedDates.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {pickedDates.map((d) => (
-                <span key={d} className="flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-ink">
-                  {new Date(d).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
-                  <button
-                    type="button"
-                    onClick={() => removePickedDate(d)}
-                    aria-label={lang === 'he' ? 'הסר תאריך' : 'Remove date'}
-                    className="text-muted hover:text-danger"
-                  >
-                    ✕
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-1.5">
-            <input
-              type="date"
-              value={dateInput}
-              onChange={(e) => setDateInput(e.target.value)}
-              min={toDateInputValue(toDateSafe(m.dateMatching?.windowStart))}
-              max={toDateInputValue(toDateSafe(m.dateMatching?.windowEnd))}
-              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={addPickedDate}
-              disabled={!dateInput}
-              className="rounded-lg border border-accent px-3 py-2 text-xs font-semibold text-accent hover:bg-surface disabled:opacity-50"
-            >
-              + {lang === 'he' ? 'הוסף' : 'Add'}
-            </button>
-          </div>
+          <AvailabilityCalendar
+            lang={lang}
+            windowStart={toDateInputValue(toDateSafe(m.dateMatching?.windowStart)) || null}
+            windowEnd={toDateInputValue(toDateSafe(m.dateMatching?.windowEnd)) || null}
+            selected={pickedDates}
+            onChange={(dates) => { setPickedDates(dates); setDateMessage(''); }}
+          />
 
           {dateMessage && <p className="mt-1.5 text-xs text-ink">{dateMessage}</p>}
           <button

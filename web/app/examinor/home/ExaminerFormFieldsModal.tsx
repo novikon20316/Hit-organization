@@ -16,6 +16,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useServerDraft, examinerDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import type { AssignedMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -45,6 +47,7 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
+  const draft = useServerDraft(examinerDraftPath(m.id, 'form_fields'), answers, (d) => setAnswers((prev) => ({ ...prev, ...d })));
 
   const examinerName = (lang === 'he' ? userData?.displayNameHe : userData?.displayNameEn) || userData?.displayName || '';
   const today = new Date();
@@ -99,6 +102,7 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
         })
       );
       await apiClient.submitExaminerFormAnswers(m.id, payload);
+      draft.clear();
       onSubmitted();
       onClose();
     } catch (err) {
@@ -198,6 +202,12 @@ export function ExaminerFormFieldsModal({ milestone: m, onClose, onSubmitted }: 
           })}
         </div>
 
+        <div className="mt-4">
+          <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+            draft.clear();
+            setAnswers(Object.fromEntries(fields.map((f) => [f.key, { value: '', comment: '' }])));
+          }} />
+        </div>
         {error && <p className="mt-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-4 flex gap-2">

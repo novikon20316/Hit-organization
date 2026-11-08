@@ -27,6 +27,7 @@ import {
   handleOnboardingUploadError,
 } from '../controllers/examinerOnboardingController.js';
 import { examinerAccessLimiter } from '../middleware/rateLimit.js';
+import { externalDraft } from '../controllers/formDraftController.js';
 
 const router = Router();
 
@@ -42,6 +43,10 @@ router.post('/:token/examiner-evaluation', submitExternalExaminerEvaluation);
 router.get('/:token/opinion-form', getExternalOpinionForm);
 router.post('/:token/opinion-form/parse', uploadMiddleware, handleUploadError, verifyFileSignatures, parseExternalOpinionUpload);
 router.post('/:token/opinion-form', uploadMiddleware, handleUploadError, verifyFileSignatures, submitExternalOpinionForm);
+// Unsent form drafts, private to this token — see services/formDrafts.ts.
+router.get('/:token/drafts/:formKey', externalDraft.get);
+router.put('/:token/drafts/:formKey', externalDraft.put);
+router.delete('/:token/drafts/:formKey', externalDraft.delete);
 
 // One-time (per examiner identity) onboarding — see examinerOnboardingController.ts.
 router.get('/:token/onboarding-status', getOnboardingStatus);

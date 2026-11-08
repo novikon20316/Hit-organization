@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePolledDefenseScheduleRefresh } from '@/hooks/usePolledDefenseScheduleRefresh';
 import { apiClient } from '@/lib/apiClient';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { AvailabilityCalendar } from '@/components/AvailabilityCalendar';
 import type { DefenseDateStatus } from './types';
 
 interface DefenseDateSectionProps {
@@ -20,7 +21,7 @@ interface DefenseDateSectionProps {
 }
 
 export function DefenseDateSection({ token }: DefenseDateSectionProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const [status, setStatus] = useState<DefenseDateStatus>('not_open');
   const [loaded, setLoaded] = useState(false);
@@ -29,7 +30,6 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   // Dates picked so far (chips), plus whatever's currently selected in the
   // native date input but not yet added to the list.
   const [pickedDates, setPickedDates] = useState<string[]>([]);
-  const [dateInput, setDateInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // A failed initial load previously left `status` stuck at its 'not_open'
@@ -67,58 +67,11 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
   // conflict shows up without a reload — see hooks/usePolledDefenseScheduleRefresh.ts.
   usePolledDefenseScheduleRefresh(() => load(true));
 
-  // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
-  // deliberately duplicated rather than trusted-away, so a rejected date is
-  // explained the moment it's picked, in the examiner's own selected
-  // language, instead of only surfacing as a raw English string from the
-  // server after a round-trip on Submit (e.g. "Date 2026-09-05 falls on a
-  // weekend..." shown verbatim regardless of whether the page was in
-  // Hebrew). The server re-validates independently regardless — this is
-  // purely a client-side UX improvement, not the source of truth.
-  const validatePickedDate = (raw: string): string | null => {
-    const d = new Date(`${raw}T00:00:00`);
-    if (isNaN(d.getTime())) return t('examinerDefenseDateInvalidFormat');
-    const day = d.getDay(); // 0=Sun .. 6=Sat
-    if (day === 5 || day === 6) return t('examinerDefenseDateWeekendError');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (d < today) return t('examinerDefenseDatePastError');
-    if (dateWindow?.start && raw < dateWindow.start) return t('examinerDefenseDateOutsideWindowError');
-    if (dateWindow?.end && raw > dateWindow.end) return t('examinerDefenseDateOutsideWindowError');
-    return null;
-  };
-
-  const addPickedDate = () => {
-    if (!dateInput) return;
-    const validationError = validatePickedDate(dateInput);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setError('');
-    setPickedDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
-    setDateInput('');
-  };
-  const removePickedDate = (d: string) => setPickedDates((prev) => prev.filter((x) => x !== d));
-
   const handleSubmit = async () => {
-    // A date sitting in the native picker but never explicitly added (the
-    // examiner picked a date and hit Submit directly, without noticing "+
-    // Add" is a separate step) previously vanished silently — pickedDates
-    // stayed empty, and Submit showed "add at least one date" even though
-    // they'd clearly selected one. Fold it in here instead of requiring a
-    // second explicit action.
-    let datesToSubmit = pickedDates;
-    if (dateInput && !pickedDates.includes(dateInput)) {
-      const validationError = validatePickedDate(dateInput);
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
-      datesToSubmit = [...pickedDates, dateInput].sort();
-      setPickedDates(datesToSubmit);
-      setDateInput('');
-    }
+    // AvailabilityCalendar only offers days the server's
+    // validateCandidateDates accepts (Sun–Thu, not past, inside the window);
+    // the server still re-validates.
+    const datesToSubmit = pickedDates;
     if (datesToSubmit.length === 0) {
       setError(t('examinerDefenseDateEmpty'));
       return;
@@ -137,13 +90,11 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
       }
     } catch (e) {
       // Deliberately NOT displaying e.message — that's the server's raw,
-      // always-English validation text (see validatePickedDate's own
-      // comment above for why), which would silently defeat the whole
-      // point of this section respecting the examiner's language. The
-      // cases that message would normally explain (weekend, past, outside
-      // window) are now caught client-side before ever reaching the
-      // server, so a rejection here is almost always something generic
-      // (network, session expired) that this covers fine.
+      // always-English validation text, which would defeat this section
+      // respecting the examiner's language. The cases it would normally
+      // explain (weekend, past, outside window) can't be picked in the
+      // calendar at all, so a rejection here is almost always something
+      // generic (network, session expired) that this covers fine.
       setError(t('examinerDefenseDateSubmitError'));
     } finally {
       setSubmitting(false);
@@ -184,37 +135,14 @@ export function DefenseDateSection({ token }: DefenseDateSectionProps) {
             </p>
           )}
 
-          {pickedDates.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {pickedDates.map((d) => (
-                <span key={d} className="flex items-center gap-1 rounded-full bg-examinor-surface-container-low px-2.5 py-1 text-sm font-medium text-examinor-on-surface">
-                  {d}
-                  <button type="button" onClick={() => removePickedDate(d)} aria-label={t('examinerDefenseDateRemove')} className="text-examinor-on-surface-variant hover:text-danger">
-                    ✕
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-3 flex gap-1.5">
-            <input
-              type="date"
-              dir="ltr"
-              value={dateInput}
-              onChange={(e) => setDateInput(e.target.value)}
-              min={dateWindow?.start}
-              max={dateWindow?.end}
-              className="flex-1 rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3.5 py-2.5 text-sm text-examinor-on-surface focus:border-examinor-primary focus:bg-examinor-surface-container-lowest focus:outline-none"
+          <div className="mt-3">
+            <AvailabilityCalendar
+              lang={lang}
+              windowStart={dateWindow?.start ?? null}
+              windowEnd={dateWindow?.end ?? null}
+              selected={pickedDates}
+              onChange={(dates) => { setPickedDates(dates); setError(''); }}
             />
-            <button
-              type="button"
-              onClick={addPickedDate}
-              disabled={!dateInput}
-              className="rounded-lg border border-examinor-primary px-3.5 py-2.5 text-sm font-semibold text-examinor-primary hover:bg-examinor-surface-container-low disabled:opacity-50"
-            >
-              + {t('examinerDefenseDateAddBtn')}
-            </button>
           </div>
 
           {!!error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}

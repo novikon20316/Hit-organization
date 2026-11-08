@@ -9,6 +9,8 @@
 import { useState } from 'react';
 import { submitExaminerOpinion } from '@/lib/examinerTokens';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useServerDraft, externalDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import { OPINION_CRITERIA, RECOMMENDATION_OPTIONS, type Recommendation, type GradingComponentSpec } from './types';
 
 interface OpinionFormProps {
@@ -43,6 +45,11 @@ export function OpinionForm({ token, examinerName, gradingComponents, onSubmitte
   const [recommendation, setRecommendation] = useState<Recommendation | ''>('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const draft = useServerDraft(externalDraftPath(token, 'grading'), { scores, overallComments, recommendation }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setOverallComments(d.overallComments ?? '');
+    setRecommendation(d.recommendation ?? '');
+  });
 
   const totalScore = Math.round(
     activeFields.reduce((sum, f) => sum + ((parseFloat(scores[f.key]) || 0) / f.max) * f.weight, 0)
@@ -82,6 +89,7 @@ export function OpinionForm({ token, examinerName, gradingComponents, onSubmitte
         submittedBy: examinerName,
         submittedAt: new Date().toISOString(),
       });
+      draft.clear();
       onSubmitted();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : String(err));
@@ -152,6 +160,14 @@ export function OpinionForm({ token, examinerName, gradingComponents, onSubmitte
         />
       </div>
 
+      <div className="mt-3">
+        <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+          draft.clear();
+          setScores(Object.fromEntries(activeFields.map((f) => [f.key, ''])));
+          setOverallComments('');
+          setRecommendation('');
+        }} />
+      </div>
       {!!formError && <p className="mt-3 rounded-examinor bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{formError}</p>}
 
       <button

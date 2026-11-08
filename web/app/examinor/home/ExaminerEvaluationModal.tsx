@@ -14,6 +14,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useServerDraft, examinerDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { AssignedMilestone, GradingComponentSpec } from './types';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -56,6 +58,11 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
   const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
+  // The attached file isn't part of the draft — only scores and comment.
+  const draft = useServerDraft(examinerDraftPath(m.id, `evaluation_${kind}`), { scores, comment }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setComment(d.comment ?? '');
+  });
 
   const total = Math.round(rubric.reduce((sum, c) => sum + ((Number(scores[c.key]) || 0) / c.maxScore) * c.weight, 0));
 
@@ -85,6 +92,7 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
         scores: Object.fromEntries(rubric.map((c) => [c.key, Number(scores[c.key]) || 0])),
         comment,
       }, file ? [file] : undefined);
+      draft.clear();
       if (isDataScienceDocument) {
         setSubmittedAt(new Date());
       } else {
@@ -213,6 +221,13 @@ export function ExaminerEvaluationModal({ milestone: m, kind, onClose, onSubmitt
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-examinor-outline-variant bg-examinor-surface-container-low px-3 py-2 text-sm text-examinor-on-surface" />
         </label>
 
+        <div className="mt-3">
+          <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+            draft.clear();
+            setScores(Object.fromEntries(rubric.map((c) => [c.key, ''])));
+            setComment('');
+          }} />
+        </div>
         {error && <p className="mt-3 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         <div className="mt-4 flex gap-2">

@@ -11,6 +11,9 @@
 //   4. If submitted → show confirmation (read-only)
 //   5. If declined / expired / invalid → show appropriate message
 
+import { AvailabilityCalendar } from '@/components/AvailabilityCalendar';
+import { DraftNotice } from '@/components/DraftNotice';
+import { useServerDraft } from '@/hooks/useServerDraft';
 import React, { useEffect, useState, useCallback } from 'react';
 import { usePolledDefenseScheduleRefresh } from '../hooks/usePolledDefenseScheduleRefresh';
 import {
@@ -156,11 +159,6 @@ export default function ExaminerAccessScreen() {
   // conflict shows up without a reload — see hooks/usePolledDefenseScheduleRefresh.ts.
   usePolledDefenseScheduleRefresh(() => { if (tokenDoc) loadDefenseDateStatus(); });
 
-  const updateDateRow = (idx: number, value: string) =>
-    setDateDraftRows((prev) => { const rows = [...prev]; rows[idx] = value; return rows; });
-  const addDateRow = () => setDateDraftRows((prev) => [...prev, '']);
-  const removeDateRow = (idx: number) =>
-    setDateDraftRows((prev) => { const rows = prev.filter((_, i) => i !== idx); return rows.length > 0 ? rows : ['']; });
 
   // Mirrors the server's own validateCandidateDates (defenseScheduling.ts) —
   // deliberately duplicated rather than trusted-away, so a rejected date is
@@ -218,6 +216,18 @@ export default function ExaminerAccessScreen() {
       setSubmittingDates(false);
     }
   };
+
+  // E3 — the unsent opinion autosaves privately, keyed by this access link
+  // (hooks/useServerDraft.ts); the server re-checks the email code.
+  const opinionDraft = useServerDraft(
+    phase === 'accepted' && token ? `/api/examiner-access/${encodeURIComponent(token)}/drafts/grading` : null,
+    { scores, overallComments, recommendation },
+    (d) => {
+      setScores((prev) => ({ ...prev, ...d.scores }));
+      setOverallComments(d.overallComments ?? '');
+      setRecommendation(d.recommendation ?? '');
+    },
+  );
 
   // ── Load token ─────────────────────────────────────────────────────────────
   const loadToken = useCallback(async () => {
@@ -399,6 +409,7 @@ export default function ExaminerAccessScreen() {
         submittedBy:    tokenDoc?.examinerName ?? '',
         submittedAt:    new Date().toISOString(),
       });
+      opinionDraft.clear();
       setPhase('submitted');
     } catch (e) {
       Alert.alert(L('שגיאה', 'Error'), String(e));
@@ -738,35 +749,13 @@ export default function ExaminerAccessScreen() {
                     {L('בטווח', 'Within')} {dateWindow.start} – {dateWindow.end} · {L('ראשון–חמישי בלבד', 'Sun-Thu only')}
                   </Text>
                 )}
-                <Text style={[s.errorSub, { marginBottom: 6 }]}>
-                  {L('פורמט: YYYY-MM-DD (למשל 2026-10-15)', 'Format: YYYY-MM-DD (e.g. 2026-10-15)')}
-                </Text>
-                {dateDraftRows.map((row, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
-                    <TextInput accessibilityLabel={L(`תאריך מוצע ${idx + 1}`, `Proposed date ${idx + 1}`)}
-                      style={[s.scoreInput, { flex: 1 }]}
-                      value={row}
-                      onChangeText={(v) => updateDateRow(idx, v)}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                    {dateDraftRows.length > 1 && (
-                      <Pressable
-                        onPress={() => removeDateRow(idx)}
-                        accessibilityRole="button"
-                        accessibilityLabel={L('הסר תאריך', 'Remove date')}
-                        style={{ padding: 6 }}
-                      >
-                        <Text style={{ color: '#EF4444', fontSize: 16 }}>✕</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                ))}
-                <Pressable onPress={addDateRow} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginBottom: 4 }}>
-                  <Text style={{ color: '#374151', fontWeight: '600', fontSize: 12 }}>
-                    + {L('הוסף תאריך נוסף', 'Add another date')}
-                  </Text>
-                </Pressable>
+                <AvailabilityCalendar
+                  lang={lang}
+                  windowStart={dateWindow?.start ?? null}
+                  windowEnd={dateWindow?.end ?? null}
+                  selected={dateDraftRows.filter(Boolean)}
+                  onChange={(dates) => setDateDraftRows(dates)}
+                />
                 <Pressable
                   style={[s.btnPrimary, { marginTop: 10 }, submittingDates && s.btnDisabled]}
                   onPress={handleSubmitDefenseDates}
@@ -875,6 +864,12 @@ export default function ExaminerAccessScreen() {
             textAlign={isRtl ? 'right' : 'left'}
           />
 
+          <DraftNotice he={lang === 'he'} restoredAt={opinionDraft.restoredAt} status={opinionDraft.status} onDiscard={() => {
+            opinionDraft.clear();
+            setScores((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, ''])));
+            setOverallComments('');
+            setRecommendation('');
+          }} />
           {/* Submit */}
           <Pressable
             style={[s.btnPrimary, submittingOpinion && s.btnDisabled]}
@@ -936,9 +931,10 @@ function BottomPadding() {
 interface RubricField { key: string; labelHe: string; labelEn: string; maxScore: number }
 
 function DsRubricSection({
-  title, rubric, mandatory, done, lang, onSubmit,
+  title, rubric, mandatory, done, lang, draftPath, onSubmit,
 }: {
   title: string;
+  draftPath: string;
   rubric: RubricField[];
   mandatory: boolean;
   done: boolean;
@@ -949,6 +945,10 @@ function DsRubricSection({
   const [scores, setScores] = useState<Record<string, string>>(() => Object.fromEntries(rubric.map((c) => [c.key, ''])));
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const draft = useServerDraft(done ? null : draftPath, { scores, comment }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setComment(d.comment ?? '');
+  });
   const total = Math.round(rubric.reduce((sum, c) => sum + ((parseFloat(scores[c.key] || '0')) / c.maxScore) * c.maxScore, 0));
 
   if (done) {
@@ -977,6 +977,7 @@ function DsRubricSection({
     try {
       setSubmitting(true);
       await onSubmit(Object.fromEntries(rubric.map((c) => [c.key, parseFloat(scores[c.key]) || 0])), comment);
+      draft.clear();
     } catch (e) {
       Alert.alert(L('שגיאה', 'Error'), String(e));
     } finally {
@@ -1018,6 +1019,11 @@ function DsRubricSection({
         placeholderTextColor="#9CA3AF"
         textAlign={lang === 'he' ? 'right' : 'left'}
       />
+      <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+        draft.clear();
+        setScores(Object.fromEntries(rubric.map((c) => [c.key, ''])));
+        setComment('');
+      }} />
       <Pressable style={[s.btnPrimary, submitting && s.btnDisabled]} onPress={handleSubmit} disabled={submitting} accessibilityRole="button">
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.btnPrimaryText}>{L('שלח', 'Submit')}</Text>}
       </Pressable>
@@ -1064,6 +1070,7 @@ function DataScienceEvaluationSection({
         mandatory
         done={projectDone}
         lang={lang}
+        draftPath={`/api/examiner-access/${encodeURIComponent(token)}/drafts/evaluation_project`}
         onSubmit={(scores, comment) => submit('project', scores, comment)}
       />
       <DsRubricSection
@@ -1072,6 +1079,7 @@ function DataScienceEvaluationSection({
         mandatory={false}
         done={defenseDone}
         lang={lang}
+        draftPath={`/api/examiner-access/${encodeURIComponent(token)}/drafts/evaluation_defense`}
         onSubmit={(scores, comment) => submit('defense', scores, comment)}
       />
 

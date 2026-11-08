@@ -641,6 +641,9 @@ export interface AssignedMilestone {
   // alreadyGraded() in mobile/app/examinor/home.tsx needs these to tell
   // "already graded" apart from "not yet" for this examiner.
   stageScores?: Record<string, { score: number; gradedBy: string }> | null;
+  /** How many of the panel have submitted — a count only (server
+   *  examinerController.ts panelProgress); co-examiners' scores are never sent. */
+  panelProgress?: { submitted: number; total: number } | null;
   routing?: Array<{ id: string; role: string; action: string }> | null;
   // Set once a requiresExaminers milestone's pre-check-only chain has
   // finished (see server's isChainDriven) — the milestone isn't complete,

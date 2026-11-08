@@ -60,6 +60,7 @@ export const SYSTEM_JOBS = {
   pruneAuditLog:                        { intervalMs: ONE_HOUR_MS, he: 'ניקוי יומן פעולות', en: 'Prune audit log' },
   sendScheduledReminders:               { intervalMs: ONE_HOUR_MS, he: 'תזכורות שתזמנו מנחים', en: 'Supervisor-scheduled reminders' },
   sendEmailDigests:                     { intervalMs: ONE_HOUR_MS, he: 'שליחת סיכום יומי בדוא"ל', en: 'Daily email digest' },
+  pruneFormDrafts:                      { intervalMs: ONE_DAY_MS,  he: 'מחיקת טיוטות בוחנים שפג תוקפן', en: 'Prune expired examiner drafts' },
 } as const;
 
 export type SystemJobId = keyof typeof SYSTEM_JOBS;

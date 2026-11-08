@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Linking} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
-import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
-import { auth, db } from '../../src/firebase/firebase';
+import { auth } from '../../src/firebase/firebase';
 import { useDefenseScheduleLiveRefresh } from '../../hooks/useDefenseScheduleLiveRefresh';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import type { Lang } from '../../components/i18n';
 import { TopBar, getFacultyColor } from '../../components/shared';
@@ -16,10 +16,14 @@ import { examinerHomeStyles } from '../../constants/styles';
 import { apiClient } from '@/src/api/apiClient';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
-import {AssignedMilestone, GradingComponentSpec, isDefenseDateConfirmed} from '@/types'
+import {AssignedMilestone, GradingComponentSpec} from '@/types'
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { DefenseSummary } from '@/components/DefenseSummary';
+import { AvailabilityCalendar } from '@/components/AvailabilityCalendar';
+import { DraftNotice } from '@/components/DraftNotice';
+import { useServerDraft } from '@/hooks/useServerDraft';
 import EvaluationFormModal from '@/components/modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from '@/components/modals/ExaminerOpinionFormModal';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -174,19 +178,6 @@ export default function ExaminerHome() {
   const [submittingDates, setSubmittingDates] = useState<Record<string, boolean>>({});
 
   const dateRowsFor = (milestoneId: string): string[] => dateDrafts[milestoneId] ?? [''];
-  const updateDateRow = (milestoneId: string, idx: number, value: string) =>
-    setDateDrafts((prev) => {
-      const rows = [...dateRowsFor(milestoneId)];
-      rows[idx] = value;
-      return { ...prev, [milestoneId]: rows };
-    });
-  const addDateRow = (milestoneId: string) =>
-    setDateDrafts((prev) => ({ ...prev, [milestoneId]: [...dateRowsFor(milestoneId), ''] }));
-  const removeDateRow = (milestoneId: string, idx: number) =>
-    setDateDrafts((prev) => {
-      const rows = dateRowsFor(milestoneId).filter((_, i) => i !== idx);
-      return { ...prev, [milestoneId]: rows.length > 0 ? rows : [''] };
-    });
 
   // ── Dashboard fetch — no uid in the URL, the server reads it from the
   //    auth token (see examinerController.getExaminerDashboard) ────────────
@@ -222,58 +213,26 @@ export default function ExaminerHome() {
   // re-fetch. See hooks/useDefenseScheduleLiveRefresh.ts.
   useDefenseScheduleLiveRefresh(() => fetchDashboardData(true));
 
-  // Live milestone listener — same merge-by-id overlay idiom as
-  // web/app/examinor/home/page.tsx and coordinator/home's listeners: the
-  // REST fetch above stays the source of truth for shell fields (project/
-  // supervisor/student names), this only overlays fast-changing fields
-  // (status, dueDate/defenseDate, scores, panel, dateMatching) onto
-  // whatever's already in assignments by id. Scoped by examinerIds, matching
-  // the same field the milestones Firestore rule and getExaminerDashboard's
-  // REST query already check.
-  const unsubMilestones = useRef<Unsubscribe | null>(null);
-  useEffect(() => {
-    if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
-    if (!uid) return;
+  // Live refresh goes through the API, never a direct milestone read: the
+  // milestone doc holds every co-examiner's scores and evaluations, so
+  // examiners no longer have Firestore read access to it (fixed 2026-11-08 —
+  // getExaminerDashboard returns only this examiner's own entries). Any
+  // notification to this examiner, or a defense-schedule change (above),
+  // re-fetches.
+  useLiveRefresh(() => fetchDashboardData(true));
 
-    const q = query(collection(db, 'milestones'), where('examinerIds', 'array-contains', uid));
-    unsubMilestones.current = onSnapshot(
-      q,
-      (snapshot) => {
-        const liveById = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
-        setAssignments((prev) =>
-          prev.map((m) => {
-            const live = liveById.get(m.id);
-            if (!live) return m;
-            return {
-              ...m,
-              status: live.status,
-              defenseDate: isDefenseDateConfirmed(live.status) ? live.dueDate?.toDate?.()?.toISOString() ?? null : null,
-              defenseRoom: live.defenseRoom ?? null,
-              defenseBuilding: live.defenseBuilding ?? null,
-              defenseTime: live.defenseTime ?? null,
-              onlineDefenseLink: live.onlineDefenseLink ?? null,
-              defenseMode: live.defenseMode ?? null,
-              zoomMeeting: live.zoomMeeting ?? null,
-              defensePanel: live.defensePanel ?? m.defensePanel,
-              dateMatching: live.dateMatching ?? m.dateMatching,
-              supervisorScore: live.supervisorScore ?? null,
-              examinerScores: live.examinerScores ?? m.examinerScores,
-              examiner1Score: live.examiner1Score ?? null,
-              examiner2Score: live.examiner2Score ?? null,
-              examinerEvaluations: live.examinerEvaluations ?? m.examinerEvaluations,
-              examinerOneSignoff: live.examinerOneSignoff ?? m.examinerOneSignoff,
-            };
-          })
-        );
-      },
-      (err: any) => {
-        if (err?.code === 'permission-denied') return; // expected during sign-out
-      }
-    );
-    return () => {
-      if (unsubMilestones.current) { unsubMilestones.current(); unsubMilestones.current = null; }
-    };
-  }, [uid]);
+  // E3 — each open form's unsent answers autosave privately to the server
+  // (hooks/useServerDraft.ts); a null path while its modal is closed.
+  const draftPath = (milestoneId: string, formKey: string) => `/api/examiner/drafts/${encodeURIComponent(milestoneId)}/${formKey}`;
+  const gradeDraft = useServerDraft(gradeModal && selected ? draftPath(selected.id, 'grade') : null, { scores, comments }, (d) => {
+    setScores((prev) => ({ ...prev, ...d.scores }));
+    setComments(d.comments ?? '');
+  });
+  const evalDraft = useServerDraft(evalModal && evalTarget && !evalSubmittedAt ? draftPath(evalTarget.milestone.id, `evaluation_${evalTarget.kind}`) : null, { scores: evalScores, comment: evalComment }, (d) => {
+    setEvalScores((prev) => ({ ...prev, ...d.scores }));
+    setEvalComment(d.comment ?? '');
+  });
+  const formDraft = useServerDraft(formModal && formTarget ? draftPath(formTarget.id, 'form_fields') : null, formAnswers, (d) => setFormAnswers((prev) => ({ ...prev, ...d })));
 
   // ── Helpers (unchanged) ─────────────────────────────────────────────────
   const alreadyGraded = (m: AssignedMilestone): boolean => {
@@ -424,6 +383,7 @@ export default function ExaminerHome() {
           comment: evalComment,
         });
       }
+      evalDraft.clear();
       if (isDataScienceDocument) {
         setEvalSubmittedAt(new Date());
       } else {
@@ -568,6 +528,7 @@ export default function ExaminerHome() {
           : {}),
       });
 
+      gradeDraft.clear();
       Alert.alert(
         lang === 'he' ? '✅ הצלחה' : '✅ Success',
         lang === 'he' ? 'הציון נשמר בהצלחה' : 'Grade submitted successfully'
@@ -628,6 +589,7 @@ export default function ExaminerHome() {
         return [f.key, { value: a.value.trim() }];
       }));
       await apiClient.post(`/api/projects/milestones/${formTarget.id}/examiner-form`, { answers });
+      formDraft.clear();
       Alert.alert(lang === 'he' ? '✅ הצלחה' : '✅ Success', lang === 'he' ? 'הטופס נשלח בהצלחה' : 'Form submitted successfully');
       setFormModal(false);
       await fetchDashboardData();
@@ -747,7 +709,6 @@ export default function ExaminerHome() {
                   .map((otherUid) => ({
                     uid: otherUid,
                     name: (m.defensePanel ?? []).find((p) => p.ref === otherUid)?.displayName ?? (lang === 'he' ? 'לא ידוע' : 'Unknown'),
-                    graded: isFormOnly ? m.examinerFormAnswers?.[otherUid] != null : m.examinerScores?.[otherUid] != null,
                   }));
 
                 return (
@@ -779,7 +740,7 @@ export default function ExaminerHome() {
                         <Text style={styles.cardMeta}>
                           🤝 {lang === 'he' ? (otherExaminers.length > 1 ? 'בוחנים נוספים:' : 'בוחן/ת נוסף/ת:') : otherExaminers.length > 1 ? 'Co-examiners:' : 'Co-examiner:'}{' '}
                           {otherExaminers
-                            .map((oe) => `${oe.name} (${oe.graded ? (lang === 'he' ? 'ציון הוגש' : 'graded') : lang === 'he' ? 'טרם הוגש' : 'pending'})`)
+                            .map((oe) => oe.name)
                             .join(', ')}
                         </Text>
                       )
@@ -798,6 +759,10 @@ export default function ExaminerHome() {
                           📅 {m.defenseDate} {m.defenseTime ? ` · ${m.defenseTime} ${defenseModeIcon(resolveDefenseMode(m))}` : ''}{showsDefensePlace(m) && m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
                         </Text>
                       </View>
+                    )}
+
+                    {(m.type === 'defense' || isMyDefensePanel(m)) && (
+                      <DefenseSummary m={m} lang={lang} graded={graded} gradingOpen={!isBeforeDefense(m.defenseDate)} labels={MILESTONE_LABEL} />
                     )}
 
                     {/* Defense date submission — only while a window is open
@@ -829,39 +794,13 @@ export default function ExaminerHome() {
                             {' · '}{lang === 'he' ? 'ראשון–חמישי בלבד' : 'Sun-Thu only'}
                           </Text>
                         )}
-                        <Text style={{ fontSize: 11, color: '#92400E', marginBottom: 4 }}>
-                          {lang === 'he' ? 'פורמט: YYYY-MM-DD (למשל 2026-10-15)' : 'Format: YYYY-MM-DD (e.g. 2026-10-15)'}
-                        </Text>
-                        {dateRowsFor(m.id).map((row, idx) => (
-                          <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
-                            <TextInput accessibilityLabel={lang === 'he' ? `תאריך מוצע ${idx + 1}` : `Proposed date ${idx + 1}`}
-                              style={[styles.scoreInput as any, { flex: 1 }]}
-                              value={row}
-                              onChangeText={(v) => updateDateRow(m.id, idx, v)}
-                              placeholder="YYYY-MM-DD"
-                              placeholderTextColor="#9CA3AF"
-                            />
-                            {dateRowsFor(m.id).length > 1 && (
-                              <Pressable
-                                onPress={() => removeDateRow(m.id, idx)}
-                                accessibilityRole="button"
-                                accessibilityLabel={lang === 'he' ? 'הסר תאריך' : 'Remove date'}
-                                style={{ padding: 6 }}
-                              >
-                                <Text style={{ color: '#B91C1C', fontSize: 16 }}>✕</Text>
-                              </Pressable>
-                            )}
-                          </View>
-                        ))}
-                        <Pressable
-                          onPress={() => addDateRow(m.id)}
-                          accessibilityRole="button"
-                          style={{ alignSelf: 'flex-start', marginBottom: 8 }}
-                        >
-                          <Text style={{ color: '#B45309', fontWeight: '600', fontSize: 12 }}>
-                            + {lang === 'he' ? 'הוסף תאריך נוסף' : 'Add another date'}
-                          </Text>
-                        </Pressable>
+                        <AvailabilityCalendar
+                          lang={lang}
+                          windowStart={toDateInputValue(toDateSafe(m.dateMatching?.windowStart)) ?? null}
+                          windowEnd={toDateInputValue(toDateSafe(m.dateMatching?.windowEnd)) ?? null}
+                          selected={dateRowsFor(m.id).filter(Boolean)}
+                          onChange={(dates) => setDateDrafts((prev) => ({ ...prev, [m.id]: dates }))}
+                        />
                         <Pressable
                           style={[styles.gradeBtn, { backgroundColor: '#F59E0B' }, submittingDates[m.id] && { opacity: 0.6 }]}
                           onPress={() => handleSubmitDates(m)}
@@ -1366,6 +1305,11 @@ export default function ExaminerHome() {
           </View>
           </FieldGuideTarget>
  
+          <DraftNotice he={lang === 'he'} restoredAt={gradeDraft.restoredAt} status={gradeDraft.status} onDiscard={() => {
+            gradeDraft.clear();
+            setScores((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, ''])));
+            setComments('');
+          }} />
           <Pressable
             style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
             onPress={handleSubmitGrade}
@@ -1500,6 +1444,10 @@ export default function ExaminerHome() {
             );
           })}
 
+          <DraftNotice he={lang === 'he'} restoredAt={formDraft.restoredAt} status={formDraft.status} onDiscard={() => {
+            formDraft.clear();
+            setFormAnswers((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, { value: '', comment: '' }])));
+          }} />
           <Pressable
             style={[styles.submitBtn, formSubmitting && { opacity: 0.6 }]}
             onPress={handleSubmitForm}
@@ -1655,6 +1603,11 @@ export default function ExaminerHome() {
           </View>
           </FieldGuideTarget>
 
+          <DraftNotice he={lang === 'he'} restoredAt={evalDraft.restoredAt} status={evalDraft.status} onDiscard={() => {
+            evalDraft.clear();
+            setEvalScores((prev) => Object.fromEntries(Object.keys(prev).map((k) => [k, ''])));
+            setEvalComment('');
+          }} />
           <Pressable
             style={[styles.submitBtn, evalSubmitting && { opacity: 0.6 }]}
             onPress={handleSubmitEvaluation}

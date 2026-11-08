@@ -62,6 +62,7 @@ import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
+import { pruneFormDrafts } from './services/formDrafts.js';
 import { runTrackedJob } from './services/systemHealth.js';
 import { sendEmailDigests } from './services/emailDigest.js';
 import { sendScheduledReminders } from './services/supervisorReminders.js';
@@ -368,6 +369,10 @@ setInterval(() => {
 setInterval(() => {
   void runTrackedJob('sendEmailDigests', sendEmailDigests);
 }, ONE_HOUR_MS);
+// Examiner form drafts expire after 60 days — see services/formDrafts.ts.
+setInterval(() => {
+  void runTrackedJob('pruneFormDrafts', pruneFormDrafts);
+}, ONE_DAY_MS);
 // Live refresh for staff user lists — see services/usersChangeSignal.ts.
 startUsersChangeWatcher();
 // Live refresh for defense scheduling screens — see services/defenseScheduleChangeSignal.ts.

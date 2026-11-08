@@ -15,6 +15,8 @@ import { apiClient } from '../../src/api/apiClient';
 import { ap } from '../../constants/theme';
 import type { Lang } from '../i18n';
 import { FormSignoffCards, type FormSignoffLine } from './EvaluationFormModal';
+import { useServerDraft } from '../../hooks/useServerDraft';
+import { DraftNotice } from '../DraftNotice';
 
 interface Choice { value: string; labelHe: string; labelEn: string }
 interface Signature { signerName: string; positionHe: string; positionEn: string; facultyNameHe: string; facultyNameEn: string; signedAt: string; code: string; valid: boolean }
@@ -101,6 +103,20 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
     }
   }, [visible, load]);
 
+  // E3 — the unsent opinion autosaves privately (hooks/useServerDraft.ts).
+  const draft = useServerDraft(
+    visible && view?.viewer.kind === 'examiner' && view.viewer.canEdit ? `/api/examiner/drafts/${encodeURIComponent(milestoneId)}/opinion` : null,
+    { conclusion, confidentiality, opinion, confidentialOpinion, institution },
+    (d) => {
+      setConclusion(d.conclusion ?? '');
+      setConfidentiality(d.confidentiality ?? '');
+      setOpinion(d.opinion ?? '');
+      setConfidentialOpinion(d.confidentialOpinion ?? '');
+      setInstitution(d.institution ?? '');
+    },
+    !!view,
+  );
+
   const labelOf = (list: Choice[], value: string) => {
     const item = list.find((x) => x.value === value);
     return item ? (he ? item.labelHe : item.labelEn) : value;
@@ -155,6 +171,7 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
       attachments.forEach((f) => formData.append('files', { uri: f.uri, name: f.name, type: fileType(f) } as any));
       await apiClient.post(`/api/projects/milestones/${milestoneId}/examiner-opinion`, formData, { headers: { 'Content-Type': 'multipart/form-data' }, transformRequest: (d: any) => d });
       setMessage(he ? 'חוות הדעת נחתמה והוגשה.' : 'The opinion was signed and submitted.');
+      draft.clear();
       setAttachments([]);
       onChanged?.();
       await load();
@@ -298,6 +315,7 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
                 <Pressable onPress={submit} disabled={busy || !canSubmit} accessibilityRole="button" style={[button, { marginTop: 8, backgroundColor: ap.primary, opacity: busy || !canSubmit ? 0.5 : 1 }]}>
                   <Text style={{ color: ap.onPrimary, fontWeight: '700' }}>{busy ? '…' : he ? '✍️ חתום/י והגש/י' : '✍️ Sign & submit'}</Text>
                 </Pressable>
+                <DraftNotice he={he} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => { draft.clear(); load(); }} />
               </>
             )}
 
