@@ -22,6 +22,7 @@ import FinalGradeDecisionModal from './modals/FinalGradeDecisionModal';
 import EvaluationFormModal from './modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
+import UpdateGradeModal from './modals/UpdateGradeModal';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
@@ -100,6 +101,8 @@ interface StudentMilestoneRow {
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
   finalGrade: number | null;
+  /** The supervisor's own last-submitted score — prefills UpdateGradeModal. */
+  supervisorScore?: number | null;
   gradeApproved: boolean;
   gradeOverrideStatus: 'pending' | 'approved' | 'rejected' | null;
   /** The milestone's own snapshotted approval chain — see
@@ -201,6 +204,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   const [supervisorEvalFor, setSupervisorEvalFor] = useState<{ milestoneId: string; components: RubricComponent[] } | null>(null);
   const [finalGradeDecisionFor, setFinalGradeDecisionFor] = useState<{ milestoneId: string; autoGrade: number } | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
+  const [updateGradeFor, setUpdateGradeFor] = useState<{ milestoneId: string; name: string; score: number | null } | null>(null);
 
   // Deadline-override control — a supervisor may push back their own
   // advisee's due date, same PUT /api/milestones/:id as web's
@@ -226,6 +230,14 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
     project.facultyId === 'data_science' &&
     students.length > 0 &&
     students.every((s) => s.milestones.find((m) => m.type === 'defense')?.gradeApproved);
+
+  // Web's ProjectWorkflowSection derives this from the dashboard's
+  // currentMilestone, which this screen's Firestore-mapped projects don't
+  // carry — so it's derived from the same per-milestone statuses instead:
+  // finished once every enrolled student's milestones are all completed.
+  // Gates the "Update grade" action exactly like web.
+  const projectFinished =
+    students.length > 0 && students.every((s) => s.milestones.length > 0 && s.milestones.every((m) => isCompletedStatus(m.status)));
 
   // `silent` skips the loading flag — used after an evaluation/decision
   // submits, so the update lands on screen without the whole section
@@ -606,6 +618,33 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                       </View>
                     )}
 
+                    {/* Given grade for ordinary milestones, plus the
+                        reason-required "Update grade" action — mirrors web's
+                        ProjectWorkflowSection.tsx (same visibility rule; the
+                        server re-checks gradeApproved and the reason). */}
+                    {!m.hasFinalGradeComponents && !m.hasExaminerOpinionForm && m.type !== 'research_proposal' && m.id && m.finalGrade != null && (
+                      <View style={{ marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#10B981' }}>
+                          🎓 {lang === 'he' ? `ציון: ${m.finalGrade}` : `Grade: ${m.finalGrade}`}
+                        </Text>
+                        {!m.gradeApproved && !projectFinished && (
+                          <Pressable
+                            onPress={() => setUpdateGradeFor({
+                              milestoneId: m.id!,
+                              name: spec ? (lang === 'he' ? spec.nameHe : spec.nameEn) : m.type,
+                              score: m.supervisorScore ?? null,
+                            })}
+                            accessibilityRole="button"
+                            hitSlop={6}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#00236f' }}>
+                              ✏️ {lang === 'he' ? 'עדכן ציון' : 'Update grade'}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    )}
+
                     {/* Staff record action (research_proposal/progress_report only). */}
                     {m.staffRecordMode === 'upload_or_form' && m.id && (
                       <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }} accessibilityRole="button">
@@ -734,6 +773,18 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
           autoCalculatedFinalGrade={finalGradeDecisionFor.autoGrade}
           onClose={() => setFinalGradeDecisionFor(null)}
           onDecided={refreshDetailSilently}
+        />
+      )}
+      {updateGradeFor && (
+        <UpdateGradeModal
+          visible
+          lang={lang}
+          milestoneId={updateGradeFor.milestoneId}
+          projectId={projectId}
+          milestoneName={updateGradeFor.name}
+          currentScore={updateGradeFor.score}
+          onClose={() => setUpdateGradeFor(null)}
+          onUpdated={refreshDetailSilently}
         />
       )}
       {project && (

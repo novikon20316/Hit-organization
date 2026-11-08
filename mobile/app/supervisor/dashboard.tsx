@@ -14,6 +14,7 @@ import { sharedStyles, ap } from '@/constants';
 import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal, ProposeMeetingModal } from '@/components/modals';
 import ProjectWorkflowSection from '@/components/ProjectWorkflowSection';
+import { QuickTasksPanel } from '@/components/QuickTasksPanel';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
@@ -447,7 +448,14 @@ export default function SupervisorHome() {
         seen.add(p.id);
         return true;
       });
-      setMyProjects(merged);
+      // currentMilestone (next deadline + urgency) is computed by the
+      // /api/supervisor/dashboard response, not stored on the project doc —
+      // carry it over so a snapshot doesn't wipe the card's deadline line,
+      // urgency border and the Quick Tasks deadline rows.
+      setMyProjects((prev) => {
+        const prevById = new Map(prev.map((p) => [p.id, p]));
+        return merged.map((p) => ({ ...p, currentMilestone: p.currentMilestone ?? prevById.get(p.id)?.currentMilestone ?? null }));
+      });
     };
 
     const unsubPrimary = onSnapshot(
@@ -1156,6 +1164,24 @@ export default function SupervisorHome() {
           label={lang === 'he' ? 'ממתינות לציון' : 'Need Grading'} color="#8B5CF6" isRtl={isRtl}
           onPress={() => setActiveTab('grading')} />
       </View>
+
+      <QuickTasksPanel
+        lang={lang}
+        myProjects={myProjects}
+        applications={applications}
+        pendingGrades={pendingGrades}
+        milestoneLabel={(m) => milestoneDisplayName(m, lang, MILESTONE_LABEL)}
+        onOpenGrade={(m) => {
+          setActiveTab('grading');
+          setExpandedCards((prev) => ({ ...prev, [m.id]: true }));
+        }}
+        onOpenProject={() => {
+          setProjectFilter('all');
+          setActiveTab('projects');
+        }}
+        onOpenApplications={() => setActiveTab('applications')}
+        onOpenCommittees={() => router.push('/committees' as any)}
+      />
 
       {/* Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>

@@ -20,6 +20,7 @@ import { ProgramHeadDashboardStyles } from '../../constants/styles';
 import { ap } from '../../constants/theme';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
+import { TrackChangeControl } from '@/components/TrackChangeControl';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
 import { useActiveRole } from '@/contexts/ActiveRoleContext';
@@ -426,6 +427,7 @@ export default function ProgramHeadDashboard() {
                       </Text>
                     )}
                   </View>
+                  <TrackChangeControl projectId={st.projectId} lang={lang} />
                 </Pressable>
               ))
             )}

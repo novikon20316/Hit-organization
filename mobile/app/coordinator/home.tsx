@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
+import ReserveDefenseDateModal from '@/components/modals/ReserveDefenseDateModal';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
@@ -28,6 +29,7 @@ import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
+import { TrackChangeControl } from '@/components/TrackChangeControl';
 import ProjectStageChain from '@/components/ProjectStageChain';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
@@ -367,6 +369,9 @@ export default function CoordinatorHome() {
   const [conflictModal, setConflictModal] = useState(false);
   const [conflictProject, setConflictProject] = useState<Project | null>(null);
   const [conflictMilestone, setConflictMilestone] = useState<AssignedMilestone | null>(null);
+
+  // Coordinator fixes the defense date directly — see ReserveDefenseDateModal.
+  const [reserveTarget, setReserveTarget] = useState<{ project: Project; milestone: AssignedMilestone } | null>(null);
   const [replacedExaminerKey, setReplacedExaminerKey] = useState('');
   const [replacementType, setReplacementType] = useState<'internal' | 'external'>('internal');
   const [replacementInternalId, setReplacementInternalId] = useState('');
@@ -1044,8 +1049,22 @@ export default function CoordinatorHome() {
     setDefenseModal(true);
   };
 
+  /** Secondary action under a defense card's main button: fix the defense
+   *  date directly. Mirrors web's DefenseTab.tsx ReserveDateButton. */
+  const renderReserveDateButton = (project: Project, milestone: AssignedMilestone) => (
+    <Pressable
+      onPress={() => setReserveTarget({ project, milestone })}
+      accessibilityRole="button"
+      style={{ marginTop: 8, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 8, paddingVertical: 9, alignItems: 'center' }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: '700', color: ap.onSurface }}>
+        📅 {lang === 'he' ? 'שריין מועד הגנה' : 'Reserve defense date'}
+      </Text>
+    </Pressable>
+  );
+
   // ── Date-conflict resolution (examiners had no common date) ──────────────
-  const openConflictModal = (project: Project, milestone: AssignedMilestone) => {
+  const openConflictModal =(project: Project, milestone: AssignedMilestone) => {
     setConflictProject(project);
     setConflictMilestone(milestone);
     const panel = milestone.defensePanel ?? [];
@@ -1878,6 +1897,7 @@ export default function CoordinatorHome() {
                     : (lang === 'he' ? '👥 שבץ בוחנים' : '👥 Assign examiners')}
                 </Text>
               </Pressable>
+              {renderReserveDateButton(project, milestone)}
             </View>
           );
         }
@@ -1900,6 +1920,7 @@ export default function CoordinatorHome() {
               <Text style={[styles.cardMeta, { color: '#F59E0B', fontWeight: '700' }]}>
                 ⏳ {lang === 'he' ? 'ממתין לתאריכים מהבוחנים' : 'Waiting on dates from examiners'}
               </Text>
+              {renderReserveDateButton(project, milestone)}
             </View>
           );
         }
@@ -1923,6 +1944,7 @@ export default function CoordinatorHome() {
                   {lang === 'he' ? '🛠️ פתור התנגשות' : '🛠️ Resolve conflict'}
                 </Text>
               </Pressable>
+              {renderReserveDateButton(project, milestone)}
             </View>
           );
         }
@@ -2087,6 +2109,7 @@ export default function CoordinatorHome() {
           </Text>
 
           <ClockPauseControl projectId={p.id} lang={lang} />
+          <TrackChangeControl projectId={p.id} lang={lang} />
 
           {/* ── Only display the nested student content if the main card is expanded ── */}
           {expandedCards[p.id] && (
@@ -2742,6 +2765,21 @@ export default function CoordinatorHome() {
         onClose={() => setDefenseModal(false)}
         onSaved={() => fetchCoordinatorDashboard()}
       />
+
+      {reserveTarget && (
+        <ReserveDefenseDateModal
+          visible
+          lang={lang}
+          milestoneId={reserveTarget.milestone.id}
+          projectTitle={(lang === 'he' ? reserveTarget.project.titleHe : reserveTarget.project.titleEn) ?? ''}
+          overridesExaminerDates={reserveTarget.milestone.status === 'awaiting_defense_date' || reserveTarget.milestone.status === 'date_conflict'}
+          onClose={() => setReserveTarget(null)}
+          onReserved={() => {
+            setReserveTarget(null);
+            fetchCoordinatorDashboard();
+          }}
+        />
+      )}
 
       {/* ── Date-conflict resolution modal ── */}
       <Modal visible={conflictModal} animationType="slide" presentationStyle="pageSheet">
