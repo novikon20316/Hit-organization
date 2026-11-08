@@ -2,8 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  ActivityIndicator, Linking, StyleSheet,
+  ActivityIndicator, Linking, StyleSheet, Alert,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { auth } from '../../src/firebase/firebase';
+import { getApiBaseUrl } from '../../src/api/apiClient';
 import { tx, type Lang } from '../../components/i18n';
 import type { ActiveProject, Milestone, MilestoneType } from '@/types';
 import {
@@ -24,6 +28,7 @@ import {
   GRADES_TAB_FIELD_GUIDE, GRADES_TAB_GUIDE_KEY,
 } from '../../constants/studentFieldGuide';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
+import { waitingText } from '@/utils/milestoneWaiting';
 
 interface Props {
   project:       ActiveProject;
@@ -89,6 +94,7 @@ export default function ActiveDashboard({
     }
   }, [activeTab, gradesBadgeCount, markTabSeen]);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [downloadingCalendar, setDownloadingCalendar] = useState(false);
   const [announcements, setAnnouncements] = useState<Array<{ id: string; titleHe: string; titleEn: string; bodyHe: string; bodyEn: string; createdAt?: string | null }>>([]);
   // The single milestone currently targeted by the shared submit modal — null
   // when the modal is closed. Replaces the old inline submitModal/
@@ -119,6 +125,27 @@ export default function ActiveDashboard({
   // degreeType/projectType rather than a separately-threaded student profile
   // field, since both are already present on `project`.
   const isMastersThesis = project.degreeType === 'masters' && project.projectType === 'thesis';
+
+  // S3 — one-time .ics of the student's own deadlines, handed to the share
+  // sheet so they can open it in their calendar app. Signed-in download, not
+  // a subscription link (see server's studentCalendarController.ts).
+  const handleDownloadCalendar = async () => {
+    setDownloadingCalendar(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Not signed in');
+      const dest = `${FileSystem.cacheDirectory}milestones.ics`;
+      const res = await FileSystem.downloadAsync(`${getApiBaseUrl()}/api/student/calendar.ics?lang=${lang}`, dest, {
+        headers: { Authorization: `Bearer ${token}`, 'X-Lang': lang, 'X-Client-Platform': 'mobile' },
+      });
+      if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+      await Sharing.shareAsync(res.uri, { mimeType: 'text/calendar', UTI: 'com.apple.ical.ics', dialogTitle: lang === 'he' ? 'הוספה ליומן' : 'Add to calendar' });
+    } catch {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', lang === 'he' ? 'הורדת קובץ היומן נכשלה' : 'Could not download the calendar file');
+    } finally {
+      setDownloadingCalendar(false);
+    }
+  };
 
   const handleDownloadThesisTemplate = async () => {
     try {
@@ -170,6 +197,16 @@ export default function ActiveDashboard({
   };
 
   const openSubmit = (m: Milestone) => setSubmitTarget(m);
+
+  // ─── S1 — the one concrete thing to do next, or who it's waiting on ──────
+  const nextStep = (() => {
+    const m = actionableNextMilestone;
+    if (!m || m.type === 'defense') return null;
+    if (m.status === 'rejected') return { kind: 'resubmit' as const, he: 'הוחזר אליך לתיקון — יש לתקן ולהגיש שוב', en: 'Returned to you — fix it and resubmit', buttonHe: 'הגשה מתוקנת', buttonEn: 'Resubmit' };
+    if (m.studentFormFields?.length) return { kind: 'form' as const, he: 'מילוי הטופס המקוון', en: 'Fill in the online form', buttonHe: 'מילוי הטופס', buttonEn: 'Fill in the form' };
+    return { kind: 'file' as const, he: 'העלאת הקובץ שלך', en: 'Upload your file', buttonHe: 'העלאת קובץ', buttonEn: 'Upload file' };
+  })();
+  const inReview = milestones.find((m) => !!waitingText(m.waiting, lang)) ?? null;
 
   const handleExpandGrade = (milestoneId: string) => {
     setExpandedGrades((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
@@ -369,6 +406,32 @@ export default function ActiveDashboard({
             </View>
             </FieldGuideTarget>
 
+            {/* S1 — What's next */}
+            {(nextStep || inReview) && (
+              <View style={ov.deadlineCard}>
+                <Text style={[ov.metricLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'מה הלאה' : "WHAT'S NEXT"}</Text>
+                {nextStep && actionableNextMilestone ? (
+                  <>
+                    <Text style={[ov.deadlineTitle, isRtl && styles.textRight, { marginTop: 6 }]}>{milestoneDisplayName(actionableNextMilestone, lang, MILESTONE_LABEL)}</Text>
+                    <Text style={[ov.deadlineSub, isRtl && styles.textRight, nextStep.kind === 'resubmit' && { color: studentPalette.error }]}>
+                      {lang === 'he' ? `מה חסר: ${nextStep.he}` : `What's needed: ${nextStep.en}`}
+                    </Text>
+                    {nextStep.kind === 'resubmit' && !!actionableNextMilestone.rejectionReason && (
+                      <Text style={[ov.deadlineSub, isRtl && styles.textRight, { color: studentPalette.error, marginTop: 4 }]}>{actionableNextMilestone.rejectionReason}</Text>
+                    )}
+                    <Pressable style={[ov.primaryActionBtn, { marginTop: 10 }]} onPress={() => openSubmit(actionableNextMilestone)} accessibilityRole="button">
+                      <Text style={ov.primaryActionBtnText}>{lang === 'he' ? nextStep.buttonHe : nextStep.buttonEn}</Text>
+                    </Pressable>
+                  </>
+                ) : inReview ? (
+                  <>
+                    <Text style={[ov.deadlineTitle, isRtl && styles.textRight, { marginTop: 6 }]}>{milestoneDisplayName(inReview, lang, MILESTONE_LABEL)}</Text>
+                    <Text style={[ov.deadlineSub, isRtl && styles.textRight]}>⏳ {waitingText(inReview.waiting, lang)}</Text>
+                  </>
+                ) : null}
+              </View>
+            )}
+
             {/* Next deadline card */}
             {nextMilestone && (
               <FieldGuideTarget fieldKey="nextDeadline">
@@ -435,6 +498,16 @@ export default function ActiveDashboard({
                       )}
                   </Pressable>
                 )}
+                <Pressable
+                  style={[ov.secondaryActionBtn, downloadingCalendar && { opacity: 0.6 }]}
+                  onPress={handleDownloadCalendar}
+                  disabled={downloadingCalendar}
+                  accessibilityRole="button"
+                >
+                  {downloadingCalendar
+                    ? <ActivityIndicator color={studentPalette.secondary} size="small" />
+                    : <Text style={ov.secondaryActionBtnText}>📅 {lang === 'he' ? 'הוספה ליומן' : 'Add to calendar'}</Text>}
+                </Pressable>
               </View>
             </View>
 

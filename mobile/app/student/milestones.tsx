@@ -27,6 +27,8 @@ import type { Milestone, MilestoneType } from '@/types';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { SeminarDetails } from '@/components/SeminarDetails';
 import { isSeminarInProgress } from '@/utils/seminar';
+import { waitingText } from '@/utils/milestoneWaiting';
+import { SubmissionHistory } from '@/components/SubmissionHistory';
 
 // ─── Milestone type labels ──────────────────────────────────────────────────
 // Duplicated locally rather than imported from Activedashboard.tsx/
@@ -246,7 +248,7 @@ export default function StudentMilestones() {
                         {/* Awaiting review */}
                         {isSubmittedInReview && !isApprovedOrDone && (
                           <Text style={[mt.waitingText, isRtl && styles.textRight]}>
-                            📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}
+                            📤 {waitingText(m.waiting, lang) ?? (lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval')}
                           </Text>
                         )}
 
@@ -289,6 +291,11 @@ export default function StudentMilestones() {
                               </Text>
                             </Pressable>
                           </View>
+                        )}
+
+                        {/* S2 — earlier versions and what changed */}
+                        {(m.revisionHistory?.length ?? 0) > 0 && (
+                          <SubmissionHistory history={m.revisionHistory!} current={{ fileUrls: m.fileUrls ?? [], submissionNote: m.submissionNote ?? '', submittedAt: m.submittedAt }} lang={lang} />
                         )}
 
                         {isSeminarInProgress(m.status) && (

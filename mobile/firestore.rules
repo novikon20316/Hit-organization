@@ -395,17 +395,21 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Data-free "your milestones changed, re-fetch" marker per user — see
+    // server's milestoneChangeSignal.ts. Own doc only; Admin SDK writes.
+    match /milestoneSignals/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     match /milestones/{milestoneId} {
       allow read: if isSignedIn() && (
-        // Data-level checks first (0 get() calls) — fast path for students/supervisors
-        request.auth.uid in resource.data.get('studentIds', []) ||
-        resource.data.get('supervisorId', '') == request.auth.uid ||
-        resource.data.get('secondarySupervisorId', '') == request.auth.uid ||
-        // Examiners are deliberately NOT here (removed 2026-11-08): the doc
-        // carries every co-examiner's scores, rubric evaluations and form
-        // answers, and Firestore can't hide single fields. Examiner screens
-        // read only through GET /api/examiner/dashboard, which returns each
-        // examiner's own entries plus a submitted-count.
+        // Students, supervisors and examiners are deliberately NOT here
+        // (removed 2026-11-08): the doc carries examiner-only forms and
+        // scores and not-yet-released grades, and Firestore can't hide
+        // single fields. They read milestones only through the API (see
+        // server's milestoneVisibility.ts / examiner dashboard), and listen
+        // to milestoneSignals/{uid} below for live refresh.
         // A staff member the administrative coordinator substituted onto this
         // milestone's committee in place of a conflicted supervisor (see
         // committeeController.ts's substituteCommitteeMember) — needed for
@@ -418,11 +422,7 @@ service cloud.firestore {
         // grad_school_head keeps faculty-wide read (her own role's reason to
         // exist — she oversees every masters thesis in her faculty, not just
         // ones she's personally assigned to). internal_examiner does NOT —
-        // see M4 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md: she should
-        // only see milestones she's actually assigned to examine, which the
-        // `request.auth.uid in examinerIds` fast-path above already covers;
-        // she used to ALSO match here via her faculty alone, seeing every
-        // other examiner's milestones in the same faculty too.
+        // see M4 in AUDIT_WEB_SERVER_SECURITY_BUGS_2026_10_07.md.
         (role(userDoc()) == 'grad_school_head' &&
           sameFaculty(userDoc(), resource.data.get('facultyId', ''))) ||
         isCrossFaculty(userDoc())

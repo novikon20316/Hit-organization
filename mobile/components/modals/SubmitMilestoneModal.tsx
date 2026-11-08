@@ -79,6 +79,12 @@ function fileMatchesAllowedTypes(allowedFileTypes: string[] | undefined, name: s
 }
 
 const MAX_FILENAME_BYTES = 150;
+// S7 — mirrors the server's multer limit (milestoneController.ts, 20 MB per
+// file); the server stays the real gate.
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const formatSize = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
 function tooLongFileName(name: string): boolean {
   let bytes = 0;
   for (let i = 0; i < name.length; i++) {
@@ -94,7 +100,7 @@ export default function SubmitMilestoneModal({
   milestone, projectId, lang, isRtl, onClose, onSubmitted,
 }: Props) {
   const [note,          setNote]          = useState('');
-  const [files,         setFiles]         = useState<Array<{ uri: string; name: string; mimeType?: string }>>([]);
+  const [files,         setFiles]         = useState<Array<{ uri: string; name: string; mimeType?: string; size?: number }>>([]);
   const [submitting,    setSubmitting]    = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
@@ -129,7 +135,9 @@ export default function SubmitMilestoneModal({
     if (result.canceled || !result.assets?.length) return;
     const tooLong = result.assets.filter((a) => tooLongFileName(a.name));
     const wrongType = result.assets.filter((a) => !tooLongFileName(a.name) && !fileMatchesAllowedTypes(allowedFileTypes, a.name, a.mimeType));
-    const ok = result.assets.filter((a) => !tooLongFileName(a.name) && fileMatchesAllowedTypes(allowedFileTypes, a.name, a.mimeType));
+    const typeOk = (a: { name: string; mimeType?: string }) => !tooLongFileName(a.name) && fileMatchesAllowedTypes(allowedFileTypes, a.name, a.mimeType);
+    const tooBig = result.assets.filter((a) => typeOk(a) && (a.size ?? 0) > MAX_FILE_BYTES);
+    const ok = result.assets.filter((a) => typeOk(a) && (a.size ?? 0) <= MAX_FILE_BYTES);
     if (tooLong.length > 0) {
       setSubmitMessage(
         lang === 'he'
@@ -142,11 +150,17 @@ export default function SubmitMilestoneModal({
           ? `סוג קובץ לא נתמך עבור אבן דרך זו: ${wrongType.map((a) => a.name).join(', ')}. סוגים מותרים: ${allowedTypesLabel}.`
           : `Unsupported file type for this milestone: ${wrongType.map((a) => a.name).join(', ')}. Allowed: ${allowedTypesLabel}.`
       );
+    } else if (tooBig.length > 0) {
+      setSubmitMessage(
+        lang === 'he'
+          ? `הקובץ גדול מדי (עד 20MB לקובץ): ${tooBig.map((a) => `${a.name} (${formatSize(a.size ?? 0)})`).join(', ')}.`
+          : `File too large (max 20 MB each): ${tooBig.map((a) => `${a.name} (${formatSize(a.size ?? 0)})`).join(', ')}.`
+      );
     }
     if (ok.length > 0) {
       setFiles((prev) => [
         ...prev,
-        ...ok.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType })),
+        ...ok.map((a) => ({ uri: a.uri, name: a.name, mimeType: a.mimeType, size: a.size })),
       ]);
     }
   };
@@ -231,7 +245,7 @@ export default function SubmitMilestoneModal({
             )}
             {files.map((f, i) => (
               <View key={i} style={styles.fileRow}>
-                <Text style={styles.fileName}>📎 {f.name}</Text>
+                <Text style={styles.fileName}>📎 {f.name}{f.size ? `  ·  ${formatSize(f.size)}` : ''}</Text>
                 <Pressable
                   onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
                   accessibilityRole="button"

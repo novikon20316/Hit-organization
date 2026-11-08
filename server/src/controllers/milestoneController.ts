@@ -9,6 +9,7 @@ import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope, resolveProjectScope, resolveStaffForScope, effectiveFacultyIds } from '../services/scopeAuthorization.js';
 import { isChainDriven } from '../services/milestoneRouting.js';
 import { sanitizeMilestoneForViewer, redactUnreleasedGradeForStudent } from '../services/milestoneVisibility.js';
+import { waitingRoleOf, waitingSince } from '../services/stuckMilestones.js';
 import { notifyExaminersOfResubmission } from '../services/examinerOpinion.js';
 import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
@@ -935,9 +936,23 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
         defenseDate:  isDefenseDateConfirmed(data.status) ? data.dueDate?.toDate?.()?.toISOString() ?? null : null,
         coordinatorApprovedAt: data.coordinatorApprovedAt?.toDate?.()?.toISOString() ?? null,
       }, requester.uid, viewerRoles);
-      return redactUnreleasedGradeForStudent(sanitized, requester.uid, viewerRoles);
+      const redacted = redactUnreleasedGradeForStudent(sanitized, requester.uid, viewerRoles);
+      if (!viewerRoles.includes('student')) return redacted;
+      // S5 — a student sees which role their milestone waits on and since
+      // when (decided 2026-11-08: role + days), never the sweep's record of
+      // exactly which staff members it is waiting on.
+      const { stuckWatch: _stuckWatch, ...forStudent } = redacted;
+      const done = data.status === 'coordinator_approved' || data.status === 'completed';
+      const { role } = waitingRoleOf(data);
+      return {
+        ...forStudent,
+        waiting: done ? null : {
+          role,
+          since: role === 'student' ? null : waitingSince(data)?.toDate?.()?.toISOString() ?? null,
+        },
+      };
     });
-    
+
     return res.status(200).json({ milestones });
   } catch (e: any) {
     console.error("Milestone Controller Query Error: ", e);

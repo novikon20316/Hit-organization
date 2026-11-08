@@ -143,6 +143,46 @@ export function linkKeyOf(m: FirebaseFirestore.DocumentData): string {
   return `${m.status}|${stage}|${m.currentCommitteeId ?? ''}`;
 }
 
+/** Which link of its chain a milestone is on — the role only, no people.
+ *  `fromChain` says the role came from a configurable chain stage (whose
+ *  people resolve through scope) rather than the fixed status flow. Shared
+ *  by resolveWaitingOn below and the student's own progress view (S5 —
+ *  students see the role and the days, never who exactly). */
+export function waitingRoleOf(m: FirebaseFirestore.DocumentData): { role: WaitingRole; fromChain: boolean } {
+  if (m.status === 'pending' || m.status === 'rejected') return { role: 'student', fromChain: false };
+
+  if (isChainDriven(m) && (m.status === 'submitted' || m.status === 'supervisor_graded')) {
+    const stage: ChainStage | undefined = (m.routing ?? [])[m.currentStageIndex ?? 0];
+    if (stage) return { role: stage.role, fromChain: true };
+  }
+
+  switch (m.status) {
+    case 'seminar_awaiting_date':
+    case 'seminar_scheduled':
+      return { role: 'administrative_secretary', fromChain: false };
+    case 'submitted':
+      return { role: 'supervisor', fromChain: false };
+    case 'examiners_assigned':
+    case 'examiner_graded':
+    case 'awaiting_defense_date':
+    case 'defense_date_set':
+    case 'scheduled':
+      return { role: 'examiner', fromChain: false };
+    default:
+      // supervisor_graded / graded / both_examiners_graded / date_conflict —
+      // the coordinator's approval or decision.
+      return { role: 'coordinator', fromChain: false };
+  }
+}
+
+/** When the milestone reached its current link — the sweep's own record if
+ *  it is still on the link the sweep saw, else the doc's best timestamp. */
+export function waitingSince(m: FirebaseFirestore.DocumentData): FirebaseFirestore.Timestamp | null {
+  const watch = m.stuckWatch as StuckWatch | undefined;
+  if (watch?.since && watch.linkKey === linkKeyOf(m)) return watch.since;
+  return stageEnteredAt(m as MilestoneDoc);
+}
+
 /** Who the milestone is waiting on — the role (for display) and the actual
  *  people (for the "send reminder" action). */
 export async function resolveWaitingOn(
@@ -155,41 +195,22 @@ export async function resolveWaitingOn(
   const examinerIds: string[] = m.examinerIds ?? [];
   const staff = async (role: ChainRole) => resolveStaffForScope(role, resource, supervisorIds, examinerIds, false);
 
-  if (m.status === 'pending' || m.status === 'rejected') return { role: 'student', uids: studentIds };
-
-  if (isChainDriven(m) && (m.status === 'submitted' || m.status === 'supervisor_graded')) {
-    const stage: ChainStage | undefined = (m.routing ?? [])[m.currentStageIndex ?? 0];
-    if (stage) {
-      if (stage.role === 'committee') {
-        if (!m.currentCommitteeId) return { role: 'committee', uids: [] };
-        const c = await db.collection('committees').doc(m.currentCommitteeId).get();
-        return { role: 'committee', uids: (c.data()?.memberIds ?? []) as string[] };
-      }
-      return { role: stage.role, uids: await staff(stage.role) };
-    }
+  const { role, fromChain } = waitingRoleOf(m);
+  if (role === 'student') return { role, uids: studentIds };
+  if (role === 'committee') {
+    if (!m.currentCommitteeId) return { role, uids: [] };
+    const c = await db.collection('committees').doc(m.currentCommitteeId).get();
+    return { role, uids: (c.data()?.memberIds ?? []) as string[] };
   }
-
-  switch (m.status) {
-    case 'seminar_awaiting_date':
-    case 'seminar_scheduled':
-      return { role: 'administrative_secretary', uids: await staff('administrative_secretary') };
-    case 'submitted':
-      return { role: 'supervisor', uids: supervisorIds };
-    case 'examiners_assigned':
-    case 'examiner_graded':
-    case 'awaiting_defense_date':
-    case 'defense_date_set':
-    case 'scheduled': {
-      // Examiners who already scored aren't the ones holding it up.
-      const scored = new Set(Object.keys(m.examinerScores ?? {}));
-      const remaining = examinerIds.filter((id) => !scored.has(id));
-      return { role: 'examiner', uids: remaining.length > 0 ? remaining : examinerIds };
-    }
-    default:
-      // supervisor_graded / graded / both_examiners_graded / date_conflict —
-      // the coordinator's approval or decision.
-      return { role: 'coordinator', uids: await staff('coordinator') };
+  if (fromChain) return { role, uids: await staff(role) };
+  if (role === 'supervisor') return { role, uids: supervisorIds };
+  if (role === 'examiner') {
+    // Examiners who already scored aren't the ones holding it up.
+    const scored = new Set(Object.keys(m.examinerScores ?? {}));
+    const remaining = examinerIds.filter((id) => !scored.has(id));
+    return { role, uids: remaining.length > 0 ? remaining : examinerIds };
   }
+  return { role, uids: await staff(role) };
 }
 
 // ─── Sweep ────────────────────────────────────────────────────────────────────

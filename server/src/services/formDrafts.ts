@@ -1,9 +1,9 @@
 // src/services/formDrafts.ts
 //
-// E3 — autosaved, unsent examiner form drafts (decided 2026-11-08): visible
-// only to the examiner who wrote them — internal examiners by account,
-// external examiners by their access token after the email code — never to
-// the coordinator, supervisor or anyone else. Restored when the form
+// Autosaved, unsent form drafts (decided 2026-11-08): visible only to the
+// person who wrote them — internal examiners and students by account (E3,
+// S4), external examiners by their access token after the email code —
+// never to the coordinator, supervisor, a teammate or anyone else. Restored when the form
 // reopens, deleted on submit (by the client), and expire after 60 days
 // (pruneFormDrafts, daily). Stored in formDrafts (server-only, no Firestore
 // rule); the owner key is hashed into the doc id, never stored raw, since an

@@ -38,6 +38,29 @@ function fileMatchesAllowedTypes(allowedFileTypes: string[] | undefined, file: F
   });
 }
 
+// S7 — mirrors the server's multer limit (milestoneController.ts's
+// uploadMiddleware, 20 MB per file); the server stays the real gate.
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Rough page count straight from the PDF bytes (each page object carries
+// "/Type /Page"). Good enough for "is this the file I meant?" — null when it
+// can't tell (compressed object streams), and never used to block a submit.
+async function pdfPageCount(file: File): Promise<number | null> {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return null;
+  try {
+    const text = new TextDecoder('latin1').decode(await file.arrayBuffer());
+    const count = (text.match(/\/Type\s*\/Page(?![a-zA-Z])/g) ?? []).length;
+    return count > 0 ? count : null;
+  } catch {
+    return null;
+  }
+}
+
 interface SubmitMilestoneModalProps {
   milestone: Milestone;
   projectId: string;
@@ -51,6 +74,8 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [pageCounts, setPageCounts] = useState<Map<File, number | null>>(new Map());
+  const [dragging, setDragging] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, true, onClose);
 
@@ -103,7 +128,8 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
     const incoming = Array.from(list);
     const tooLong = incoming.filter((f) => tooLongFileName(f.name));
     const wrongType = incoming.filter((f) => !tooLongFileName(f.name) && !fileMatchesAllowedTypes(allowedFileTypes, f));
-    const ok = incoming.filter((f) => !tooLongFileName(f.name) && fileMatchesAllowedTypes(allowedFileTypes, f));
+    const tooBig = incoming.filter((f) => !tooLongFileName(f.name) && fileMatchesAllowedTypes(allowedFileTypes, f) && f.size > MAX_FILE_BYTES);
+    const ok = incoming.filter((f) => !tooLongFileName(f.name) && fileMatchesAllowedTypes(allowedFileTypes, f) && f.size <= MAX_FILE_BYTES);
     if (tooLong.length > 0) {
       setMessage({
         text: lang === 'he'
@@ -118,8 +144,22 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
           : `Unsupported file type for this milestone: ${wrongType.map((f) => f.name).join(', ')}. Allowed: ${allowedTypesLabel}.`,
         ok: false,
       });
+    } else if (tooBig.length > 0) {
+      setMessage({
+        text: lang === 'he'
+          ? `הקובץ גדול מדי (עד 20MB לקובץ): ${tooBig.map((f) => `${f.name} (${formatSize(f.size)})`).join(', ')}.`
+          : `File too large (max 20 MB each): ${tooBig.map((f) => `${f.name} (${formatSize(f.size)})`).join(', ')}.`,
+        ok: false,
+      });
+    } else {
+      setMessage(null);
     }
-    if (ok.length > 0) setFiles((prev) => [...prev, ...ok]);
+    if (ok.length > 0) {
+      setFiles((prev) => [...prev, ...ok]);
+      ok.forEach((f) => {
+        void pdfPageCount(f).then((n) => setPageCounts((prev) => new Map(prev).set(f, n)));
+      });
+    }
   };
 
   const handleSubmit = async () => {
@@ -195,15 +235,27 @@ export function SubmitMilestoneModal({ milestone, projectId, onClose, onSubmitte
             <div className="grid gap-1.5">
               {files.map((f, i) => (
                 <div key={i} className="flex items-center justify-between rounded-student border border-student-outline-variant bg-student-surface-container-low px-3 py-2 text-sm">
-                  <span className="truncate text-student-on-surface">📎 {f.name}</span>
+                  <span className="min-w-0 truncate text-student-on-surface">
+                    📎 {f.name}
+                    <span className="ms-2 text-xs text-student-on-surface-variant">
+                      {formatSize(f.size)}
+                      {pageCounts.get(f) ? ` · ${pageCounts.get(f)} ${lang === 'he' ? 'עמ׳' : 'pages'}` : ''}
+                    </span>
+                  </span>
                   <button type="button" onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} aria-label={`${lang === 'he' ? 'הסר קובץ' : 'Remove file'} ${f.name}`} className="text-student-outline hover:text-student-error">
                     ✕
                   </button>
                 </div>
               ))}
             </div>
-            <label className="relative mt-1.5 block overflow-hidden rounded-student border border-dashed border-student-outline-variant bg-student-surface-container-low px-3 py-2.5 text-center text-sm text-student-on-surface hover:border-student-primary">
-              + {lang === 'he' ? 'הוסף קובץ' : 'Add File'}
+            <label
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
+              className={`relative mt-1.5 block overflow-hidden rounded-student border border-dashed px-3 py-4 text-center text-sm text-student-on-surface hover:border-student-primary ${dragging ? 'border-student-primary bg-student-primary/5' : 'border-student-outline-variant bg-student-surface-container-low'}`}
+            >
+              + {lang === 'he' ? 'הוסף קובץ או גרור לכאן' : 'Add a file or drag it here'}
+              <span className="mt-0.5 block text-xs text-student-on-surface-variant">{lang === 'he' ? 'עד 20MB לקובץ' : 'Up to 20 MB per file'}</span>
               <input type="file" multiple accept={acceptAttr} onChange={(e) => addFiles(e.target.files)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </label>
           </div>

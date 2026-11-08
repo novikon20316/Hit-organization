@@ -20,6 +20,8 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { auth } from '../../src/firebase/firebase';
+import { useServerDraft } from '../../hooks/useServerDraft';
+import { DraftNotice } from '../DraftNotice';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { ap } from '../../constants/theme';
@@ -71,21 +73,24 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
   const studentIds = milestone.studentIds?.length ? milestone.studentIds : [auth.currentUser?.uid ?? ''].filter(Boolean);
 
   const [teammates, setTeammates] = useState<TeammateProfile[] | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
+  // Pre-filled from a previous submission (resubmission after a rejection) —
+  // initial state rather than an effect, so the draft below compares
+  // against the real starting point.
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const f of fields) {
+      const v = (milestone.studentFormData as any)?.[f.key];
+      if (v !== undefined && v !== null) out[f.key] = String(v);
+    }
+    return out;
+  });
   const [files, setFiles] = useState<Array<{ uri: string; name: string; mimeType?: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!milestone.studentFormData) return;
-    const nextValues: Record<string, string> = {};
-    for (const f of fields) {
-      const v = (milestone.studentFormData as any)[f.key];
-      if (v !== undefined && v !== null) nextValues[f.key] = String(v);
-    }
-    setValues(nextValues);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // S4 — unsent answers autosave privately (only this student, not the
+  // team). Attached files aren't part of a draft.
+  const draft = useServerDraft(`/api/student/drafts/${encodeURIComponent(milestone.id)}/student_form`, { values }, (d) => setValues(d.values ?? {}));
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +161,7 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
         body.append('files', { uri: f.uri, name: f.name, type: f.mimeType || fallbackType } as any);
       });
       await apiClient.submitMilestone(milestone.id, body);
+      draft.clear();
       onSubmitted();
     } catch (err: any) {
       const data = err?.response?.data;
@@ -235,6 +241,7 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
           <Text style={styles.uploadBtnText}>+ {lang === 'he' ? 'הוסף קובץ' : 'Add File'}</Text>
         </Pressable>
 
+        <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => { draft.clear(); onClose(); }} />
         {error !== '' && <Text style={styles.errorText}>{error}</Text>}
 
         <Pressable style={[styles.submitBtn, submitting && { opacity: 0.6 }]} onPress={handleSubmit} disabled={submitting} accessibilityRole="button">

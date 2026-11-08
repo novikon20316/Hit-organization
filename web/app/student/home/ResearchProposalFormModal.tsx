@@ -20,6 +20,8 @@ import { auth } from '@/lib/firebase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useServerDraft, studentDraftPath } from '@/hooks/useServerDraft';
+import { DraftNotice } from '@/components/DraftNotice';
 import { examinerSignatureStyle } from '@/lib/examinerSignature';
 import type { Milestone, ActiveProject } from './types';
 
@@ -66,27 +68,34 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
   const studentIds = milestone.studentIds?.length ? milestone.studentIds : [auth.currentUser?.uid ?? ''].filter(Boolean);
 
   const [teammates, setTeammates] = useState<TeammateProfile[] | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [tableValues, setTableValues] = useState<Record<string, Array<Record<string, string>>>>({});
+  // Pre-filled from a previous submission (resubmission after a rejection) —
+  // initial state rather than an effect, so the draft below compares
+  // against the real starting point.
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const f of fields) {
+      const v = milestone.studentFormData?.[f.key];
+      if (f.type !== 'table' && v !== undefined && v !== null) out[f.key] = String(v);
+    }
+    return out;
+  });
+  const [tableValues, setTableValues] = useState<Record<string, Array<Record<string, string>>>>(() => {
+    const out: Record<string, Array<Record<string, string>>> = {};
+    for (const f of fields) {
+      const v = milestone.studentFormData?.[f.key];
+      if (f.type === 'table') out[f.key] = Array.isArray(v) ? v : [];
+    }
+    return out;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState('');
 
-  // Pre-fill from a previous submission (resubmission after a rejection).
-  useEffect(() => {
-    if (!milestone.studentFormData) return;
-    const nextValues: Record<string, string> = {};
-    const nextTables: Record<string, Array<Record<string, string>>> = {};
-    for (const f of fields) {
-      const v = milestone.studentFormData[f.key];
-      if (f.type === 'table') nextTables[f.key] = Array.isArray(v) ? v : [];
-      else if (v !== undefined && v !== null) nextValues[f.key] = String(v);
-    }
-    setValues(nextValues);
-    setTableValues(nextTables);
-    // Only ever needs to run once, when the modal first opens with existing data.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // S4 — unsent answers autosave privately (only this student, not the team).
+  const draft = useServerDraft(studentDraftPath(milestone.id, 'student_form'), { values, tableValues }, (d) => {
+    setValues(d.values ?? {});
+    setTableValues(d.tableValues ?? {});
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +182,7 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
       body.append('milestoneId', milestone.id);
       body.append('projectId', project.id);
       await apiClient.submitMilestone(milestone.id, body);
+      draft.clear();
       onSubmitted();
       onClose();
     } catch (err) {
@@ -306,6 +316,12 @@ export function ResearchProposalFormModal({ milestone, project, onClose, onSubmi
           ))}
         </div>
 
+        <div className="mt-3">
+          <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => {
+            draft.clear();
+            onClose();
+          }} />
+        </div>
         {error && <p className="mt-3 rounded-student bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 
         </div>

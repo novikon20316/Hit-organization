@@ -10,6 +10,7 @@ import { Response } from 'express';
 import type Anthropic from '@anthropic-ai/sdk';
 import { AuthenticatedRequest, getUserRoles } from '../middleware/auth.js';
 import { askAssistant, assistantSupportsRole } from '../services/assistantService.js';
+import { studentAssistantDocuments } from '../services/assistantDocuments.js';
 import { L } from '../utils/localize.js';
 
 const MAX_TURNS = 12;
@@ -53,7 +54,16 @@ export const askAssistantHandler = async (req: AuthenticatedRequest, res: Respon
     });
   }
 
-  const reply = await askAssistant({ role, lang: req.lang === 'en' ? 'en' : 'he', messages });
+  const lang = req.lang === 'en' ? 'en' : 'he';
+  // S6 — students also get their faculty's public procedure documents. A
+  // failure here just means answering from the manual alone.
+  const documents = role === 'student'
+    ? await studentAssistantDocuments(req.user.uid, lang).catch((err) => {
+      console.warn('assistant documents failed:', err);
+      return [];
+    })
+    : [];
+  const reply = await askAssistant({ role, lang, messages, documents });
   if (!reply) {
     return res.status(503).json({ message: L(req, 'The assistant is unavailable right now. Please try again later.', 'העוזר אינו זמין כרגע. נסו שוב מאוחר יותר.') });
   }

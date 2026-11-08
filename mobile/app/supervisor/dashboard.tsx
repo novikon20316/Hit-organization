@@ -28,6 +28,7 @@ import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useMilestoneChangeRefresh } from '@/hooks/useMilestoneChangeRefresh';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 // Derives a human-readable file name from a Cloudinary/Storage URL for the
@@ -54,8 +55,6 @@ import {
   query,
   where,
   onSnapshot,
-  getDocs,
-  documentId,
 } from 'firebase/firestore';
 
 // Label for the reviewedAt date, tailored to which decision it records.
@@ -308,13 +307,6 @@ export default function SupervisorHome() {
   // ── Firestore unsubscribe refs (cleanup on unmount) ───────────────────────
   const unsubApplicationsRef  = useRef<(() => void) | null>(null);
   const unsubProjectsRef      = useRef<(() => void) | null>(null);
-  const unsubGradingRef = useRef<(() => void) | null>(null);
-  // uid → displayName cache for the grading listener below — avoids
-  // re-fetching the same students' user docs on every snapshot fire (a grade
-  // edit, a status flip, an examiner change all re-fire it, not just a new
-  // submission), and batches any genuinely-new lookups via one `in` query
-  // instead of one getDoc per student per submitted milestone.
-  const studentNameCacheRef = useRef<Map<string, string>>(new Map());
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
   };
@@ -374,7 +366,6 @@ export default function SupervisorHome() {
     return () => {
       unsubApplicationsRef.current?.();
       unsubProjectsRef.current?.();
-      unsubGradingRef.current?.();
     };
   }, []);
 
@@ -537,88 +528,12 @@ export default function SupervisorHome() {
     return unsub;
   }, [myProjectIdsKey]);
 
-  // ── Firestore: real-time grading listener ─────────────────────────────────
-  // CRITICAL FIX: same issue as applications — milestones only ever carry
-  // the primary supervisor's uid, never secondarySupervisorId. Keyed off the
-  // same project-id list instead.
-  useEffect(() => {
-    unsubGradingRef.current?.();
-    if (myProjectIds.length === 0) { setPendingGrades([]); return; }
-
-    const idChunks: string[][] = [];
-    for (let i = 0; i < myProjectIds.length; i += 30) idChunks.push(myProjectIds.slice(i, i + 30));
-
-    const chunkResults: PendingMilestone[][] = idChunks.map(() => []);
-    const applyAndSet = () => setPendingGrades(chunkResults.flat());
-
-    const unsubs = idChunks.map((ids, i) =>
-      onSnapshot(query(collection(db, 'milestones'), where('projectId', 'in', ids)), async (snapshot) => {
-        const submitted = snapshot.docs.filter((d) => d.data().status === 'submitted');
-
-        // Resolve student display names via the shared uid→name cache,
-        // batch-fetching only the uids this callback hasn't already resolved
-        // (a `documentId() in [...]` query, chunked at Firestore's 30-value
-        // cap) instead of one getDoc per student per submitted milestone —
-        // see studentNameCacheRef's own comment above.
-        const cache = studentNameCacheRef.current;
-        const uncachedIds = [...new Set(
-          submitted.flatMap((d) => (d.data().studentIds ?? []) as string[])
-        )].filter((sid) => !cache.has(sid));
-
-        if (uncachedIds.length) {
-          const lookupChunks: string[][] = [];
-          for (let j = 0; j < uncachedIds.length; j += 30) lookupChunks.push(uncachedIds.slice(j, j + 30));
-          await Promise.all(
-            lookupChunks.map(async (chunk) => {
-              const usersSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)));
-              usersSnap.docs.forEach((u) => {
-                const data = u.data();
-                cache.set(u.id, data.displayName ?? data.displayNameHe ?? '');
-              });
-            })
-          );
-        }
-
-        const grades: PendingMilestone[] = submitted.map((d) => {
-          const data = d.data();
-          const studentIds: string[] = data.studentIds ?? [];
-          const studentNames = studentIds.map((sid) => cache.get(sid) ?? '');
-
-          return {
-            id:             d.id,
-            projectId:      data.projectId      ?? '',
-            projectTitleHe: data.projectTitleHe ?? '',
-            projectTitleEn: data.projectTitleEn ?? '',
-            type:           data.type           ?? '',
-            // Snapshotted from the workflow template at enrollment — the
-            // only real name a custom milestone type has (see
-            // utils/milestoneLabel.ts's milestoneDisplayName).
-            nameHe:         data.nameHe          ?? null,
-            nameEn:         data.nameEn          ?? null,
-            status:         data.status          ?? '',
-            studentNames,
-            studentIds,
-            fileUrls:       data.fileUrls       ?? [],
-            submissionNote: data.submissionNote ?? '',
-            facultyId:      data.facultyId      ?? '',
-            dueDate:        data.dueDate?.toDate?.()?.toISOString()     ?? null,
-            submittedAt:    data.submittedAt?.toDate?.()?.toISOString() ?? null,
-            gradingComponents: data.gradingComponents ?? [],
-            // GradeMilestoneModal decides grade-form vs approve/reject from
-            // these — without them an approve station showed a grading form.
-            routing:           data.routing ?? null,
-            currentStageIndex: data.currentStageIndex ?? 0,
-          };
-        });
-        chunkResults[i] = grades;
-        applyAndSet();
-      })
-    );
-
-    const unsub = () => unsubs.forEach((u) => u());
-    unsubGradingRef.current = unsub;
-    return unsub;
-  }, [myProjectIdsKey]);
+  // ── Live grading refresh ──────────────────────────────────────────────────
+  // A change to any of this supervisor's milestones re-fetches the
+  // dashboard, whose pendingGrades the server builds. Supervisors no longer
+  // read milestone docs directly — they carry examiner-only forms — see
+  // hooks/useMilestoneChangeRefresh.ts.
+  useMilestoneChangeRefresh(() => fetchDashboardData(true));
 
   // ── Create project ────────────────────────────────────────────────────────
   const handleCreateProject = async () => {

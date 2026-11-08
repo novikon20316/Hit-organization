@@ -17,6 +17,7 @@ import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRef
 import type { StudentState, DegreeType, ProjectProposal, ActiveProject, Milestone, PendingApplication } from '@/app/student/home/types';
 import { resolveMilestoneOrder } from '@/app/student/home/types';
 import { resolveEffectiveTrack, type StudentTrack, type TrackPolicy } from '@/lib/studentTrack';
+import { useMilestoneChangeRefresh } from '@/hooks/useMilestoneChangeRefresh';
 
 // One entry per project the student is currently enrolled in — in practice
 // always a single-element array, since a student may only have one active
@@ -48,7 +49,6 @@ export function useStudentData() {
 
   const unsubProposals = useRef<(() => void) | null>(null);
   const unsubUserDoc = useRef<(() => void) | null>(null);
-  const unsubMilestones = useRef<(() => void) | null>(null);
 
   const cancel = (ref: React.MutableRefObject<(() => void) | null>) => {
     if (ref.current) {
@@ -60,7 +60,6 @@ export function useStudentData() {
   const cancelAllListeners = useCallback(() => {
     cancel(unsubProposals);
     cancel(unsubUserDoc);
-    cancel(unsubMilestones);
   }, []);
 
   // `silent` skips the 'loading' state flip — used for background live
@@ -308,48 +307,12 @@ export function useStudentData() {
     return () => cancel(unsubUserDoc);
   }, [firebaseUser, fetchDashboardData]);
 
-  // ── EFFECT 4: live milestones listener (only when active project(s) loaded) ──
-  // One listener covering every active project at once (studentIds
-  // array-contains, no projectId filter), grouped back out by projectId
-  // below — simpler than juggling one onSnapshot per project, and works
-  // identically whether the student has 1 or 2 active projects.
-  useEffect(() => {
-    cancel(unsubMilestones);
-    if (studentState !== 'active' || !activeProjectIdsKey) return;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    const q = query(collection(db, 'milestones'), where('studentIds', 'array-contains', uid));
-
-    // The listener is only a "something changed" signal: the milestones are
-    // re-fetched through the same API a full page refresh uses. Rebuilding
-    // them from the raw docs here (as this used to) dropped every field not
-    // hand-copied over — revisionHistory, committeeReviewHistory,
-    // supervisorEvaluation, gradeOverride, supervisorReviewFeedback... — and
-    // skipped the server's own per-viewer visibility filtering, so e.g. a
-    // supervisor's rejection only fully showed up after a manual refresh.
-    // The first snapshot is the state fetchDashboardData just loaded; a
-    // short debounce folds a multi-field server write into one refetch.
-    let initialSnapshot = true;
-    let debounce: ReturnType<typeof setTimeout> | null = null;
-    const unsub = onSnapshot(
-      q,
-      () => {
-        if (initialSnapshot) { initialSnapshot = false; return; }
-        if (debounce) clearTimeout(debounce);
-        debounce = setTimeout(() => { refreshMilestones(); }, 250);
-      },
-      (err) => {
-        if ((err as { code?: string }).code === 'permission-denied') return;
-      }
-    );
-
-    unsubMilestones.current = unsub;
-    return () => {
-      if (debounce) clearTimeout(debounce);
-      cancel(unsubMilestones);
-    };
-  }, [studentState, activeProjectIdsKey, refreshMilestones]);
+  // ── EFFECT 4: live milestone refresh (only when active project(s) loaded) ──
+  // A change to any of this student's milestones re-fetches them through
+  // the API. Students can't read milestone docs directly (they carry
+  // examiner-only forms and unreleased grades) — they listen to their own
+  // data-free milestoneSignals marker instead; see useMilestoneChangeRefresh.
+  useMilestoneChangeRefresh(refreshMilestones, studentState === 'active');
 
   // Any new notification (an application decision, a grade released, ...)
   // also silently reloads — covers events that don't touch a milestone doc.

@@ -20,6 +20,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../../src/firebase/firebase';
+import { useServerDraft } from '../../hooks/useServerDraft';
+import { DraftNotice } from '../DraftNotice';
 import { apiClient } from '../../src/api/apiClient';
 import { examinerSignatureStyle } from '../../utils/examinerSignature';
 import { tx, type Lang } from '../i18n';
@@ -85,25 +87,34 @@ export default function ResearchProposalFormModal({
   const studentIds = milestone.studentIds?.length ? milestone.studentIds : [auth.currentUser?.uid ?? ''].filter(Boolean);
 
   const [teammates, setTeammates] = useState<TeammateProfile[] | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [tableValues, setTableValues] = useState<Record<string, Array<Record<string, string>>>>({});
+  // Pre-filled from a previous submission (resubmission after a rejection) —
+  // initial state rather than an effect, so the draft below compares
+  // against the real starting point.
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const f of fields) {
+      const v = milestone.studentFormData?.[f.key];
+      if (f.type !== 'table' && v !== undefined && v !== null) out[f.key] = String(v);
+    }
+    return out;
+  });
+  const [tableValues, setTableValues] = useState<Record<string, Array<Record<string, string>>>>(() => {
+    const out: Record<string, Array<Record<string, string>>> = {};
+    for (const f of fields) {
+      const v = milestone.studentFormData?.[f.key];
+      if (f.type === 'table') out[f.key] = Array.isArray(v) ? v : [];
+    }
+    return out;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!milestone.studentFormData) return;
-    const nextValues: Record<string, string> = {};
-    const nextTables: Record<string, Array<Record<string, string>>> = {};
-    for (const f of fields) {
-      const v = milestone.studentFormData[f.key];
-      if (f.type === 'table') nextTables[f.key] = Array.isArray(v) ? v : [];
-      else if (v !== undefined && v !== null) nextValues[f.key] = String(v);
-    }
-    setValues(nextValues);
-    setTableValues(nextTables);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // S4 — unsent answers autosave privately (only this student, not the team).
+  const draft = useServerDraft(`/api/student/drafts/${encodeURIComponent(milestone.id)}/student_form`, { values, tableValues }, (d) => {
+    setValues(d.values ?? {});
+    setTableValues(d.tableValues ?? {});
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +212,7 @@ export default function ResearchProposalFormModal({
       body.append('milestoneId', milestone.id);
       body.append('projectId', projectId);
       await apiClient.submitMilestone(milestone.id, body);
+      draft.clear();
       onSubmitted();
     } catch (e: any) {
       const data = e?.response?.data;
@@ -315,6 +327,7 @@ export default function ResearchProposalFormModal({
           </View>
         ))}
 
+        <DraftNotice he={lang === 'he'} restoredAt={draft.restoredAt} status={draft.status} onDiscard={() => { draft.clear(); onClose(); }} />
         {error && (
           <Text style={[styles.submitMsg, styles.submitMsgErr]}>{error}</Text>
         )}

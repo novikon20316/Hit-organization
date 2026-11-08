@@ -28,6 +28,12 @@ export interface RevisionHistoryEntry {
   decisionReason: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** S2 — the supervisor's review of this round, exactly as the student
+   *  saw it on the milestone (ActiveDashboard's SupervisorFeedbackBlock):
+   *  attachments always, the comment only on an approval — on a return the
+   *  comment IS decisionReason. Absent on entries archived before
+   *  2026-11-08 or rounds with no supervisor review. */
+  supervisorFeedback?: { decision: 'approve' | 'reject'; comment: string; fileUrls: string[] } | null;
 }
 
 function toIso(value: unknown): string | null {
@@ -52,6 +58,15 @@ export function buildRevisionArchiveUpdate(
     : (status === 'coordinator_approved' || status === 'approved') ? 'approved'
     : null;
 
+  // Only feedback given on THIS round — a review from an earlier round
+  // stays on the doc until the next one replaces it.
+  const fb = data.supervisorReviewFeedback;
+  const fbAt = toIso(fb?.decidedAt);
+  const roundStart = toIso(data.submittedAt);
+  const supervisorFeedback = fb && (fb.decision === 'approve' || fb.decision === 'reject') && fbAt && (!roundStart || fbAt >= roundStart)
+    ? { decision: fb.decision, comment: fb.decision === 'approve' ? String(fb.comment ?? '') : '', fileUrls: Array.isArray(fb.fileUrls) ? fb.fileUrls : [] }
+    : null;
+
   const entry: RevisionHistoryEntry = {
     version: previousHistory.length + 1,
     fileUrls: data.fileUrls ?? [],
@@ -65,6 +80,7 @@ export function buildRevisionArchiveUpdate(
       decision === 'rejected' ? toIso(data.coordinatorRejectedAt)
       : decision === 'approved' ? toIso(data.coordinatorApprovedAt)
       : null,
+    supervisorFeedback,
   };
 
   return {

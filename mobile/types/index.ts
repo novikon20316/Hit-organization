@@ -733,6 +733,9 @@ export interface MilestoneRevision {
   decisionReason: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** The supervisor's review of this round as the student saw it — see
+   *  server/src/services/milestoneRevisions.ts. */
+  supervisorFeedback?: { decision: 'approve' | 'reject'; comment: string; fileUrls: string[] } | null;
 }
 
 export interface PendingMilestone {
@@ -975,6 +978,10 @@ export interface Milestone {
   dueDate:     string;
   submittedAt: string | null;
   fileUrls:    string[];
+  submissionNote?: string;
+  /** S5 — which role this milestone waits on and since when (server-
+   *  computed; role only). null once done. See utils/milestoneWaiting.ts. */
+  waiting?: { role: string; since: string | null } | null;
   finalGrade:  number | null;
   /** Only on a seminar milestone — see utils/seminar.ts. */
   seminarSchedule?: { date: string; time: string; location?: string; note?: string } | null;

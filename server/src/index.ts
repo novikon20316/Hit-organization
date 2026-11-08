@@ -67,6 +67,7 @@ import { runTrackedJob } from './services/systemHealth.js';
 import { sendEmailDigests } from './services/emailDigest.js';
 import { sendScheduledReminders } from './services/supervisorReminders.js';
 import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
+import { startMilestoneChangeWatcher } from './services/milestoneChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { WEBSITE_URL } from './config/links.js';
@@ -377,6 +378,8 @@ setInterval(() => {
 startUsersChangeWatcher();
 // Live refresh for defense scheduling screens — see services/defenseScheduleChangeSignal.ts.
 startDefenseScheduleChangeWatcher();
+// Students' and supervisors' milestone live refresh — see services/milestoneChangeSignal.ts.
+startMilestoneChangeWatcher();
 
 // ─── 0.0.0.0 lets physical devices reach the server on local network ──────────
 app.listen(PORT, '0.0.0.0', () => {

@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefenseLink, showsDefensePlace } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, downloadAuthenticatedFile } from '@/lib/apiClient';
 import { SubmitMilestoneModal } from './SubmitMilestoneModal';
 import { ResearchProposalFormModal } from './ResearchProposalFormModal';
 import { ProgressReportFormModal } from './ProgressReportFormModal';
@@ -17,6 +17,8 @@ import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { downloadFile } from '@/lib/fileClickPreview';
+import { waitingText } from '@/lib/milestoneWaiting';
+import { SubmissionHistory, fileNameFromUrl } from './SubmissionHistory';
 import {
   OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
   MILESTONES_TAB_FIELD_GUIDE, MILESTONES_TAB_GUIDE_KEY,
@@ -34,20 +36,6 @@ import {
   type SupervisorReviewFeedback,
   type Milestone,
 } from './types';
-
-// File URLs carry no separate filename field — derive a human-readable one
-// from the URL itself, same approach as components/MilestoneTimeline.tsx's
-// fileNameFromUrl (that helper isn't exported, so duplicated here).
-function fileNameFromUrl(url: string, index: number, lang: 'he' | 'en'): string {
-  try {
-    const path = decodeURIComponent(new URL(url).pathname);
-    const last = path.split('/').filter(Boolean).pop();
-    if (last) return last;
-  } catch {
-    // fall through to generic label below
-  }
-  return lang === 'he' ? `קובץ ${index + 1}` : `File ${index + 1}`;
-}
 
 interface ActiveDashboardProps {
   project: ActiveProject;
@@ -77,6 +65,7 @@ interface ProjectInfoFile {
 export function ActiveDashboard({ project, milestones, progress, onChanged, tab }: ActiveDashboardProps) {
   const { lang, t } = useLanguage();
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
+  const [calendarError, setCalendarError] = useState('');
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [templateError, setTemplateError] = useState('');
   const [expandedGradeIds, setExpandedGradeIds] = useState<Record<string, boolean>>({});
@@ -153,6 +142,19 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
   // stuck/broken button.
   const isWaitingApproval = milestones.some((m) => (['submitted', 'graded', 'supervisor_graded'] as string[]).includes(m.status));
 
+  // S1 — the one concrete thing the student has to do next.
+  const nextStep = (() => {
+    const m = actionableNextMilestone;
+    if (!m || m.type === 'defense') return null;
+    if (m.status === 'rejected') {
+      return { kind: 'resubmit' as const, he: 'הוחזר אליך לתיקון — יש לתקן ולהגיש שוב', en: 'Returned to you — fix it and resubmit', buttonHe: 'הגשה מתוקנת', buttonEn: 'Resubmit' };
+    }
+    if (m.studentFormFields?.length) {
+      return { kind: 'form' as const, he: 'מילוי הטופס המקוון', en: 'Fill in the online form', buttonHe: 'מילוי הטופס', buttonEn: 'Fill in the form' };
+    }
+    return { kind: 'file' as const, he: 'העלאת הקובץ שלך', en: 'Upload your file', buttonHe: 'העלאת קובץ', buttonEn: 'Upload file' };
+  })();
+
   // Real "Recent Feedback" source for the Milestones tab's right-column
   // panel — never fabricated: prefer the most recently reached milestone
   // that has a rejectionReason, falling back to the most recently reached
@@ -205,6 +207,23 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                 <span dir="ltr">{milestones.filter((m) => m.status === 'coordinator_approved').length} / {milestones.length}</span>{' '}
                 {lang === 'he' ? 'אבני דרך הושלמו' : 'milestones completed'}
               </p>
+              {/* S3 — a one-time, signed-in .ics download of this student's own
+                  deadlines (never a subscription link). */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setCalendarError('');
+                  try {
+                    await downloadAuthenticatedFile('/api/student/calendar.ics', 'milestones.ics', { lang });
+                  } catch {
+                    setCalendarError(lang === 'he' ? 'הורדת קובץ היומן נכשלה' : 'Could not download the calendar file');
+                  }
+                }}
+                className="mt-3 rounded-student border border-student-outline-variant px-3 py-1.5 text-xs font-semibold text-student-primary hover:bg-student-surface-container-low"
+              >
+                📅 {lang === 'he' ? 'הוספת המועדים ליומן (‎.ics)' : 'Add deadlines to my calendar (.ics)'}
+              </button>
+              {calendarError && <p className="mt-1 text-xs text-danger" role="alert">{calendarError}</p>}
             </div>
           </div>
 
@@ -257,6 +276,22 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                 })()}
               </p>
 
+              {/* S1 — what exactly is missing, or who it's waiting on. */}
+              {isWaitingApproval && waitingText(overviewDisplayMilestone.waiting, lang) && (
+                <p className="mt-1 text-xs font-medium text-accent">⏳ {waitingText(overviewDisplayMilestone.waiting, lang)}</p>
+              )}
+              {!isWaitingApproval && nextStep && (
+                <div className="mt-2 text-xs">
+                  <p className="font-medium text-student-on-surface">
+                    {lang === 'he' ? 'מה חסר: ' : "What's needed: "}
+                    <span className={nextStep.kind === 'resubmit' ? 'text-danger' : 'text-student-on-surface-variant'}>{lang === 'he' ? nextStep.he : nextStep.en}</span>
+                  </p>
+                  {nextStep.kind === 'resubmit' && actionableNextMilestone?.rejectionReason && (
+                    <p className="mt-1 whitespace-pre-wrap rounded-student bg-danger-bg p-2 text-danger">{actionableNextMilestone.rejectionReason}</p>
+                  )}
+                </div>
+              )}
+
               {actionableNextMilestone?.type === 'defense' && (
                 <DefenseDetails milestone={actionableNextMilestone} />
               )}
@@ -268,7 +303,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                   onClick={() => actionableNextMilestone && setSubmitTarget(actionableNextMilestone)}
                   className="mt-4 w-full rounded-student-lg bg-student-primary py-2.5 text-sm font-semibold text-student-on-primary hover:bg-student-primary-container disabled:opacity-40"
                 >
-                  {isWaitingApproval ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval') : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
+                  {isWaitingApproval ? (lang === 'he' ? 'ממתין לאישור סגל' : 'Awaiting Faculty Approval') : nextStep ? (lang === 'he' ? nextStep.buttonHe : nextStep.buttonEn) : (lang === 'he' ? 'הגש אבן דרך' : 'Submit Milestone')}
                 </button>
               )}
             </div>
@@ -339,7 +374,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                           {m.finalGrade !== null && ` · ${t('grade')}: ${m.finalGrade}`}
                         </p>
                       ) : isSubmittedInReview ? (
-                        <p className="mt-1 text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval'}</p>
+                        <p className="mt-1 text-xs font-medium text-accent">📤 {waitingText(m.waiting, lang) ?? (lang === 'he' ? 'הוגש — ממתין לאישור' : 'Submitted — awaiting approval')}</p>
                       ) : isRejected ? (
                         <p className="mt-1 text-xs font-medium text-danger">
                           ↩ {lang === 'he' ? 'הוחזר לתיקון — יש להגיש גרסה מתוקנת' : 'Returned for revision — please resubmit a corrected version'}
@@ -401,6 +436,11 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                         </div>
                       )}
                       {isDefense && !m.defenseDate && <p className="mt-1 text-xs text-student-on-surface-variant">{t('defenseNotScheduled')}</p>}
+                      {/* S5 — any other stage held by staff (examiners, a chain stage, the
+                          seminar booking): who it's with and for how long. */}
+                      {unlocked && !isApprovedOrDone && !isSubmittedInReview && waitingText(m.waiting, lang) && (
+                        <p className="mt-1 text-xs font-medium text-accent">⏳ {waitingText(m.waiting, lang)}</p>
+                      )}
 
                       {isRejected && m.rejectionReason && (
                         <div className="mt-2 rounded-student bg-danger-bg p-2.5">
@@ -469,28 +509,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                       )}
 
                       {m.revisionHistory && m.revisionHistory.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-xs font-medium text-student-on-surface-variant hover:text-student-on-surface">
-                            {lang === 'he' ? `🕘 היסטוריית הגשות (${m.revisionHistory.length})` : `🕘 Submission History (${m.revisionHistory.length})`}
-                          </summary>
-                          <div className="mt-1.5 grid gap-1.5">
-                            {m.revisionHistory.map((rev) => (
-                              <div key={rev.version} className="rounded-student border border-student-outline-variant bg-student-surface-container-low p-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-semibold text-student-on-surface">
-                                    {lang === 'he' ? `גרסה ${rev.version}` : `Version ${rev.version}`}
-                                  </span>
-                                  {rev.decision === 'rejected' && (
-                                    <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-medium text-danger">
-                                      {lang === 'he' ? '❌ נדחתה' : '❌ Rejected'}
-                                    </span>
-                                  )}
-                                </div>
-                                {rev.decisionReason && <p className="mt-1 text-xs text-danger">{rev.decisionReason}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
+                        <SubmissionHistory history={m.revisionHistory} current={{ fileUrls: m.fileUrls ?? [], submissionNote: m.submissionNote ?? '', submittedAt: m.submittedAt }} />
                       )}
                     </div>
                   </div>

@@ -1,10 +1,12 @@
 // src/controllers/formDraftController.ts
 //
-// E3 — examiner form drafts (see services/formDrafts.ts). Two front doors to
-// the same store: internal examiners by account (verifyToken; must be on the
+// Form drafts (see services/formDrafts.ts). Three front doors to the same
+// store: internal examiners by account (verifyToken; must be on the
 // milestone's panel), external examiners by access token after the email
-// code (isOtpSessionFresh). Neither path lets anyone read another examiner's
-// draft — the owner key is always derived from the caller, never the body.
+// code (isOtpSessionFresh), and students by account for their own team's
+// online forms (S4 — private to each student, decided 2026-11-08). No path
+// lets anyone read another person's draft — the owner key is always derived
+// from the caller, never the body.
 import { Request, Response } from 'express';
 import { db } from '../config/firebase.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
@@ -35,6 +37,25 @@ async function internalScope(req: AuthenticatedRequest, res: Response): Promise<
     return null;
   }
   return { milestoneId, ownerKey: `internal:${uid}`, formKey };
+}
+
+async function studentScope(req: AuthenticatedRequest, res: Response): Promise<Scope | null> {
+  const uid = req.user?.uid;
+  const { milestoneId, formKey } = req.params as Record<string, string>;
+  if (!uid) {
+    res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+    return null;
+  }
+  if (typeof milestoneId !== 'string' || !milestoneId || !isValidFormKey(formKey)) {
+    res.status(400).json({ message: L(req, 'Invalid request.', 'בקשה לא תקינה.') });
+    return null;
+  }
+  const m = (await db.collection('milestones').doc(milestoneId).get()).data();
+  if (!m || !(m.studentIds ?? []).includes(uid)) {
+    res.status(403).json({ message: L(req, 'This is not your milestone.', 'אבן דרך זו אינה שלך.') });
+    return null;
+  }
+  return { milestoneId, ownerKey: `student:${uid}`, formKey };
 }
 
 async function externalScope(req: Request, res: Response): Promise<Scope | null> {
@@ -97,5 +118,7 @@ function handlers(scopeOf: (req: Request, res: Response) => Promise<Scope | null
 
 /** /api/examiner/drafts/:milestoneId/:formKey (verifyToken) */
 export const internalDraft = handlers((req, res) => internalScope(req as AuthenticatedRequest, res));
+/** /api/student/drafts/:milestoneId/:formKey (verifyToken) */
+export const studentDraft = handlers((req, res) => studentScope(req as AuthenticatedRequest, res));
 /** /api/examiner-access/:token/drafts/:formKey (public, OTP-gated) */
 export const externalDraft = handlers(externalScope);

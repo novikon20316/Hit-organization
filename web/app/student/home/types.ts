@@ -97,6 +97,9 @@ export interface MilestoneRevision {
   decisionReason: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** The supervisor's review of this round as the student saw it — see
+   *  server/src/services/milestoneRevisions.ts. */
+  supervisorFeedback?: { decision: 'approve' | 'reject'; comment: string; fileUrls: string[] } | null;
 }
 
 /** The data_science three-rubric defense workflow's supervisor-side rubric
@@ -149,6 +152,11 @@ export interface Milestone {
   dueDate: string | null;
   submittedAt: string | null;
   fileUrls: string[];
+  submissionNote?: string;
+  /** S5 — which role this milestone is waiting on and since when (server-
+   *  computed; role only, never names). null once done. See
+   *  lib/milestoneWaiting.ts. */
+  waiting?: { role: string; since: string | null } | null;
   finalGrade: number | null;
   supervisorScore?: number | null;
   /** See lib/seminar.ts — only on a seminar milestone. */

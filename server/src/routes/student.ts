@@ -9,6 +9,8 @@ import {
 import { chooseTrack } from '../controllers/studentTrackController.js';
 import { getMyFinalReportLinks } from '../controllers/finalReportController.js';
 import { verifyToken } from '../middleware/auth.js';
+import { getStudentCalendar } from '../controllers/studentCalendarController.js';
+import { studentDraft } from '../controllers/formDraftController.js';
 
 const router = Router();
 
@@ -21,6 +23,12 @@ router.post('/join-project-direct', verifyToken, joinProjectDirect)
 router.post('/track/choose', verifyToken, chooseTrack)
 // GET /api/student/final-report-links — view-only final report link(s), see services/finalReport.ts
 router.get('/final-report-links', verifyToken, getMyFinalReportLinks)
+// S3 — one-time .ics download of the student's own deadlines (not a subscription link).
+router.get('/calendar.ics', verifyToken, getStudentCalendar)
+// S4 — unsent online-form drafts, private to this student (services/formDrafts.ts).
+router.get('/drafts/:milestoneId/:formKey', verifyToken, studentDraft.get)
+router.put('/drafts/:milestoneId/:formKey', verifyToken, studentDraft.put)
+router.delete('/drafts/:milestoneId/:formKey', verifyToken, studentDraft.delete)
 
 
 

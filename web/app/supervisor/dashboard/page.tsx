@@ -14,15 +14,14 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, query, where, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useMilestoneChangeRefresh } from '@/hooks/useMilestoneChangeRefresh';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient } from '@/lib/apiClient';
-import { db } from '@/lib/firebase';
 import type { AppRole } from '@/lib/roles';
 import type { FacultyId } from '@/lib/i18n';
 import type { ExaminerUser } from '@/app/coordinator/home/types';
@@ -80,7 +79,7 @@ const PROJECT_FILTERS: { key: ProjectFilter; he: string; en: string }[] = [
 ];
 
 function SupervisorDashboardContent() {
-  const { loading: guardLoading, isAllowed, firebaseUser } = useRequireRole(SUPERVISOR_ROLES);
+  const { loading: guardLoading, isAllowed } = useRequireRole(SUPERVISOR_ROLES);
   const { lang, t } = useLanguage();
   const searchParams = useSearchParams();
 
@@ -235,81 +234,11 @@ function SupervisorDashboardContent() {
   // see hooks/useDefenseScheduleLiveRefresh.ts.
   useDefenseScheduleLiveRefresh(() => { if (isAllowed) fetchDashboard(); });
 
-  // Live milestone listener for pendingGrades. Unlike the coordinator/
-  // examiner dashboards' overlay-by-id (which only ever patches fields onto
-  // milestones already present), pendingGrades is itself defined as "every
-  // milestone with status === 'submitted'" (see supervisorController.ts's
-  // getSupervisorDashboard) — set membership changes over time (a grade
-  // gets submitted, or gets graded and should drop off), not just field
-  // values on a fixed set of rows. So each snapshot rebuilds the array from
-  // scratch off the raw milestone docs, using the exact same field mapping
-  // and status filter as the REST endpoint (milestone docs are already
-  // denormalized with projectTitleHe/studentNames/etc, so this needs no
-  // extra join). Two separate queries (supervisorId / secondarySupervisorId)
-  // since a milestone doc carries either field, mirroring mobile/app/
-  // supervisor/dashboard.tsx's identical primary+secondary split for
-  // projects.
-  const unsubPrimary = useRef<Unsubscribe | null>(null);
-  const unsubSecondary = useRef<Unsubscribe | null>(null);
-  const liveMilestonesRef = useRef<Map<string, any>>(new Map());
-  useEffect(() => {
-    if (unsubPrimary.current) { unsubPrimary.current(); unsubPrimary.current = null; }
-    if (unsubSecondary.current) { unsubSecondary.current(); unsubSecondary.current = null; }
-    liveMilestonesRef.current = new Map();
-    const uid = firebaseUser?.uid;
-    if (!isAllowed || !uid) return;
-
-    const applyOverlay = () => {
-      const rows = Array.from(liveMilestonesRef.current.entries())
-        .filter(([, data]) => data.status === 'submitted')
-        .map(([id, data]) => ({
-          id,
-          projectId: data.projectId ?? '',
-          projectTitleHe: data.projectTitleHe ?? '',
-          projectTitleEn: data.projectTitleEn ?? '',
-          type: data.type ?? '',
-          // Snapshotted from the workflow template at enrollment — the only
-          // real name a custom milestone type has (see
-          // lib/milestoneLabel.ts's milestoneDisplayName).
-          nameHe: data.nameHe ?? null,
-          nameEn: data.nameEn ?? null,
-          status: data.status ?? '',
-          studentNames: data.studentNames ?? [],
-          studentIds: data.studentIds ?? [],
-          fileUrls: data.fileUrls ?? [],
-          submissionNote: data.submissionNote ?? '',
-          facultyId: data.facultyId ?? '',
-          gradingComponents: data.gradingComponents ?? [],
-          // GradeMilestoneModal decides grade-form vs approve/reject from
-          // these — dropping them turned a live-updated approve station
-          // into a grading form.
-          routing: data.routing ?? null,
-          currentStageIndex: data.currentStageIndex ?? 0,
-          dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
-          submittedAt: data.submittedAt?.toDate?.()?.toISOString() ?? null,
-        }));
-      setPendingGrades(rows);
-    };
-
-    const onSnap = (snapshot: any) => {
-      snapshot.docChanges().forEach((change: any) => {
-        if (change.type === 'removed') liveMilestonesRef.current.delete(change.doc.id);
-        else liveMilestonesRef.current.set(change.doc.id, change.doc.data());
-      });
-      applyOverlay();
-    };
-    const onErr = (err: any) => {
-      if (err?.code === 'permission-denied') return; // expected during sign-out
-    };
-
-    unsubPrimary.current = onSnapshot(query(collection(db, 'milestones'), where('supervisorId', '==', uid)), onSnap, onErr);
-    unsubSecondary.current = onSnapshot(query(collection(db, 'milestones'), where('secondarySupervisorId', '==', uid)), onSnap, onErr);
-
-    return () => {
-      if (unsubPrimary.current) { unsubPrimary.current(); unsubPrimary.current = null; }
-      if (unsubSecondary.current) { unsubSecondary.current(); unsubSecondary.current = null; }
-    };
-  }, [isAllowed, firebaseUser?.uid]);
+  // A change to any of this supervisor's milestones (a new submission, one
+  // graded elsewhere) reloads the dashboard, whose pendingGrades the server
+  // builds. Supervisors no longer read milestone docs directly — they carry
+  // examiner-only forms — see hooks/useMilestoneChangeRefresh.ts.
+  useMilestoneChangeRefresh(() => { if (isAllowed) fetchDashboard(); }, isAllowed);
 
   if (guardLoading) {
     return (

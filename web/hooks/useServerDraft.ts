@@ -1,10 +1,11 @@
 'use client';
 
 // hooks/useServerDraft.ts
-// E3 — autosaves an examiner's unsent form on the server, private to them
-// (server/src/services/formDrafts.ts: internal examiners by account,
-// external ones by their access link after the email code), so closing the
-// tab or switching device loses nothing. Restores the draft when the form
+// E3/S4 — autosaves an unsent examiner or student form on the server,
+// private to whoever typed it (server/src/services/formDrafts.ts: internal
+// examiners and students by account, external examiners by their access
+// link after the email code), so closing the tab or switching device
+// loses nothing. Restores the draft when the form
 // opens, saves 2s after the last change, and the form calls clear() after a
 // successful submit. Drafts expire after 60 days.
 //
@@ -17,6 +18,9 @@ export const examinerDraftPath = (milestoneId: string, formKey: string) =>
   `/api/examiner/drafts/${encodeURIComponent(milestoneId)}/${formKey}`;
 export const externalDraftPath = (token: string, formKey: string) =>
   `/api/examiner-access/${encodeURIComponent(token)}/drafts/${formKey}`;
+/** S4 — a student's own online-form draft (private to them, not the team). */
+export const studentDraftPath = (milestoneId: string, formKey: string) =>
+  `/api/student/drafts/${encodeURIComponent(milestoneId)}/${formKey}`;
 
 const SAVE_DELAY_MS = 2000;
 // After clear(), the form usually reloads its submitted values — treat
