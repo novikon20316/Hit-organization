@@ -119,7 +119,9 @@ const COORDINATOR_ADJUST_ROLES = ['coordinator', 'faculty_admin', 'administrativ
 const COORDINATOR_APPROVE_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
 const EXAMINER_ROLES = ['examiner', 'internal_examiner'];
 
-function isCompletedStatus(status: MilestoneStatus): boolean {
+// Exported so admin/panel/ProjectsTab.tsx's per-card progress bar counts
+// exactly what this component's "Project Progress" bar counts.
+export function isCompletedStatus(status: MilestoneStatus): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 

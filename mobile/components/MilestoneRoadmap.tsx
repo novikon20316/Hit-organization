@@ -95,7 +95,9 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   completed: { color: p.success, bg: p.successContainer, icon: '🏁', he: 'הושלם', en: 'Completed' },
 };
 
-function isCompletedStatus(status: string): boolean {
+// Exported so app/admin/panel.tsx's per-card progress bar counts exactly
+// what this component's progress bar counts.
+export function isCompletedStatus(status: string): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 

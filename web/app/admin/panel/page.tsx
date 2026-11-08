@@ -441,7 +441,7 @@ function AdminPanelContent() {
           {filteredUsers.length === 0 && <p className="text-sm text-muted">{t('noData')}</p>}
         </div>
       ) : tab === 'projects' ? (
-        <ProjectsTab projects={projects} users={users} onChanged={fetchDashboard} />
+        <ProjectsTab projects={projects} milestones={milestones} users={users} onChanged={fetchDashboard} />
       ) : tab === 'milestones' ? (
         <MilestonesTab projects={projects} milestones={milestones} users={users} onChanged={fetchDashboard} />
       ) : tab === 'defenseAccess' ? (

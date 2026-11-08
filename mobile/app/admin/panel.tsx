@@ -53,6 +53,7 @@ import FloatingActionMenu from '@/components/FloatingActionMenu';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { ArchivedProjectsSection } from '@/components/ArchivedProjectsSection';
 import CreateOwnProjectButton from '@/components/CreateOwnProjectButton';
+import { isCompletedStatus } from '@/components/MilestoneRoadmap';
 
 // Mirrors server/src/services/studentRoster.ts's importApprovedStudentsFromBuffer
 // column parsing exactly — keep in sync if that function's expected columns change.
@@ -314,6 +315,9 @@ export default function PanelScreen() {
   const [addingStudent, setAddingStudent] = useState(false);
   // ── Schedule defense state ─────────────────────────────────────────────────────
   const [defenseProject, setDefenseProject] = useState<ProjectRecord | null>(null);
+  // Which project card's progress bar has its percentage label showing —
+  // tap toggles it (no hover on a phone; hover also works on web).
+  const [progressTipProjectId, setProgressTipProjectId] = useState<string | null>(null);
   const [showBulkDueDate, setShowBulkDueDate] = useState(false);
   //-----------------------------------------------------------------------------------
   const unsubUsersRef      = useRef<(() => void) | null>(null);
@@ -1027,6 +1031,19 @@ export default function PanelScreen() {
     const facultyOk = facultyFilter === 'all' || p.facultyId === facultyFilter;
     return statusOk && facultyOk;
   });
+
+  // Same completed/total count the project's milestone roadmap shows
+  // (components/MilestoneRoadmap.tsx) — dashboard-summary already carries
+  // every milestone, so no extra request.
+  const progressByProject = useMemo(() => {
+    const map: Record<string, { completed: number; total: number }> = {};
+    for (const m of milestones) {
+      const entry = (map[m.projectId] ??= { completed: 0, total: 0 });
+      entry.total += 1;
+      if (isCompletedStatus(m.status)) entry.completed += 1;
+    }
+    return map;
+  }, [milestones]);
 
   const openEditUser = (user: UserRecord) => {
     setEditUser(user);
@@ -1765,7 +1782,18 @@ export default function PanelScreen() {
                 {lang === 'he' ? 'לא נמצאו פרויקטים' : 'No projects found'}
               </Text>
             )}
-            {filteredProjects.map((p) => (
+            {filteredProjects.map((p) => {
+              const { completed, total } = progressByProject[p.id] ?? { completed: 0, total: 0 };
+              const percent = total ? Math.round((completed / total) * 100) : 0;
+              const progressLabel = total
+                ? lang === 'he'
+                  ? `${percent}% · ${completed} / ${total} אבני דרך הושלמו`
+                  : `${percent}% · ${completed} / ${total} milestones completed`
+                : lang === 'he'
+                  ? 'עדיין אין אבני דרך'
+                  : 'No milestones yet';
+              const showProgressTip = progressTipProjectId === p.id;
+              return (
               <View key={p.id} style={[styles.projectCard, { borderLeftColor: getFacultyColor(p.facultyId).primary }]}>
                 <View style={styles.projectHeader}>
                   <FacultyBadge facultyId={p.facultyId} lang={lang} />
@@ -1785,6 +1813,48 @@ export default function PanelScreen() {
                   {lang === 'he' ? 'סטודנטים' : 'students'}
                   {p.enrolledStudentNames?.length ? `: ${p.enrolledStudentNames.join(', ')}` : ''}
                 </Text>
+
+                <Pressable
+                  onPress={() => setProgressTipProjectId(showProgressTip ? null : p.id)}
+                  onHoverIn={() => setProgressTipProjectId(p.id)}
+                  onHoverOut={() => setProgressTipProjectId((cur) => (cur === p.id ? null : cur))}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={progressLabel}
+                  accessibilityValue={{ min: 0, max: 100, now: percent }}
+                  hitSlop={8}
+                  style={{ marginTop: 8, marginBottom: 6 }}
+                >
+                  {showProgressTip && (
+                    <Text
+                      style={{
+                        alignSelf: 'center',
+                        marginBottom: 4,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                        backgroundColor: ap.onSurface,
+                        color: ap.surfaceContainerLowest,
+                        fontSize: 11,
+                        fontWeight: '500',
+                        writingDirection: isRtl ? 'rtl' : 'ltr',
+                      }}
+                    >
+                      {progressLabel}
+                    </Text>
+                  )}
+                  <View style={{ height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: ap.surfaceContainerHigh }}>
+                    <View
+                      style={{
+                        height: '100%',
+                        width: `${percent}%`,
+                        borderRadius: 4,
+                        backgroundColor: getFacultyColor(p.facultyId).primary,
+                        alignSelf: isRtl ? 'flex-end' : 'flex-start',
+                      }}
+                    />
+                  </View>
+                </Pressable>
 
                 {/* Footer — separated from the metadata above like every
                     other role's project card (Fresh Project Card Designs) */}
@@ -1824,7 +1894,8 @@ export default function PanelScreen() {
                   </Pressable>
                 </View>
               </View>
-            ))}
+              );
+            })}
           </>
         )}
 

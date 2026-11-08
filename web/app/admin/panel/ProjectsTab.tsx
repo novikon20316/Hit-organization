@@ -16,17 +16,20 @@ import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { NewProjectModal } from './NewProjectModal';
 import { AddStudentToProjectModal } from './AddStudentToProjectModal';
 import { ScheduleDefenseModal } from './ScheduleDefenseModal';
-import type { AdminProjectRecord, AdminUserRecord } from './types';
+import { isCompletedStatus } from '@/components/MilestoneTimeline';
+import type { MilestoneStatus } from '@/app/student/home/types';
+import type { AdminMilestoneRecord, AdminProjectRecord, AdminUserRecord } from './types';
 
 const DISPLAYED_FACULTIES = VALID_FACULTY_IDS.filter((id) => id !== 'all');
 
 interface ProjectsTabProps {
   projects: AdminProjectRecord[];
+  milestones: AdminMilestoneRecord[];
   users: AdminUserRecord[];
   onChanged: () => void;
 }
 
-export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
+export function ProjectsTab({ projects, milestones, users, onChanged }: ProjectsTabProps) {
   const { lang } = useLanguage();
   const [statusFilter, setStatusFilter] = useState('all');
   const [facultyFilter, setFacultyFilter] = useState('all');
@@ -44,6 +47,19 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
       return statusOk && facultyOk;
     });
   }, [projects, statusFilter, facultyFilter]);
+
+  // Same completed/total count the project's milestones page shows in its
+  // "Project Progress" bar (components/MilestoneTimeline.tsx) — the dashboard
+  // summary already carries every milestone, so no extra request.
+  const progressByProject = useMemo(() => {
+    const map: Record<string, { completed: number; total: number }> = {};
+    for (const m of milestones) {
+      const entry = (map[m.projectId] ??= { completed: 0, total: 0 });
+      entry.total += 1;
+      if (isCompletedStatus(m.status as MilestoneStatus)) entry.completed += 1;
+    }
+    return map;
+  }, [milestones]);
 
   const statusOptions = useMemo(() => {
     const set = new Set(projects.map((p) => p.status).filter(Boolean));
@@ -98,6 +114,15 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
           const color = getFacultyColor(p.facultyId);
           const title = lang === 'he' ? p.titleHe : p.titleEn;
           const isActive = p.status.toLowerCase().includes('active');
+          const { completed, total } = progressByProject[p.id] ?? { completed: 0, total: 0 };
+          const percent = total ? Math.round((completed / total) * 100) : 0;
+          const progressLabel = total
+            ? lang === 'he'
+              ? `${percent}% · ${completed} / ${total} אבני דרך הושלמו`
+              : `${percent}% · ${completed} / ${total} milestones completed`
+            : lang === 'he'
+              ? 'עדיין אין אבני דרך'
+              : 'No milestones yet';
           return (
             <div
               key={p.id}
@@ -132,6 +157,27 @@ export function ProjectsTab({ projects, users, onChanged }: ProjectsTabProps) {
                   👥 {p.enrolledStudentIds?.length ?? 0} {lang === 'he' ? 'סטודנטים' : 'students'}
                   {p.enrolledStudentNames?.length ? `: ${p.enrolledStudentNames.join(', ')}` : ''}
                 </p>
+              </div>
+
+              {/* Hover (or keyboard focus) reveals the exact percentage. */}
+              <div
+                className="group relative mt-3 py-1 outline-none"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={percent}
+                aria-label={progressLabel}
+                tabIndex={0}
+              >
+                <div className="h-2 overflow-hidden rounded-full bg-admin-surface-container-high">
+                  <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${percent}%`, backgroundColor: color }} />
+                </div>
+                <span
+                  className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-admin bg-admin-on-surface px-2 py-1 text-[11px] font-medium text-admin-surface-container-lowest opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                  dir={lang === 'he' ? 'rtl' : 'ltr'}
+                >
+                  {progressLabel}
+                </span>
               </div>
 
               <div className="mt-3 grid gap-1.5 border-t border-admin-outline-variant pt-3">
