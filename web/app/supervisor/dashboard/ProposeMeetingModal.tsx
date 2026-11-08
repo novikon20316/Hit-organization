@@ -38,6 +38,26 @@ export function ProposeMeetingModal({ application, onClose, onProposed }: Propos
   const [slots, setSlots] = useState<string[]>(['']);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [suggesting, setSuggesting] = useState(false);
+
+  // Fills the slots with free 1-hour windows from the supervisor's own
+  // Google Calendar (free/busy only — see the server's getFreeSlots).
+  const suggestTimes = async () => {
+    setSuggesting(true);
+    setError('');
+    try {
+      const { slots: free } = await apiClient.getCalendarFreeSlots();
+      if (free.length === 0) {
+        setError(lang === 'he' ? 'לא נמצאו זמנים פנויים בשבועיים הקרובים' : 'No free times found in the next two weeks');
+      } else {
+        setSlots(free.slice(0, MAX_SLOTS).map((s) => `${s.date}T${s.time}`));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'קריאת היומן נכשלה' : 'Could not read your calendar');
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const updateSlot = (i: number, value: string) => {
     setSlots((prev) => prev.map((s, idx) => (idx === i ? value : s)));
@@ -99,6 +119,15 @@ export function ProposeMeetingModal({ application, onClose, onProposed }: Propos
             ? 'הצע עד 5 מועדים — הסטודנט/ית יבחר/תבחר אחד מהם.'
             : 'Offer up to 5 times — the student will pick one.'}
         </p>
+
+        <button
+          type="button"
+          onClick={suggestTimes}
+          disabled={suggesting}
+          className="mt-3 rounded-lg border border-supervisor-outline-variant px-3 py-1.5 text-xs font-medium text-supervisor-on-surface hover:border-supervisor-primary disabled:opacity-60"
+        >
+          {suggesting ? '…' : `✨ ${lang === 'he' ? 'הצע זמנים פנויים מהיומן שלי' : 'Suggest free times from my calendar'}`}
+        </button>
 
         <div className="mt-3 grid gap-2">
           {slots.map((slot, i) => (

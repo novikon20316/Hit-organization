@@ -30,7 +30,12 @@ import { db } from '../config/firebase.js';
 const CLIENT_ID = process.env.GOOGLE_CALENDAR_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GOOGLE_CALENDAR_CLIENT_SECRET || '';
 const REDIRECT_URI = process.env.GOOGLE_CALENDAR_REDIRECT_URI || '';
-const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+// calendar.freebusy (added 2026-11-08): busy/free blocks only — never event
+// titles, attendees or details — for "suggest meeting times" (getFreeSlots).
+// Connections made before it was added don't have it; they keep working for
+// event sync, and the suggest feature asks them to reconnect once.
+const FREEBUSY_SCOPE = 'https://www.googleapis.com/auth/calendar.freebusy';
+const SCOPES = ['https://www.googleapis.com/auth/calendar.events', FREEBUSY_SCOPE];
 
 export function isCalendarConfigured(): boolean {
   return !!(CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
@@ -75,6 +80,8 @@ export async function handleCalendarOAuthCallback(code: string, supervisorId: st
   }
   await db.collection('calendarCredentials').doc(supervisorId).set({
     refreshToken: tokens.refresh_token,
+    // What the supervisor actually granted — Google lets them untick scopes.
+    scopes: typeof tokens.scope === 'string' ? tokens.scope.split(' ') : [],
     connectedAt: new Date().toISOString(),
   });
 }
@@ -144,4 +151,79 @@ export async function createMeetingEvent(params: CreateMeetingEventParams): Prom
   });
 
   return { eventId: response.data.id ?? '', htmlLink: response.data.htmlLink ?? null };
+}
+
+// ─── Free-slot suggestions (Propose Meeting) ────────────────────────────────
+
+export class FreeSlotsUnavailableError extends Error {
+  constructor(public reason: 'not_connected' | 'needs_reconnect') {
+    super(reason);
+  }
+}
+
+const SLOT_TZ = 'Asia/Jerusalem';
+const WORK_START_HOUR = 9;
+const WORK_END_HOUR = 17;
+const SLOT_MINUTES = 60;
+const LOOKAHEAD_DAYS = 14;
+const MAX_SLOTS_PER_DAY = 2;
+
+/** Israel-time wall clock → UTC Date (handles DST via the zone's offset on that day). */
+function israelTime(date: string, hour: number): Date {
+  const guess = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
+  const local = new Date(guess.toLocaleString('en-US', { timeZone: SLOT_TZ }));
+  const offsetMs = local.getTime() - new Date(guess.toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
+  return new Date(guess.getTime() - offsetMs);
+}
+
+/**
+ * Free 1-hour windows on the supervisor's primary calendar, Sunday–Thursday
+ * 09:00–17:00 Israel time, from tomorrow over the next two weeks — at most
+ * MAX_SLOTS_PER_DAY per day so the suggestions spread out. Uses only the
+ * free/busy query (no event contents).
+ */
+export async function getFreeSlots(supervisorId: string, count: number): Promise<Array<{ date: string; time: string }>> {
+  const snap = await db.collection('calendarCredentials').doc(supervisorId).get();
+  const data = snap.data();
+  if (!data?.refreshToken) throw new FreeSlotsUnavailableError('not_connected');
+  if (!Array.isArray(data.scopes) || !data.scopes.includes(FREEBUSY_SCOPE)) throw new FreeSlotsUnavailableError('needs_reconnect');
+
+  const client = newOAuthClient();
+  client.setCredentials({ refresh_token: data.refreshToken });
+  const calendar = google.calendar({ version: 'v3', auth: client });
+
+  const days: string[] = [];
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: SLOT_TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+  for (let i = 1; i <= LOOKAHEAD_DAYS; i++) {
+    const parts = Object.fromEntries(fmt.formatToParts(new Date(Date.now() + i * 86_400_000)).map((p) => [p.type, p.value]));
+    if (parts.weekday === 'Fri' || parts.weekday === 'Sat') continue;
+    days.push(`${parts.year}-${parts.month}-${parts.day}`);
+  }
+  if (days.length === 0) return [];
+
+  const response = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: israelTime(days[0]!, 0).toISOString(),
+      timeMax: israelTime(days[days.length - 1]!, 23).toISOString(),
+      timeZone: SLOT_TZ,
+      items: [{ id: 'primary' }],
+    },
+  });
+  const busy = (response.data.calendars?.primary?.busy ?? [])
+    .map((b) => ({ start: new Date(b.start ?? 0).getTime(), end: new Date(b.end ?? 0).getTime() }));
+
+  const slots: Array<{ date: string; time: string }> = [];
+  for (const day of days) {
+    let perDay = 0;
+    for (let hour = WORK_START_HOUR; hour + SLOT_MINUTES / 60 <= WORK_END_HOUR && perDay < MAX_SLOTS_PER_DAY; hour++) {
+      const start = israelTime(day, hour).getTime();
+      const end = start + SLOT_MINUTES * 60_000;
+      if (busy.some((b) => b.start < end && b.end > start)) continue;
+      slots.push({ date: day, time: `${String(hour).padStart(2, '0')}:00` });
+      perDay++;
+      hour++; // leave a gap so the two suggestions on one day aren't back to back
+      if (slots.length >= count) return slots;
+    }
+  }
+  return slots;
 }

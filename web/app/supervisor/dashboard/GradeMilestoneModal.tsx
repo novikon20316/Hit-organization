@@ -9,6 +9,7 @@ import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import { FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import { GRADING_CRITERIA, MILESTONE_LABEL, type SupervisorPendingMilestone } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { CommentTemplatesPicker } from '@/components/CommentTemplatesPicker';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { GRADE_MILESTONE_FIELD_GUIDE, GRADE_MILESTONE_GUIDE_KEY } from './fieldGuide';
@@ -355,6 +356,9 @@ export function GradeMilestoneModal({ milestone: m, onClose, onGraded }: GradeMi
             className="w-full rounded-lg border border-supervisor-outline-variant bg-supervisor-surface-container-low px-3 py-2 text-sm text-supervisor-on-surface focus:border-supervisor-primary focus:bg-supervisor-surface-container-lowest focus:outline-none"
           />
         </label>
+        <div className="mt-1 flex justify-end">
+          <CommentTemplatesPicker currentText={comment} onInsert={(t) => setComment((c) => (c.trim() ? `${c.trimEnd()}\n${t}` : t))} />
+        </div>
 
         {commentFilesMode ? (
           <div data-field-guide-id="attachFile" className="mt-4">

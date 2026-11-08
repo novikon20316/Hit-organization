@@ -12,6 +12,7 @@ import {
     decideFinalGrade,
     proposeMeeting,
     getCalendarStatus,
+  getCalendarFreeSlots,
     getCalendarConnectUrl,
     handleCalendarCallback,
     disconnectCalendarHandler,
@@ -20,6 +21,8 @@ import { uploadMiddleware, handleUploadError } from '../controllers/milestoneCon
 import { verifyFileSignatures } from '../services/fileSignature.js';
 import { projectFileUploadLimiter } from '../middleware/rateLimit.js';
 import { verifyToken } from '../middleware/auth.js';
+
+import { listRemindersHandler, createReminderHandler, deleteReminderHandler } from '../controllers/supervisorRemindersController.js';
 
 const router = Router();
 
@@ -36,6 +39,7 @@ router.post('/applications/:id/propose-meeting', verifyToken, proposeMeeting)
 // server itself, so it deliberately has no verifyToken — see
 // handleCalendarCallback's own comment for how it authenticates instead.
 router.get('/calendar/status', verifyToken, getCalendarStatus)
+router.get('/calendar/free-slots', verifyToken, getCalendarFreeSlots)
 router.get('/calendar/connect', verifyToken, getCalendarConnectUrl)
 router.get('/calendar/callback', handleCalendarCallback)
 router.post('/calendar/disconnect', verifyToken, disconnectCalendarHandler)
@@ -43,6 +47,10 @@ router.post('/projects', verifyToken, createSupervisorProject)
 router.post('/projects/upload-file', verifyToken, projectFileUploadLimiter, uploadMiddleware, handleUploadError, verifyFileSignatures, uploadProjectFile)
 router.get('/examiner-recommendations', verifyToken, getSupervisorExaminerRecommendations)
 router.post('/examiner-recommendations', verifyToken, createExaminerRecommendation)
+// Reminders a supervisor schedules for their own students (services/supervisorReminders.ts).
+router.get('/projects/:id/reminders', verifyToken, listRemindersHandler)
+router.post('/projects/:id/reminders', verifyToken, createReminderHandler)
+router.delete('/reminders/:reminderId', verifyToken, deleteReminderHandler)
 // Staff record (research_proposal/progress_report, upload-or-form) and the
 // three-rubric final-grade decision (defense) — see workflowTemplates.ts's
 // staffRecordMode/finalGradeComponents for which faculties these apply to.

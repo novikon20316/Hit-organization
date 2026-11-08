@@ -24,6 +24,7 @@ import {
 import { verifyFileSignatures } from '../services/fileSignature.js';
 console.log("🔥 Loading user routes...");
 import { getMyNotificationPrefs, updateMyNotificationPrefs } from '../controllers/notificationPrefsController.js';
+import { getMyCommentTemplates, updateMyCommentTemplates } from '../controllers/commentTemplatesController.js';
 
 const router = Router();
 
@@ -33,6 +34,9 @@ router.get('/me', verifyToken, getFullFirestore);
 // The caller's own notification settings (services/notificationPrefs.ts).
 router.get('/me/notification-prefs', verifyToken, getMyNotificationPrefs);
 router.put('/me/notification-prefs', verifyToken, updateMyNotificationPrefs);
+// The caller's own grading-comment snippets (controllers/commentTemplatesController.ts).
+router.get('/me/comment-templates', verifyToken, getMyCommentTemplates);
+router.put('/me/comment-templates', verifyToken, updateMyCommentTemplates);
 router.post('/sync', verifyTokenOnly, signupSyncLimiter, syncData);
 // PUBLIC — called before the Firebase Auth account is created (see signup.tsx).
 // Rate-limited like the other unauthenticated-by-necessity endpoints.

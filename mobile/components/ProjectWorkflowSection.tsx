@@ -23,6 +23,7 @@ import EvaluationFormModal from './modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 import UpdateGradeModal from './modals/UpdateGradeModal';
+import { ProjectRemindersPanel, type ReminderMilestoneOption } from './ProjectRemindersPanel';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
@@ -238,6 +239,17 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
   // Gates the "Update grade" action exactly like web.
   const projectFinished =
     students.length > 0 && students.every((s) => s.milestones.length > 0 && s.milestones.every((m) => isCompletedStatus(m.status)));
+
+  // Not-yet-submitted milestones with a due date — what a reminder can be
+  // scheduled for (the server re-checks every one of these conditions).
+  const reminderMilestones: ReminderMilestoneOption[] = [];
+  for (const s of students) {
+    for (const m of s.milestones) {
+      if (!m.id || m.status !== 'pending' || !m.dueDate || reminderMilestones.some((r) => r.id === m.id)) continue;
+      const spec = templateMilestones.find((t) => t.type === m.type);
+      reminderMilestones.push({ id: m.id, nameHe: spec?.nameHe ?? m.type, nameEn: spec?.nameEn ?? m.type, dueDate: m.dueDate });
+    }
+  }
 
   // `silent` skips the loading flag — used after an evaluation/decision
   // submits, so the update lands on screen without the whole section
@@ -722,6 +734,8 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
           ))}
         </>
       )}
+
+      <ProjectRemindersPanel lang={lang} projectId={projectId} milestones={reminderMilestones} />
 
       {staffRecordFor && (
         <StaffRecordModal

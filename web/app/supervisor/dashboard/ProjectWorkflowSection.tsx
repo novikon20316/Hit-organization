@@ -23,6 +23,7 @@ import { SupervisorEvaluationModal } from './SupervisorEvaluationModal';
 import { FinalGradeDecisionModal } from './FinalGradeDecisionModal';
 import { EvaluationFormModal } from '@/components/EvaluationFormModal';
 import { ExaminerOpinionFormModal } from '@/components/ExaminerOpinionFormModal';
+import { ProjectRemindersPanel, type ReminderMilestoneOption } from './ProjectRemindersPanel';
 import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
@@ -294,6 +295,22 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
   // when no student is enrolled yet — excluded here since that can't have a
   // graded milestone in the first place).
   const projectFinished = project.enrolledStudentIds.length > 0 && project.currentMilestone == null;
+
+  // Not-yet-submitted milestones with a due date — what a reminder can be
+  // scheduled for (the server re-checks every one of these conditions).
+  const reminderMilestones: ReminderMilestoneOption[] = [];
+  for (const s of students) {
+    for (const m of s.milestones) {
+      if (!m.id || m.status !== 'pending' || !m.dueDate || reminderMilestones.some((r) => r.id === m.id)) continue;
+      const spec = templateMilestones.find((t) => t.type === m.type);
+      reminderMilestones.push({
+        id: m.id,
+        nameHe: m.nameHe ?? spec?.nameHe ?? m.type,
+        nameEn: m.nameEn ?? spec?.nameEn ?? m.type,
+        dueDate: m.dueDate,
+      });
+    }
+  }
 
   // The final-grade certificate (digitizing Project_final_grade.docx) is
   // data_science-only — that faculty's masters students are always on the
@@ -1048,6 +1065,8 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
           </div>
         </>
       )}
+
+      <ProjectRemindersPanel projectId={project.id} milestones={reminderMilestones} />
 
       {staffRecordFor && (
         <StaffRecordModal

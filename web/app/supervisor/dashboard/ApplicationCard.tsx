@@ -23,27 +23,27 @@ const REVIEWED_LABEL: Record<string, { he: string; en: string }> = {
   meeting_requested: { he: 'פגישה נקבעה בתאריך:', en: 'Meeting requested:' },
 };
 
-const SCREENING_STYLE: Record<string, { bg: string; text: string }> = {
+export const SCREENING_STYLE: Record<string, { bg: string; text: string }> = {
   strong_fit: { bg: 'var(--success-bg)', text: 'var(--success)' },
   partial_fit: { bg: '#FBF3E3', text: 'var(--accent)' },
   weak_fit: { bg: 'var(--danger-bg)', text: 'var(--danger)' },
   unable_to_assess: { bg: '#F1F0EC', text: '#6B7280' },
 };
 
-const SCREENING_LABEL: Record<string, { he: string; en: string }> = {
+export const SCREENING_LABEL: Record<string, { he: string; en: string }> = {
   strong_fit: { he: 'התאמה גבוהה', en: 'Strong fit' },
   partial_fit: { he: 'התאמה חלקית', en: 'Partial fit' },
   weak_fit: { he: 'התאמה חלשה', en: 'Weak fit' },
   unable_to_assess: { he: 'לא ניתן להעריך', en: 'Unable to assess' },
 };
 
-const RECOMMENDATION_STYLE: Record<string, { bg: string; text: string }> = {
+export const RECOMMENDATION_STYLE: Record<string, { bg: string; text: string }> = {
   approve: { bg: 'var(--success-bg)', text: 'var(--success)' },
   meeting: { bg: '#FBF3E3', text: 'var(--accent)' },
   reject: { bg: 'var(--danger-bg)', text: 'var(--danger)' },
 };
 
-const RECOMMENDATION_LABEL: Record<string, { he: string; en: string }> = {
+export const RECOMMENDATION_LABEL: Record<string, { he: string; en: string }> = {
   approve: { he: '✓ מומלץ לאשר', en: '✓ Recommend approving' },
   meeting: { he: '📅 מומלץ לתאם פגישה', en: '📅 Recommend a meeting' },
   reject: { he: '✕ מומלץ לדחות', en: '✕ Recommend rejecting' },

@@ -34,6 +34,8 @@ import { EditProjectModal } from './EditProjectModal';
 import { NewProjectModal } from './NewProjectModal';
 import { RecommendExaminersModal, type RecommendExaminersTarget } from './RecommendExaminersModal';
 import { QuickTasksPanel } from './QuickTasksPanel';
+import { GradingInboxModal } from './GradingInboxModal';
+import { CompareApplicantsModal, comparableProjects } from './CompareApplicantsModal';
 import type { MyProject, Application, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import {
@@ -104,6 +106,8 @@ function SupervisorDashboardContent() {
   const [loadError, setLoadError] = useState('');
 
   const [gradingTarget, setGradingTarget] = useState<SupervisorPendingMilestone | null>(null);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [openMilestoneRequest, setOpenMilestoneRequest] = useState<OpenMilestoneRequest | null>(null);
   const router = useRouter();
   const openProjectMilestone = (project: MyProject) => {
@@ -408,6 +412,17 @@ function SupervisorDashboardContent() {
                 </div>
               )}
 
+              {comparableProjects(applications).length > 0 && (
+                <div className="mb-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setCompareOpen(true)}
+                    className="rounded-supervisor border border-supervisor-outline-variant px-3 py-1.5 text-xs font-semibold text-supervisor-on-surface hover:border-supervisor-primary hover:text-supervisor-primary"
+                  >
+                    ⚖️ {lang === 'he' ? 'השוואת מועמדים' : 'Compare applicants'}
+                  </button>
+                </div>
+              )}
               <div className="mb-4 flex gap-1 overflow-x-auto">
                 {APPLICATION_FILTERS.map(({ key, he, en }) => (
                   <button
@@ -509,9 +524,15 @@ function SupervisorDashboardContent() {
       </div>
 
       <div className="w-full shrink-0 lg:w-80">
-        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} onOpenMilestone={openProjectMilestone} />
+        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} onOpenMilestone={openProjectMilestone} onOpenInbox={() => setInboxOpen(true)} />
       </div>
       </div>
+
+      {compareOpen && <CompareApplicantsModal applications={applications} onClose={() => setCompareOpen(false)} />}
+
+      {inboxOpen && (
+        <GradingInboxModal pendingGrades={pendingGrades} onGrade={setGradingTarget} onClose={() => setInboxOpen(false)} />
+      )}
 
       {gradingTarget && (
         <GradeMilestoneModal

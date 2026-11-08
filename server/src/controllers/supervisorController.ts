@@ -23,7 +23,7 @@ import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { assignProjectRecordNumber } from '../services/projectRecordNumber.js';
 import {
   isCalendarConfigured, getCalendarAuthUrl, handleCalendarOAuthCallback,
-  isCalendarConnected, disconnectCalendar,
+  isCalendarConnected, disconnectCalendar, getFreeSlots, FreeSlotsUnavailableError,
 } from '../services/googleCalendarService.js';
 import { WEBSITE_URL } from '../config/links.js';
 import { nextFormSignoffRole, notifyFormSignoffDue } from '../services/formSignoffs.js';
@@ -997,6 +997,32 @@ export const getCalendarStatus = async (req: AuthenticatedRequest, res: Response
   if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
   const connected = isCalendarConfigured() ? await isCalendarConnected(supervisorId) : false;
   return res.status(200).json({ configured: isCalendarConfigured(), connected });
+};
+
+// GET /api/supervisor/calendar/free-slots — up to MAX_MEETING_SLOTS free
+// 1-hour windows on the caller's own calendar (free/busy only), to prefill
+// Propose Meeting. 409 + reason when not connected or connected before the
+// free/busy permission existed, so the client can explain what to do.
+export const getCalendarFreeSlots = async (req: AuthenticatedRequest, res: Response) => {
+  const supervisorId = req.user?.uid;
+  if (!supervisorId) return res.status(401).json({ message: L(req, 'Unauthorized.', 'גישה לא מורשית.') });
+  if (!isCalendarConfigured()) {
+    return res.status(503).json({ message: L(req, 'Google Calendar is not configured on this server yet.', 'יומן Google עדיין לא הוגדר בשרת זה.') });
+  }
+  try {
+    return res.status(200).json({ slots: await getFreeSlots(supervisorId, MAX_MEETING_SLOTS) });
+  } catch (err) {
+    if (err instanceof FreeSlotsUnavailableError) {
+      return res.status(409).json({
+        error: err.reason,
+        message: err.reason === 'not_connected'
+          ? L(req, 'Connect your Google Calendar first.', 'יש לחבר קודם את יומן Google.')
+          : L(req, 'Reconnect your Google Calendar once to allow reading free/busy times.', 'יש לחבר מחדש את יומן Google פעם אחת כדי לאפשר קריאת זמנים פנויים.'),
+      });
+    }
+    console.error('getCalendarFreeSlots error:', err);
+    return res.status(502).json({ message: L(req, 'Could not read your calendar right now.', 'לא ניתן לקרוא את היומן כרגע.') });
+  }
 };
 
 export const getCalendarConnectUrl = async (req: AuthenticatedRequest, res: Response) => {

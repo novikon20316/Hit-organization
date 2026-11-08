@@ -64,6 +64,7 @@ import { samplePresenceHistory, prunePresenceHistory } from './services/presence
 import { pruneAuditLog } from './services/auditLog.js';
 import { runTrackedJob } from './services/systemHealth.js';
 import { sendEmailDigests } from './services/emailDigest.js';
+import { sendScheduledReminders } from './services/supervisorReminders.js';
 import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -356,6 +357,11 @@ setInterval(() => {
 // blocked, only the oldest excess gets swept out periodically.
 setInterval(() => {
   void runTrackedJob('pruneAuditLog', pruneAuditLog);
+}, ONE_HOUR_MS);
+// Reminders supervisors scheduled for their own students — see
+// services/supervisorReminders.ts. Hourly; each goes out at 09:00 on its day.
+setInterval(() => {
+  void runTrackedJob('sendScheduledReminders', sendScheduledReminders);
 }, ONE_HOUR_MS);
 // Daily email digest for users who chose it — see services/emailDigest.ts.
 // Hourly check; sends once a day from 08:00 Israel time.

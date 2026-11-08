@@ -52,9 +52,12 @@ interface QuickTasksPanelProps {
    *  its current milestone (e.g. the defense evaluation form) — a bare link
    *  to the tab left every card collapsed, so nothing actually opened. */
   onOpenMilestone: (project: MyProject) => void;
+  /** Opens the full grading inbox (GradingInboxModal) — every pending
+   *  grade, oldest first, with file preview. */
+  onOpenInbox: () => void;
 }
 
-export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade, onOpenMilestone }: QuickTasksPanelProps) {
+export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade, onOpenMilestone, onOpenInbox }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
   const { userData } = useAuth();
   const { isCommitteeSubstitute } = useNotifications();
@@ -137,9 +140,16 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
 
   return (
     <div className="rounded-supervisor-lg border border-supervisor-outline-variant bg-supervisor-surface-container-lowest p-4">
-      <h4 className="mb-3 border-b border-supervisor-outline-variant pb-2 text-sm font-semibold text-supervisor-on-surface">
-        {lang === 'he' ? 'משימות מהירות' : 'Quick Tasks'}
-      </h4>
+      <div className="mb-3 flex items-center justify-between gap-2 border-b border-supervisor-outline-variant pb-2">
+        <h4 className="text-sm font-semibold text-supervisor-on-surface">
+          {lang === 'he' ? 'משימות מהירות' : 'Quick Tasks'}
+        </h4>
+        {pendingGrades.length > 0 && (
+          <button type="button" onClick={onOpenInbox} className="text-xs font-medium text-supervisor-primary hover:underline">
+            {lang === 'he' ? `כל הממתינות לציון (${pendingGrades.length})` : `All awaiting grade (${pendingGrades.length})`}
+          </button>
+        )}
+      </div>
       {items.length === 0 ? (
         <p className="text-xs text-supervisor-on-surface-variant">{lang === 'he' ? 'אין משימות דחופות כרגע' : 'Nothing urgent right now'}</p>
       ) : (

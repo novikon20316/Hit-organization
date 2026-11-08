@@ -58,6 +58,7 @@ export const SYSTEM_JOBS = {
   samplePresenceHistory:                { intervalMs: ONE_MINUTE_MS, he: 'דגימת משתמשים מחוברים', en: 'Online-users sample' },
   prunePresenceHistory:                 { intervalMs: ONE_DAY_MS,  he: 'ניקוי היסטוריית חיבור', en: 'Prune presence history' },
   pruneAuditLog:                        { intervalMs: ONE_HOUR_MS, he: 'ניקוי יומן פעולות', en: 'Prune audit log' },
+  sendScheduledReminders:               { intervalMs: ONE_HOUR_MS, he: 'תזכורות שתזמנו מנחים', en: 'Supervisor-scheduled reminders' },
   sendEmailDigests:                     { intervalMs: ONE_HOUR_MS, he: 'שליחת סיכום יומי בדוא"ל', en: 'Daily email digest' },
 } as const;
 

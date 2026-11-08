@@ -15,6 +15,7 @@ import { SupervisorExtraStyles } from '../../constants/styles';
 import { NewProjectModal, RecommendedExaminerModal, ProposeMeetingModal } from '@/components/modals';
 import ProjectWorkflowSection from '@/components/ProjectWorkflowSection';
 import { QuickTasksPanel } from '@/components/QuickTasksPanel';
+import CompareApplicantsModal, { comparableProjects } from '@/components/modals/CompareApplicantsModal';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
 import { AppUser, MyProject, Application } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
@@ -221,6 +222,7 @@ export default function SupervisorHome() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- TAB_BADGE_TARGET_SCREENS is a stable literal, re-declared each render but never changing shape
   }, [activeTab, unreadByTargetScreen, markTabSeen]);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [applicationFilter, setApplicationFilter] = useState<'all' | 'applied' | 'approved' | 'meeting_requested' | 'meeting_proposed' | 'meeting_confirmed' | 'rejected'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'offered'>('all');
   const [submitting,     setSubmitting]     = useState(false);
@@ -1422,6 +1424,18 @@ export default function SupervisorHome() {
                 </Pressable>
               ))}
             </View>
+            {comparableProjects(applications).length > 0 && (
+              <Pressable
+                onPress={() => setCompareOpen(true)}
+                accessibilityRole="button"
+                style={{ alignSelf: isRtl ? 'flex-end' : 'flex-start', borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 12 }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurface }}>⚖️ {lang === 'he' ? 'השוואת מועמדים' : 'Compare applicants'}</Text>
+              </Pressable>
+            )}
+            {compareOpen && (
+              <CompareApplicantsModal visible lang={lang} applications={applications} onClose={() => setCompareOpen(false)} />
+            )}
             {filteredApplications.length === 0 ? (
               <EmptyState
                 emoji="📬"

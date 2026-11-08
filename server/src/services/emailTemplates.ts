@@ -88,6 +88,9 @@ export type NotificationType =
   // One daily email bundling the non-security notifications a user chose
   // to receive as a digest (see services/emailDigest.ts).
   | 'email_digest'
+  // A reminder a supervisor scheduled for their own student
+  // (services/supervisorReminders.ts).
+  | 'supervisor_reminder'
   | 'general';
 
 interface EmailTemplate {
@@ -760,6 +763,12 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     subjectEn: (d) => `📬 Daily summary — ${d.count || ''} updates`,
     bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>אלה העדכונים שהגיעו אליך מאז הסיכום הקודם:</p><ul>${(d.items || '').split('\n').filter(Boolean).map((line) => `<li style="margin-bottom:8px;">${line}</li>`).join('')}</ul><p style="color:#6B7A99;font-size:12px;">אפשר לשנות את הגדרות ההתראות בעמוד ההתראות באתר או באפליקציה.</p>`,
     bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>Here are your updates since the last summary:</p><ul>${(d.items || '').split('\n').filter(Boolean).map((line) => `<li style="margin-bottom:8px;">${line}</li>`).join('')}</ul><p style="color:#6B7A99;font-size:12px;">You can change your notification settings on the Notifications page on the website or in the app.</p>`,
+  },
+  supervisor_reminder: {
+    subjectHe: (d) => `⏰ תזכורת מהמנחה: ${d.milestoneTitle || ''}`,
+    subjectEn: (d) => `⏰ Reminder from your supervisor: ${d.milestoneTitle || ''}`,
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>המנחה שלך מזכיר/ה שמועד ההגשה של <strong>${d.milestoneTitle || ''}</strong> הוא ${d.dueDate || ''}.</p>${d.note ? `<p>הערת המנחה: ${d.note}</p>` : ''}`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>Your supervisor reminds you that <strong>${d.milestoneTitle || ''}</strong> is due on ${d.dueDate || ''}.</p>${d.note ? `<p>Supervisor's note: ${d.note}</p>` : ''}`,
   },
   general: {
     subjectHe: '🔔 עדכון מהמערכת',

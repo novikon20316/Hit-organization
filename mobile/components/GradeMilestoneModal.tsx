@@ -17,6 +17,7 @@ import { Modal, View, Text, TextInput, Pressable, ScrollView, ActivityIndicator,
 import { apiClient } from '../src/api/apiClient';
 import { useRouter } from 'expo-router';
 import { milestonePalette as p, milestoneRadius as radius, milestoneSpacing as spacing } from '@/constants/milestoneTheme';
+import { CommentTemplatesPicker } from './CommentTemplatesPicker';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { FieldGuideTarget } from '@/components/guidance/FieldGuideTarget';
@@ -360,6 +361,11 @@ export function GradeMilestoneModal({
               placeholder={lang === 'he' ? 'הערות...' : 'Comments...'}
               placeholderTextColor={p.outline}
               textAlign={isRtl ? 'right' : 'left'}
+            />
+            <CommentTemplatesPicker
+              lang={lang}
+              currentText={comment}
+              onInsert={(t) => onCommentChange(comment.trim() ? `${comment.trimEnd()}\n${t}` : t)}
             />
           </View>
           </FieldGuideTarget>

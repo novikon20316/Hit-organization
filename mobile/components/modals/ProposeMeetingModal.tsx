@@ -9,6 +9,7 @@
 // home.tsx's own candidate-defense-date rows for the same precedent) — each
 // slot is a plain YYYY-MM-DD + HH:MM text-field pair, validated per row.
 import React, { useState } from 'react';
+import { apiClient } from '@/src/api/apiClient';
 import { Modal, View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { ScheduleDefenseModalStyles as s } from '../../constants/styles';
 
@@ -54,6 +55,24 @@ export default function ProposeMeetingModal({ visible, application, lang, isRtl,
 
   const updateSlot = (i: number, field: keyof SlotDraft, value: string) =>
     setSlots((prev) => prev.map((sl, idx) => (idx === i ? { ...sl, [field]: value } : sl)));
+  // Fills the slots with free 1-hour windows from the supervisor's own Google
+  // Calendar (free/busy only) — see the server's getFreeSlots.
+  const [suggesting, setSuggesting] = useState(false);
+  const suggestTimes = async () => {
+    setSuggesting(true);
+    setError('');
+    try {
+      const res = await apiClient.get('/api/supervisor/calendar/free-slots');
+      const free = (res.data.slots ?? []) as Array<{ date: string; time: string }>;
+      if (free.length === 0) setError(lang === 'he' ? 'לא נמצאו זמנים פנויים בשבועיים הקרובים' : 'No free times found in the next two weeks');
+      else setSlots(free.slice(0, MAX_SLOTS).map((f) => ({ date: f.date, time: f.time })));
+    } catch (err: any) {
+      setError(err?.response?.data?.message || (lang === 'he' ? 'קריאת היומן נכשלה' : 'Could not read your calendar'));
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const addSlot = () => setSlots((prev) => (prev.length < MAX_SLOTS ? [...prev, emptySlot()] : prev));
   const removeSlot = (i: number) => setSlots((prev) => prev.filter((_, idx) => idx !== i));
 
@@ -95,6 +114,17 @@ export default function ProposeMeetingModal({ visible, application, lang, isRtl,
         <Text style={[s.label, isRtl && { textAlign: 'right' }]}>
           {lang === 'he' ? 'הצע עד 5 מועדים — הסטודנט/ית יבחר/תבחר אחד מהם.' : 'Offer up to 5 times — the student will pick one.'}
         </Text>
+
+        <Pressable
+          onPress={suggestTimes}
+          disabled={suggesting}
+          accessibilityRole="button"
+          style={{ alignSelf: isRtl ? 'flex-end' : 'flex-start', marginTop: 10, borderWidth: 1, borderColor: '#D0DEFF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, opacity: suggesting ? 0.6 : 1 }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#2E86FF' }}>
+            {suggesting ? '…' : `✨ ${lang === 'he' ? 'הצע זמנים פנויים מהיומן שלי' : 'Suggest free times from my calendar'}`}
+          </Text>
+        </Pressable>
 
         {slots.map((slot, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 }}>

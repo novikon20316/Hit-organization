@@ -48,6 +48,7 @@ const CATEGORY_BY_TYPE: Partial<Record<NotificationType, NotificationCategory>> 
   coordinator_message: 'messages',
   seminar_contact_request: 'messages',
   milestone_deadline_7d: 'deadlines',
+  supervisor_reminder: 'deadlines',
   milestone_deadline_1d: 'deadlines',
   milestone_overdue: 'deadlines',
   milestone_stuck: 'deadlines',

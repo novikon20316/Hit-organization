@@ -587,6 +587,37 @@ export const apiClient = {
     }>('/api/search', { method: 'GET', params: { q } });
   },
 
+  /** The caller's own saved grading-comment snippets (personal). */
+  async getCommentTemplates() {
+    return request<{ templates: CommentTemplate[] }>('/api/users/me/comment-templates', { method: 'GET' });
+  },
+
+  /** Replaces the whole list; an empty id means "new" (the server assigns one). */
+  async updateCommentTemplates(templates: CommentTemplate[]) {
+    return request<{ templates: CommentTemplate[] }>('/api/users/me/comment-templates', { method: 'PUT', body: { templates } });
+  },
+
+  /** Reminders the supervisor scheduled for this project's students — see
+   *  the server's supervisorReminders.ts. */
+  async getProjectReminders(projectId: string) {
+    return request<{ reminders: ScheduledReminder[] }>(`/api/supervisor/projects/${projectId}/reminders`, { method: 'GET' });
+  },
+
+  async createProjectReminder(projectId: string, body: { milestoneId: string; daysBefore: number; note?: string }) {
+    return request<{ reminder: ScheduledReminder }>(`/api/supervisor/projects/${projectId}/reminders`, { method: 'POST', body });
+  },
+
+  async deleteReminder(reminderId: string) {
+    return request<{ success: boolean }>(`/api/supervisor/reminders/${reminderId}`, { method: 'DELETE' });
+  },
+
+  /** Free 1-hour windows from the caller's own Google Calendar (free/busy
+   *  only), Sun–Thu 09:00–17:00 over the next two weeks. 409 with a message
+   *  when the calendar isn't connected or needs reconnecting once. */
+  async getCalendarFreeSlots() {
+    return request<{ slots: Array<{ date: string; time: string }> }>('/api/supervisor/calendar/free-slots', { method: 'GET' });
+  },
+
   // ─── 3d. HELP ASSISTANT ─────────────────────────────────────────────────────
   /** Answers from `role`'s user manual (see the server's assistantService.ts).
    *  `messages` is the whole conversation so far, alternating user/assistant
@@ -3596,6 +3627,23 @@ export interface StuckLimitsTemplate {
 }
 
 export type RelayTaskAction = 'student' | 'committee' | 'supervisor';
+
+// See the server's supervisorReminders.ts.
+export interface ScheduledReminder {
+  id: string;
+  milestoneId: string;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  daysBefore: number;
+  sendAt: string;
+  note: string | null;
+}
+
+// See the server's commentTemplatesController.ts.
+export interface CommentTemplate {
+  id: string;
+  text: string;
+}
 
 // See the server's chatController.ts uploadChatFile.
 export interface ChatFileMeta {
