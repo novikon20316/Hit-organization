@@ -234,7 +234,7 @@ export default function AcademicYearManager() {
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, textAlign: isRtl ? 'right' : 'left' }}>
               {lang === 'he' ? 'שנת לימודים' : 'Year of study'}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'שנת לימודים' : 'Year of study'}
               style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff', marginTop: 6 }}
               value={yearOfStudy}
               onChangeText={setYearOfStudy}
@@ -253,7 +253,7 @@ export default function AcademicYearManager() {
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, textAlign: isRtl ? 'right' : 'left' }}>
                   {lang === 'he' ? 'סיבה' : 'Reason'}
                 </Text>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'סיבה' : 'Reason'}
                   style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, backgroundColor: '#fff', marginTop: 6, minHeight: 60, textAlignVertical: 'top' }}
                   value={reason}
                   onChangeText={setReason}

@@ -351,7 +351,7 @@ export default function ProgramHeadDashboard() {
           <>
             <FieldGuideOverlay guideKey={STUDENTS_TAB_GUIDE_KEY} steps={STUDENTS_TAB_FIELD_GUIDE} />
             {/* Search + filters */}
-            <TextInput
+            <TextInput accessibilityLabel={tx('searchPlaceholder', lang)}
               style={s.searchInput}
               value={searchText}
               onChangeText={setSearchText}
@@ -479,7 +479,7 @@ export default function ProgramHeadDashboard() {
                   ) : item.type === 'template' ? (
                     templateRejectTargetId === item.id ? (
                       <View style={{ marginTop: 10 }}>
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           value={templateRejectReason}
                           onChangeText={setTemplateRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}

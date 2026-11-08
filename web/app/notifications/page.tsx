@@ -19,6 +19,7 @@ import { getUserRoles, isValidRole } from '@/lib/roles';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { FeedbackTab } from './FeedbackTab';
+import { NotificationSettingsModal } from './NotificationSettingsModal';
 import ReadTicks from '@/components/ReadTicks';
 import { StudentMessageComposer } from './StudentMessageComposer';
 import { loadStudentMessageRecipients, type StudentMessageRecipient } from '@/lib/studentMessageDraft';
@@ -45,6 +46,7 @@ export default function NotificationsPage() {
   // Shared banner for the smaller mutations below (mark-one-read,
   // mark-all-read, delete-chat) — same "don't fail silently" fix, just
   // grouped since none of them have their own dedicated UI slot.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [showNewChat, setShowNewChat] = useState(false);
@@ -328,7 +330,9 @@ export default function NotificationsPage() {
         )
       )}
 
-      <div className="mb-5 flex gap-1 border-b border-line">
+      {settingsOpen && <NotificationSettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      <div className="mb-5 flex items-end gap-1 border-b border-line">
         {tabs.map(({ key, label, badge }) => (
           <button
             key={key}
@@ -340,6 +344,13 @@ export default function NotificationsPage() {
             {badge > 0 ? ` (${badge})` : ''}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          className="ms-auto mb-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+        >
+          ⚙️ {lang === 'he' ? 'הגדרות התראות' : 'Notification settings'}
+        </button>
       </div>
 
       {tab === 'notifs' && (

@@ -392,7 +392,7 @@ function SendExaminerModal({
               <Text style={m.fieldLabel}>{field.label}</Text>
               <InfoTooltip textHe={sendExaminerGuideEntry(field.key).description.he} textEn={sendExaminerGuideEntry(field.key).description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={field.label}
               style={[m.input, isRtl && { textAlign: 'right' }]}
               value={field.value}
               onChangeText={field.set}
@@ -469,7 +469,7 @@ interface ContactMember { name: string; email: string; phoneNumber: string | nul
 function StudentContactModal({ member, lang, onClose }: { member: ContactMember | null; lang: Lang; onClose: () => void }) {
   return (
     <Modal visible={!!member} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={contactStyles.backdrop} onPress={onClose}>
+      <Pressable accessibilityRole="button" accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'} style={contactStyles.backdrop} onPress={onClose}>
         <View style={contactStyles.card}>
           <View style={contactStyles.header}>
             <Text style={contactStyles.title}>👤 {member?.name}</Text>
@@ -1387,7 +1387,7 @@ export default function ProjectCoordinatorDashboard() {
             <View style={{ marginBottom: 12 }}>
               <AddStudentModal lang={lang} isRtl={lang === 'he'} onCreated={() => fetchStudentsReport()} allowedScopes={addStudentAllowedScopes} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
               style={s.searchInput}
               value={reportSearchText}
               onChangeText={setReportSearchText}
@@ -1551,7 +1551,7 @@ export default function ProjectCoordinatorDashboard() {
         <>
         <FieldGuideOverlay guideKey={GROUPS_TAB_GUIDE_KEY} steps={GROUPS_TAB_FIELD_GUIDE} />
         <CreateOwnProjectButton lang={lang} isRtl={lang === 'he'} onCreated={() => fetchData()} />
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'חיפוש מנחה...' : 'Search supervisor...'}
           style={s.searchInput}
           value={supervisorSearchText}
           onChangeText={setSupervisorSearchText}
@@ -1597,7 +1597,7 @@ export default function ProjectCoordinatorDashboard() {
         </Pressable>
         <Text style={[s.cardTitle, { marginTop: 10, marginBottom: 4 }]}>👨‍🏫 {viewingSupervisor?.name}</Text>
 
-        <TextInput
+        <TextInput accessibilityLabel={tx('searchPlaceholder', lang)}
           style={s.searchInput}
           value={searchText}
           onChangeText={setSearchText}

@@ -135,7 +135,7 @@ export default function SupervisorCreditPointsScreen() {
                     {CATEGORIES.map((cat) => (
                       <View key={cat} style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                         <Text style={{ fontSize: 12, color: ap.onSurfaceVariant }}>{CATEGORY_LABELS[cat][lang]}</Text>
-                        <TextInput
+                        <TextInput accessibilityLabel={CATEGORY_LABELS[cat][lang]}
                           keyboardType="numeric"
                           value={row[cat] === null || row[cat] === undefined ? '' : String(row[cat])}
                           onChangeText={(t) => updateRate(fid, cat, t)}
@@ -147,7 +147,7 @@ export default function SupervisorCreditPointsScreen() {
                   </View>
                 );
               })}
-              <Pressable
+              <Pressable accessibilityRole="button"
                 onPress={handleSave}
                 disabled={saving || allowedFacultyIds.length === 0}
                 style={{ marginTop: 4, alignSelf: isRtl ? 'flex-end' : 'flex-start', borderWidth: 1, borderColor: ap.primary, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14, opacity: saving ? 0.6 : 1 }}

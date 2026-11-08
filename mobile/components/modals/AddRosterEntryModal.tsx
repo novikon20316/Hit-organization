@@ -114,7 +114,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
 
           <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
             <Text style={ps.fieldLabel}>{isHe ? 'מספר ת.ז.' : 'Student ID'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={isHe ? 'מספר ת.ז.' : 'Student ID'}
               style={ps.input}
               value={studentId}
               onChangeText={setStudentId}
@@ -125,7 +125,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
             />
 
             <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'שם מלא *' : 'Full Name *'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={isHe ? 'שם מלא *' : 'Full Name *'}
               style={ps.input}
               value={fullName}
               onChangeText={setFullName}
@@ -171,7 +171,7 @@ export default function AddRosterEntryModal({ visible, onClose, onCreated, lang 
             )}
 
             <Text style={[ps.fieldLabel, { marginTop: 12 }]}>{isHe ? 'מגמה (אופציונלי)' : 'Major (optional)'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={isHe ? 'מגמה (אופציונלי)' : 'Major (optional)'}
               style={ps.input}
               value={major}
               onChangeText={setMajor}

@@ -8,11 +8,14 @@ import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { signOut } from 'firebase/auth';
 import { reportClientError, reportTransportFailure } from './errorReporting';
 import { getCurrentLang } from './currentLang';
+import { configureConnectivity, markOnline, checkConnection, waitForConnection } from './connectivity';
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
     /** Set by the request interceptor below — see the error interceptor. */
     startedAt?: number;
+    /** How many times the error interceptor has re-sent this request. */
+    retryCount?: number;
   }
 }
 
@@ -36,6 +39,29 @@ function getBaseUrl(): string {
 }
 
 const SERVER_URL = getBaseUrl();
+configureConnectivity(SERVER_URL);
+
+// Requests re-sent automatically when they get no answer at all (offline,
+// dropped connection): reads, and uploads whose only effect is storing a
+// file and returning its id — a duplicate there leaves an unused file, never
+// a duplicate submission or message. Every other write fails as before, and
+// the offline banner tells the user why.
+const RETRYABLE_UPLOAD_PATHS = new Set([
+  '/api/chats/upload-image',
+  '/api/chats/upload-file',
+  '/api/users/photo',
+  '/api/supervisor/projects/upload-file',
+]);
+const MAX_RETRIES = 2;
+const OFFLINE_WAIT_MS = 30_000;
+
+function isRetryable(config: InternalAxiosRequestConfig | undefined): boolean {
+  if (!config) return false;
+  const method = (config.method ?? 'get').toLowerCase();
+  if (method === 'get' || method === 'head') return true;
+  const path = (config.url ?? '').split('?')[0] ?? '';
+  return method === 'post' && RETRYABLE_UPLOAD_PATHS.has(path);
+}
 
 export function getApiBaseUrl(): string {
   return SERVER_URL;
@@ -98,6 +124,7 @@ class ApiClient {
     // they still throw so the app can handle them structurally (e.g. redirect to login).
     this.api.interceptors.response.use(
       (response) => {
+        markOnline();
         const data = response.data;
 
         // Only trigger for objects that explicitly set success: false
@@ -119,7 +146,22 @@ class ApiClient {
         // Always return the response so the calling code still gets its data
         return response;
       },
-      (error) => {
+      async (error) => {
+        if (error.response) markOnline();
+
+        // No answer at all — check whether the device is offline, and re-send
+        // a safe request once the connection is back (see isRetryable).
+        if (!error.response && !axios.isCancel(error)) {
+          const reachable = await checkConnection();
+          const config = error.config as InternalAxiosRequestConfig | undefined;
+          if (config && isRetryable(config) && (config.retryCount ?? 0) < MAX_RETRIES) {
+            config.retryCount = (config.retryCount ?? 0) + 1;
+            if (reachable) await new Promise((r) => setTimeout(r, 1_500 * config.retryCount!));
+            else await waitForConnection(OFFLINE_WAIT_MS);
+            return this.api.request(config);
+          }
+        }
+
         // Maintenance flipped on mid-session (useMaintenanceCheck only
         // checks once, at login/2FA) — bounce to the same /maintenance
         // screen a fresh login would've redirected to, instead of letting

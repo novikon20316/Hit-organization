@@ -120,7 +120,9 @@ export default function AddStudentToProjectModal({
 
         {/* Search */}
         <View style={styles.addStudentSearchBox}>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he'
+                ? 'חיפוש לפי שם או אימייל...'
+                : 'Search by name or email...'}
             style={styles.addStudentSearchInput}
             placeholder={
               lang === 'he'

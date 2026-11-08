@@ -39,7 +39,7 @@ type AuthUser = NonNullable<AuthenticatedRequest['user']>;
 // callerRecordScope for how each role's scope narrows (dean: own faculty,
 // every major/degree; school_head: own major(s) via coordinatorScopes, both
 // degrees; grad_school_head: every granted faculty but masters only).
-const STAFF_RECORD_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'dean', 'school_head', 'system_admin'];
+export const STAFF_RECORD_ROLES = ['coordinator', 'administrative_secretary', 'faculty_admin', 'program_head', 'grad_school_head', 'dean', 'school_head', 'system_admin'];
 
 function serializeTimestamp(value: any): string | null {
   return value?.toDate?.().toISOString?.() ?? null;
@@ -63,7 +63,7 @@ type RecordScope = RecordScopeEntry[] | 'all';
  *  all" step. An empty array means no access at all (e.g. a coordinator-
  *  tier or school_head account with no scope configured yet), matching
  *  withinCoordinatorScope's own "deny rather than silently grant" fallback. */
-function callerRecordScope(user: AuthUser): RecordScope {
+export function callerRecordScope(user: AuthUser): RecordScope {
   const roles = getUserRoles(user);
   if (roles.includes('system_admin')) return 'all';
   if (roles.includes('faculty_admin')) {
@@ -119,7 +119,7 @@ function facultyWithinScope(scope: RecordScope, facultyId: string): boolean {
  *  school_head only sees her own major's projects (not her faculty's other
  *  majors) and a grad_school_head only sees masters projects, even though
  *  both are listed under a faculty that also has other majors/degrees. */
-function projectWithinScope(scope: RecordScope, project: { facultyId?: string | null; major?: string | null; degreeType?: string | null }): boolean {
+export function projectWithinScope(scope: RecordScope, project: { facultyId?: string | null; major?: string | null; degreeType?: string | null }): boolean {
   if (scope === 'all') return true;
   const facultyId = project.facultyId ?? '';
   return scope.some((e) =>

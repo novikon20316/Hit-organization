@@ -104,7 +104,7 @@ export function TrackChangeControl({ projectId, lang, onChanged }: { projectId: 
                 </View>
 
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#8899BB', marginTop: 12 }}>{he ? 'סיבה (אופציונלי)' : 'Reason (optional)'}</Text>
-                <TextInput
+                <TextInput accessibilityLabel={he ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
                   value={reason}
                   onChangeText={setReason}
                   multiline

@@ -202,7 +202,7 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
             {f.locked ? (
               <Text style={[styles.lockedValue, isRtl && styles.textRight]}>{resolveLockedValue(f)}</Text>
             ) : f.type === 'textarea' ? (
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                 style={[styles.textarea, isRtl && styles.textRight]}
                 multiline
                 numberOfLines={3}
@@ -211,7 +211,7 @@ export default function ProgressReportFormModal({ milestone, project, lang, isRt
                 textAlign={isRtl ? 'right' : 'left'}
               />
             ) : (
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                 style={[styles.input, isRtl && styles.textRight]}
                 keyboardType={f.type === 'number' ? 'numeric' : 'default'}
                 value={values[f.key] ?? ''}

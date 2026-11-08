@@ -273,7 +273,7 @@ export default function NewProjectModal({
               <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
               {i === 0 && <InfoTooltip textHe={newProjectFieldInfo('title').he} textEn={newProjectFieldInfo('title').en} />}
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={f.label}
               style={[styles.input, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
               value={f.value}
               onChangeText={f.set}
@@ -293,7 +293,7 @@ export default function NewProjectModal({
               <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginTop: 4, marginBottom: 4 }]}>{f.label}</Text>
               {i === 0 && <InfoTooltip textHe={newProjectFieldInfo('description').he} textEn={newProjectFieldInfo('description').en} />}
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={f.label}
               style={[styles.input, styles.textarea, { textAlign: f.dir === "rtl" ? "right" : "left" }, { marginBottom: 20 }]}
               value={f.value}
               onChangeText={f.set}
@@ -648,14 +648,14 @@ export default function NewProjectModal({
         </Text>
         {prerequisites.map((row, idx) => (
           <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <TextInput
+            <TextInput accessibilityLabel={lang === "he" ? "שם הקורס" : "Course name"}
               style={[styles.input, { flex: 7, textAlign: isRtl ? "right" : "left" }]}
               value={row.subject}
               onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, subject: v } : r)))}
               placeholder={lang === "he" ? "שם הקורס" : "Course name"}
               placeholderTextColor="#9BA8C0"
             />
-            <TextInput
+            <TextInput accessibilityLabel={lang === "he" ? "ציון מינ׳" : "Min grade"}
               style={[styles.input, { flex: 3, textAlign: isRtl ? "right" : "left" }]}
               value={row.minGrade != null ? String(row.minGrade) : ''}
               onChangeText={(v) => setPrerequisites(prerequisites.map((r, i) => (i === idx ? { ...r, minGrade: v === '' ? undefined : Number(v) } : r)))}
@@ -687,7 +687,7 @@ export default function NewProjectModal({
             <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginBottom: 4 }]}>
               {lang === "he" ? "ממוצע מקדים" : "Preliminary Average"}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === "he" ? "ממוצע מקדים" : "Preliminary Average"}
               style={[styles.input, { textAlign: isRtl ? "right" : "left" }]}
               value={minAverageGrade != null ? String(minAverageGrade) : ''}
               onChangeText={(v) => setMinAverageGrade(v === '' ? null : Number(v))}
@@ -700,7 +700,7 @@ export default function NewProjectModal({
             <Text style={[styles.fieldLabel, !isRtl && styles.textRight, { marginBottom: 4 }]}>
               {lang === "he" ? "מינימום נקודות זכות" : "Minimum Credit Points"}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === "he" ? "מינימום נקודות זכות" : "Minimum Credit Points"}
               style={[styles.input, { textAlign: isRtl ? "right" : "left" }]}
               value={minCreditPoints != null ? String(minCreditPoints) : ''}
               onChangeText={(v) => setMinCreditPoints(v === '' ? null : Number(v))}

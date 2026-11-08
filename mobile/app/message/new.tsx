@@ -203,7 +203,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                   : 'Send to all users in your faculty'}
               </Text>
               <Text style={ss.fieldLabel}>Title</Text>
-              <TextInput
+              <TextInput accessibilityLabel="Title"
                 style={ss.input}
                 value={broadcastTitle}
                 onChangeText={setBroadcastTitle}
@@ -211,7 +211,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
                 placeholderTextColor={palette.textMuted}
               />
               <Text style={ss.fieldLabel}>Message</Text>
-              <TextInput
+              <TextInput accessibilityLabel="Message"
                 style={[ss.input, ss.textarea]}
                 value={broadcastMsg}
                 onChangeText={setBroadcastMsg}
@@ -237,7 +237,7 @@ export default function NewChatSheet({ visible, onClose, onChatCreated, existing
             <>
               <View style={ss.searchWrap}>
                 <Text style={ss.searchIcon}>🔍</Text>
-                <TextInput
+                <TextInput accessibilityLabel="Search by name or email…"
                   style={ss.searchInput}
                   value={search}
                   onChangeText={setSearch}

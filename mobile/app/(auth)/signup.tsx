@@ -874,7 +874,7 @@ export default function ProfileSetup() {
           animationType="fade"
           onRequestClose={() => setShowFacultyModal(false)}
         >
-          <Pressable
+          <Pressable accessibilityRole="button" accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
             style={styles.modalOverlay}
             onPress={() => setShowFacultyModal(false)}
           >

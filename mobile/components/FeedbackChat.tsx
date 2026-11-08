@@ -118,7 +118,7 @@ export default function FeedbackChat({ lang }: { lang: Lang }) {
       )}
 
       <View style={[s.composer, isRtl && s.composerRtl]}>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'כתבו הודעה...' : 'Type a message...'}
           style={[s.input, isRtl && s.textRight]}
           value={text}
           onChangeText={setText}

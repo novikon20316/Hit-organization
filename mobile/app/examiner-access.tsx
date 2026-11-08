@@ -478,7 +478,7 @@ export default function ExaminerAccessScreen() {
               <Text style={s.fieldLabel}>
                 {L('הזן את הקוד שנשלח למייל שלך', 'Enter the code sent to your email')}
               </Text>
-              <TextInput
+              <TextInput accessibilityLabel={L('הזן את הקוד שנשלח למייל שלך', 'Enter the code sent to your email')}
                 style={s.scoreInput}
                 value={otpCode}
                 onChangeText={setOtpCode}
@@ -666,7 +666,7 @@ export default function ExaminerAccessScreen() {
           ) : (
             <View style={s.declineBlock}>
               <Text style={s.fieldLabel}>{t.examinerDeclineReason[lang]}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={t.examinerDeclineReason[lang]}
                 style={[s.textarea, isRtl && s.textRtl]}
                 value={declineReason}
                 onChangeText={setDeclineReason}
@@ -743,7 +743,7 @@ export default function ExaminerAccessScreen() {
                 </Text>
                 {dateDraftRows.map((row, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
-                    <TextInput
+                    <TextInput accessibilityLabel={L(`תאריך מוצע ${idx + 1}`, `Proposed date ${idx + 1}`)}
                       style={[s.scoreInput, { flex: 1 }]}
                       value={row}
                       onChangeText={(v) => updateDateRow(idx, v)}
@@ -819,7 +819,7 @@ export default function ExaminerAccessScreen() {
                 <Text style={s.criterionLabel}>{lang === 'he' ? c.he : c.en}</Text>
                 <Text style={s.criterionMax}>/ {c.max}</Text>
               </View>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? c.he : c.en}
                 style={s.scoreInput}
                 value={scores[c.key]}
                 onChangeText={v => setScores(prev => ({ ...prev, [c.key]: v }))}
@@ -864,7 +864,7 @@ export default function ExaminerAccessScreen() {
 
           {/* Overall comments */}
           <Text style={[s.fieldLabel, { marginTop: 16 }]}>{t.gradeComments[lang]}</Text>
-          <TextInput
+          <TextInput accessibilityLabel={t.gradeComments[lang]}
             style={[s.textarea, isRtl && s.textRtl]}
             value={overallComments}
             onChangeText={setOverallComments}
@@ -993,7 +993,7 @@ function DsRubricSection({
             <Text style={s.criterionLabel}>{lang === 'he' ? c.labelHe : c.labelEn}</Text>
             <Text style={s.criterionMax}>/ {c.maxScore}</Text>
           </View>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? c.labelHe : c.labelEn}
             style={s.scoreInput}
             value={scores[c.key] || ''}
             onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
@@ -1008,7 +1008,7 @@ function DsRubricSection({
         <Text style={s.totalScore}>{total} / 100</Text>
       </View>
       <Text style={s.fieldLabel}>{L('הערכה מילולית והערות', 'Written evaluation and comments')}{mandatory ? ' *' : ''}</Text>
-      <TextInput
+      <TextInput accessibilityLabel={L('הערכה מילולית והערות', 'Written evaluation and comments')}
         style={s.textarea}
         value={comment}
         onChangeText={setComment}

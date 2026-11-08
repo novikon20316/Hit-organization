@@ -197,7 +197,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
               <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                 {lang === 'he' ? 'ציון חדש' : 'New grade'}
               </Text>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'ציון חדש' : 'New grade'}
                 style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: '#fff' }}
                 value={overrideGrade}
                 onChangeText={setOverrideGrade}
@@ -208,7 +208,7 @@ export default function FinalGradeDecisionModal({ visible, lang, milestoneId, au
               <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                 {lang === 'he' ? 'נימוק לשינוי (חובה)' : 'Reason for the change (required)'}
               </Text>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'נימוק לשינוי (חובה)' : 'Reason for the change (required)'}
                 style={{
                   borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11,
                   fontSize: 14, color: ap.onSurface, backgroundColor: '#fff', minHeight: 80, textAlignVertical: 'top',

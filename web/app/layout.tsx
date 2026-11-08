@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Hebrew } from "next/font/google";
 import "./globals.css";
+import "./dark-theme.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { LiveEventToast } from "@/components/LiveEventToast";
+import { THEME_SCRIPT } from "@/components/ThemeToggle";
 
 // One family for the whole product, Hebrew + Latin both — switching
 // languages never breaks the type rhythm because both scripts share the
@@ -35,7 +37,12 @@ export default function RootLayout({
   // (createUserDoc defaults `language: 'he'`). LanguageProvider takes over
   // and flips both attributes client-side once it reads a stored preference.
   return (
-    <html lang="he" dir="rtl" className={`${plexSansHebrew.variable} h-full antialiased`}>
+    // data-theme is set before first paint by THEME_SCRIPT (default light —
+    // see components/ThemeToggle.tsx), so React doesn't own that attribute.
+    <html lang="he" dir="rtl" data-theme="light" suppressHydrationWarning className={`${plexSansHebrew.variable} h-full antialiased`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-paper text-ink">
         <LanguageProvider>
           <AuthProvider>

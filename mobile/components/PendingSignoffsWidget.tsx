@@ -203,7 +203,7 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
           )}
 
           {rejectTargetId === item.id && (
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
               value={rejectReason}
               onChangeText={setRejectReason}
               placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
@@ -232,7 +232,7 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
                   ))}
                 </View>
               ) : (
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                   value={stageFormValues[f.key] ?? ''}
                   onChangeText={(t) => setStageFormValues((v) => ({ ...v, [f.key]: t }))}
                   multiline={f.type === 'textarea'}

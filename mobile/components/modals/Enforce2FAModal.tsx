@@ -138,7 +138,7 @@ export default function Enforce2FAModal({ visible, onClose, lang }: Props) {
                       </Text>
                     )}
                   </View>
-                  <Pressable style={[s.endNowBtn, deactivating && s.endNowBtnDisabled]} onPress={handleDeactivate} disabled={deactivating}>
+                  <Pressable accessibilityRole="button" style={[s.endNowBtn, deactivating && s.endNowBtnDisabled]} onPress={handleDeactivate} disabled={deactivating}>
                     <Text style={s.endNowBtnText}>{deactivating ? '…' : isHe ? 'בטל אכיפה' : 'Cancel'}</Text>
                   </Pressable>
                 </View>
@@ -153,7 +153,7 @@ export default function Enforce2FAModal({ visible, onClose, lang }: Props) {
               <Text style={s.sectionLabel}>{isHe ? 'תקופת התארגנות' : 'Grace period'}</Text>
               <View style={s.rolesGrid}>
                 {DAY_OPTIONS.map((d) => (
-                  <Pressable
+                  <Pressable accessibilityRole="radio" accessibilityState={{ selected: graceDays === d }}
                     key={d}
                     style={[s.roleChip, graceDays === d && s.roleChipSelected]}
                     onPress={() => setGraceDays(d)}
@@ -175,7 +175,7 @@ export default function Enforce2FAModal({ visible, onClose, lang }: Props) {
           </ScrollView>
 
           <View style={s.footer}>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={[s.saveBtn, activating && s.saveBtnDisabled]}
               onPress={handleActivate}
               disabled={activating}
@@ -184,7 +184,7 @@ export default function Enforce2FAModal({ visible, onClose, lang }: Props) {
                 {activating ? '…' : status?.active ? (isHe ? `עדכן ל-${graceDays} ימים ושלח שוב` : `Update to ${graceDays} days & re-notify`) : (isHe ? 'הפעל ושלח לכולם' : 'Activate & notify everyone')}
               </Text>
             </Pressable>
-            <Pressable style={s.cancelBtn} onPress={onClose}>
+            <Pressable accessibilityRole="button" style={s.cancelBtn} onPress={onClose}>
               <Text style={s.cancelBtnText}>{isHe ? 'סגור' : 'Close'}</Text>
             </Pressable>
           </View>

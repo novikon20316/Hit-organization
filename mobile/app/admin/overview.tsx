@@ -385,7 +385,7 @@ export default function AdminOverviewScreen() {
                     <Text style={styles.alertName} numberOfLines={1}>
                       {r.platform === 'web' ? 'Web' : 'Mobile'}{r.count > 1 ? ` ×${r.count}` : ''}
                     </Text>
-                    <Pressable onPress={() => resolveErrorReport(r.id)} disabled={resolvingErrorId === r.id}>
+                    <Pressable accessibilityRole="button" onPress={() => resolveErrorReport(r.id)} disabled={resolvingErrorId === r.id}>
                       <Text style={styles.resolveLink}>
                         {resolvingErrorId === r.id ? '…' : lang === 'he' ? 'סמן כטופל' : 'Resolve'}
                       </Text>

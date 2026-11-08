@@ -34,8 +34,8 @@ export function InfoTooltip({ textHe, textEn, accessibilityLabel }: InfoTooltipP
         <Text style={s.buttonText}>i</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={s.card} onPress={(e) => e.stopPropagation()}>
+        <Pressable accessibilityRole="button" accessibilityLabel={isHe ? 'סגור' : 'Close'} style={s.backdrop} onPress={() => setOpen(false)}>
+          <Pressable accessible={false} style={s.card} onPress={(e) => e.stopPropagation()}>
             <Text style={s.cardText}>{isHe ? textHe : textEn}</Text>
             <Pressable style={s.closeBtn} onPress={() => setOpen(false)} accessibilityRole="button">
               <Text style={s.closeBtnText}>{isHe ? 'סגור' : 'Close'}</Text>

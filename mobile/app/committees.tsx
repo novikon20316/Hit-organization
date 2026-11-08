@@ -345,7 +345,7 @@ function ReviewModal({ milestoneId, uid, lang, onClose, onActed }: {
                     ? [optionBtn('approve', L('✓ אישור', '✓ Approve')), optionBtn('reject', L('✗ דחייה', '✗ Reject'))]
                     : [optionBtn('approve', L('✓ בעד', '✓ Approve')), optionBtn('reject', L('✗ נגד', '✗ Reject'))]}
                 </View>
-                <TextInput
+                <TextInput accessibilityLabel={detail.isChairman ? L('נימוק ההחלטה (חובה בדחייה)', 'Reasoning (required if rejecting)') : L('הערה (חובה אם מצביעים נגד)', 'Comment (required if voting reject)')}
                   value={comment}
                   onChangeText={setComment}
                   multiline
@@ -476,7 +476,7 @@ function ChairDecisionModal({ review, lang, onClose, onActed }: {
             {opt('not_continue', L('⛔ לא להמשיך', '⛔ Not continue'))}
           </View>
           <Text style={{ fontWeight: '600', color: C.ink, marginTop: 12, marginBottom: 6, ...align }}>{L('נימוק', 'Reason')}</Text>
-          <TextInput
+          <TextInput accessibilityLabel={L('נימוק', 'Reason')}
             value={reason}
             onChangeText={setReason}
             multiline

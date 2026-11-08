@@ -14,6 +14,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ChatbotFab } from '@/components/ChatbotFab';
+import { CommandPalette } from '@/components/CommandPalette';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
 import { getHomeRoute } from '@/lib/roles';
@@ -78,6 +80,12 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
                 </div>
               </Link>
             </div>
+            {firebaseUser && (
+              <div className="flex shrink-0 items-center gap-2">
+                <CommandPalette />
+                <ThemeToggle />
+              </div>
+            )}
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-3">

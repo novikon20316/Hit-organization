@@ -459,7 +459,7 @@ function SecurityModal({ visible, onClose, lang }: {
             <Text style={[sm.setupSub, isRtl && sm.textRight]}>{txt.bioCodeSub}</Text>
 
             <Text style={[sm.codeLabel, isRtl && sm.textRight]}>{txt.codeLabel}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={txt.codeLabel}
               style={sm.codeInput}
               value={biometricCode}
               onChangeText={t => { setBiometricCode(t); setError(''); }}
@@ -514,7 +514,7 @@ function SecurityModal({ visible, onClose, lang }: {
             )}
 
             <Text style={[sm.codeLabel, isRtl && sm.textRight]}>{txt.codeLabel}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={txt.codeLabel}
               style={sm.codeInput}
               value={token}
               onChangeText={t => {

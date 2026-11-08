@@ -261,7 +261,7 @@ export default function SubmitMilestoneModal({
               </Text>
               <InfoTooltip textHe={submitGuideEntry('note').description.he} textEn={submitGuideEntry('note').description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={tx('notePlaceholder', lang)}
               style={[styles.textarea, isRtl && styles.textRight]}
               multiline
               numberOfLines={4}

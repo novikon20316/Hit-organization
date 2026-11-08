@@ -20,6 +20,7 @@ import { OnboardingTourProvider } from '@/contexts/OnboardingTourContext';
 import { FieldGuideProvider } from '@/contexts/FieldGuideContext';
 import { OnboardingTourOverlay } from '@/components/onboarding/OnboardingTourOverlay';
 import { LiveEventToast } from '@/components/LiveEventToast';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { isBiometricEnabled } from '@/src/auth/biometricStorage';
 import { isSessionUnlocked } from '@/src/auth/biometricAuth';
@@ -657,6 +658,7 @@ function RootLayoutInner() {
           <Stack screenOptions={{ headerShown: false }} />
           <OnboardingTourOverlay />
           <LiveEventToast />
+          <OfflineBanner />
         </NotificationsProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

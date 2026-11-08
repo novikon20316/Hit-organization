@@ -516,6 +516,25 @@ export const apiClient = {
     return url;
   },
 
+  /** PDF / Word attachment — stored privately on the server (see the
+   *  server's chatController.ts uploadChatFile); returns the id to send with
+   *  sendChatFileMessage. Never a URL: opening it goes through getChatFileUrl. */
+  async uploadChatFile(file: File, chatId: string) {
+    const formData = new FormData();
+    formData.append('chatId', chatId);
+    formData.append('file', file);
+    return request<ChatFileMeta>('/api/chats/upload-file', { method: 'POST', body: formData, raw: true });
+  },
+
+  async sendChatFileMessage(chatId: string, fileId: string, caption?: string) {
+    return request<{ success: boolean }>(`/api/chats/${chatId}/messages`, { method: 'POST', body: { fileId, text: caption ?? '' } });
+  },
+
+  /** A fresh 5-minute signed link — only for participants of the chat. */
+  async getChatFileUrl(chatId: string, fileId: string) {
+    return request<{ url: string; name: string }>(`/api/chats/${chatId}/files/${fileId}/url`, { method: 'GET' });
+  },
+
   async getChatMeta(chatId: string) {
     return request<{
       chatId: string;
@@ -547,6 +566,25 @@ export const apiClient = {
   /** `context` is where it was sent from (see the server's FeedbackContext). */
   async submitFeedback(text: string, context?: { platform: 'web'; screen?: string; activeRole?: string; device?: string; language?: string }) {
     return request<{ success: boolean }>('/api/feedback', { method: 'POST', body: { text, ...(context ? { context } : {}) } });
+  },
+
+  // ─── 3c-2. NOTIFICATION SETTINGS ────────────────────────────────────────────
+  /** The caller's own settings — see the server's notificationPrefs.ts. */
+  async getNotificationPrefs() {
+    return request<{ prefs: NotificationPrefs }>('/api/users/me/notification-prefs', { method: 'GET' });
+  },
+
+  async updateNotificationPrefs(prefs: NotificationPrefs) {
+    return request<{ prefs: NotificationPrefs }>('/api/users/me/notification-prefs', { method: 'PUT', body: { prefs } });
+  },
+
+  /** GET /api/search — projects/students the caller can already open (see
+   *  the server's searchController.ts). Screens are searched client-side. */
+  async search(q: string) {
+    return request<{
+      projects: Array<{ id: string; titleHe: string; titleEn: string; supervisorId: string | null; facultyId: string; major: string | null; status: string }>;
+      students: Array<{ id: string; displayName: string; major: string | null }>;
+    }>('/api/search', { method: 'GET', params: { q } });
   },
 
   // ─── 3d. HELP ASSISTANT ─────────────────────────────────────────────────────
@@ -3558,6 +3596,22 @@ export interface StuckLimitsTemplate {
 }
 
 export type RelayTaskAction = 'student' | 'committee' | 'supervisor';
+
+// See the server's chatController.ts uploadChatFile.
+export interface ChatFileMeta {
+  fileId: string;
+  name: string;
+  size: number;
+  mime: string;
+}
+
+// See server/src/services/notificationPrefs.ts.
+export type NotificationCategory = 'messages' | 'deadlines' | 'workflow' | 'announcements';
+export type NotificationChannel = 'email' | 'push' | 'sms' | 'whatsapp';
+export interface NotificationPrefs {
+  channels: Record<NotificationCategory, Record<NotificationChannel, boolean>>;
+  emailDigest: boolean;
+}
 
 // See server/src/services/workflowTemplateReview.ts.
 export interface TemplateReviewFieldChange {

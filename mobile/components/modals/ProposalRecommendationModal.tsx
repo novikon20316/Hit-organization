@@ -198,7 +198,7 @@ export default function ProposalRecommendationModal({
         <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', gap: 10, marginTop: 10 }}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Committee member 1'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'חבר/ת ועדת מחקר 1' : 'Committee member 1'}
               style={[styles.textarea, isRtl && styles.textRight, { minHeight: undefined }]}
               value={committeeMember1}
               onChangeText={setCommitteeMember1}
@@ -207,7 +207,7 @@ export default function ProposalRecommendationModal({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Committee member 2'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'חבר/ת ועדת מחקר 2' : 'Committee member 2'}
               style={[styles.textarea, isRtl && styles.textRight, { minHeight: undefined }]}
               value={committeeMember2}
               onChangeText={setCommitteeMember2}
@@ -220,7 +220,7 @@ export default function ProposalRecommendationModal({
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
             {lang === 'he' ? 'הערה' : 'Comment'}{commentRequired ? ' *' : ''}
           </Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'הערה' : 'Comment'}
             style={[styles.textarea, isRtl && styles.textRight]}
             multiline
             numberOfLines={3}

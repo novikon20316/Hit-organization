@@ -9,18 +9,27 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError, type ChatFileMeta } from '@/lib/apiClient';
 import { db } from '@/lib/firebase';
 import { getRoleAccent } from '@/lib/facultyColors';
 import ReadTicks from '@/components/ReadTicks';
 
 interface Message {
   id: string;
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'file';
   text: string;
   imageUrl: string | null;
+  file?: ChatFileMeta | null;
   senderId: string;
   createdAt: string | null;
+}
+
+// Same 10MB cap the server enforces for images and documents.
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // See the chat-doc listener below.
@@ -205,16 +214,51 @@ export function ChatConversation({
     const file = e.target.files?.[0];
     e.target.value = ''; // allow picking the same file again later
     if (!file || !chatId || uploadingImage) return;
+    const isImage = file.type.startsWith('image/');
+    const isDocument = /\.(pdf|docx)$/i.test(file.name);
+    if (!isImage && !isDocument) {
+      setSendError(lang === 'he' ? 'אפשר לשלוח תמונות, PDF או Word (.docx) בלבד' : 'Only images, PDF or Word (.docx) files can be sent');
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setSendError(lang === 'he' ? 'הקובץ גדול מ-10MB' : 'The file is larger than 10MB');
+      return;
+    }
     setUploadingImage(true);
     setSendError('');
     try {
-      const imageUrl = await apiClient.uploadChatImage(file, chatId);
-      await apiClient.sendChatImageMessage(chatId, imageUrl);
+      if (isImage) {
+        const imageUrl = await apiClient.uploadChatImage(file, chatId);
+        await apiClient.sendChatImageMessage(chatId, imageUrl);
+      } else {
+        const uploaded = await apiClient.uploadChatFile(file, chatId);
+        await apiClient.sendChatFileMessage(chatId, uploaded.fileId);
+      }
       await fetchMessages();
-    } catch {
-      setSendError(lang === 'he' ? 'שליחת התמונה נכשלה' : 'Failed to send the image');
+    } catch (err) {
+      setSendError(err instanceof ApiError && err.message
+        ? err.message
+        : isImage
+          ? (lang === 'he' ? 'שליחת התמונה נכשלה' : 'Failed to send the image')
+          : (lang === 'he' ? 'שליחת הקובץ נכשלה' : 'Failed to send the file'));
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  // The link is fetched on click (it expires after 5 minutes). The tab is
+  // opened first, synchronously, so popup blockers allow it.
+  const openFile = async (file: ChatFileMeta) => {
+    if (!chatId) return;
+    const tab = window.open('about:blank', '_blank');
+    try {
+      const { url } = await apiClient.getChatFileUrl(chatId, file.fileId);
+      // The opened page is Cloudinary's own file delivery, never user content.
+      if (tab) tab.location.replace(url);
+      else window.location.assign(url);
+    } catch {
+      tab?.close();
+      setSendError(lang === 'he' ? 'פתיחת הקובץ נכשלה' : 'Failed to open the file');
     }
   };
 
@@ -295,6 +339,22 @@ export function ChatConversation({
                         />
                         {item.text && <p className={`px-2 py-1.5 ${mine ? 'text-primary-ink' : 'text-ink'}`}>{item.text}</p>}
                       </button>
+                    ) : item.type === 'file' && item.file ? (
+                      <div className={`max-w-[75%] rounded-2xl p-1 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>
+                        <button
+                          type="button"
+                          onClick={() => openFile(item.file!)}
+                          aria-label={`${lang === 'he' ? 'פתח קובץ' : 'Open file'}: ${item.file.name}`}
+                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start ${mine ? 'hover:bg-white/10' : 'hover:bg-paper'}`}
+                        >
+                          <span className="text-xl" aria-hidden="true">{item.file.mime === 'application/pdf' ? '📄' : '📝'}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{item.file.name}</span>
+                            <span className="block text-xs opacity-75">{formatFileSize(item.file.size)}</span>
+                          </span>
+                        </button>
+                        {item.text && <p className="px-2 pb-1.5">{item.text}</p>}
+                      </div>
                     ) : (
                       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-primary text-primary-ink' : 'bg-surface text-ink'}`}>{item.text}</div>
                     )}
@@ -319,12 +379,18 @@ export function ChatConversation({
           <p className="mx-auto mb-1.5 max-w-2xl text-xs text-danger" role="alert">{sendError}</p>
         )}
         <div className="mx-auto flex max-w-2xl items-end gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelected} className="hidden" />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleImageSelected}
+            className="hidden"
+          />
           <button
             type="button"
             onClick={handlePickImage}
             disabled={uploadingImage}
-            aria-label={lang === 'he' ? 'שלח תמונה' : 'Send an image'}
+            aria-label={lang === 'he' ? 'צרף תמונה או קובץ (PDF / Word)' : 'Attach an image or file (PDF / Word)'}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-ink hover:bg-paper disabled:opacity-40"
           >
             {uploadingImage ? '…' : '📎'}

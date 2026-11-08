@@ -114,7 +114,7 @@ export default function StudentsListSection({ lang, isRtl, canManageStudents = f
   return (
     <View>
       <View style={s.searchBox}>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'חפש סטודנט...' : 'Search students...'}
           placeholder={lang === 'he' ? 'חפש סטודנט...' : 'Search students...'}
           value={search}
           onChangeText={setSearch}

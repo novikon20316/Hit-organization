@@ -212,4 +212,5 @@ function uploadLimiter(prefix: string, limitPerHour: number) {
 }
 export const applicationUploadLimiter = uploadLimiter('applicationUpload', 20);
 export const chatImageUploadLimiter = uploadLimiter('chatImageUpload', 30);
+export const chatFileUploadLimiter = uploadLimiter('chatFileUpload', 20);
 export const projectFileUploadLimiter = uploadLimiter('projectFileUpload', 30);

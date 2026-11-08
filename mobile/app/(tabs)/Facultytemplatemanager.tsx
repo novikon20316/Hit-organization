@@ -562,7 +562,7 @@ export default function FacultyTemplateManager() {
               <Text style={s.fieldLabel}>{lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}</Text>
               <InfoTooltip textHe={templateGuideEntry('title').description.he} textEn={templateGuideEntry('title').description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'כותרת (עברית)' : 'Title (Hebrew)'}
               style={s.input}
               value={tplTitleHe}
               onChangeText={setTplTitleHe}
@@ -571,7 +571,7 @@ export default function FacultyTemplateManager() {
             />
 
             <Text style={s.fieldLabel}>{lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'כותרת (אנגלית)' : 'Title (English)'}
               style={s.input}
               value={tplTitleEn}
               onChangeText={setTplTitleEn}
@@ -587,7 +587,7 @@ export default function FacultyTemplateManager() {
               <Text style={s.fieldLabel}>{lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}</Text>
               <InfoTooltip textHe={templateGuideEntry('description').description.he} textEn={templateGuideEntry('description').description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'תיאור (עברית)' : 'Description (Hebrew)'}
               style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
               value={tplDescriptionHe}
               onChangeText={setTplDescriptionHe}
@@ -597,7 +597,7 @@ export default function FacultyTemplateManager() {
             />
 
             <Text style={s.fieldLabel}>{lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'תיאור (אנגלית)' : 'Description (English)'}
               style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
               value={tplDescriptionEn}
               onChangeText={setTplDescriptionEn}
@@ -616,7 +616,7 @@ export default function FacultyTemplateManager() {
               </Text>
               <InfoTooltip textHe={templateGuideEntry('skills').description.he} textEn={templateGuideEntry('skills').description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'כישורים נדרשים' : 'Required skills'}
               style={s.input}
               value={tplSkills}
               onChangeText={setTplSkills}
@@ -672,7 +672,7 @@ export default function FacultyTemplateManager() {
               </Text>
               <InfoTooltip textHe={REJECT_PROPOSAL_FIELD_GUIDE[0]!.description.he} textEn={REJECT_PROPOSAL_FIELD_GUIDE[0]!.description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
               style={[s.input, { minHeight: 100, textAlignVertical: 'top' }]}
               value={rejectReason}
               onChangeText={setRejectReason}

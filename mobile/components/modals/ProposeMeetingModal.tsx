@@ -98,14 +98,14 @@ export default function ProposeMeetingModal({ visible, application, lang, isRtl,
 
         {slots.map((slot, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 }}>
-            <TextInput
+            <TextInput accessibilityLabel={`${lang === 'he' ? 'תאריך' : 'Date'} ${i + 1} (YYYY-MM-DD)`}
               style={[s.input, { flex: 1 }, isRtl && { textAlign: 'right' }]}
               value={slot.date}
               onChangeText={(v) => updateSlot(i, 'date', v)}
               placeholder="YYYY-MM-DD"
               placeholderTextColor="#9CA3AF"
             />
-            <TextInput
+            <TextInput accessibilityLabel={`${lang === 'he' ? 'שעה' : 'Time'} ${i + 1} (HH:MM)`}
               style={[s.input, { width: 90 }, isRtl && { textAlign: 'right' }]}
               value={slot.time}
               onChangeText={(v) => updateSlot(i, 'time', v)}

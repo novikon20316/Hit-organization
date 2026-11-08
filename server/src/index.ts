@@ -47,6 +47,7 @@ import committeesRoutes from './routes/committees.js';
 import integrationsRoutes from './routes/integrations.js';
 import systemErrorRoutes from './routes/systemErrorRoutes.js';
 import assistantRoutes from './routes/assistant.js';
+import searchRoutes from './routes/search.js';
 import { verifyToken, type AuthenticatedRequest } from './middleware/auth.js';
 import { resolveTasksAfterMutation } from './services/pendingTasks.js';
 import { verifyAppCheck } from './middleware/appCheck.js';
@@ -62,6 +63,7 @@ import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js'
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
 import { runTrackedJob } from './services/systemHealth.js';
+import { sendEmailDigests } from './services/emailDigest.js';
 import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -223,6 +225,7 @@ app.use('/api/admin/decision-relay-config', decisionRelayConfigRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/feedback',      feedbackRoutes);
 app.use('/api/assistant',     assistantRoutes);
+app.use('/api/search',        searchRoutes);
 app.use('/api/projects',      projectRoutes);
 app.use('/api/chats',         chatRoutes);
 app.use('/api/admin',         adminRoutes);
@@ -353,6 +356,11 @@ setInterval(() => {
 // blocked, only the oldest excess gets swept out periodically.
 setInterval(() => {
   void runTrackedJob('pruneAuditLog', pruneAuditLog);
+}, ONE_HOUR_MS);
+// Daily email digest for users who chose it — see services/emailDigest.ts.
+// Hourly check; sends once a day from 08:00 Israel time.
+setInterval(() => {
+  void runTrackedJob('sendEmailDigests', sendEmailDigests);
 }, ONE_HOUR_MS);
 // Live refresh for staff user lists — see services/usersChangeSignal.ts.
 startUsersChangeWatcher();

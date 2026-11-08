@@ -266,13 +266,13 @@ function SeminarDateModal({ seminar, initialDate, lang, isRtl, onClose, onSaved 
           <Text style={{ fontSize: 16, fontWeight: '700', color: ap.onSurface, textAlign }}>📅 {lang === 'he' ? 'קביעת מועד סמינר' : 'Set seminar date'}</Text>
           <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign }}>👤 {seminar.students.map((s) => s.name).join(', ')}</Text>
           <Text style={{ fontSize: 12, color: ap.onSurface, marginTop: 10, textAlign }}>{lang === 'he' ? 'תאריך (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'}</Text>
-          <TextInput value={date} onChangeText={setDate} placeholder="2026-12-01" autoCapitalize="none" style={inputStyle} />
+          <TextInput accessibilityLabel={lang === 'he' ? 'תאריך (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'} value={date} onChangeText={setDate} placeholder="2026-12-01" autoCapitalize="none" style={inputStyle} />
           <Text style={{ fontSize: 12, color: ap.onSurface, marginTop: 8, textAlign }}>{lang === 'he' ? 'שעה (HH:MM)' : 'Time (HH:MM)'}</Text>
-          <TextInput value={time} onChangeText={setTime} placeholder="10:00" autoCapitalize="none" style={inputStyle} />
+          <TextInput accessibilityLabel={lang === 'he' ? 'שעה (HH:MM)' : 'Time (HH:MM)'} value={time} onChangeText={setTime} placeholder="10:00" autoCapitalize="none" style={inputStyle} />
           <Text style={{ fontSize: 12, color: ap.onSurface, marginTop: 8, textAlign }}>{lang === 'he' ? 'מיקום (לא חובה)' : 'Location (optional)'}</Text>
-          <TextInput value={location} onChangeText={setLocation} maxLength={200} style={[inputStyle, { textAlign }]} />
+          <TextInput accessibilityLabel={lang === 'he' ? 'מיקום (לא חובה)' : 'Location (optional)'} value={location} onChangeText={setLocation} maxLength={200} style={[inputStyle, { textAlign }]} />
           <Text style={{ fontSize: 12, color: ap.onSurface, marginTop: 8, textAlign }}>{lang === 'he' ? 'הערה לסטודנט/ית (לא חובה)' : 'Note to the student (optional)'}</Text>
-          <TextInput value={note} onChangeText={setNote} maxLength={500} multiline style={[inputStyle, { textAlign }]} />
+          <TextInput accessibilityLabel={lang === 'he' ? 'הערה לסטודנט/ית (לא חובה)' : 'Note to the student (optional)'} value={note} onChangeText={setNote} maxLength={500} multiline style={[inputStyle, { textAlign }]} />
           {!!error && <Text style={{ fontSize: 12, color: '#A8433A', marginTop: 6, textAlign }}>{error}</Text>}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
             <Pressable onPress={onClose} accessibilityRole="button" style={{ flex: 1, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 10, paddingVertical: 10 }}>
@@ -322,7 +322,7 @@ function SeminarOutcomeModal({ seminar, lang, isRtl, onClose, onSaved }: {
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2, textAlign }}>📅 {formatSeminarDay(seminar.schedule.date, lang)} · 🕐 {seminar.schedule.time}</Text>
           )}
           <Text style={{ fontSize: 12, color: ap.onSurface, marginTop: 10, textAlign }}>{lang === 'he' ? 'הערה (לא חובה)' : 'Note (optional)'}</Text>
-          <TextInput value={note} onChangeText={setNote} maxLength={500} multiline style={[inputStyle, { textAlign }]} />
+          <TextInput accessibilityLabel={lang === 'he' ? 'הערה (לא חובה)' : 'Note (optional)'} value={note} onChangeText={setNote} maxLength={500} multiline style={[inputStyle, { textAlign }]} />
           {!!error && <Text style={{ fontSize: 12, color: '#A8433A', marginTop: 6, textAlign }}>{error}</Text>}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
             <Pressable onPress={() => save(true)} disabled={saving} accessibilityRole="button" style={{ flex: 1, backgroundColor: '#3F6B4C', borderRadius: 10, paddingVertical: 10, opacity: saving ? 0.6 : 1 }}>

@@ -240,7 +240,7 @@ export default function StaffRecordModal({ visible, lang, milestoneId, fields, c
                     <Text style={{ fontSize: 14, color: ap.outline }}>{resolveLockedValue(f) || '—'}</Text>
                   </View>
                 ) : (
-                  <TextInput
+                  <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                     style={{
                       borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11,
                       fontSize: 14, color: ap.onSurface, backgroundColor: '#fff',

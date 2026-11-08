@@ -94,7 +94,7 @@ export function ExceptionalActionQueue({ lang }: { lang: Lang }) {
             {lang === 'he' ? 'מבקש:' : 'Requested by:'} {r.requestedByRole}
           </Text>
 
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'סיבת דחייה (נדרש רק לדחייה)' : 'Rejection reason (required only to reject)'}
             value={rejectReasonById[r.id] ?? ''}
             onChangeText={(text) => setRejectReasonById((prev) => ({ ...prev, [r.id]: text }))}
             placeholder={lang === 'he' ? 'סיבת דחייה (נדרש רק לדחייה)' : 'Rejection reason (required only to reject)'}

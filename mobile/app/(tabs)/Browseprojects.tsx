@@ -293,7 +293,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
 
       {/* Search + Filters */}
       <View style={styles.searchBar}>
-        <TextInput
+        <TextInput accessibilityLabel={tx('searchPlaceholder', lang)}
           style={[styles.searchInput, isRtl && styles.textRight]}
           placeholder={tx('searchPlaceholder', lang)}
           placeholderTextColor="#9BA8C0"
@@ -660,7 +660,7 @@ export default function BrowseProjects({ proposals, lang, isRtl, studentDegree, 
             </Text>
             <InfoTooltip textHe={applyGuideEntry('coverNote').description.he} textEn={applyGuideEntry('coverNote').description.en} />
           </View>
-          <TextInput
+          <TextInput accessibilityLabel={tx('coverNote', lang)}
             style={[styles.textarea, isRtl && styles.textRight]}
             multiline
             numberOfLines={5}

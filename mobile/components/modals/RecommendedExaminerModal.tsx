@@ -234,7 +234,7 @@ export default function RecommendedExaminerModal({
     ].map((f) => (
       <View key={f.label} style={{ marginBottom: 8 }}>
         <Text style={[{ fontSize: 12, color: '#8899BB', marginBottom: 4 }, isRtl && styles.textRight]}>{f.label}</Text>
-        <TextInput
+        <TextInput accessibilityLabel={f.label}
           style={[styles.input, isRtl && styles.textRight]}
           value={f.value}
           onChangeText={f.set}

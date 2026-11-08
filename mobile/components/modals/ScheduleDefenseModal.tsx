@@ -189,7 +189,7 @@ function ScheduleDefenseForm({
         <FieldGuideTarget fieldKey="date">
           <View>
             <FieldLabel isRtl={isRtl} tip={tip('date')} text={he ? 'תאריך (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'} />
-            <TextInput style={inputStyle} value={date} onChangeText={setDate} placeholder="2026-12-31" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
+            <TextInput accessibilityLabel={he ? 'תאריך (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'} style={inputStyle} value={date} onChangeText={setDate} placeholder="2026-12-31" placeholderTextColor="#9CA3AF" autoCapitalize="none" />
             {dateChanged && (
               <Text style={[s.subtitle, { color: '#B45309', marginTop: 6 }]}>
                 ⚠️ {he
@@ -203,12 +203,12 @@ function ScheduleDefenseForm({
         <FieldGuideTarget fieldKey="time">
           <View>
             <FieldLabel isRtl={isRtl} tip={tip('time')} text={tx('defenseTime', lang)} />
-            <TextInput style={inputStyle} value={time} onChangeText={setTime} placeholder="HH:MM" placeholderTextColor="#9CA3AF" />
+            <TextInput accessibilityLabel={tx('defenseTime', lang)} style={inputStyle} value={time} onChangeText={setTime} placeholder="HH:MM" placeholderTextColor="#9CA3AF" />
           </View>
         </FieldGuideTarget>
 
         <FieldLabel isRtl={isRtl} tip={tip('duration')} text={he ? 'משך (דקות)' : 'Duration (minutes)'} />
-        <TextInput style={inputStyle} value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="90" placeholderTextColor="#9CA3AF" />
+        <TextInput accessibilityLabel={he ? 'משך (דקות)' : 'Duration (minutes)'} style={inputStyle} value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="90" placeholderTextColor="#9CA3AF" />
 
         {needsPlace && (
           <>
@@ -221,7 +221,7 @@ function ScheduleDefenseForm({
             <FieldGuideTarget fieldKey="room">
               <View>
                 <FieldLabel isRtl={isRtl} tip={tip('room')} text={tx('defenseRoom', lang)} />
-                <TextInput style={inputStyle} value={room} onChangeText={setRoom} placeholder={he ? 'חדר 101' : 'Room 101'} placeholderTextColor="#9CA3AF" />
+                <TextInput accessibilityLabel={tx('defenseRoom', lang)} style={inputStyle} value={room} onChangeText={setRoom} placeholder={he ? 'חדר 101' : 'Room 101'} placeholderTextColor="#9CA3AF" />
               </View>
             </FieldGuideTarget>
           </>
@@ -257,7 +257,7 @@ function ScheduleDefenseForm({
                 </Text>
               ) : null}
               {useManualLink ? (
-                <TextInput
+                <TextInput accessibilityLabel={he ? 'קישור לפגישת Zoom' : 'Zoom meeting link'}
                   style={inputStyle}
                   value={manualLink}
                   onChangeText={setManualLink}

@@ -120,7 +120,7 @@ export function ArchivedProjectsSection({ lang }: { lang: Lang }) {
             <Text style={{ fontSize: 11, color: '#8899BB', marginTop: 2 }}>{t('erasureRequestedBy')}: {r.requestedByRole}</Text>
             <Text style={{ fontSize: 12, color: '#111', marginTop: 4 }}>{t('erasureReason')}: {r.reason}</Text>
 
-            <TextInput
+            <TextInput accessibilityLabel={t('rejectErasureReasonRequired')}
               value={rejectReasonById[r.id] ?? ''}
               onChangeText={(text) => setRejectReasonById((prev) => ({ ...prev, [r.id]: text }))}
               placeholder={t('rejectErasureReasonRequired')}
@@ -154,7 +154,7 @@ export function ArchivedProjectsSection({ lang }: { lang: Lang }) {
         ))
       )}
 
-      <TextInput
+      <TextInput accessibilityLabel={t('searchArchivedProjects')}
         value={search}
         onChangeText={setSearch}
         placeholder={t('searchArchivedProjects')}

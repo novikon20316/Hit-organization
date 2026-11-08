@@ -106,7 +106,7 @@ export default function DeleteAccountModal({ visible, onClose, lang, onRequested
           <Text style={[s.label, isRtl && s.textRight]}>
             {lang === 'he' ? 'הזן את הסיסמה הנוכחית לאישור' : 'Enter your current password to confirm'}
           </Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'הזן את הסיסמה הנוכחית לאישור' : 'Enter your current password to confirm'}
             style={s.input}
             value={password}
             onChangeText={(t) => { setPassword(t); setError(''); }}

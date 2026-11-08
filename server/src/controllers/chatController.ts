@@ -258,11 +258,139 @@ export const uploadChatImage = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
+// ─── Chat document attachments (PDF / Word) ────────────────────────────────
+// Unlike chat images (public-by-unguessable-URL), documents can be thesis
+// drafts, so they're stored as Cloudinary `authenticated` raw resources —
+// a plain URL 401s — and only ever handed out as a 5-minute signed link by
+// getChatFileUrl, after checking the caller is a participant of that chat.
+// The upload is recorded under chats/{chatId}/files/{fileId}; a message can
+// only reference a file its own sender uploaded to that same chat, once.
+const ALLOWED_CHAT_FILE_TYPES: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+};
+const MAX_CHAT_FILE_BYTES = 10 * 1024 * 1024;
+
+class UnsupportedChatFileTypeError extends Error {
+  code = 'UNSUPPORTED_FILE_TYPE';
+}
+
+const chatFileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_CHAT_FILE_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    // Both the declared type and the name must agree — a macro-enabled
+    // .docm renamed or re-typed as Word is rejected either way.
+    if (!ALLOWED_CHAT_FILE_TYPES[file.mimetype] || ALLOWED_CHAT_FILE_TYPES[file.mimetype] !== ext) {
+      cb(new UnsupportedChatFileTypeError('Only PDF or Word (.docx) files are accepted.'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+export const uploadChatFileMiddleware: RequestHandler = chatFileUpload.single('file') as unknown as RequestHandler;
+
+export const handleChatFileUploadError: import('express').ErrorRequestHandler = (err, req, res, next) => {
+  if (err instanceof UnsupportedChatFileTypeError) {
+    return res.status(400).json({ message: L(req, 'Only PDF or Word (.docx) files can be sent.', 'אפשר לשלוח רק קובצי PDF או Word (.docx).') });
+  }
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: L(req, 'File too large — the limit is 10MB.', 'הקובץ גדול מהמותר — המגבלה היא 10MB.') });
+  }
+  return next(err);
+};
+
+async function isChatParticipant(chatId: string, uid: string): Promise<boolean> {
+  if (!isValidDocId(chatId)) return false;
+  const chatSnap = await db.collection('chats').doc(chatId).get();
+  const participants: string[] = chatSnap.data()?.participants ?? [];
+  return participants.includes(uid);
+}
+
+// POST /api/chats/upload-file   (multipart: file, chatId)
+export const uploadChatFile = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) return res.status(400).json({ message: L(req, 'No file uploaded.', 'לא הועלה קובץ.') });
+  const chatId = typeof req.body?.chatId === 'string' ? req.body.chatId : '';
+
+  try {
+    if (!(await isChatParticipant(chatId, uid))) {
+      return res.status(403).json({ message: L(req, 'You are not part of this chat.', 'אינך משתתף/ת בשיחה זו.') });
+    }
+  } catch (err) {
+    console.error('uploadChatFile chat check error:', err);
+    return res.status(500).json({ message: L(req, 'File upload failed.', 'העלאת הקובץ נכשלה.') });
+  }
+
+  const format = ALLOWED_CHAT_FILE_TYPES[file.mimetype]!;
+  const fileRef = db.collection('chats').doc(chatId).collection('files').doc();
+  // Display name only — never used to build a path or URL.
+  const name = file.originalname.replace(/[\u0000-\u001f]/g, '').slice(0, 150) || `file.${format}`;
+  try {
+    const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+    const result = await cloudinary.uploader.upload(dataUri, {
+      resource_type: 'raw',
+      type: 'authenticated',
+      folder: `chat-files/${chatId}`,
+      public_id: fileRef.id,
+      format,
+    });
+    await fileRef.set({
+      publicId: result.public_id,
+      format,
+      name,
+      size: file.size,
+      mime: file.mimetype,
+      uploadedBy: uid,
+      messageId: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return res.status(200).json({ fileId: fileRef.id, name, size: file.size, mime: file.mimetype });
+  } catch (uploadError) {
+    console.error('uploadChatFile error:', uploadError);
+    return res.status(502).json({ message: L(req, 'File upload failed. Please try again in a few minutes.', 'העלאת הקובץ נכשלה. נסה/י שוב בעוד מספר דקות.') });
+  }
+};
+
+// GET /api/chats/:chatId/files/:fileId/url — a fresh 5-minute signed link.
+export const getChatFileUrl = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  const { chatId, fileId } = req.params;
+  if (typeof chatId !== 'string' || typeof fileId !== 'string' || !isValidDocId(fileId)) {
+    return res.status(400).json({ message: L(req, 'Invalid file.', 'קובץ לא תקין.') });
+  }
+  try {
+    if (!(await isChatParticipant(chatId, uid))) {
+      return res.status(403).json({ message: L(req, 'You are not part of this chat.', 'אינך משתתף/ת בשיחה זו.') });
+    }
+    const fileSnap = await db.collection('chats').doc(chatId).collection('files').doc(fileId).get();
+    const data = fileSnap.data();
+    // Only files actually sent in a message — not a stray upload.
+    if (!data?.publicId || !data.messageId) return res.status(404).json({ message: L(req, 'File not found.', 'הקובץ לא נמצא.') });
+    const url = cloudinary.url(data.publicId, {
+      resource_type: 'raw',
+      type: 'authenticated',
+      sign_url: true,
+      secure: true,
+      format: data.format,
+      expires_at: Math.floor(Date.now() / 1000) + 5 * 60,
+    });
+    return res.status(200).json({ url, name: data.name });
+  } catch (error) {
+    console.error('getChatFileUrl error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to open the file.', 'פתיחת הקובץ נכשלה.') });
+  }
+};
+
 export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid; // 🔒 Securely verified Sender ID from your middleware token
   const { chatId } = req.params;
-  const { text, imageUrl } = req.body;
-  const type: 'text' | 'image' = imageUrl != null ? 'image' : 'text';
+  const { text, imageUrl, fileId } = req.body;
+  const type: 'text' | 'image' | 'file' = fileId != null ? 'file' : imageUrl != null ? 'image' : 'text';
 
   if(!chatId || typeof chatId !== 'string'){
     return res.status(401).json({
@@ -280,7 +408,15 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
   // the bad document. Every shape is now checked before anything is
   // persisted, and this doubles as the new image-message validation.
   let previewText: string;
-  if (type === 'image') {
+  if (type === 'file') {
+    if (typeof fileId !== 'string' || !isValidDocId(fileId)) {
+      return res.status(400).json({ message: L(req, 'A valid file is required.', 'נדרש קובץ תקין.') });
+    }
+    if (text !== undefined && text !== null && (typeof text !== 'string' || text.length > MAX_CAPTION_LENGTH)) {
+      return res.status(400).json({ message: L(req, `Caption must be a string under ${MAX_CAPTION_LENGTH} characters.`, `הכיתוב חייב להיות מחרוזת באורך של עד ${MAX_CAPTION_LENGTH} תווים.`) });
+    }
+    previewText = '📎'; // the file's name is added once it's loaded below
+  } else if (type === 'image') {
     if (typeof imageUrl !== 'string' || !CHAT_IMAGE_URL_RE.test(imageUrl)) {
       return res.status(400).json({ message: L(req, 'A valid image URL is required.', 'נדרשת כתובת URL תקינה לתמונה.') });
     }
@@ -327,6 +463,19 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       }
     }
 
+    // A file message may only carry a document its own sender uploaded to
+    // this same chat and that no message has used yet (see uploadChatFile).
+    let fileMeta: { fileId: string; name: string; size: number; mime: string } | null = null;
+    const fileRef = type === 'file' ? chatRef.collection('files').doc(fileId) : null;
+    if (fileRef) {
+      const fileData = (await fileRef.get()).data();
+      if (!fileData || fileData.uploadedBy !== uid || fileData.messageId) {
+        return res.status(400).json({ message: L(req, 'This file cannot be sent — please upload it again.', 'לא ניתן לשלוח את הקובץ — נא להעלות אותו שוב.') });
+      }
+      fileMeta = { fileId, name: fileData.name, size: fileData.size, mime: fileData.mime };
+      previewText = `📎 ${fileData.name}`;
+    }
+
     // Resolved before the batch (a plain read, can't happen inside a
     // batch.set) — see resolveChatProjectId's own comment for when this
     // comes back null and the message is simply left untagged.
@@ -338,12 +487,15 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
     const msgRef = db.collection('chats').doc(chatId).collection('messages').doc();
     batch.set(msgRef, {
       type,
-      text: type === 'image' ? (text ?? '') : text,
+      text: type === 'text' ? text : (text ?? ''),
       ...(type === 'image' ? { imageUrl } : {}),
+      ...(fileMeta ? { file: fileMeta } : {}),
       senderId: uid,
       ...(projectId ? { projectId } : {}),
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    if (fileRef) batch.update(fileRef, { messageId: msgRef.id });
 
     // 2. Update parent chat window thread overview timestamps
     // lastMessageSenderId/lastMessageAt feed the chat list's read-receipt
@@ -402,6 +554,9 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
           preview: previewText,
           messageType: type,
           ...(type === 'image' && imageUrl ? { imageUrl } : {}),
+          // The record keeps the file's name, not a link — opening it still
+          // goes through getChatFileUrl's participant check.
+          ...(fileMeta ? { fileName: fileMeta.name } : {}),
         },
       });
     }
@@ -1122,6 +1277,7 @@ export const getChatMessages = async (req: AuthenticatedRequest, res: Response) 
         type:      data.type      ?? 'text',
         text:      data.text      ?? '',
         imageUrl:  data.imageUrl  ?? null,
+        file:      data.file      ?? null,
         senderId:  data.senderId  ?? '',
         createdAt,
       };

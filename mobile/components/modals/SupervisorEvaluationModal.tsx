@@ -116,7 +116,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
               <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginBottom: 6 }}>
                 {lang === 'he' ? c.labelHe : c.labelEn} (0–{c.maxScore})
               </Text>
-              <TextInput
+              <TextInput accessibilityLabel={`${lang === 'he' ? c.labelHe : c.labelEn} (0–${c.maxScore})`}
                 style={{ borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11, fontSize: 14, color: ap.onSurface, backgroundColor: '#fff' }}
                 value={scores[c.key] ?? ''}
                 onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: clampScoreInput(v, c.maxScore) }))}
@@ -131,7 +131,7 @@ export default function SupervisorEvaluationModal({ visible, lang, milestoneId, 
         <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurfaceVariant, marginTop: 16, marginBottom: 6 }}>
           {lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}
         </Text>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}
           style={{
             borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 8, padding: 11,
             fontSize: 14, color: ap.onSurface, backgroundColor: '#fff', minHeight: 90, textAlignVertical: 'top',

@@ -194,7 +194,7 @@ export default function ManagedStaffSection({ staff, onRefresh, scope, lang, isR
   return (
     <View>
       <View style={s.searchBox}>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'חפש איש סגל...' : 'Search staff...'}
           placeholder={lang === 'he' ? 'חפש איש סגל...' : 'Search staff...'}
           value={search}
           onChangeText={setSearch}

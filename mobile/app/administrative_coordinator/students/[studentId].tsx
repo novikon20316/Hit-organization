@@ -287,7 +287,7 @@ export default function StudentDetailScreen() {
                       : (lang === 'he' ? 'טרם נבחר' : 'Not chosen yet')}
                     {student.trackLocked ? ` 🔒` : ''}
                   </Text>
-                  <TextInput
+                  <TextInput accessibilityLabel={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
                     value={eligibilityReason}
                     onChangeText={setEligibilityReason}
                     placeholder={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}

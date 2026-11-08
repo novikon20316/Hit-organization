@@ -4,11 +4,12 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, FlatList, Image, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, AppState,
+  ActivityIndicator, Alert, AppState, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../src/firebase/firebase';
 import { roleColor } from './new';
@@ -17,11 +18,19 @@ import { ChatScreenStyles } from '../../constants/styles';
 import type { Lang } from '../../components/i18n';
 import ReadTicks from '../../components/ReadTicks';
 
+interface ChatFileMeta {
+  fileId: string;
+  name:   string;
+  size:   number;
+  mime:   string;
+}
+
 interface Message {
   id:        string;
-  type:      'text' | 'image';
+  type:      'text' | 'image' | 'file';
   text:      string;
   imageUrl:  string | null;
+  file?:     ChatFileMeta | null;
   senderId:  string;
   createdAt: string | null; // ISO string from backend, never a Firestore Timestamp
 }
@@ -42,6 +51,31 @@ async function uploadChatImage(uri: string, chatId: string): Promise<string> {
     transformRequest: (data: any) => data,
   });
   return response.data.url;
+}
+
+// PDF / Word attachments are stored privately on the server (see
+// chatController.ts uploadChatFile) — the upload returns an id, never a URL;
+// opening one asks the server for a 5-minute signed link each time.
+const CHAT_FILE_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+async function uploadChatFile(asset: { uri: string; name: string }, mime: string, chatId: string): Promise<ChatFileMeta> {
+  const formData = new FormData();
+  formData.append('chatId', chatId);
+  formData.append('file', { uri: asset.uri, type: mime, name: asset.name } as any);
+  const response = await apiClient.post<ChatFileMeta>('/api/chats/upload-file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    transformRequest: (data: any) => data,
+  });
+  return response.data;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ─── Role → readable label ────────────────────────────────────────────────────
@@ -276,6 +310,51 @@ export default function ChatScreen() {
     }
   };
 
+  // ── Pick + send a PDF / Word document ─────────────────────────────────────
+  const pickAndSendFile = async () => {
+    if (uploadingImage || !currentUser) return;
+    const result = await DocumentPicker.getDocumentAsync({ type: Object.values(CHAT_FILE_TYPES), copyToCacheDirectory: true });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    const ext = asset.name.toLowerCase().split('.').pop() ?? '';
+    const mime = CHAT_FILE_TYPES[ext];
+    if (!mime) {
+      Alert.alert('', isRtl ? 'אפשר לשלוח רק PDF או Word (.docx)' : 'Only PDF or Word (.docx) files can be sent');
+      return;
+    }
+    if ((asset.size ?? 0) > MAX_ATTACHMENT_BYTES) {
+      Alert.alert('', isRtl ? 'הקובץ גדול מ-10MB' : 'The file is larger than 10MB');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const uploaded = await uploadChatFile(asset, mime, String(chatId));
+      await apiClient.post(`/api/chats/${chatId}/messages`, { fileId: uploaded.fileId });
+      await fetchMessages();
+    } catch (err: any) {
+      Alert.alert('', err?.response?.data?.message || (isRtl ? 'שליחת הקובץ נכשלה' : 'Failed to send the file'));
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const chooseAttachment = () => {
+    Alert.alert(isRtl ? 'צירוף' : 'Attach', undefined, [
+      { text: isRtl ? 'תמונה' : 'Photo', onPress: pickAndSendImage },
+      { text: isRtl ? 'קובץ PDF / Word' : 'PDF / Word file', onPress: pickAndSendFile },
+      { text: isRtl ? 'ביטול' : 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const openFile = async (file: ChatFileMeta) => {
+    try {
+      const res = await apiClient.get<{ url: string }>(`/api/chats/${chatId}/files/${file.fileId}/url`);
+      await Linking.openURL(res.data.url);
+    } catch {
+      Alert.alert('', isRtl ? 'פתיחת הקובץ נכשלה' : 'Failed to open the file');
+    }
+  };
+
   // ── Safety: report / block ──────────────────────────────────────────────────
   // Baseline moderation tooling for this otherwise-unmoderated 1:1 chat —
   // block is chat-scoped server-side (resolves the other participant from
@@ -485,6 +564,28 @@ export default function ChatScreen() {
                         </Text>
                       ) : null}
                     </Pressable>
+                  ) : item.type === 'file' && item.file ? (
+                    <Pressable
+                      style={[s.bubble, mine && s.bubbleMine]}
+                      onPress={() => openFile(item.file!)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${isRtl ? 'פתח קובץ' : 'Open file'}: ${item.file.name}`}
+                    >
+                      <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 22 }}>{item.file.mime === 'application/pdf' ? '📄' : '📝'}</Text>
+                        <View style={{ flexShrink: 1 }}>
+                          <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight, { fontWeight: '600' }]} numberOfLines={2}>
+                            {item.file.name}
+                          </Text>
+                          <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight, { fontSize: 11, opacity: 0.75 }]}>
+                            {formatFileSize(item.file.size)}
+                          </Text>
+                        </View>
+                      </View>
+                      {item.text ? (
+                        <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight, { marginTop: 6 }]}>{item.text}</Text>
+                      ) : null}
+                    </Pressable>
                   ) : (
                     <View style={[s.bubble, mine && s.bubbleMine]}>
                       <Text style={[s.bubbleText, mine && s.bubbleTextMine, isRtl && s.textRight]}>
@@ -509,17 +610,17 @@ export default function ChatScreen() {
         <View style={[s.inputBar, isRtl && s.rowReverse]}>
           <Pressable
             style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
-            onPress={pickAndSendImage}
+            onPress={chooseAttachment}
             disabled={uploadingImage}
             accessibilityRole="button"
-            accessibilityLabel={isRtl ? 'צרף תמונה' : 'Attach image'}
+            accessibilityLabel={isRtl ? 'צרף תמונה או קובץ' : 'Attach a photo or file'}
           >
             {uploadingImage
               ? <ActivityIndicator color={accentColor} size="small" />
               : <Text style={{ fontSize: 22 }}>📎</Text>
             }
           </Pressable>
-          <TextInput
+          <TextInput accessibilityLabel={isRtl ? 'כתבו הודעה…' : 'Write a message…'}
             value={text}
             onChangeText={setText}
             placeholder={isRtl ? 'כתבו הודעה…' : 'Write a message…'}
@@ -576,7 +677,9 @@ export default function ChatScreen() {
                 ? 'ספר/י לנו מה קרה (לא חובה). הדיווח יישלח לבדיקת מנהל המערכת.'
                 : "Tell us what happened (optional). This is sent to a system admin for review."}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={isRtl
+                ? 'ספר/י לנו מה קרה (לא חובה). הדיווח יישלח לבדיקת מנהל המערכת.'
+                : "Tell us what happened (optional). This is sent to a system admin for review."}
               value={reportReason}
               onChangeText={setReportReason}
               placeholder={isRtl ? 'תיאור (לא חובה)' : 'Description (optional)'}

@@ -267,7 +267,7 @@ export default function NewUserModal({
             <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
               {f.label}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={f.label}
               style={styles.input}
               value={f.value}
               onChangeText={f.set}
@@ -282,7 +282,7 @@ export default function NewUserModal({
           {lang === 'he' ? 'סיסמה זמנית (אופציונלי)' : 'Temporary Password (optional)'}
         </Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'השאר ריק ליצירה אוטומטית' : 'Leave blank to auto-generate'}
             style={[styles.input, { flex: 1 }]}
             value={newUserTempPassword}
             onChangeText={setNewUserTempPassword}
@@ -432,7 +432,7 @@ export default function NewUserModal({
               {lang === 'he' ? 'פרטי סטודנט' : 'Student Details'}
             </Text>
 
-            <TextInput
+            <TextInput accessibilityLabel="Student ID"
               style={styles.input}
               value={newUserStudentId}
               onChangeText={setNewUserStudentId}

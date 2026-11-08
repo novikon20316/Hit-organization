@@ -2442,7 +2442,7 @@ export default function CoordinatorHome() {
           return (
             <View>
               <FieldGuideOverlay guideKey={STUDENTS_REPORT_TAB_GUIDE_KEY} steps={STUDENTS_REPORT_TAB_FIELD_GUIDE} />
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'חיפוש לפי שם...' : 'Search by name...'}
                 style={rs.searchInput}
                 value={studentsReportSearch}
                 onChangeText={setStudentsReportSearch}
@@ -2661,7 +2661,7 @@ export default function CoordinatorHome() {
                   ].map((f) => (
                     <View key={f.key} style={{ marginBottom: 8 }}>
                       <Text style={styles.weightLabel}>{f.label}</Text>
-                      <TextInput
+                      <TextInput accessibilityLabel={f.label}
                         style={styles.weightInput}
                         value={f.value}
                         onChangeText={(v) => updateExaminerSlot(idx, { ext: { ...slot.ext, [f.key]: v } })}
@@ -2713,7 +2713,7 @@ export default function CoordinatorHome() {
               ].map((field) => (
                 <View key={field.label}>
                   <Text style={styles.weightLabel}>{field.label}</Text>
-                  <TextInput
+                  <TextInput accessibilityLabel={field.label}
                     style={styles.weightInput}
                     value={field.value}
                     onChangeText={field.set}
@@ -2870,7 +2870,7 @@ export default function CoordinatorHome() {
             ].map((f) => (
               <View key={f.key} style={{ marginBottom: 8 }}>
                 <Text style={styles.weightLabel}>{f.label}</Text>
-                <TextInput
+                <TextInput accessibilityLabel={f.label}
                   style={styles.weightInput}
                   value={f.value}
                   onChangeText={(v) => setReplacementExt((prev) => ({ ...prev, [f.key]: v }))}

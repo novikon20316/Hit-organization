@@ -382,7 +382,7 @@ export default function CompleteProfile() {
         <View style={{ height: 40 }} />
 
         <Modal visible={showFacultyModal} transparent animationType="fade" onRequestClose={() => setShowFacultyModal(false)}>
-          <Pressable
+          <Pressable accessibilityRole="button" accessibilityLabel={lang === 'he' ? 'סגור' : 'Close'}
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}
             onPress={() => setShowFacultyModal(false)}
           >

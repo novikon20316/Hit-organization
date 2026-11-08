@@ -581,7 +581,7 @@ export default function GradSchoolHeadDashboard() {
                   {item.type === 'final_grade' ? (
                     finalGradeRejectTargetId === item.id ? (
                       <View style={{ marginTop: 10 }}>
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           value={finalGradeRejectReason}
                           onChangeText={setFinalGradeRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
@@ -635,7 +635,7 @@ export default function GradSchoolHeadDashboard() {
                   ) : item.type === 'examiners' ? (
                     examinerRejectTargetId === item.id ? (
                       <View style={{ marginTop: 10 }}>
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           value={examinerRejectReason}
                           onChangeText={setExaminerRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
@@ -687,7 +687,7 @@ export default function GradSchoolHeadDashboard() {
                   ) : item.type === 'template' ? (
                     templateRejectTargetId === item.id ? (
                       <View style={{ marginTop: 10 }}>
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
                           value={templateRejectReason}
                           onChangeText={setTemplateRejectReason}
                           placeholder={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
@@ -856,7 +856,7 @@ export default function GradSchoolHeadDashboard() {
 
                   {unlockTargetId === g.id ? (
                     <View style={{ marginTop: 10 }}>
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking (required)'}
                         value={unlockReason}
                         onChangeText={setUnlockReason}
                         placeholder={lang === 'he' ? 'סיבת פתיחת הציון לתיקון (חובה)' : 'Reason for unlocking (required)'}

@@ -9,10 +9,15 @@ import { targetScreenFor, type NotificationTaskKind } from './notificationTarget
 import { resolveNotificationLinks } from './notificationLinks.js';
 import { pendingTaskFields, taskModeFor } from './pendingTasks.js';
 import { recordDeliveryOutcomes } from './systemHealth.js';
+import { readPrefs, channelAllowed, sendsToDigest, type OptionalChannel } from './notificationPrefs.js';
+import { queueDigestItem } from './emailDigest.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-type DeliveryStatus = 'sent' | 'failed' | 'skipped' | 'invalid_number' | 'pending';
+// 'opted_out' = the caller wanted this channel but the recipient switched it
+// off for this category; 'digest' = held for their daily email digest (both
+// from notificationPrefs.ts).
+type DeliveryStatus = 'sent' | 'failed' | 'skipped' | 'invalid_number' | 'pending' | 'opted_out' | 'digest';
 
 export interface NotifyChannels {
   inApp?: boolean;
@@ -127,18 +132,29 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
     taskRoleCandidates, targetScreen: targetScreenOverride,
   } = params;
 
-  const wantInApp = channels?.inApp !== false;
-  const wantEmail = channels?.email !== false;
-  const wantPush  = channels?.push  !== false;
-  const wantSms   = channels?.sms   !== false;
-  const wantWhatsapp = channels?.whatsapp !== false;
-
   const userSnap = await db.collection('users').doc(recipientId).get();
   const user = userSnap.data();
   if (!user) {
     console.error(`notifyUser: recipient ${recipientId} has no user doc — nothing sent.`);
     return;
   }
+
+  // What the caller asked for, narrowed by the recipient's own settings
+  // (security/account types ignore those — see notificationPrefs.ts). In-app
+  // is never subject to the recipient's settings.
+  const prefs = readPrefs(user.notificationPrefs);
+  const wantInApp = channels?.inApp !== false;
+  const callerWants = {
+    email: channels?.email !== false,
+    push: channels?.push !== false,
+    sms: channels?.sms !== false,
+    whatsapp: channels?.whatsapp !== false,
+  };
+  const optedOut = (channel: OptionalChannel) => callerWants[channel] && !channelAllowed(prefs, type, channel);
+  const wantEmail = callerWants.email && !optedOut('email');
+  const wantPush  = callerWants.push && !optedOut('push');
+  const wantSms   = callerWants.sms && !optedOut('sms');
+  const wantWhatsapp = callerWants.whatsapp && !optedOut('whatsapp');
 
   const lang: 'he' | 'en' = user.language === 'en' ? 'en' : 'he';
   const name = user.displayName ?? user.displayNameHe ?? '';
@@ -209,8 +225,24 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   const statuses: Record<string, string> = {};
 
   // ─── Email ──────────────────────────────────────────────────────────────
-  if (!wantEmail || !user.email) {
+  if (optedOut('email')) {
+    statuses.emailDelivery = 'opted_out';
+  } else if (!wantEmail || !user.email) {
     statuses.emailDelivery = 'skipped';
+  } else if (sendsToDigest(prefs, type)) {
+    try {
+      await queueDigestItem({
+        recipientId,
+        type,
+        title: lang === 'he' ? titleHe : titleEn,
+        body: lang === 'he' ? bodyHe : bodyEn,
+      });
+      statuses.emailDelivery = 'digest';
+    } catch (err: any) {
+      console.error(`notifyUser: digest queue failed for ${recipientId} [${type}]:`, err);
+      statuses.emailDelivery = 'failed';
+      statuses.emailDeliveryError = String(err?.message ?? err);
+    }
   } else {
     try {
       await sendNotificationEmail({ toEmail: user.email, type, lang, data: fullEmailData });
@@ -228,7 +260,9 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
 
   // ─── Push (Expo) ────────────────────────────────────────────────────────
   const pushToken: string | null = contact.expoPushToken;
-  if (!wantPush || !pushToken) {
+  if (optedOut('push')) {
+    statuses.pushDelivery = 'opted_out';
+  } else if (!wantPush || !pushToken) {
     statuses.pushDelivery = 'skipped';
   } else {
     try {
@@ -261,7 +295,9 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
 
   // ─── SMS (Twilio) ───────────────────────────────────────────────────────
   const phoneRaw: string | null = contact.phoneNumber;
-  if (!wantSms || !phoneRaw) {
+  if (optedOut('sms')) {
+    statuses.smsDelivery = 'opted_out';
+  } else if (!wantSms || !phoneRaw) {
     statuses.smsDelivery = 'skipped';
   } else {
     const e164 = toE164IL(phoneRaw);
@@ -282,7 +318,9 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
   }
 
   // ─── WhatsApp (Twilio) ──────────────────────────────────────────────────
-  if (!wantWhatsapp || !phoneRaw) {
+  if (optedOut('whatsapp')) {
+    statuses.whatsappDelivery = 'opted_out';
+  } else if (!wantWhatsapp || !phoneRaw) {
     statuses.whatsappDelivery = 'skipped';
   } else {
     const e164 = toE164IL(phoneRaw);

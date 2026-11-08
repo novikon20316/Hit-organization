@@ -9,9 +9,10 @@
  * primary actions, a muted brass/gold used sparingly for the one accent that
  * matters (the "role rail" — see .role-rail below).
  *
- * No dark-mode variant on purpose: this is a forms-and-records system, not a
- * reading app — legibility and consistency across roles matter more than a
- * dark theme, and every role screenshot/PDF export should look the same.
+ * Light is the default. An opt-in dark theme (header toggle,
+ * components/ThemeToggle.tsx) lives in app/dark-theme.css, GENERATED from
+ * these tokens by scripts/generateDarkTheme.mjs — re-run it after changing
+ * any color here so the dark variant stays in step.
  */
 :root {
   --paper: #f7f6f2;

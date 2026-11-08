@@ -141,7 +141,7 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
           {lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}
           {selectedIds.length > 0 ? `  (${selectedIds.length} ${lang === 'he' ? 'נבחרו' : 'selected'})` : ''}
         </Text>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'בחר פרויקטים' : 'Select projects'}
           style={[s.input, isRtl && s.textRight]}
           value={search}
           onChangeText={setSearch}
@@ -217,7 +217,7 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
         <Text style={[s.fieldLabel, isRtl && s.textRight]}>
           {lang === 'he' ? 'תאריך יעד חדש' : 'New due date'}
         </Text>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'תאריך יעד חדש' : 'New due date'}
           style={[s.input, isRtl && s.textRight]}
           value={dueDateText}
           onChangeText={setDueDateText}
@@ -228,7 +228,7 @@ export default function BulkDueDateModal({ visible, onClose, lang, projects, onS
         <Text style={[s.fieldLabel, isRtl && s.textRight]}>
           {lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
         </Text>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
           style={[s.input, s.inputMultiline, isRtl && s.textRight]}
           value={reason}
           onChangeText={setReason}

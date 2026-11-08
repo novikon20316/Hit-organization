@@ -1818,7 +1818,7 @@ export default function SupervisorHome() {
                                             ))}
                                           </View>
                                         ) : (
-                                          <TextInput
+                                          <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                                             value={stageFormValues[f.key] ?? ''}
                                             onChangeText={(t) => setStageFormValues((v) => ({ ...v, [f.key]: t }))}
                                             multiline={f.type === 'textarea'}
@@ -2114,7 +2114,7 @@ export default function SupervisorHome() {
             ].map((field) => (
               <View key={field.label}>
                 <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{field.label}</Text>
-                <TextInput
+                <TextInput accessibilityLabel={field.label}
                   style={[styles.input, field.multi && styles.textarea, { textAlign: field.dir === 'rtl' ? 'right' : 'left' }]}
                   value={field.value}
                   onChangeText={field.set}
@@ -2190,7 +2190,7 @@ export default function SupervisorHome() {
           )}
           <Text style={{ fontSize: 13, color: ap.onSurfaceVariant, marginTop: 8 }}>{tx('requestErasureMessage', lang)}</Text>
 
-          <TextInput
+          <TextInput accessibilityLabel={tx('requestErasureMessage', lang)}
             value={erasureReason}
             onChangeText={setErasureReason}
             placeholder={tx('requestErasureReason', lang)}

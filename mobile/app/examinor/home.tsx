@@ -834,7 +834,7 @@ export default function ExaminerHome() {
                         </Text>
                         {dateRowsFor(m.id).map((row, idx) => (
                           <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 }}>
-                            <TextInput
+                            <TextInput accessibilityLabel={lang === 'he' ? `תאריך מוצע ${idx + 1}` : `Proposed date ${idx + 1}`}
                               style={[styles.scoreInput as any, { flex: 1 }]}
                               value={row}
                               onChangeText={(v) => updateDateRow(m.id, idx, v)}
@@ -1291,7 +1291,7 @@ export default function ExaminerHome() {
                   </Text>
                   <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
                 </View>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? c.heLabel : c.enLabel}
                   style={styles.scoreInput}
                   value={scores[c.key] || ''}
                   onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
@@ -1322,7 +1322,7 @@ export default function ExaminerHome() {
                     </Text>
                     <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
                   </View>
-                  <TextInput
+                  <TextInput accessibilityLabel={lang === 'he' ? c.heLabel : c.enLabel}
                     style={styles.scoreInput}
                     value={scores[c.key] || ''}
                     onChangeText={(v) => setScores((prev) => ({ ...prev, [c.key]: v }))}
@@ -1354,7 +1354,7 @@ export default function ExaminerHome() {
             </Text>
             <InfoTooltip textHe={gradeGuideEntry('comments').description.he} textEn={gradeGuideEntry('comments').description.en} />
           </View>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'הערות' : 'Comments'}
             style={styles.textarea}
             value={comments}
             onChangeText={setComments}
@@ -1453,7 +1453,9 @@ export default function ExaminerHome() {
                       const commentRequired = f.commentRequiredOn ? a.value === f.commentRequiredOn : false;
                       return (
                         <>
-                          <TextInput
+                          <TextInput accessibilityLabel={!commentEnabled
+                                ? (lang === 'he' ? 'אין צורך בהסבר עבור תשובה זו' : 'No explanation needed for this answer')
+                                : (lang === 'he' ? 'הסבר במשפט אחד...' : 'One-sentence explanation...')}
                             style={[styles.textarea, !commentEnabled && { opacity: 0.5 }]}
                             value={a.comment}
                             editable={commentEnabled}
@@ -1478,7 +1480,7 @@ export default function ExaminerHome() {
                     })()}
                   </>
                 ) : (
-                  <TextInput
+                  <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                     style={{
                       marginTop: 8, borderWidth: 1.5, borderColor: '#CBD5E1', borderRadius: 8, padding: 11,
                       fontSize: 14, color: '#1E293B', backgroundColor: '#fff',
@@ -1590,7 +1592,7 @@ export default function ExaminerHome() {
                 </Text>
                 <Text style={styles.criterionMax}>/ {c.maxScore}</Text>
               </View>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? c.labelHe : c.labelEn}
                 style={styles.scoreInput}
                 value={evalScores[c.key] || ''}
                 onChangeText={(v) => setEvalScores((prev) => ({ ...prev, [c.key]: v }))}
@@ -1621,7 +1623,7 @@ export default function ExaminerHome() {
             </Text>
             <InfoTooltip textHe={evalGuideEntry('comment').description.he} textEn={evalGuideEntry('comment').description.en} />
           </View>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'הערכה מילולית והערות' : 'Written evaluation and comments'}
             style={styles.textarea}
             value={evalComment}
             onChangeText={setEvalComment}

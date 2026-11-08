@@ -244,12 +244,12 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
           <Text style={{ fontSize: 11, fontWeight: '700', color: '#A8433A' }}>
             {lang === 'he' ? '⚠️ שינוי מספר הרישום הקבוע — פעולת מנהל מערכת' : '⚠️ Overriding the permanent record number — system_admin action'}
           </Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? '⚠️ שינוי מספר הרישום הקבוע — פעולת מנהל מערכת' : '⚠️ Overriding the permanent record number — system_admin action'}
             value={numberText}
             onChangeText={setNumberText}
             style={{ marginTop: 6, borderWidth: 1, borderColor: '#E2E2E2', borderRadius: 6, padding: 6, fontSize: 13, backgroundColor: '#fff' }}
           />
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'סיבה (חובה)' : 'Reason (required)'}
             value={numberReason}
             onChangeText={setNumberReason}
             placeholder={lang === 'he' ? 'סיבה (חובה)' : 'Reason (required)'}
@@ -365,14 +365,14 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
 
                 {isEditingThis && (
                   <View style={{ marginTop: 8, borderWidth: 1, borderColor: '#E2E2E2', borderRadius: 8, padding: 8, backgroundColor: '#fff' }}>
-                    <TextInput
+                    <TextInput accessibilityLabel={lang === 'he' ? 'עריכת פרטי הרשומה' : 'Edit record details'}
                       value={editDataText}
                       onChangeText={setEditDataText}
                       multiline
                       numberOfLines={6}
                       style={{ borderWidth: 1, borderColor: '#E2E2E2', borderRadius: 6, padding: 6, fontSize: 11, textAlignVertical: 'top', minHeight: 100 }}
                     />
-                    <TextInput
+                    <TextInput accessibilityLabel={lang === 'he' ? 'סיבת העדכון (חובה)' : 'Reason for the edit (required)'}
                       value={editReason}
                       onChangeText={setEditReason}
                       placeholder={lang === 'he' ? 'סיבת העדכון (חובה)' : 'Reason for the edit (required)'}
@@ -391,7 +391,7 @@ export function ProjectRecordTimeline({ projectId, lang }: { projectId: string; 
 
                 {isDeletingThis && (
                   <View style={{ marginTop: 8, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 8 }}>
-                    <TextInput
+                    <TextInput accessibilityLabel={lang === 'he' ? 'סיבת המחיקה (חובה)' : 'Reason for the deletion (required)'}
                       value={deleteReason}
                       onChangeText={setDeleteReason}
                       placeholder={lang === 'he' ? 'סיבת המחיקה (חובה)' : 'Reason for the deletion (required)'}

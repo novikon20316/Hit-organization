@@ -113,7 +113,7 @@ export default function HeaderMenu({ items, isRtl, triggerBadge, fullScreen, tit
         </Modal>
       ) : (
         <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-          <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={isRtl ? 'סגור תפריט' : 'Close menu'} style={s.backdrop} onPress={() => setOpen(false)}>
             <View style={[s.panel, isRtl ? s.panelLeft : s.panelRight]}>
               {items.map((item, i) => renderItem(item, i))}
             </View>

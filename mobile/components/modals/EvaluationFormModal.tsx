@@ -333,7 +333,7 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
         </View>
 
         {myGiver && (
-          <TextInput
+          <TextInput accessibilityLabel={he ? 'הערות' : 'Comments'}
             multiline
             placeholder={he ? 'הערות' : 'Comments'}
             value={comments[sec.milestoneId] ?? ''}
@@ -440,7 +440,7 @@ export default function EvaluationFormModal({ visible, lang, milestoneId, onClos
                     />
                   </View>
                 ))}
-                <TextInput
+                <TextInput accessibilityLabel={he ? 'נימוק (חובה)' : 'Reason (required)'}
                   multiline
                   placeholder={he ? 'נימוק (חובה)' : 'Reason (required)'}
                   value={overrideReason}

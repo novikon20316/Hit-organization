@@ -274,7 +274,7 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
                 </View>
 
                 <Text style={title}>{he ? 'המוסד' : 'Institution'}</Text>
-                <TextInput value={institution} onChangeText={setInstitution} style={input} />
+                <TextInput accessibilityLabel={he ? 'המוסד' : 'Institution'} value={institution} onChangeText={setInstitution} style={input} />
 
                 <Text style={title}>{he ? 'מסקנות' : 'Conclusion'}</Text>
                 <ChoiceList items={view.conclusions} value={conclusion} onChange={setConclusion} />
@@ -283,11 +283,11 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
                 <ChoiceList items={view.confidentialityOptions} value={confidentiality} onChange={setConfidentiality} />
 
                 <Text style={title}>{he ? 'חוות דעת מפורטת' : 'Detailed opinion'}</Text>
-                <TextInput multiline value={opinion} onChangeText={setOpinion} style={[input, { minHeight: 140, textAlignVertical: 'top' }]} />
+                <TextInput accessibilityLabel={he ? 'חוות דעת מפורטת' : 'Detailed opinion'} multiline value={opinion} onChangeText={setOpinion} style={[input, { minHeight: 140, textAlignVertical: 'top' }]} />
                 {hideMarked && (
                   <>
                     <Text style={title}>{he ? 'החלקים שלא יועברו לסטודנט ולמנחה' : 'Parts not to be passed on'}</Text>
-                    <TextInput multiline value={confidentialOpinion} onChangeText={setConfidentialOpinion} style={[input, { minHeight: 90, textAlignVertical: 'top' }]} />
+                    <TextInput accessibilityLabel={he ? 'החלקים שלא יועברו לסטודנט ולמנחה' : 'Parts not to be passed on'} multiline value={confidentialOpinion} onChangeText={setConfidentialOpinion} style={[input, { minHeight: 90, textAlignVertical: 'top' }]} />
                   </>
                 )}
                 <Pressable onPress={pickAttachments} accessibilityRole="button" style={[button, { marginTop: 10, borderWidth: 1, borderColor: ap.outlineVariant }]}>
@@ -373,7 +373,7 @@ export default function ExaminerOpinionFormModal({ visible, lang, milestoneId, o
             {view.viewer.kind === 'staff' && (view.outcome?.result === 'revise' || view.outcome?.result === 'reject') && (
               <View style={[card, { marginTop: 16, gap: 8 }]}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: ap.onSurface, textAlign: align }}>{he ? 'החזרת העבודה לסטודנט/ית לתיקונים' : 'Return the thesis for corrections'}</Text>
-                <TextInput multiline value={sendBackNote} onChangeText={setSendBackNote} placeholder={he ? 'הודעה לסטודנט/ית (חובה)' : 'Message to the student (required)'} style={[input, { minHeight: 70, textAlignVertical: 'top' }]} />
+                <TextInput accessibilityLabel={he ? 'החזרת העבודה לסטודנט/ית לתיקונים' : 'Return the thesis for corrections'} multiline value={sendBackNote} onChangeText={setSendBackNote} placeholder={he ? 'הודעה לסטודנט/ית (חובה)' : 'Message to the student (required)'} style={[input, { minHeight: 70, textAlignVertical: 'top' }]} />
                 <Pressable onPress={sendBack} disabled={busy || !sendBackNote.trim()} accessibilityRole="button" style={[button, { borderWidth: 1, borderColor: ap.outlineVariant, opacity: busy || !sendBackNote.trim() ? 0.5 : 1 }]}>
                   <Text style={{ color: ap.onSurface, fontWeight: '700' }}>{he ? 'החזר/י לתיקונים' : 'Return for corrections'}</Text>
                 </Pressable>

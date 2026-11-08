@@ -145,7 +145,7 @@ export function ClockPauseControl({ projectId, lang }: { projectId: string; lang
             <Text style={{ fontSize: 12, fontWeight: '600', color: '#8899BB', marginTop: 12 }}>
               {lang === 'he' ? 'הערה (אופציונלי)' : 'Note (optional)'}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'הערה (אופציונלי)' : 'Note (optional)'}
               value={note}
               onChangeText={setNote}
               multiline

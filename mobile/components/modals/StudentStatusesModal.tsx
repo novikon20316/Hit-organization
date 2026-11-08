@@ -145,7 +145,7 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
       {rows.map((row) => (
         <View key={row.localId} style={rs.row}>
           <View style={rs.rowInputs}>
-            <TextInput
+            <TextInput accessibilityLabel={isHe ? 'תווית (עברית)' : 'Label (Hebrew)'}
               style={rs.rowInput}
               value={row.labelHe}
               onChangeText={(v) => updateRow(section, row.localId, 'labelHe', v)}
@@ -153,7 +153,7 @@ export default function StudentStatusesModal({ visible, onClose, lang }: Props) 
               placeholderTextColor="#94A3B8"
               textAlign="right"
             />
-            <TextInput
+            <TextInput accessibilityLabel={isHe ? 'תווית (אנגלית)' : 'Label (English)'}
               style={[rs.rowInput, { marginTop: 6 }]}
               value={row.labelEn}
               onChangeText={(v) => updateRow(section, row.localId, 'labelEn', v)}

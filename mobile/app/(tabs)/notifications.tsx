@@ -18,6 +18,7 @@ import FeedbackChat from '../../components/FeedbackChat';
 import ReadTicks from '../../components/ReadTicks';
 import { NotificationsStyles, NotificationsRowStyles, ChatRowStyles } from '../../constants/styles';
 import StudentMessageComposer from '../../components/StudentMessageComposer';
+import NotificationSettingsModal from '../../components/modals/NotificationSettingsModal';
 import { loadStudentMessageRecipients, type StudentMessageRecipient } from '../../utils/studentMessageDraft';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -352,6 +353,7 @@ export default function NotificationsScreen() {
 
   const [lang,             setLang]             = useState<Lang>('he');
   const [activeTab,        setActiveTab]        = useState<'notifs' | 'chats' | 'feedback'>('notifs');
+  const [settingsOpen,     setSettingsOpen]     = useState(false);
   const [notifications,    setNotifications]    = useState<Notif[]>([]);
   const [chats,            setChats]            = useState<ChatRow[]>([]);
   const [loadingNotifs,    setLoadingNotifs]    = useState(true);
@@ -684,6 +686,14 @@ export default function NotificationsScreen() {
         <View style={[s.headerRight, isRtl && s.rowReverse]}>
           <Pressable
             style={s.langBtn}
+            onPress={() => setSettingsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'he' ? 'הגדרות התראות' : 'Notification settings'}
+          >
+            <Text style={s.langText}>⚙️</Text>
+          </Pressable>
+          <Pressable
+            style={s.langBtn}
             onPress={() => setLang(lang === 'he' ? 'en' : 'he')}
             accessibilityRole="button"
             accessibilityLabel={lang === 'he' ? 'החלף לאנגלית' : 'Switch to Hebrew'}
@@ -692,6 +702,8 @@ export default function NotificationsScreen() {
           </Pressable>
         </View>
       </View>
+
+      {settingsOpen && <NotificationSettingsModal visible lang={lang} onClose={() => setSettingsOpen(false)} />}
 
       {/* ── Tab switcher — full-width flex tabs, not a scroller: with only
           2-3 tabs here (never enough to need scrolling), flex fills the

@@ -435,14 +435,14 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
 
                     {m.id && adjustingMilestoneId === m.id && (
                       <View style={{ marginTop: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC', padding: 8, gap: 8 }}>
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'תאריך יעד חדש (YYYY-MM-DD)' : 'New due date (YYYY-MM-DD)'}
                           value={adjustDateText}
                           onChangeText={setAdjustDateText}
                           placeholder={lang === 'he' ? 'YYYY-MM-DD' : 'YYYY-MM-DD'}
                           placeholderTextColor="#9CA3AF"
                           style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, padding: 6, fontSize: 12, backgroundColor: '#fff' }}
                         />
-                        <TextInput
+                        <TextInput accessibilityLabel={lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
                           value={adjustReasonText}
                           onChangeText={setAdjustReasonText}
                           placeholder={lang === 'he' ? 'סיבה (נדרש)' : 'Reason (required)'}
@@ -517,7 +517,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                                           ))}
                                         </View>
                                       ) : (
-                                        <TextInput
+                                        <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                                           value={stageFormValues[f.key] ?? ''}
                                           onChangeText={(t) => setStageFormValues((v) => ({ ...v, [f.key]: t }))}
                                           multiline={f.type === 'textarea'}

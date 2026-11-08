@@ -274,7 +274,7 @@ export default function ResearchProposalFormModal({
                 {(tableValues[f.key] ?? []).map((row, rowIdx) => (
                   <View key={rowIdx} style={{ marginBottom: 6, padding: 6, borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 6 }}>
                     {(f.tableColumns ?? []).map((col) => (
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? col.labelHe : col.labelEn}
                         key={col.key}
                         style={local.input}
                         placeholder={lang === 'he' ? col.labelHe : col.labelEn}
@@ -295,7 +295,7 @@ export default function ResearchProposalFormModal({
                 </Pressable>
               </View>
             ) : f.type === 'textarea' ? (
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                 style={[local.input, styles.textarea, isRtl && styles.textRight]}
                 multiline
                 numberOfLines={4}
@@ -304,7 +304,7 @@ export default function ResearchProposalFormModal({
                 textAlign={isRtl ? 'right' : 'left'}
               />
             ) : (
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? f.labelHe : f.labelEn}
                 style={[local.input, isRtl && styles.textRight]}
                 keyboardType={f.type === 'number' ? 'numeric' : 'default'}
                 value={values[f.key] ?? ''}

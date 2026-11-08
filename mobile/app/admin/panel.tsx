@@ -1317,7 +1317,7 @@ export default function PanelScreen() {
       {activeTab === 'users' && (
         <>
           <View style={styles.searchBox}>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'חפש משתמש...' : 'Search user...'}
               placeholder={
                 lang === 'he' ? 'חפש משתמש...' : 'Search user...'
               }
@@ -2036,13 +2036,13 @@ export default function PanelScreen() {
                   </Text>
                   {extendGrantCode === g.code ? (
                     <View style={{ marginTop: 10 }}>
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'תוקף חדש (ISO)' : 'New expiry (ISO date)'}
                         style={adminPanelStyles.input}
                         value={extendNewDate}
                         onChangeText={setExtendNewDate}
                         placeholder={lang === 'he' ? 'תוקף חדש (ISO)' : 'New expiry (ISO date)'}
                       />
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'סיבה (אופציונלי)' : 'Reason (optional)'}
                         style={[adminPanelStyles.input, { marginTop: 8 }]}
                         value={extendReason}
                         onChangeText={setExtendReason}
@@ -2117,7 +2117,7 @@ export default function PanelScreen() {
             </View>
 
             <View style={styles.searchBox}>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}
                 placeholder={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}
                 value={rosterSearch}
                 onChangeText={setRosterSearch}
@@ -2235,7 +2235,7 @@ export default function PanelScreen() {
 
                   {editingRosterId === entry.id ? (
                     <View style={{ marginTop: 10 }}>
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'מספר ת.ז.' : 'Student ID'}
                         style={adminPanelStyles.input}
                         value={editRosterStudentId}
                         onChangeText={setEditRosterStudentId}
@@ -2243,13 +2243,13 @@ export default function PanelScreen() {
                         keyboardType="number-pad"
                         maxLength={9}
                       />
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'שם מלא' : 'Full name'}
                         style={[adminPanelStyles.input, { marginTop: 8 }]}
                         value={editRosterFullName}
                         onChangeText={setEditRosterFullName}
                         placeholder={lang === 'he' ? 'שם מלא' : 'Full name'}
                       />
-                      <TextInput
+                      <TextInput accessibilityLabel={lang === 'he' ? 'מגמה (אופציונלי)' : 'Major (optional)'}
                         style={[adminPanelStyles.input, { marginTop: 8 }]}
                         value={editRosterMajor}
                         onChangeText={setEditRosterMajor}
@@ -2492,14 +2492,14 @@ export default function PanelScreen() {
                 {lang === 'he' ? 'תחילת סמסטר סתיו' : 'Fall semester start'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                   style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={fallMonth}
                   onChangeText={setFallMonth}
                   keyboardType="numeric"
                   placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                 />
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'יום' : 'Day'}
                   style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={fallDay}
                   onChangeText={setFallDay}
@@ -2512,14 +2512,14 @@ export default function PanelScreen() {
                 {lang === 'he' ? 'תחילת סמסטר אביב' : 'Spring semester start'}
               </Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                   style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={springMonth}
                   onChangeText={setSpringMonth}
                   keyboardType="numeric"
                   placeholder={lang === 'he' ? 'חודש (1-12)' : 'Month (1-12)'}
                 />
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'יום' : 'Day'}
                   style={{ flex: 1, borderWidth: 1.5, borderColor: ap.outlineVariant, borderRadius: 10, padding: 12, color: ap.onSurface }}
                   value={springDay}
                   onChangeText={setSpringDay}

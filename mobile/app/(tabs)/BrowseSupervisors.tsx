@@ -275,7 +275,7 @@ export default function BrowseSupervisors({ lang, isRtl, studentFaculty, student
         {lang === 'he' ? 'בחר/י מנחה כדי לראות את הפרויקטים/תזות הפתוחים שלו/שלה.' : 'Choose a supervisor to see their open projects/theses.'}
       </Text>
 
-      <TextInput
+      <TextInput accessibilityLabel={lang === 'he' ? 'בחר/י מנחה כדי לראות את הפרויקטים/תזות הפתוחים שלו/שלה.' : 'Choose a supervisor to see their open projects/theses.'}
         value={search}
         onChangeText={setSearch}
         placeholder={lang === 'he' ? 'חיפוש לפי שם מנחה או פרויקט...' : 'Search by supervisor or project name...'}
@@ -421,7 +421,7 @@ export default function BrowseSupervisors({ lang, isRtl, studentFaculty, student
                 <Text style={{ fontSize: 13, fontWeight: '600' }}>{lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}</Text>
                 <InfoTooltip textHe={applyGuideEntry('coverNote').description.he} textEn={applyGuideEntry('coverNote').description.en} />
               </View>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'הודעה למנחה (אופציונלי)' : 'Cover note (optional)'}
                 value={coverNote}
                 onChangeText={setCoverNote}
                 multiline

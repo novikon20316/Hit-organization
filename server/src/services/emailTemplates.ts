@@ -85,6 +85,9 @@ export type NotificationType =
   | 'seminar_date_set'
   | 'seminar_not_performed'
   | 'seminar_contact_request'
+  // One daily email bundling the non-security notifications a user chose
+  // to receive as a digest (see services/emailDigest.ts).
+  | 'email_digest'
   | 'general';
 
 interface EmailTemplate {
@@ -750,6 +753,14 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     `,
   },
 
+  // d.items: one update per line, "title — text" (escaped like every other
+  // field, so splitting it into list items can't inject markup).
+  email_digest: {
+    subjectHe: (d) => `📬 סיכום יומי — ${d.count || ''} עדכונים`,
+    subjectEn: (d) => `📬 Daily summary — ${d.count || ''} updates`,
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>אלה העדכונים שהגיעו אליך מאז הסיכום הקודם:</p><ul>${(d.items || '').split('\n').filter(Boolean).map((line) => `<li style="margin-bottom:8px;">${line}</li>`).join('')}</ul><p style="color:#6B7A99;font-size:12px;">אפשר לשנות את הגדרות ההתראות בעמוד ההתראות באתר או באפליקציה.</p>`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>Here are your updates since the last summary:</p><ul>${(d.items || '').split('\n').filter(Boolean).map((line) => `<li style="margin-bottom:8px;">${line}</li>`).join('')}</ul><p style="color:#6B7A99;font-size:12px;">You can change your notification settings on the Notifications page on the website or in the app.</p>`,
+  },
   general: {
     subjectHe: '🔔 עדכון מהמערכת',
     subjectEn: '🔔 System Update',

@@ -331,7 +331,7 @@ export function GradeMilestoneModal({
               {milestone.studentIds.map((sid, idx) => (
                 <View key={sid} style={{ marginTop: spacing.sm }}>
                   <Text style={[s.statLabel, isRtl && s.textRight]}>👤 {milestone.studentNames[idx] ?? sid}</Text>
-                  <TextInput
+                  <TextInput accessibilityLabel={`${milestone.studentNames[idx] ?? sid} — ${lang === 'he' ? 'ציון אישי' : 'Individual score'}`}
                     style={[s.input, isRtl && s.textRight]}
                     keyboardType="numeric"
                     placeholder={lang === 'he' ? 'ציון אישי 0–100 (אופציונלי)' : 'Individual score 0–100 (optional)'}
@@ -351,7 +351,7 @@ export function GradeMilestoneModal({
               <Text style={[s.cardTitle, isRtl && s.textRight]}>{lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}</Text>
               <InfoTooltip textHe={gradeGuideEntry('comment').description.he} textEn={gradeGuideEntry('comment').description.en} />
             </View>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'הערות לסטודנט' : 'Comments to Student'}
               style={[s.input, s.textarea, isRtl && s.textRight]}
               value={comment}
               onChangeText={onCommentChange}
@@ -416,7 +416,9 @@ export function GradeMilestoneModal({
                       ? (lang === 'he' ? 'סיבת דחייה (חובה, אלא אם צורף קובץ הערות)' : 'Reason for rejection (required unless a comments file is attached)')
                       : (lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)')}
                   </Text>
-                  <TextInput
+                  <TextInput accessibilityLabel={commentFilesMode
+                      ? (lang === 'he' ? 'סיבת דחייה (חובה, אלא אם צורף קובץ הערות)' : 'Reason for rejection (required unless a comments file is attached)')
+                      : (lang === 'he' ? 'סיבת דחייה (חובה)' : 'Reason for rejection (required)')}
                     style={[s.input, s.textarea, isRtl && s.textRight]}
                     value={rejectReason}
                     onChangeText={setRejectReason}

@@ -292,7 +292,7 @@ export default function MaintenanceModal({
             {/* ── Section 1: Message ── */}
             <View style={s.section}>
               <SectionLabel icon="💬" text={isHe ? "הודעה למשתמשים" : "User-facing message"} />
-              <TextInput
+              <TextInput accessibilityLabel={isHe ? "הודעה למשתמשים" : "User-facing message"}
                 style={s.input}
                 placeholder={isHe ? "כותרת — למשל: שדרוג מתוכנן" : "Title — e.g. Scheduled system upgrade"}
                 placeholderTextColor="#94A3B8"

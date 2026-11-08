@@ -204,7 +204,7 @@ function RelayActionPicker({ task, lang, busy, onSubmit }: {
         </View>
       )}
       {needsReason && (
-        <TextInput
+        <TextInput accessibilityLabel={L('סיבת ההחזרה (חובה)', 'Reason for sending it back (required)')}
           value={comment}
           onChangeText={setComment}
           multiline

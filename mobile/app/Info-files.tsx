@@ -406,7 +406,7 @@ export default function InfoFilesAdmin() {
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>
             {lang === 'he' ? 'כותרת בעברית' : 'Title (Hebrew)'}
           </Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'כותרת בעברית' : 'Title (Hebrew)'}
             style={[styles.input, isRtl && styles.textRight]}
             value={titleHe}
             onChangeText={setTitleHe}
@@ -417,7 +417,7 @@ export default function InfoFilesAdmin() {
           <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 10 }]}>
             {lang === 'he' ? 'כותרת באנגלית' : 'Title (English)'}
           </Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'כותרת באנגלית' : 'Title (English)'}
             style={[styles.input, isRtl && styles.textRight]}
             value={titleEn}
             onChangeText={setTitleEn}
@@ -607,19 +607,19 @@ export default function InfoFilesAdmin() {
           </View>
 
           <Text style={[styles.fieldLabel, isRtl && styles.textRight]}>{lang === 'he' ? 'כותרת בעברית' : 'Title (Hebrew)'}</Text>
-          <TextInput style={[styles.input, isRtl && styles.textRight]} value={contentTitleHe} onChangeText={setContentTitleHe} placeholderTextColor="#9BA8C0" />
+          <TextInput accessibilityLabel={lang === 'he' ? 'כותרת בעברית' : 'Title (Hebrew)'} style={[styles.input, isRtl && styles.textRight]} value={contentTitleHe} onChangeText={setContentTitleHe} placeholderTextColor="#9BA8C0" />
 
           <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 10 }]}>{lang === 'he' ? 'כותרת באנגלית' : 'Title (English)'}</Text>
-          <TextInput style={[styles.input, isRtl && styles.textRight]} value={contentTitleEn} onChangeText={setContentTitleEn} placeholderTextColor="#9BA8C0" />
+          <TextInput accessibilityLabel={lang === 'he' ? 'כותרת באנגלית' : 'Title (English)'} style={[styles.input, isRtl && styles.textRight]} value={contentTitleEn} onChangeText={setContentTitleEn} placeholderTextColor="#9BA8C0" />
 
           <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 10 }]}>{lang === 'he' ? 'תוכן בעברית' : 'Body (Hebrew)'}</Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'תוכן בעברית' : 'Body (Hebrew)'}
             style={[styles.input, isRtl && styles.textRight, { minHeight: 70, textAlignVertical: 'top' }]}
             value={contentBodyHe} onChangeText={setContentBodyHe} multiline placeholderTextColor="#9BA8C0"
           />
 
           <Text style={[styles.fieldLabel, isRtl && styles.textRight, { marginTop: 10 }]}>{lang === 'he' ? 'תוכן באנגלית' : 'Body (English)'}</Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'תוכן באנגלית' : 'Body (English)'}
             style={[styles.input, isRtl && styles.textRight, { minHeight: 70, textAlignVertical: 'top' }]}
             value={contentBodyEn} onChangeText={setContentBodyEn} multiline placeholderTextColor="#9BA8C0"
           />

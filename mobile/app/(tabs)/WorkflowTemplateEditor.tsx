@@ -348,14 +348,14 @@ function FormFieldListEditor({
       {fields.map((f, idx) => (
         <View key={f.key} style={{ backgroundColor: '#F5F3FF', borderRadius: 8, padding: 8, marginTop: 8 }}>
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
               style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
               value={f.labelHe}
               onChangeText={(v) => updateField(idx, { labelHe: v })}
               placeholder={lang === 'he' ? 'תווית (עברית)' : 'Label (Hebrew)'}
               textAlign="right"
             />
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'תווית (אנגלית)' : 'Label (English)'}
               style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, backgroundColor: '#fff' }}
               value={f.labelEn}
               onChangeText={(v) => updateField(idx, { labelEn: v })}
@@ -448,7 +448,7 @@ function GradingRubricEditor({
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'משקל כללי %' : 'Overall weight %'}</Text>
-          <TextInput
+          <TextInput accessibilityLabel={lang === 'he' ? 'משקל כללי %' : 'Overall weight %'}
             style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center', backgroundColor: '#fff' }}
             value={weight}
             onChangeText={setWeight}
@@ -460,14 +460,14 @@ function GradingRubricEditor({
       {components.map((c, idx) => (
         <View key={c.key} style={{ backgroundColor: '#fff', borderRadius: 8, padding: 8, marginTop: 8 }}>
           <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}
               style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12 }}
               value={c.labelHe}
               onChangeText={(v) => updateComponent(idx, { labelHe: v })}
               placeholder={lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}
               textAlign="right"
             />
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}
               style={{ flex: 1, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12 }}
               value={c.labelEn}
               onChangeText={(v) => updateComponent(idx, { labelEn: v })}
@@ -485,7 +485,7 @@ function GradingRubricEditor({
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'ניקוד מקסימלי' : 'Max score'}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'ניקוד מקסימלי' : 'Max score'}
                 style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center' }}
                 value={String(c.maxScore)}
                 onChangeText={(v) => updateComponent(idx, { maxScore: Number(v) || 0 })}
@@ -494,7 +494,7 @@ function GradingRubricEditor({
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 11, color: '#8899BB' }}>{lang === 'he' ? 'משקל %' : 'Weight %'}</Text>
-              <TextInput
+              <TextInput accessibilityLabel={lang === 'he' ? 'משקל %' : 'Weight %'}
                 style={{ width: 44, borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, fontSize: 12, textAlign: 'center' }}
                 value={String(c.weight)}
                 onChangeText={(v) => updateComponent(idx, { weight: Number(v) || 0 })}
@@ -1304,7 +1304,7 @@ export default function WorkflowTemplateEditor() {
           </Text>
           <InfoTooltip textHe={guideEntry('note').description.he} textEn={guideEntry('note').description.en} />
         </View>
-        <TextInput
+        <TextInput accessibilityLabel={lang === 'he' ? 'הערה להצעה (אופציונלי)' : 'Note for this proposal (optional)'}
           style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, backgroundColor: '#fff', color: '#111', minHeight: 70, textAlignVertical: 'top' }}
           value={editorNote}
           onChangeText={setEditorNote}
@@ -1361,9 +1361,9 @@ export default function WorkflowTemplateEditor() {
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'}</Text>
               <InfoTooltip textHe={milestoneGuideEntry('name').description.he} textEn={milestoneGuideEntry('name').description.en} />
             </View>
-            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameHe} onChangeText={setMsNameHe} placeholder="שם אבן הדרך" textAlign="right" />
+            <TextInput accessibilityLabel={lang === 'he' ? 'שם (עברית)' : 'Name (Hebrew)'} style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameHe} onChangeText={setMsNameHe} placeholder="שם אבן הדרך" textAlign="right" />
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'}</Text>
-            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameEn} onChangeText={setMsNameEn} placeholder="Milestone name" />
+            <TextInput accessibilityLabel={lang === 'he' ? 'שם (אנגלית)' : 'Name (English)'} style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msNameEn} onChangeText={setMsNameEn} placeholder="Milestone name" />
             </View>
             </FieldGuideTarget>
             <FieldGuideTarget fieldKey="dateMode">
@@ -1395,10 +1395,10 @@ export default function WorkflowTemplateEditor() {
               </Pressable>
             </View>
             {msDateMode === 'offset' ? (
-              <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msDays} onChangeText={setMsDays} keyboardType="numeric" placeholder="90" />
+              <TextInput accessibilityLabel={lang === 'he' ? 'ימים מתחילת הפרויקט' : 'Days from project start'} style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }} value={msDays} onChangeText={setMsDays} keyboardType="numeric" placeholder="90" />
             ) : (
               <>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'תאריך קבוע (YYYY-MM-DD)' : 'Fixed date (YYYY-MM-DD)'}
                   style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 4 }}
                   value={msFixedDate}
                   onChangeText={setMsFixedDate}
@@ -1468,7 +1468,9 @@ export default function WorkflowTemplateEditor() {
                 ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
                 : "How much this milestone counts toward the project's overall final grade. Every milestone's percentage in the template must sum to 100."}
             </Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he'
+                ? 'כמה אבן דרך זו תורמת לציון הסופי הכולל של הפרויקט. סכום האחוזים של כל אבני הדרך בתבנית חייב להיות 100.'
+                : "How much this milestone counts toward the project's overall final grade. Every milestone's percentage in the template must sum to 100."}
               style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 12 }}
               value={msPercentOfFinalGrade}
               onChangeText={setMsPercentOfFinalGrade}
@@ -1492,7 +1494,7 @@ export default function WorkflowTemplateEditor() {
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 }}>
                   {lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
                 </Text>
-                <TextInput
+                <TextInput accessibilityLabel={lang === 'he' ? 'מספר בוחנים נדרש' : 'Required number of examiners'}
                   style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14 }}
                   value={msExaminerCount}
                   onChangeText={setMsExaminerCount}

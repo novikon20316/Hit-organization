@@ -1154,7 +1154,7 @@ export default function WorkflowTemplateManager() {
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 }}>{lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}</Text>
-            <TextInput
+            <TextInput accessibilityLabel={lang === 'he' ? 'סיבת הדחייה (חובה)' : 'Rejection reason (required)'}
               style={{ borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, minHeight: 100, textAlignVertical: 'top' }}
               value={rejectReason}
               onChangeText={setRejectReason}
