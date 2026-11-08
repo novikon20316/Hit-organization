@@ -46,6 +46,7 @@ import permissionsRoutes from './routes/permissions.js';
 import committeesRoutes from './routes/committees.js';
 import integrationsRoutes from './routes/integrations.js';
 import systemErrorRoutes from './routes/systemErrorRoutes.js';
+import assistantRoutes from './routes/assistant.js';
 import { verifyToken, type AuthenticatedRequest } from './middleware/auth.js';
 import { resolveTasksAfterMutation } from './services/pendingTasks.js';
 import { verifyAppCheck } from './middleware/appCheck.js';
@@ -196,7 +197,9 @@ app.use((req, res, next) => {
 // finished (services/pendingTasks.ts) — req.user is set later by the
 // route's own verifyToken, but is there by the time the response finishes.
 app.use((req, res, next) => {
-  if (req.method === 'GET' || req.method === 'OPTIONS' || req.method === 'HEAD' || req.originalUrl.startsWith('/api/notifications')) return next();
+  // /api/assistant only reads (it answers a help question) — skipping it
+  // also keeps the user's question text out of this scan.
+  if (req.method === 'GET' || req.method === 'OPTIONS' || req.method === 'HEAD' || req.originalUrl.startsWith('/api/notifications') || req.originalUrl.startsWith('/api/assistant')) return next();
   res.on('finish', () => {
     const uid = (req as AuthenticatedRequest).user?.uid;
     if (!uid || res.statusCode >= 400) return;
@@ -218,6 +221,7 @@ app.use('/api/stuck-milestones', stuckMilestoneRoutes);
 app.use('/api/admin/decision-relay-config', decisionRelayConfigRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/feedback',      feedbackRoutes);
+app.use('/api/assistant',     assistantRoutes);
 app.use('/api/projects',      projectRoutes);
 app.use('/api/chats',         chatRoutes);
 app.use('/api/admin',         adminRoutes);

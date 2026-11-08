@@ -549,6 +549,14 @@ export const apiClient = {
     return request<{ success: boolean }>('/api/feedback', { method: 'POST', body: { text, ...(context ? { context } : {}) } });
   },
 
+  // ─── 3d. HELP ASSISTANT ─────────────────────────────────────────────────────
+  /** Answers from `role`'s user manual (see the server's assistantService.ts).
+   *  `messages` is the whole conversation so far, alternating user/assistant
+   *  and ending with the new user question — nothing is stored server-side. */
+  async askAssistant(role: string, messages: Array<{ role: 'user' | 'assistant'; content: string }>) {
+    return request<{ answer: string }>('/api/assistant/ask', { method: 'POST', body: { role, messages } });
+  },
+
   // ─── 14. REPORTS ────────────────────────────────────────────────────────────
   /** GET /api/reports/:reportType — export (xlsx download) is a separate blob
    *  fetch, see app/reports/downloadExport.ts, since it isn't JSON. */

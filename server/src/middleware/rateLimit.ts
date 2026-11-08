@@ -174,6 +174,23 @@ export const signupSyncLimiter = rateLimit({
   }),
 });
 
+// POST /api/assistant/ask — every question is a paid Claude API call, so a
+// per-account cap keeps a runaway client or a compromised account from
+// running up the bill. 30/hour is far above real help-chat use. Mount AFTER
+// verifyToken so it keys per account.
+export const assistantLimiter = rateLimit({
+  store: new FirestoreRateLimitStore('assistant'),
+  passOnStoreError: true,
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: (req: Request) => ({
+    message: L(req, 'Too many questions in the last hour. Please try again later.', 'יותר מדי שאלות בשעה האחרונה. נסו שוב מאוחר יותר.'),
+  }),
+});
+
 // Per-account caps on the upload endpoints that aren't tied to a specific
 // project/milestone (application CV/transcript, chat images, new-project
 // files) — each upload costs Cloudinary storage. Separate instance per

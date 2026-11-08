@@ -70,13 +70,15 @@ const SECTIONS: { title: { he: string; en: string }; body: { he: string; en: str
         '• לחלץ קורסים וציונים מגיליון הציונים שהעלית ולהשוות אותם לדרישות הקדם של הפרויקט.\n' +
         '• להעריך את התאמת קורות החיים שלך לפרויקט.\n' +
         '• להציג למנחה המלצה (לאשר, לקבוע פגישה או לדחות) לגבי מועמדות לפרויקט. ההחלטה עצמה מתקבלת תמיד על ידי המנחה, לא על ידי המערכת.\n' +
-        '• לסווג הודעות משוב. הודעות שמזוהות כבדיקה או כספאם נמחקות אוטומטית.',
+        '• לסווג הודעות משוב. הודעות שמזוהות כבדיקה או כספאם נמחקות אוטומטית.\n' +
+        '• לענות על שאלות שאת/ה כותב/ת לעוזר שבמערכת, לפי מדריך המשתמש של התפקיד שלך. נשלחים רק נוסח השאלות בשיחה והמדריך — לא הפרויקטים, הציונים או פרטים אחרים שלך — והשיחה אינה נשמרת אצלנו.',
       en:
         'We use Anthropic\'s AI service to:\n' +
         '• extract the courses and grades from the transcript you upload and compare them with the project\'s prerequisites;\n' +
         '• assess how well your CV fits the project;\n' +
         '• show the supervisor a recommendation (approve, meet, or reject) on a project application. The decision itself is always made by the supervisor, never by the system;\n' +
-        '• classify feedback messages. Messages identified as tests or spam are deleted automatically.',
+        '• classify feedback messages. Messages identified as tests or spam are deleted automatically;\n' +
+        '• answer the questions you type into the in-app help assistant, from the user manual for your role. Only the text of the conversation and the manual are sent — not your projects, grades or other details — and we do not store the conversation.',
     },
   },
   {
