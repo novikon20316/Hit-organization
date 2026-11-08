@@ -116,9 +116,11 @@ export function ProjectsTab({ projects, milestones, users, onChanged }: Projects
           const isActive = p.status.toLowerCase().includes('active');
           const { completed, total } = progressByProject[p.id] ?? { completed: 0, total: 0 };
           const percent = total ? Math.round((completed / total) * 100) : 0;
+          // LRI…PDI isolates the count so Hebrew's RTL run doesn't reorder
+          // "0 / 4" into "4 / 0".
           const progressLabel = total
             ? lang === 'he'
-              ? `${percent}% · ${completed} / ${total} אבני דרך הושלמו`
+              ? `${percent}% · \u2066${completed} / ${total}\u2069 אבני דרך הושלמו`
               : `${percent}% · ${completed} / ${total} milestones completed`
             : lang === 'he'
               ? 'עדיין אין אבני דרך'
