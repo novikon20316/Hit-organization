@@ -37,15 +37,17 @@ export default function Verify2FAPage() {
     router.replace(getHomeRoute(me.role as AppRole));
   };
 
-  const handleVerify = async () => {
-    if (token.length !== 6) {
+  // `code` is passed explicitly by the auto-submit in onChange, since the
+  // token state hasn't updated yet at that point.
+  const handleVerify = async (code: string = token) => {
+    if (code.length !== 6) {
       setError(lang === 'he' ? 'יש להזין קוד בן 6 ספרות.' : 'Please enter the full 6-digit code.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await apiClient.post('/api/auth/2fa/validate', { token });
+      await apiClient.post('/api/auth/2fa/validate', { token: code });
       await completeLoginAfter2FA();
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'קוד שגוי. אנא נסה שוב.' : 'Invalid code. Please try again.');
@@ -82,7 +84,13 @@ export default function Verify2FAPage() {
               dir="ltr"
               autoFocus
               value={token}
-              onChange={(e) => setToken(e.target.value.replace(/\D/g, ''))}
+              autoComplete="one-time-code"
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '');
+                setToken(digits);
+                // Auto-submit on the 6th digit (typed, pasted or autofilled).
+                if (digits.length === 6 && !loading) handleVerify(digits);
+              }}
               placeholder="000000"
               className="w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink focus:border-primary focus:bg-surface focus:outline-none"
             />
@@ -91,7 +99,7 @@ export default function Verify2FAPage() {
 
             <button
               type="button"
-              onClick={handleVerify}
+              onClick={() => handleVerify()}
               disabled={loading}
               className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
             >

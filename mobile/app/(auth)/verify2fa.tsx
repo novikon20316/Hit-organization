@@ -205,8 +205,10 @@ export default function Verify2FA() {
     router.replace(getHomeRoute(role) as any);
   };
 
-  const handleVerify = async () => {
-    if (token.length !== 6) {
+  // `code` is passed explicitly by the auto-submit in onChangeText, since
+  // the token state hasn't updated yet at that point.
+  const handleVerify = async (code: string = token) => {
+    if (code.length !== 6) {
       setError('Please enter the full 6-digit code.');
       return;
     }
@@ -214,7 +216,7 @@ export default function Verify2FA() {
     try {
       setLoading(true);
       setError('');
-      await apiClient.post('/api/auth/2fa/validate', { token });
+      await apiClient.post('/api/auth/2fa/validate', { token: code });
       await completeLoginAfter2FA();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid code. Please try again.');
@@ -236,7 +238,14 @@ export default function Verify2FA() {
         keyboardType="number-pad"
         maxLength={6}
         value={token}
-        onChangeText={setToken}
+        onChangeText={(t) => {
+          const digits = t.replace(/\D/g, '');
+          setToken(digits);
+          // Auto-submit on the 6th digit (typed, pasted or autofilled).
+          if (digits.length === 6 && !loading) handleVerify(digits);
+        }}
+        textContentType="oneTimeCode"
+        autoComplete="one-time-code"
         autoFocus
         accessibilityLabel="6-digit authenticator code"
       />
@@ -245,7 +254,7 @@ export default function Verify2FA() {
 
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleVerify}
+        onPress={() => handleVerify()}
         disabled={loading}
         accessibilityRole="button"
       >

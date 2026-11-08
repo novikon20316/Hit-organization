@@ -288,15 +288,17 @@ function SecurityModal({ visible, onClose, lang }: {
   };
 
   // Step 2: confirm the 6-digit code to activate 2FA
-  const handleConfirmSetup = async () => {
-    if (token.length !== 6) {
+  // `code` is passed explicitly by the auto-submit in onChangeText, since
+  // the token state hasn't updated yet at that point.
+  const handleConfirmSetup = async (code: string = token) => {
+    if (code.length !== 6) {
       setError(lang === 'he' ? 'יש להזין 6 ספרות' : 'Enter the full 6-digit code.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await apiClient.post('/api/auth/2fa/verify', { token });
+      await apiClient.post('/api/auth/2fa/verify', { token: code });
       setTotpEnabled(true);
       setScreen('status');
       Alert.alert(
@@ -515,8 +517,16 @@ function SecurityModal({ visible, onClose, lang }: {
             <TextInput
               style={sm.codeInput}
               value={token}
-              onChangeText={t => { setToken(t); setError(''); }}
+              onChangeText={t => {
+                const digits = t.replace(/\D/g, '');
+                setToken(digits);
+                setError('');
+                // Auto-submit on the 6th digit (typed, pasted or autofilled).
+                if (digits.length === 6 && !busy) handleConfirmSetup(digits);
+              }}
               keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
               maxLength={6}
               placeholder="000000"
               placeholderTextColor="#9BA8C0"
@@ -528,7 +538,7 @@ function SecurityModal({ visible, onClose, lang }: {
 
             <Pressable
               style={[sm.primaryBtn, (busy || token.length !== 6) && sm.btnDisabled]}
-              onPress={handleConfirmSetup}
+              onPress={() => handleConfirmSetup()}
               disabled={busy || token.length !== 6}
               accessibilityRole="button"
             >

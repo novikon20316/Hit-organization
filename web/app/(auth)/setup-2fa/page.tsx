@@ -38,15 +38,17 @@ export default function Setup2FAPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleVerify = async () => {
-    if (token.length !== 6) {
+  // `code` is passed explicitly by the auto-submit in onChange, since the
+  // token state hasn't updated yet at that point.
+  const handleVerify = async (code: string = token) => {
+    if (code.length !== 6) {
       setError(lang === 'he' ? 'יש להזין קוד בן 6 ספרות.' : 'Please enter the full 6-digit code.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await apiClient.post('/api/auth/2fa/verify', { token });
+      await apiClient.post('/api/auth/2fa/verify', { token: code });
       setDone(true);
       const me = await apiClient.get<{ role: string }>('/api/users/me');
       setTimeout(() => router.replace(getHomeRoute(me.role as AppRole)), 1500);
@@ -106,7 +108,13 @@ export default function Setup2FAPage() {
               maxLength={6}
               dir="ltr"
               value={token}
-              onChange={(e) => setToken(e.target.value.replace(/\D/g, ''))}
+              autoComplete="one-time-code"
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '');
+                setToken(digits);
+                // Auto-submit on the 6th digit (typed, pasted or autofilled).
+                if (digits.length === 6 && !loading) handleVerify(digits);
+              }}
               placeholder={lang === 'he' ? 'קוד בן 6 ספרות' : 'Enter 6-digit code'}
               className="mt-4 w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-center text-lg tracking-[0.3em] text-ink placeholder:tracking-normal focus:border-primary focus:bg-surface focus:outline-none"
             />
@@ -115,7 +123,7 @@ export default function Setup2FAPage() {
 
             <button
               type="button"
-              onClick={handleVerify}
+              onClick={() => handleVerify()}
               disabled={loading}
               className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60"
             >

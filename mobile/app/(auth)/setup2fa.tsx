@@ -10,6 +10,7 @@ export default function Setup2FA() {
   const [token, setToken] = useState('');
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const loadQrCode = async () => {
     try {
@@ -25,9 +26,13 @@ export default function Setup2FA() {
     loadQrCode();
   }, []);
 
-  const handleVerify = async () => {
+  // `code` is passed explicitly by the auto-submit in onChangeText, since
+  // the token state hasn't updated yet at that point.
+  const handleVerify = async (code: string = token) => {
+    if (busy) return;
+    setBusy(true);
     try {
-        await apiClient.post('/api/auth/2fa/verify', { token });
+        await apiClient.post('/api/auth/2fa/verify', { token: code });
         setDone(true);
         const userRes = await apiClient.get('/api/users/me');
         const role = userRes.data.role;
@@ -48,6 +53,8 @@ export default function Setup2FA() {
         }, 1500);
     } catch {
         setError('Invalid code. Please try again.');
+    } finally {
+        setBusy(false);
     }
     };
 
@@ -73,11 +80,19 @@ export default function Setup2FA() {
         keyboardType="number-pad"
         maxLength={6}
         value={token}
-        onChangeText={setToken}
+        onChangeText={(t) => {
+          const digits = t.replace(/\D/g, '');
+          setToken(digits);
+          setError('');
+          // Auto-submit on the 6th digit (typed, pasted or autofilled).
+          if (digits.length === 6) handleVerify(digits);
+        }}
+        textContentType="oneTimeCode"
+        autoComplete="one-time-code"
         accessibilityLabel="Enter 6-digit code"
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <TouchableOpacity style={styles.button} onPress={handleVerify} accessibilityRole="button">
+      <TouchableOpacity style={styles.button} onPress={() => handleVerify()} disabled={busy} accessibilityRole="button">
         <Text style={styles.buttonText}>Activate 2FA</Text>
       </TouchableOpacity>
     </View>
