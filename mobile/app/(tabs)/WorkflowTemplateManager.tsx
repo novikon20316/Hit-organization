@@ -25,6 +25,7 @@ import { ResponsiveScreen } from '../../components/ResponsiveScreen';
 import { PERMISSION_FACULTY_IDS, hasActionGrant, type ScopeRule } from '../../constants/permissions';
 import { getFilteredPrograms } from '../../constants/faculties';
 import { apiClient } from '../../src/api/apiClient';
+import TemplateReviewModal from '../../components/modals/TemplateReviewModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -481,6 +482,8 @@ export default function WorkflowTemplateManager() {
   // Reject-reason modal
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  // Pending version open in the read-only "review before approving" sheet.
+  const [reviewingTpl, setReviewingTpl] = useState<WorkflowTemplateDoc | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   const router = useRouter();
@@ -982,6 +985,13 @@ export default function WorkflowTemplateManager() {
                         📚 {lang === 'he' ? 'התמחות: ' : 'Creator Major: '}{tpl.createdByMajor}
                       </Text>
                     )}
+                    <Pressable
+                      onPress={() => setReviewingTpl(tpl)}
+                      accessibilityRole="button"
+                      style={{ alignSelf: isRtl ? 'flex-end' : 'flex-start', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8 }}
+                    >
+                      <Text style={{ color: '#374151', fontWeight: '600', fontSize: 13 }}>🔍 {lang === 'he' ? 'סקירה לפני אישור' : 'Review changes'}</Text>
+                    </Pressable>
                     {tpl.applyMode === 'now' && (
                       <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600', marginBottom: 6 }}>
                         ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
@@ -1173,6 +1183,22 @@ export default function WorkflowTemplateManager() {
       </Modal>
 
       {/* ── Retroactive-apply confirm modal (applyMode 'now' only) ── */}
+      {reviewingTpl && (
+        <TemplateReviewModal
+          visible
+          lang={lang}
+          templateId={reviewingTpl.id}
+          canApprove={canApproveTemplate(reviewingTpl, userRole, permissionRules)}
+          roleLabel={(role) => chainRoleLabel(role as ChainRole, lang)}
+          onApprove={() => {
+            const tpl = reviewingTpl;
+            setReviewingTpl(null);
+            handleApproveClick(tpl);
+          }}
+          onClose={() => setReviewingTpl(null)}
+        />
+      )}
+
       <Modal visible={!!approvePreview} animationType="fade" transparent>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360 }}>

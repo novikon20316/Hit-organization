@@ -95,6 +95,133 @@ async function findMatchingInProgressProjects(
   }));
 }
 
+interface ExistingMilestone {
+  ref: FirebaseFirestore.DocumentReference;
+  type: string;
+  status: string;
+  nameHe?: string;
+  nameEn?: string;
+  dueDate: Date | null;
+}
+
+/** Every milestone of the given projects, grouped by projectId. */
+async function loadMilestonesByProject(projectIds: string[]): Promise<Record<string, ExistingMilestone[]>> {
+  // Firestore 'in' queries cap at 30 values — chunk projectIds accordingly.
+  const CHUNK_SIZE = 30;
+  const chunks: string[][] = [];
+  for (let i = 0; i < projectIds.length; i += CHUNK_SIZE) chunks.push(projectIds.slice(i, i + CHUNK_SIZE));
+  const milestoneSnaps = await Promise.all(chunks.map((chunk) => db.collection('milestones').where('projectId', 'in', chunk).get()));
+  const milestonesByProject: Record<string, ExistingMilestone[]> = {};
+  milestoneSnaps.forEach((snap) => snap.docs.forEach((doc) => {
+    const data = doc.data();
+    const pid = data.projectId as string;
+    (milestonesByProject[pid] ??= []).push({
+      ref: doc.ref,
+      type: data.type,
+      status: data.status,
+      nameHe: data.nameHe,
+      nameEn: data.nameEn,
+      dueDate: data.dueDate?.toDate?.() ?? null,
+    });
+  }));
+  return milestonesByProject;
+}
+
+export type RetroactiveAction =
+  /** Still 'pending' — name, due date, chain and forms are replaced. */
+  | 'update'
+  /** The new template adds this milestone — created as 'pending'. */
+  | 'create'
+  /** Already submitted/graded/etc. — left exactly as it is. */
+  | 'keep_started'
+  /** The new template drops this milestone — left exactly as it is. */
+  | 'keep_removed';
+
+export interface RetroactivePlanItem {
+  type: string;
+  nameHe: string;
+  nameEn: string;
+  action: RetroactiveAction;
+  status: string | null;
+  dueBefore: Date | null;
+  dueAfter: Date | null;
+  spec?: WorkflowMilestoneSpec;
+  existing?: ExistingMilestone;
+}
+
+/** What applying `specs` would do to one project's milestones — pure, so
+ *  the read-only review and the real apply can't disagree. Encodes the
+ *  safety invariants in this file's header. */
+function planRetroactiveChanges(existing: ExistingMilestone[], specs: WorkflowMilestoneSpec[], now: Date): RetroactivePlanItem[] {
+  const existingByType = new Map(existing.map((m) => [m.type, m]));
+  const plan: RetroactivePlanItem[] = specs.map((spec) => {
+    const current = existingByType.get(spec.type);
+    // Due dates are recomputed from `now` (the approval moment), not from the
+    // student's own start date — offset milestones move accordingly.
+    const dueAfter = resolveMilestoneDueDate(spec, now, specs);
+    if (!current) {
+      return { type: spec.type, nameHe: spec.nameHe, nameEn: spec.nameEn, action: 'create', status: null, dueBefore: null, dueAfter, spec };
+    }
+    // Never touch a milestone that's moved past 'pending' — already
+    // submitted/graded/completed stays exactly as it is.
+    if (current.status !== 'pending') {
+      return { type: spec.type, nameHe: current.nameHe ?? spec.nameHe, nameEn: current.nameEn ?? spec.nameEn, action: 'keep_started', status: current.status, dueBefore: current.dueDate, dueAfter: current.dueDate, spec };
+    }
+    return { type: spec.type, nameHe: spec.nameHe, nameEn: spec.nameEn, action: 'update', status: current.status, dueBefore: current.dueDate, dueAfter, spec, existing: current };
+  });
+  const specTypes = new Set(specs.map((s) => s.type));
+  for (const m of existing) {
+    if (specTypes.has(m.type)) continue;
+    plan.push({ type: m.type, nameHe: m.nameHe ?? m.type, nameEn: m.nameEn ?? m.type, action: 'keep_removed', status: m.status, dueBefore: m.dueDate, dueAfter: m.dueDate });
+  }
+  return plan;
+}
+
+export interface RetroactiveProjectImpact {
+  id: string;
+  studentNames: string[];
+  changes: Array<{ type: string; nameHe: string; nameEn: string; action: RetroactiveAction; status: string | null; dueBefore: string | null; dueAfter: string | null }>;
+}
+
+/** Read-only — per project, exactly what approving now would change (the
+ *  same plan applyTemplateRetroactively executes), for the approver's review. */
+export async function previewRetroactiveChanges(
+  facultyId: string,
+  processType: ProcessType,
+  major: string | null,
+  milestoneSpecs: WorkflowMilestoneSpec[],
+): Promise<RetroactiveProjectImpact[]> {
+  const projects = await findMatchingInProgressProjects(facultyId, processType, major);
+  if (projects.length === 0) return [];
+  const [milestonesByProject, nameByStudent] = await Promise.all([
+    loadMilestonesByProject(projects.map((p) => p.id)),
+    studentNamesFor(projects),
+  ]);
+  const now = new Date();
+  return projects.map((p) => ({
+    id: p.id,
+    studentNames: p.enrolledStudentIds.map((id) => nameByStudent[id] ?? id),
+    changes: planRetroactiveChanges(milestonesByProject[p.id] ?? [], milestoneSpecs, now).map((item) => ({
+      type: item.type,
+      nameHe: item.nameHe,
+      nameEn: item.nameEn,
+      action: item.action,
+      status: item.status,
+      dueBefore: item.dueBefore?.toISOString() ?? null,
+      dueAfter: item.dueAfter?.toISOString() ?? null,
+    })),
+  }));
+}
+
+async function studentNamesFor(projects: MatchingProject[]): Promise<Record<string, string>> {
+  const studentIds = new Set<string>();
+  projects.forEach((p) => p.enrolledStudentIds.forEach((id) => studentIds.add(id)));
+  const studentSnaps = await Promise.all([...studentIds].map((id) => db.collection('users').doc(id).get()));
+  const nameByStudent: Record<string, string> = {};
+  studentSnaps.forEach((s) => { if (s.exists) nameByStudent[s.id] = (s.data()?.displayName as string) ?? s.id; });
+  return nameByStudent;
+}
+
 export interface RetroactivePreview {
   count: number;
   projects: Array<{ id: string; studentNames: string[] }>;
@@ -109,11 +236,7 @@ export async function previewRetroactiveImpact(
   major: string | null,
 ): Promise<RetroactivePreview> {
   const projects = await findMatchingInProgressProjects(facultyId, processType, major);
-  const studentIds = new Set<string>();
-  projects.forEach((p) => p.enrolledStudentIds.forEach((id) => studentIds.add(id)));
-  const studentSnaps = await Promise.all([...studentIds].map((id) => db.collection('users').doc(id).get()));
-  const nameByStudent: Record<string, string> = {};
-  studentSnaps.forEach((s) => { if (s.exists) nameByStudent[s.id] = (s.data()?.displayName as string) ?? s.id; });
+  const nameByStudent = await studentNamesFor(projects);
 
   return {
     count: projects.length,
@@ -141,19 +264,9 @@ export async function applyTemplateRetroactively(
   const projects = await findMatchingInProgressProjects(facultyId, processType, major);
   if (projects.length === 0) return { affectedCount: 0 };
 
-  // Firestore 'in' queries cap at 30 values — chunk projectIds accordingly.
-  const CHUNK_SIZE = 30;
   const projectIds = projects.map((p) => p.id);
-  const chunks: string[][] = [];
-  for (let i = 0; i < projectIds.length; i += CHUNK_SIZE) chunks.push(projectIds.slice(i, i + CHUNK_SIZE));
 
-  const milestoneSnaps = await Promise.all(chunks.map((chunk) => db.collection('milestones').where('projectId', 'in', chunk).get()));
-  const milestonesByProject: Record<string, Array<{ ref: FirebaseFirestore.DocumentReference; type: string; status: string }>> = {};
-  milestoneSnaps.forEach((snap) => snap.docs.forEach((doc) => {
-    const data = doc.data();
-    const pid = data.projectId as string;
-    (milestonesByProject[pid] ??= []).push({ ref: doc.ref, type: data.type, status: data.status });
-  }));
+  const milestonesByProject = await loadMilestonesByProject(projectIds);
 
   // Firestore batches cap at 500 writes — chunk into multiple batches.
   const BATCH_LIMIT = 450;
@@ -171,18 +284,21 @@ export async function applyTemplateRetroactively(
   };
 
   let affectedCount = 0;
+  const now = new Date();
   for (const project of projects) {
-    const existingByType = new Map((milestonesByProject[project.id] ?? []).map((m) => [m.type, m]));
+    // The plan is the single source of truth for what changes — the same
+    // one the read-only review (workflowTemplateReview.ts) shows the
+    // approver before they confirm.
+    const plan = planRetroactiveChanges(milestonesByProject[project.id] ?? [], milestoneSpecs, now);
     let touched = false;
 
-    for (const spec of milestoneSpecs) {
-      const current = existingByType.get(spec.type);
-      const dueDate = resolveMilestoneDueDate(spec, new Date(), milestoneSpecs);
+    for (const item of plan) {
+      if (item.action !== 'update' && item.action !== 'create') continue;
+      const spec = item.spec!;
+      const dueDate = item.dueAfter!;
 
-      if (current) {
-        // Never touch a milestone that's moved past 'pending' — already
-        // submitted/graded/completed stays exactly as it is.
-        if (current.status !== 'pending') continue;
+      if (item.action === 'update') {
+        const current = item.existing!;
         queueOp((b) => b.update(current.ref, {
           nameHe: spec.nameHe,
           nameEn: spec.nameEn,

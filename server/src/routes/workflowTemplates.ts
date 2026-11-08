@@ -8,6 +8,7 @@ import {
   deleteWorkflowTemplateController,
   duplicateWorkflowTemplateController,
   getRetroactivePreviewController,
+  getWorkflowTemplateReviewController,
 } from '../controllers/workflowTemplateController.js';
 import { verifyToken } from '../middleware/auth.js';
 
@@ -17,6 +18,9 @@ router.get('/', verifyToken, getWorkflowTemplates);
 // Mounted ahead of the generic '/:id' shape below — a fixed path, never
 // mistaken for a template id.
 router.get('/retroactive-preview', verifyToken, getRetroactivePreviewController);
+// Read-only review of one version before approving it — see
+// services/workflowTemplateReview.ts.
+router.get('/:id/review', verifyToken, getWorkflowTemplateReviewController);
 router.post('/', verifyToken, createWorkflowTemplateProposal);
 router.put('/:id', verifyToken, updateWorkflowTemplateProposalController);
 router.post('/:id/approve', verifyToken, approveWorkflowTemplateController);

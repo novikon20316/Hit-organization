@@ -18,6 +18,7 @@ import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import type { AppRole } from '@/lib/roles';
 import { FACULTY_LABELS, facultyLabel, type FacultyId } from '@/lib/i18n';
 import { RejectModal } from './RejectModal';
+import { TemplateReviewModal } from './TemplateReviewModal';
 import {
   PROCESS_TYPES, canApproveTemplate, isMastersProcess, processTypeLabel, majorOptionsFor, chainRoleLabel, DEFAULT_ROUTING,
   type ProcessType, type WorkflowTemplateDoc, type MilestoneRoutingSpec,
@@ -64,6 +65,8 @@ function WorkflowTemplatesContent() {
 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Pending version open in the read-only "review before approving" view.
+  const [reviewingTpl, setReviewingTpl] = useState<WorkflowTemplateDoc | null>(null);
   // Approve, for a template proposed with applyMode 'now', shows a preview
   // of affected in-progress projects before actually confirming — see
   // handleApprove below.
@@ -572,13 +575,22 @@ function WorkflowTemplatesContent() {
                     {tpl.createdByMajor}
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => router.push(buildEditHref(tpl))}
-                  className="mt-2 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
-                >
-                  ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
-                </button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(buildEditHref(tpl))}
+                    className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                  >
+                    ✏️ {lang === 'he' ? 'ערוך' : 'Edit'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewingTpl(tpl)}
+                    className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:border-primary hover:text-primary"
+                  >
+                    🔍 {lang === 'he' ? 'סקירה לפני אישור' : 'Review changes'}
+                  </button>
+                </div>
                 {tpl.applyMode === 'now' && (
                   <p className="mt-1 text-xs font-medium text-danger">
                     ⚡ {lang === 'he' ? 'תחול מיידית על תהליכים בעיצומם' : 'Applies immediately to in-progress processes'}
@@ -719,6 +731,18 @@ function WorkflowTemplatesContent() {
       )}
 
       <RejectModal open={!!rejectingId} busy={busyId === rejectingId} onCancel={() => setRejectingId(null)} onConfirm={handleReject} />
+      {reviewingTpl && (
+        <TemplateReviewModal
+          templateId={reviewingTpl.id}
+          canApprove={canApproveTemplate(reviewingTpl, userData)}
+          onApprove={() => {
+            const tpl = reviewingTpl;
+            setReviewingTpl(null);
+            handleApproveClick(tpl);
+          }}
+          onClose={() => setReviewingTpl(null)}
+        />
+      )}
 
       {approvePreview && (
         <div className="fixed inset-0 z-50 flex items-center-safe justify-center overflow-y-auto bg-black/40 p-4">

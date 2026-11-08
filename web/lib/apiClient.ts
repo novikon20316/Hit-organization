@@ -2365,6 +2365,13 @@ export const apiClient = {
     });
   },
 
+  /** GET /api/workflow-templates/:id/review — read-only review before
+   *  approving: diff, warnings, walkthrough, per-project impact. See the
+   *  server's workflowTemplateReview.ts. */
+  async getWorkflowTemplateReview(id: string) {
+    return request<WorkflowTemplateReview>(`/api/workflow-templates/${id}/review`, { method: 'GET' });
+  },
+
   // ─── 10. PROGRAM HEAD (read-only dashboard — no mutation endpoints exist) ──
   async getProgramHeadDashboard(uid: string) {
     return request<{
@@ -3551,6 +3558,44 @@ export interface StuckLimitsTemplate {
 }
 
 export type RelayTaskAction = 'student' | 'committee' | 'supervisor';
+
+// See server/src/services/workflowTemplateReview.ts.
+export interface TemplateReviewFieldChange {
+  field: string;
+  label: { he: string; en: string };
+  before: string;
+  after: string;
+}
+
+export interface WorkflowTemplateReview {
+  template: { id: string; version: number; status: string; applyMode: string; processType: string; facultyId: string; major: string | null };
+  /** isDefault: nothing approved governs this subject yet — compared with the app default. */
+  baseline: { id: string | null; version: number | null; major: string | null; isDefault: boolean };
+  milestones: Array<{ type: string; nameHe: string; nameEn: string; change: 'added' | 'removed' | 'changed' | 'unchanged'; fields: TemplateReviewFieldChange[] }>;
+  settings: TemplateReviewFieldChange[];
+  warnings: Array<{ severity: 'error' | 'warning' | 'info'; milestoneType: string | null; he: string; en: string }>;
+  walkthrough: Array<{
+    type: string;
+    nameHe: string;
+    nameEn: string;
+    order: number;
+    due: { kind: 'offset'; days: number } | { kind: 'fixed'; date: string } | { kind: 'synced'; withType: string };
+    sampleDueDate: string;
+    percentOfFinalGrade: number | null;
+    stages: Array<{
+      role: string;
+      action: 'grade' | 'approve' | 'notify';
+      rejectTo: string;
+      who: { kind: 'project' } | { kind: 'staff'; count: number; names: string[] } | { kind: 'committee'; name: string | null; memberCount: number | null };
+    }>;
+  }>;
+  /** null unless the version is pending with applyMode 'now'. */
+  impact: Array<{
+    id: string;
+    studentNames: string[];
+    changes: Array<{ type: string; nameHe: string; nameEn: string; action: 'update' | 'create' | 'keep_started' | 'keep_removed'; status: string | null; dueBefore: string | null; dueAfter: string | null }>;
+  }> | null;
+}
 
 // See server/src/services/systemHealth.ts.
 export interface SystemJobHealth {

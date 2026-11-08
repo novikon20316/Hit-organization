@@ -28,8 +28,10 @@ import {
   approveWorkflowTemplate,
   rejectWorkflowTemplate,
   deleteWorkflowTemplate,
+  type WorkflowTemplateDoc,
 } from '../services/workflowTemplates.js';
 import { previewRetroactiveImpact, applyTemplateRetroactively } from '../services/workflowTemplateRetroactiveApply.js';
+import { buildTemplateReview } from '../services/workflowTemplateReview.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { hasActionGrant, ResourceScope } from '../services/scopeAuthorization.js';
@@ -858,6 +860,48 @@ export const approveWorkflowTemplateController = async (req: AuthenticatedReques
   } catch (error: any) {
     console.error('approveWorkflowTemplateController error:', error);
     return res.status(500).json({ message: L(req, 'Failed to approve workflow template.', 'אישור תבנית התהליך נכשל.') });
+  }
+};
+
+// ─── GET /api/workflow-templates/:id/review ────────────────────────────────────
+// Read-only review before approving (services/workflowTemplateReview.ts):
+// diff vs. the version in force, warnings, a step-by-step walkthrough with
+// who would act (staff display names), and per-project impact for "apply
+// now". Stricter than the template list: only roles that can propose or
+// approve templates, and only for the template's own faculty/subject —
+// the walkthrough names staff, and the impact names students.
+export const getWorkflowTemplateReviewController = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Missing template id.', 'חסר מזהה תבנית.') });
+
+  try {
+    const snap = await db.collection('workflowTemplates').doc(id).get();
+    if (!snap.exists) return res.status(404).json({ message: L(req, 'Template not found.', 'התבנית לא נמצאה.') });
+    const data = snap.data()!;
+    const processType = data.processType as ProcessType;
+    const scope = templateResourceScope({ facultyId: data.facultyId, major: data.major ?? null, processType });
+
+    const hasGrant = hasActionGrant(req.user, 'approve_templates', scope);
+    if (!matchedRole(req.user, PROPOSER_ROLES) && !canApprove(processType, req.user) && !hasGrant) {
+      return res.status(403).json({ message: L(req, 'Only template proposers and approvers can review a template.', 'רק מי שמציע או מאשר תבניות יכול לסקור תבנית.') });
+    }
+    if (!hasGrant) {
+      if (hasAnyRole(req.user, ['administrative_secretary']) && !hasAnyRole(req.user, GRAD_SCHOOL_APPROVER_ROLES)) {
+        if (!resolveCoordinatorScope(effectiveCoordinatorScopes(req.user), { facultyId: data.facultyId, major: data.major ?? null })) {
+          return res.status(403).json({ message: L(req, 'You may only review templates for a subject assigned to you.', 'ניתן לסקור תבניות רק עבור נושא שהוקצה לך.') });
+        }
+      } else if (!hasAnyRole(req.user, GRAD_SCHOOL_APPROVER_ROLES) && data.facultyId !== req.user.facultyId) {
+        return res.status(403).json({ message: L(req, 'You may only review templates for your own faculty.', 'ניתן לסקור תבניות של הפקולטה שלך בלבד.') });
+      }
+    }
+
+    const review = await buildTemplateReview({ id: snap.id, ...data } as WorkflowTemplateDoc);
+    return res.status(200).json(review);
+  } catch (error: any) {
+    console.error('getWorkflowTemplateReviewController error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to build the template review.', 'בניית סקירת התבנית נכשלה.') });
   }
 };
 
