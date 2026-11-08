@@ -11,6 +11,7 @@ import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
 import { VALID_ROLES, generateTempPassword, setTempPasswordHash } from '../services/userImportExport.js';
 import { listPendingLockouts, liftLockout, clearStalePendingIncident } from '../services/loginSecurity.js';
+import { getSystemHealth } from '../services/systemHealth.js';
 import { eraseProjectDirectly } from '../services/projectErasure.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import { VALID_MAJORS, majorsForFaculty } from '../config/majors.js';
@@ -1484,6 +1485,24 @@ export const resetUserPasswordAdmin = async (req: AuthenticatedRequest, res: Res
   } catch (error: any) {
     console.error('resetUserPasswordAdmin error:', error);
     return res.status(500).json({ message: L(req, 'Failed to reset password.', 'איפוס הסיסמה נכשל.') });
+  }
+};
+
+/**
+ * GET /api/admin/system-health — system_admin only. Background-job runs and
+ * the last 7 days of notification delivery counts (services/systemHealth.ts).
+ */
+export const getSystemHealthAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (!hasAnyRole(req.user, ['system_admin'])) {
+    await logPermissionDenied(req, 'system', 'system-health');
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
+  }
+
+  try {
+    return res.status(200).json(await getSystemHealth());
+  } catch (error: any) {
+    console.error('getSystemHealthAdmin error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to load system health.', 'טעינת מצב המערכת נכשלה.') });
   }
 };
 

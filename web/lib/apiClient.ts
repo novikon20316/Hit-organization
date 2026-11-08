@@ -658,6 +658,11 @@ export const apiClient = {
   /** system_admin only — accounts currently disabled by the 3-strikes
    *  failed-login flow (server/src/services/loginSecurity.ts), still
    *  awaiting either the owner's own email link or an admin lifting it. */
+  /** GET /api/admin/system-health — system_admin only (services/systemHealth.ts). */
+  async getSystemHealth() {
+    return request<SystemHealthResponse>('/api/admin/system-health', { method: 'GET' });
+  },
+
   async getLockedUsers() {
     return request<{ lockouts: Array<{ code: string; uid: string; email: string; displayName: string; ip: string; location: string; createdAt: string }> }>(
       '/api/admin/login-security/locked', { method: 'GET' }
@@ -3546,6 +3551,40 @@ export interface StuckLimitsTemplate {
 }
 
 export type RelayTaskAction = 'student' | 'committee' | 'supervisor';
+
+// See server/src/services/systemHealth.ts.
+export interface SystemJobHealth {
+  id: string;
+  labelHe: string;
+  labelEn: string;
+  intervalMs: number;
+  lastStartedAtMs: number | null;
+  lastFinishedAtMs: number | null;
+  lastSuccessAtMs: number | null;
+  lastFailureAtMs: number | null;
+  lastOk: boolean | null;
+  lastError: string | null;
+  lastDurationMs: number | null;
+  runs: number;
+  failures: number;
+}
+
+export type DeliveryChannel = 'email' | 'push' | 'sms' | 'whatsapp';
+
+export interface DeliveryDay {
+  /** YYYY-MM-DD, Israel time. */
+  day: string;
+  /** Counts per outcome: sent | failed | skipped | invalid_number. */
+  channels: Record<DeliveryChannel, Record<string, number>>;
+  lastErrors: Partial<Record<DeliveryChannel, { message: string; atMs: number | null }>>;
+}
+
+export interface SystemHealthResponse {
+  jobs: SystemJobHealth[];
+  /** Newest day first. */
+  delivery: DeliveryDay[];
+  nowMs: number;
+}
 
 // See server/src/services/revisionDecisions.ts (P1 #13).
 export type RevisionDecisionType = 'proceed_to_defense' | 'require_corrections' | 're_judge' | 'add_examiner';

@@ -21,6 +21,7 @@ import { db } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { BackgroundHealthPanels } from '@/components/BackgroundHealthPanels';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -583,6 +584,8 @@ export default function LiveTransportationPage() {
             </div>
           </div>
         </div>
+
+        <BackgroundHealthPanels lang={lang} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <section className="rounded-admin-lg border border-admin-outline-variant bg-admin-surface p-4 shadow-sm">

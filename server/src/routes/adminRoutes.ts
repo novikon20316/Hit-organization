@@ -33,6 +33,7 @@ import {
   deleteAuditLogEntries,
   getLockedUsers,
   liftLoginLockout,
+  getSystemHealthAdmin,
 } from '../controllers/adminController.js'
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
@@ -99,6 +100,8 @@ router.get('/student-roster', verifyToken, listStudentRosterAdmin);
 router.get('/staff', verifyToken, listManagedStaff);
 router.get('/students-list', verifyToken, listStudentsForScope);
 router.get('/login-security/locked', verifyToken, getLockedUsers);
+// system_admin only — background-job runs + notification delivery counts
+router.get('/system-health', verifyToken, getSystemHealthAdmin);
 router.get('/system/2fa-enforcement-status', verifyToken, getTwoFactorEnforcementStatusAdmin);
 
 // POST routes

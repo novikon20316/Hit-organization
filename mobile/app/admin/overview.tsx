@@ -38,6 +38,7 @@ import { db } from '@/src/firebase/firebase';
 import { apiClient } from '@/src/api/apiClient';
 import { TopBar, StatCard } from '@/components/shared';
 import { MaintenanceModal } from '@/components/modals';
+import { BackgroundHealthCard } from '@/components/BackgroundHealthCard';
 import type { HeaderMenuItem } from '@/components/HeaderMenu';
 import type { Lang } from '@/components/i18n';
 import { ap } from '@/constants/theme';
@@ -397,6 +398,8 @@ export default function AdminOverviewScreen() {
             ))
           )}
         </View>
+
+        <BackgroundHealthCard lang={lang} />
 
       </ScrollView>
 

@@ -8,6 +8,7 @@ import type { NotificationType } from './emailTemplates.js';
 import { targetScreenFor, type NotificationTaskKind } from './notificationTargets.js';
 import { resolveNotificationLinks } from './notificationLinks.js';
 import { pendingTaskFields, taskModeFor } from './pendingTasks.js';
+import { recordDeliveryOutcomes } from './systemHealth.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -307,6 +308,8 @@ export async function notifyUser(params: NotifyParams): Promise<void> {
       console.error(`notifyUser: failed to persist delivery status for ${recipientId} [${type}]:`, err);
     });
   }
+  // Daily per-channel counters for the admin System Health page.
+  await recordDeliveryOutcomes(statuses);
 }
 
 /**

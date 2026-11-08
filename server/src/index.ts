@@ -61,6 +61,7 @@ import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
 import { pruneAuditLog } from './services/auditLog.js';
+import { runTrackedJob } from './services/systemHealth.js';
 import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -295,36 +296,36 @@ app.use((req, res, next) => {
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS  = 24 * ONE_HOUR_MS;
 setInterval(() => {
-  purgeDueAccounts().catch((err) => console.error('purgeDueAccounts sweep failed:', err));
+  void runTrackedJob('purgeDueAccounts', purgeDueAccounts);
 }, ONE_HOUR_MS);
 setInterval(() => {
-  flagGraduatedStudents().catch((err) => console.error('flagGraduatedStudents sweep failed:', err));
+  void runTrackedJob('flagGraduatedStudents', flagGraduatedStudents);
 }, ONE_DAY_MS);
 // Rolls a workflow template's fixed-calendar-date milestones forward a year
 // once the date's passed and this cycle actually saw a submission — see
 // services/fixedDateRollover.ts. Daily is plenty for a calendar-year check.
 setInterval(() => {
-  advancePastFixedMilestoneDates().catch((err) => console.error('advancePastFixedMilestoneDates sweep failed:', err));
+  void runTrackedJob('advancePastFixedMilestoneDates', advancePastFixedMilestoneDates);
 }, ONE_DAY_MS);
 // Deadline/escalation notifications — see services/notificationScheduler.ts.
 // Hourly (not daily) so a reminder fires promptly once its threshold is
 // crossed; per-doc dedup flags keep repeated runs from resending it.
 setInterval(() => {
-  sendMilestoneDeadlineReminders().catch((err) => console.error('sendMilestoneDeadlineReminders sweep failed:', err));
+  void runTrackedJob('sendMilestoneDeadlineReminders', sendMilestoneDeadlineReminders);
 }, ONE_HOUR_MS);
 setInterval(() => {
-  sendExaminerDeadlineReminders().catch((err) => console.error('sendExaminerDeadlineReminders sweep failed:', err));
+  void runTrackedJob('sendExaminerDeadlineReminders', sendExaminerDeadlineReminders);
 }, ONE_HOUR_MS);
 setInterval(() => {
-  sendSeminarOutcomeReminders().catch((err) => console.error('sendSeminarOutcomeReminders sweep failed:', err));
+  void runTrackedJob('sendSeminarOutcomeReminders', sendSeminarOutcomeReminders);
 }, ONE_HOUR_MS);
 // Stuck-milestone escalation — see services/stuckMilestones.ts. Hourly so a
 // link change is picked up (and the clock restarted) within the hour.
 setInterval(() => {
-  sweepStuckMilestones().catch((err) => console.error('sweepStuckMilestones sweep failed:', err));
+  void runTrackedJob('sweepStuckMilestones', sweepStuckMilestones);
 }, ONE_HOUR_MS);
 setInterval(() => {
-  sendSupervisorPendingReviewReminders().catch((err) => console.error('sendSupervisorPendingReviewReminders sweep failed:', err));
+  void runTrackedJob('sendSupervisorPendingReviewReminders', sendSupervisorPendingReviewReminders);
 }, ONE_HOUR_MS);
 // Meeting reminders fire 1 hour before a confirmed supervisor↔student
 // meeting — a much narrower window than the deadline reminders above, so
@@ -332,26 +333,26 @@ setInterval(() => {
 // notificationScheduler.ts's sendMeetingReminders for why).
 const FIVE_MIN_MS = 5 * 60 * 1000;
 setInterval(() => {
-  sendMeetingReminders().catch((err) => console.error('sendMeetingReminders sweep failed:', err));
+  void runTrackedJob('sendMeetingReminders', sendMeetingReminders);
 }, FIVE_MIN_MS);
 // Presence-count trend samples for the "Live Transportation" chart — see
 // services/presenceHistory.ts. Sampled every minute regardless of whether an
 // admin has the page open, and run once immediately so the chart isn't empty
 // for the first minute after a fresh deploy.
 const PRESENCE_SAMPLE_MS = 60 * 1000;
-samplePresenceHistory().catch((err) => console.error('samplePresenceHistory initial sample failed:', err));
+void runTrackedJob('samplePresenceHistory', samplePresenceHistory);
 setInterval(() => {
-  samplePresenceHistory().catch((err) => console.error('samplePresenceHistory sweep failed:', err));
+  void runTrackedJob('samplePresenceHistory', samplePresenceHistory);
 }, PRESENCE_SAMPLE_MS);
 setInterval(() => {
-  prunePresenceHistory().catch((err) => console.error('prunePresenceHistory sweep failed:', err));
+  void runTrackedJob('prunePresenceHistory', prunePresenceHistory);
 }, ONE_DAY_MS);
 // Keeps the "Live Transportation" audit log capped at its own display limit
 // (100 rows) — see services/auditLog.ts's pruneAuditLog for why hourly is
 // fine even though writes happen continuously: new entries are never
 // blocked, only the oldest excess gets swept out periodically.
 setInterval(() => {
-  pruneAuditLog().catch((err) => console.error('pruneAuditLog sweep failed:', err));
+  void runTrackedJob('pruneAuditLog', pruneAuditLog);
 }, ONE_HOUR_MS);
 // Live refresh for staff user lists — see services/usersChangeSignal.ts.
 startUsersChangeWatcher();
