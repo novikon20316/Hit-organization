@@ -3349,8 +3349,11 @@ export const apiClient = {
     return request<{ success: boolean }>(`/api/committees/${id}`, { method: 'PUT', body: payload });
   },
 
-  async getMyPendingCommitteeReviews() {
-    return request<{ reviews: CommitteePendingReview[] }>('/api/committees/mine/pending-reviews', { method: 'GET' });
+  // includeVoted: also return milestones you already voted on that still
+  // await the chair — only the /committees page asks for these.
+  async getMyPendingCommitteeReviews(opts?: { includeVoted?: boolean }) {
+    const qs = opts?.includeVoted ? '?includeVoted=1' : '';
+    return request<{ reviews: CommitteePendingReview[] }>(`/api/committees/mine/pending-reviews${qs}`, { method: 'GET' });
   },
 
   // See workflowTemplates.ts's preGradeSignoffs — the parallel sibling of
@@ -3584,6 +3587,10 @@ export interface CommitteePendingReview {
   committeeId: string;
   isChairman: boolean;
   alreadyVoted: boolean;
+  /** Your own vote — set only when alreadyVoted. */
+  myVote?: 'approve' | 'reject' | null;
+  /** Effective chair's name — set only when alreadyVoted. */
+  chairmanName?: string;
   voteCount: number;
   memberCount: number;
 }

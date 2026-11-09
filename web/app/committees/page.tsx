@@ -40,7 +40,7 @@ export default function CommitteesPage() {
     try {
       const [mine, reviews, chairDecisions] = await Promise.all([
         apiClient.getMyCommittees(),
-        apiClient.getMyPendingCommitteeReviews(),
+        apiClient.getMyPendingCommitteeReviews({ includeVoted: true }),
         apiClient.getMyPendingChairDecisions(),
       ]);
       setMyCommittees(mine.committees);
@@ -73,6 +73,11 @@ export default function CommitteesPage() {
       </div>
     );
   }
+
+  // Votes already cast stay visible (separately) until the chair decides —
+  // otherwise a member's item just vanishes after voting.
+  const awaitingMyAction = pendingReviews.filter((r) => !r.alreadyVoted);
+  const votedAwaitingChair = pendingReviews.filter((r) => r.alreadyVoted);
 
   const committeeLabel = (c: CommitteeRecord) =>
     `${facultyLabel(c.facultyId as FacultyId, lang)} · ${majorsForFaculty(c.facultyId).find((m) => m.slug === c.major)?.label[lang] ?? c.major} · ${
@@ -171,11 +176,11 @@ export default function CommitteesPage() {
 
           <section>
             <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'בדיקות ממתינות' : 'Pending Reviews'}</p>
-            {pendingReviews.length === 0 ? (
+            {awaitingMyAction.length === 0 ? (
               <p className="text-sm text-muted">{lang === 'he' ? '✅ אין הגשות הממתינות לבדיקתך' : '✅ No submissions awaiting your review'}</p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
-                {pendingReviews.map((r) => (
+                {awaitingMyAction.map((r) => (
                   <div key={r.milestoneId} className="rounded-lg border border-line bg-surface p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-medium text-ink">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
@@ -187,7 +192,6 @@ export default function CommitteesPage() {
                     </div>
                     <p className="mt-1 text-xs text-muted">
                       {lang === 'he' ? `${r.voteCount}/${r.memberCount} הצביעו` : `${r.voteCount}/${r.memberCount} voted`}
-                      {r.alreadyVoted ? ` · ${lang === 'he' ? 'הצבעת' : 'you voted'}` : ''}
                     </p>
                     <button
                       type="button"
@@ -201,6 +205,38 @@ export default function CommitteesPage() {
               </div>
             )}
           </section>
+
+          {votedAwaitingChair.length > 0 && (
+            <section>
+              <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'הצבעת — ממתין להחלטת היו"ר' : 'You voted — awaiting the chair'}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {votedAwaitingChair.map((r) => (
+                  <div key={r.milestoneId} className="rounded-lg border border-line bg-paper p-3">
+                    <p className="truncate text-sm font-medium text-ink">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {r.myVote === 'reject'
+                        ? (lang === 'he' ? '❌ הצבעת: דחייה' : '❌ Your vote: reject')
+                        : (lang === 'he' ? '✅ הצבעת: אישור' : '✅ Your vote: approve')}
+                      {' · '}
+                      {lang === 'he' ? `${r.voteCount}/${r.memberCount} הצביעו` : `${r.voteCount}/${r.memberCount} voted`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      ⏳ {lang === 'he'
+                        ? `ממתין להחלטת היו"ר${r.chairmanName ? `: ${r.chairmanName}` : ''}`
+                        : `Waiting for the chair's decision${r.chairmanName ? `: ${r.chairmanName}` : ''}`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setReviewingMilestoneId(r.milestoneId)}
+                      className="mt-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-paper"
+                    >
+                      {lang === 'he' ? 'צפייה / שינוי הצבעה' : 'View / change vote'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {pendingChairDecisions.length > 0 && (
             <section>

@@ -63,7 +63,7 @@ export default function CommitteesScreen() {
     try {
       const [mine, reviews, chair] = await Promise.all([
         apiClient.getMyCommittees(),
-        apiClient.getMyPendingCommitteeReviews(),
+        apiClient.getMyPendingCommitteeReviews({ includeVoted: true }),
         apiClient.getMyPendingChairDecisions(),
       ]);
       setMyCommittees(mine.committees);
@@ -80,6 +80,11 @@ export default function CommitteesScreen() {
 
   useEffect(() => { load(); }, [load]);
   useLiveRefresh(load);
+
+  // Votes already cast stay visible (separately) until the chair decides —
+  // otherwise a member's item just vanishes after voting.
+  const awaitingMyAction = pendingReviews.filter((r) => !r.alreadyVoted);
+  const votedAwaitingChair = pendingReviews.filter((r) => r.alreadyVoted);
 
   const committeeLabel = (c: CommitteeRecord) =>
     `${facultyLabel(c.facultyId as FacultyId, lang)} · ${majorsForFaculty(c.facultyId).find((m) => m.slug === c.major)?.label[lang] ?? c.major} · ${
@@ -121,11 +126,11 @@ export default function CommitteesScreen() {
           )}
 
           <Text style={sectionTitle}>{L('בדיקות ממתינות', 'Pending Reviews')}</Text>
-          {pendingReviews.length === 0 ? (
+          {awaitingMyAction.length === 0 ? (
             <Text style={empty}>{L('✅ אין הגשות הממתינות לבדיקתך', '✅ No submissions awaiting your review')}</Text>
           ) : (
             <View style={{ gap: 10 }}>
-              {pendingReviews.map((r) => (
+              {awaitingMyAction.map((r) => (
                 <View key={r.milestoneId} style={card}>
                   <View style={{ flexDirection: row, justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <Text style={{ fontSize: 15, fontWeight: '600', color: C.ink, flexShrink: 1, ...align }}>
@@ -146,6 +151,36 @@ export default function CommitteesScreen() {
                 </View>
               ))}
             </View>
+          )}
+
+          {votedAwaitingChair.length > 0 && (
+            <>
+              <Text style={sectionTitle}>{L('הצבעת — ממתין להחלטת היו"ר', 'You voted — awaiting the chair')}</Text>
+              <View style={{ gap: 10 }}>
+                {votedAwaitingChair.map((r) => (
+                  <View key={r.milestoneId} style={[card, { backgroundColor: C.bg }]}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: C.ink, ...align }}>
+                      {lang === 'he' ? r.projectTitleHe : r.projectTitleEn}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: C.muted, marginTop: 4, ...align }}>
+                      {r.myVote === 'reject' ? L('❌ הצבעת: דחייה', '❌ Your vote: reject') : L('✅ הצבעת: אישור', '✅ Your vote: approve')}
+                      {' · '}
+                      {L(`${r.voteCount}/${r.memberCount} הצביעו`, `${r.voteCount}/${r.memberCount} voted`)}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
+                      ⏳ {L(`ממתין להחלטת היו"ר${r.chairmanName ? `: ${r.chairmanName}` : ''}`, `Waiting for the chair's decision${r.chairmanName ? `: ${r.chairmanName}` : ''}`)}
+                    </Text>
+                    <Pressable
+                      style={[pill, { backgroundColor: C.card, borderWidth: 1, borderColor: C.line }]}
+                      onPress={() => setReviewingId(r.milestoneId)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={{ color: C.ink, fontWeight: '600', fontSize: 13 }}>{L('צפייה / שינוי הצבעה', 'View / change vote')}</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </>
           )}
 
           {chairDecisions.length > 0 && (

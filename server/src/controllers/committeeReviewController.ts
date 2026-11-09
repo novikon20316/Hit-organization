@@ -581,10 +581,16 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
  *  sitting at a committee stage for a committee the caller belongs to.
  *  Powers the "your committee reviews" dashboard list — a fallback to
  *  notifications, not a replacement (a missed/failed notification
- *  shouldn't mean a submission is undiscoverable). */
+ *  shouldn't mean a submission is undiscoverable).
+ *
+ *  ?includeVoted=1 also returns milestones the caller already voted on that
+ *  still await the chairman — only the /committees screens pass it, so a
+ *  member can see where their vote stands (and change it before the chair
+ *  decides). Quick Tasks / dashboards omit it: a cast vote isn't a task. */
 export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  const includeVoted = req.query.includeVoted === '1' || req.query.includeVoted === 'true';
   try {
     const committeesSnap = await db.collection('committees').where('memberIds', 'array-contains', uid).get();
     const committeeIds = committeesSnap.docs.map((d) => d.id);
@@ -627,10 +633,18 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
       const memberVotes = ((m.committeeVotes ?? []) as CommitteeVote[]).filter((v) => v.memberId !== committee.chairmanId);
       const isChairman = committee.chairmanId === uid;
       // A member who already voted has nothing left to do here — it's no
-      // longer "pending" for them, so it leaves their list. The chairman
-      // never votes, and keeps it until their final decision clears
-      // currentCommitteeId.
-      if (!isChairman && memberVotes.some((v) => v.memberId === uid)) return null;
+      // longer "pending" for them, so it leaves their list (unless the
+      // caller asked for includeVoted). The chairman never votes, and keeps
+      // it until their final decision clears currentCommitteeId.
+      const alreadyVoted = !isChairman && memberVotes.some((v) => v.memberId === uid);
+      if (alreadyVoted && !includeVoted) return null;
+      // Effective chair (substitutions applied) — tells a member who already
+      // voted whose decision the milestone is now waiting on.
+      let chairmanName = '';
+      if (alreadyVoted && committee.chairmanId) {
+        const chairSnap = await db.collection('users').doc(committee.chairmanId).get();
+        chairmanName = chairSnap.data()?.displayName ?? '';
+      }
       return {
         milestoneId: doc.id,
         type: m.type,
@@ -639,7 +653,9 @@ export const getMyPendingCommitteeReviews = async (req: AuthenticatedRequest, re
         projectTitleEn: project?.titleEn ?? '',
         committeeId: m.currentCommitteeId,
         isChairman,
-        alreadyVoted: memberVotes.some((v) => v.memberId === uid),
+        alreadyVoted,
+        myVote: memberVotes.find((v) => v.memberId === uid)?.vote ?? null,
+        chairmanName,
         voteCount: memberVotes.length,
         // Voters only — the chairman decides rather than votes.
         memberCount: committee.memberIds.filter((id) => id !== committee.chairmanId).length,

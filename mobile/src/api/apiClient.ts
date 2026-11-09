@@ -548,8 +548,10 @@ class ApiClient {
     return response.data as { committees: CommitteeRecord[] };
   }
 
-  async getMyPendingCommitteeReviews() {
-    const response = await this.api.get('/api/committees/mine/pending-reviews');
+  // includeVoted: also return milestones you already voted on that still
+  // await the chair — only the committees screen asks for these.
+  async getMyPendingCommitteeReviews(opts?: { includeVoted?: boolean }) {
+    const response = await this.api.get('/api/committees/mine/pending-reviews', { params: opts?.includeVoted ? { includeVoted: '1' } : undefined });
     return response.data as { reviews: CommitteePendingReview[] };
   }
 
@@ -678,6 +680,10 @@ export interface CommitteePendingReview {
   committeeId: string;
   isChairman: boolean;
   alreadyVoted: boolean;
+  /** Your own vote — set only when alreadyVoted. */
+  myVote?: 'approve' | 'reject' | null;
+  /** Effective chair's name — set only when alreadyVoted. */
+  chairmanName?: string;
   voteCount: number;
   memberCount: number;
 }
