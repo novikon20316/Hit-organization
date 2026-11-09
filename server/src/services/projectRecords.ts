@@ -50,7 +50,8 @@ export type RecordEntryType =
   | 'supervisor_reassigned'
   | 'seminar_date_set'
   | 'seminar_performed'
-  | 'seminar_not_performed';
+  | 'seminar_not_performed'
+  | 'thesis_exam_step';
 
 export interface ProjectRecordEntry {
   projectId: string;

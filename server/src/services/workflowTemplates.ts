@@ -599,6 +599,14 @@ export interface WorkflowMilestoneSpec {
    *  resolveMilestoneRouting), so it can inherit the template's default
    *  chain. Omitted keeps a normal milestone. */
   seminarScheduling?: boolean;
+  /** CS M.Sc. thesis exam (see thesisExam.ts): no student submission — once
+   *  the previous milestone is approved, the supervisor nominates the
+   *  examiners, the grad school head approves them, every participant picks
+   *  5 available dates+hours, the system matches a common slot, the program
+   *  head and the grad school head approve it, and after the exam the
+   *  examiners fill examinerOpinionForm, which goes to the committee. Only
+   *  meaningful with requiresExaminers. Omitted keeps a normal milestone. */
+  thesisExamFlow?: boolean;
 }
 
 export interface ExaminerOpinionFormSpec {

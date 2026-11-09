@@ -12,6 +12,8 @@ import { ResearchProposalFormModal } from './ResearchProposalFormModal';
 import { ProgressReportFormModal } from './ProgressReportFormModal';
 import { SeminarDetails } from './SeminarDetails';
 import { isSeminarInProgress } from '@/lib/seminar';
+import { formatExamSlot } from '@/lib/thesisExam';
+import Link from 'next/link';
 import { AnnouncementsBanner } from './AnnouncementsBanner';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
@@ -128,7 +130,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
   };
 
   const actionableNextMilestone =
-    milestones.find((m) => (m.status === 'pending' || m.status === 'rejected') && isUnlocked(m)) ?? null;
+    milestones.find((m) => (m.status === 'pending' || m.status === 'rejected') && !m.thesisExamFlow && isUnlocked(m)) ?? null;
   // A seminar past its supervisor approval is what the student is waiting on
   // now — it has no submit action, and nothing after it is unlocked yet.
   const activeSeminar = milestones.find((m) => isSeminarInProgress(m.status)) ?? null;
@@ -145,7 +147,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
   // S1 — the one concrete thing the student has to do next.
   const nextStep = (() => {
     const m = actionableNextMilestone;
-    if (!m || m.type === 'defense') return null;
+    if (!m || m.type === 'defense' || m.thesisExamFlow) return null;
     if (m.status === 'rejected') {
       return { kind: 'resubmit' as const, he: 'הוחזר אליך לתיקון — יש לתקן ולהגיש שוב', en: 'Returned to you — fix it and resubmit', buttonHe: 'הגשה מתוקנת', buttonEn: 'Resubmit' };
     }
@@ -460,7 +462,18 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                         </div>
                       )}
 
-                      {(m.status === 'pending' || isRejected) && !isDefense && unlocked && !m.defenseDate && (
+                      {m.thesisExamFlow && unlocked && !isApprovedOrDone && (
+                        <div className="mt-2">
+                          {m.examSchedule && (
+                            <p className="text-xs font-semibold text-success">🗓️ {lang === 'he' ? 'מועד הבחינה' : 'Exam'}: {formatExamSlot(m.examSchedule, lang)}</p>
+                          )}
+                          <Link href="/thesis-exam" className="mt-1 inline-block rounded-student bg-student-primary px-3 py-1.5 text-xs font-semibold text-student-on-primary hover:opacity-90">
+                            {m.status === 'exam_availability' ? (lang === 'he' ? 'בחירת תאריכים לבחינה' : 'Pick exam dates') : (lang === 'he' ? 'לעמוד בחינת התזה' : 'Open the thesis exam page')}
+                          </Link>
+                        </div>
+                      )}
+
+                      {(m.status === 'pending' || isRejected) && !isDefense && !m.thesisExamFlow && unlocked && !m.defenseDate && (
                         <button
                           type="button"
                           onClick={() => setSubmitTarget(m)}

@@ -471,6 +471,8 @@ function validateMilestones(input: any): WorkflowMilestoneSpec[] | null {
     // A seminar has no examiners — its date comes from the administrative
     // coordinator, not a panel's date matching.
     if (m.seminarScheduling === true && !spec.requiresExaminers) spec.seminarScheduling = true;
+    // Script-authored like examinerOpinionForm below — carried through a save.
+    if (m.thesisExamFlow === true && spec.requiresExaminers) spec.thesisExamFlow = true;
     // Script-authored (not editable in the template editor) — carried
     // through a save unchanged so re-saving doesn't drop the thesis
     // examiner form. Only the shape is checked.

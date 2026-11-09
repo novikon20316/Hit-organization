@@ -91,6 +91,10 @@ export type NotificationType =
   // A reminder a supervisor scheduled for their own student
   // (services/supervisorReminders.ts).
   | 'supervisor_reminder'
+  // CS M.Sc. thesis exam steps (services/thesisExam.ts) — `subject`,
+  // `message` and an optional `link` (a button), so one template carries
+  // every step's copy.
+  | 'thesis_exam_update'
   | 'general';
 
 interface EmailTemplate {
@@ -769,6 +773,12 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     subjectEn: (d) => `⏰ Reminder from your supervisor: ${d.milestoneTitle || ''}`,
     bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>המנחה שלך מזכיר/ה שמועד ההגשה של <strong>${d.milestoneTitle || ''}</strong> הוא ${d.dueDate || ''}.</p>${d.note ? `<p>הערת המנחה: ${d.note}</p>` : ''}`,
     bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>Your supervisor reminds you that <strong>${d.milestoneTitle || ''}</strong> is due on ${d.dueDate || ''}.</p>${d.note ? `<p>Supervisor's note: ${d.note}</p>` : ''}`,
+  },
+  thesis_exam_update: {
+    subjectHe: (d) => d.subject || '🎓 בחינת תזה',
+    subjectEn: (d) => d.subject || '🎓 Thesis exam',
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>${d.message || ''}</p>${d.link ? `<p><a href="${d.link}">${d.linkLabel || 'מעבר למערכת'}</a></p>` : ''}`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>${d.message || ''}</p>${d.link ? `<p><a href="${d.link}">${d.linkLabel || 'Open the system'}</a></p>` : ''}`,
   },
   general: {
     subjectHe: '🔔 עדכון מהמערכת',

@@ -8,6 +8,7 @@ import userRoutes         from './routes/users.js';
 import applicationRoutes  from './routes/applications.js';
 import milestoneRoutes    from './routes/milestones.js';
 import relayTaskRoutes    from './routes/relayTasks.js';
+import thesisExamRoutes   from './routes/thesisExam.js';
 import stuckMilestoneRoutes from './routes/stuckMilestones.js';
 import decisionRelayConfigRoutes from './routes/decisionRelayConfig.js';
 import notificationRoutes from './routes/notifications.js';
@@ -58,6 +59,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { purgeDueAccounts, flagGraduatedStudents } from './services/accountDeletion.js';
 import { sendMilestoneDeadlineReminders, sendExaminerDeadlineReminders, sendMeetingReminders, sendSupervisorPendingReviewReminders } from './services/notificationScheduler.js';
 import { sendSeminarOutcomeReminders } from './services/seminarScheduling.js';
+import { sweepThesisExams } from './services/thesisExam.js';
 import { sweepStuckMilestones } from './services/stuckMilestones.js';
 import { advancePastFixedMilestoneDates } from './services/fixedDateRollover.js';
 import { samplePresenceHistory, prunePresenceHistory } from './services/presenceHistory.js';
@@ -223,6 +225,7 @@ app.use(legalRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/milestones',    milestoneRoutes);
 app.use('/api/relay-tasks',   relayTaskRoutes);
+app.use('/api/thesis-exam',   thesisExamRoutes);
 app.use('/api/stuck-milestones', stuckMilestoneRoutes);
 app.use('/api/admin/decision-relay-config', decisionRelayConfigRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -324,6 +327,10 @@ setInterval(() => {
 }, ONE_HOUR_MS);
 setInterval(() => {
   void runTrackedJob('sendSeminarOutcomeReminders', sendSeminarOutcomeReminders);
+}, ONE_HOUR_MS);
+// CS thesis exam timers — see services/thesisExam.ts's sweepThesisExams.
+setInterval(() => {
+  void runTrackedJob('sweepThesisExams', sweepThesisExams);
 }, ONE_HOUR_MS);
 // Stuck-milestone escalation — see services/stuckMilestones.ts. Hourly so a
 // link change is picked up (and the clock restarted) within the hour.

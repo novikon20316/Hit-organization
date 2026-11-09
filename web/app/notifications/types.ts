@@ -132,6 +132,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   committees: '/committees',
   stuck_milestones: '/stuck-milestones',
   relay_tasks: '/relay-tasks',
+  thesis_exam: '/thesis-exam',
   login_security: '/login-security',
   student_grades: '/student/home?tab=grades',
   admin_system_health: '/admin/panel?tab=overview',

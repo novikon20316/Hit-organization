@@ -352,6 +352,8 @@ export async function enrollStudentInProject(
         stageScores: {},
         stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
         ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
+        // See thesisExam.ts — opened when the previous milestone is approved.
+        ...(t.thesisExamFlow ? { thesisExamFlow: true } : {}),
       });
     }
   });

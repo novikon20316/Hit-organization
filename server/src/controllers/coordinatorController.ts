@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { maybeOpenThesisExamForProject } from '../services/thesisExam.js';
 import { Request, Response } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../config/firebase.js';
@@ -1466,6 +1467,8 @@ export const coordinatorApproveMilestone = async (req: AuthenticatedRequest, res
       newValue: { status: 'coordinator_approved', ...(comment ? { comment } : {}) },
     });
     if (approvedMilestone) {
+      // A CS thesis exam waiting on this approval opens now (thesisExam.ts).
+      await maybeOpenThesisExamForProject(approvedMilestone.projectId).catch((err) => console.error('approveMilestone: thesis exam open failed:', err));
       await logProjectRecordEntry({
         projectId: approvedMilestone.projectId,
         type: 'milestone_approved',

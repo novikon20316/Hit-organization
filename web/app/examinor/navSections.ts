@@ -35,6 +35,20 @@ export const EXAMINOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname, sp) => pathname === '/examinor/home' && sp.get('tab') === 'schedule',
         badgeTargetScreens: ['examiner_schedule'],
       },
+      {
+        key: 'thesis_exam',
+        icon: '🎓',
+        href: '/thesis-exam',
+        label: { he: 'בחינת תזה', en: 'Thesis Exam' },
+        description: {
+          he: 'מינוי בוחנים, בחירת תאריכים, אישורים וטופס הבחינה.',
+          en: 'Examiner nomination, date picking, approvals and the exam form.',
+        },
+        isActive: (pathname: string) => pathname === '/thesis-exam',
+        badgeTargetScreens: ['thesis_exam'],
+        // Only for people taking part in a CS thesis exam (NotificationsContext).
+        visible: (_userData, live) => live.hasThesisExams,
+      },
     ],
   },
 ];

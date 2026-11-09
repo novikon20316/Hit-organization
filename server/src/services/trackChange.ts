@@ -160,6 +160,8 @@ export async function changeProjectTrack(
       stageScores: {},
       stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
       ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
+      ...(t.examinerOpinionForm ? { examinerOpinionForm: t.examinerOpinionForm, examinerOpinionRound: 1 } : {}),
+      ...(t.thesisExamFlow ? { thesisExamFlow: true } : {}),
     });
   }
 

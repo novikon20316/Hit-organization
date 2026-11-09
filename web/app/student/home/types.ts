@@ -23,6 +23,14 @@ export type MilestoneStatus =
   | 'scheduled'
   | 'seminar_awaiting_date'
   | 'seminar_scheduled'
+  // CS thesis exam — see lib/thesisExam.ts.
+  | 'exam_nomination'
+  | 'exam_nomination_review'
+  | 'exam_availability'
+  | 'exam_date_review'
+  | 'exam_date_final_review'
+  | 'exam_scheduled'
+  | 'exam_committee_review'
   | 'completed';
 
 export interface ProjectProposal {
@@ -162,6 +170,11 @@ export interface Milestone {
   /** See lib/seminar.ts — only on a seminar milestone. */
   seminarSchedule?: SeminarSlot | null;
   seminarAttempts?: SeminarAttempt[];
+  /** CS thesis exam (server's services/thesisExam.ts) — no student
+   *  submission; the steps run on /thesis-exam. */
+  thesisExamFlow?: boolean;
+  /** Set once both heads approved the exam date. */
+  examSchedule?: { date: string; from: string; to: string } | null;
   defenseDate: string | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;
@@ -339,6 +352,13 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
   seminar_awaiting_date: { color: '#7C3AED', bg: '#F1ECFD', icon: '📅' },
   seminar_scheduled: { color: '#7C3AED', bg: '#F1ECFD', icon: '🎤' },
+  exam_nomination: { color: '#736B8C', bg: '#EDEBF2', icon: '👥' },
+  exam_nomination_review: { color: '#736B8C', bg: '#EDEBF2', icon: '👥' },
+  exam_availability: { color: '#B8862E', bg: '#FBF3E3', icon: '📅' },
+  exam_date_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
+  exam_date_final_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
+  exam_scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
+  exam_committee_review: { color: '#736B8C', bg: '#EDEBF2', icon: '🏛️' },
   completed: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🏁' },
 };
 
@@ -357,6 +377,13 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   scheduled: { he: 'הגנה נקבעה', en: 'Defense Scheduled' },
   seminar_awaiting_date: { he: 'ממתין למועד סמינר', en: 'Awaiting Seminar Date' },
   seminar_scheduled: { he: 'מועד סמינר נקבע', en: 'Seminar Date Set' },
+  exam_nomination: { he: 'ממתין למינוי בוחנים', en: 'Awaiting Examiner Nomination' },
+  exam_nomination_review: { he: 'מינוי בוחנים בבדיקה', en: 'Nomination Under Review' },
+  exam_availability: { he: 'בחירת תאריכים לבחינה', en: 'Picking Exam Dates' },
+  exam_date_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
+  exam_date_final_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
+  exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
+  exam_committee_review: { he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
   coordinator_approved: { he: 'אושר ע"י רכז', en: 'Coordinator Approved' },
   completed: { he: 'הושלם', en: 'Completed' },
 };

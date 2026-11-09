@@ -15,6 +15,7 @@
 // project's advancement" requested alongside this feature.
 
 import { Response } from 'express';
+import { maybeOpenThesisExamForProject } from '../services/thesisExam.js';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
@@ -514,6 +515,8 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
     // recipient gets a tracked relay task instead of the student being
     // notified directly, and becomes responsible for passing the result on.
     const studentIds: string[] = milestone.studentIds ?? [];
+    // A CS thesis exam waiting on this approval opens now (thesisExam.ts).
+    if (finalized) await maybeOpenThesisExamForProject(milestone.projectId).catch((err) => console.error('committee decision: thesis exam open failed:', err));
     if (finalized || (decision === 'reject' && stage.rejectTo === 'student')) {
       if (effectiveRecipient) {
         const chairmanSnap = await db.collection('users').doc(uid).get();

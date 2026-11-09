@@ -28,6 +28,7 @@ import {
 } from '../controllers/examinerOnboardingController.js';
 import { examinerAccessLimiter } from '../middleware/rateLimit.js';
 import { externalDraft } from '../controllers/formDraftController.js';
+import { getExternalThesisExam, submitExternalAvailability, getExternalExamForm, submitExternalExamForm } from '../controllers/thesisExamController.js';
 
 const router = Router();
 
@@ -47,6 +48,12 @@ router.post('/:token/opinion-form', uploadMiddleware, handleUploadError, verifyF
 router.get('/:token/drafts/:formKey', externalDraft.get);
 router.put('/:token/drafts/:formKey', externalDraft.put);
 router.delete('/:token/drafts/:formKey', externalDraft.delete);
+
+// CS thesis exam (services/thesisExam.ts): date picking + the exam form.
+router.get('/:token/thesis-exam', getExternalThesisExam);
+router.post('/:token/thesis-exam/availability', submitExternalAvailability);
+router.get('/:token/thesis-exam/form', getExternalExamForm);
+router.post('/:token/thesis-exam/form', submitExternalExamForm);
 
 // One-time (per examiner identity) onboarding — see examinerOnboardingController.ts.
 router.get('/:token/onboarding-status', getOnboardingStatus);

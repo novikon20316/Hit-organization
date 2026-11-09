@@ -52,6 +52,7 @@ export const SYSTEM_JOBS = {
   sendMilestoneDeadlineReminders:       { intervalMs: ONE_HOUR_MS, he: 'תזכורות מועדי אבני דרך', en: 'Milestone deadline reminders' },
   sendExaminerDeadlineReminders:        { intervalMs: ONE_HOUR_MS, he: 'תזכורות לבוחנים', en: 'Examiner deadline reminders' },
   sendSeminarOutcomeReminders:          { intervalMs: ONE_HOUR_MS, he: 'תזכורות תוצאות סמינר', en: 'Seminar outcome reminders' },
+  sweepThesisExams:                     { intervalMs: ONE_HOUR_MS, he: 'בחינות תזה — פתיחה, חלונות תאריכים ותזכורות', en: 'Thesis exams — opening, date windows and reminders' },
   sweepStuckMilestones:                 { intervalMs: ONE_HOUR_MS, he: 'סריקת אבני דרך תקועות', en: 'Stuck-milestone sweep' },
   sendSupervisorPendingReviewReminders: { intervalMs: ONE_HOUR_MS, he: 'תזכורות בדיקה למנחים', en: 'Supervisor review reminders' },
   sendMeetingReminders:                 { intervalMs: FIVE_MIN_MS, he: 'תזכורות פגישות', en: 'Meeting reminders' },

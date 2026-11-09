@@ -36,6 +36,8 @@ import { DataScienceExaminerEvaluationForm } from './DataScienceExaminerEvaluati
 import { ExaminerOpinionForm, externalOpinionSource } from '@/components/ExaminerOpinionForm';
 import { DefenseDateSection } from './DefenseDateSection';
 import { OnboardingForm } from './OnboardingForm';
+import { ThesisExamSection } from './ThesisExamSection';
+import { apiClient, type ThesisExamCard } from '@/lib/apiClient';
 import type { ExaminerAccessPhase } from './types';
 
 function formatDate(ts: Timestamp | null | undefined, lang: 'he' | 'en'): string {
@@ -72,6 +74,15 @@ function ExaminerAccessContent() {
     opinionSource.load().then(() => { if (!cancelled) setUsesOpinionForm(true); }).catch(() => { if (!cancelled) setUsesOpinionForm(false); });
     return () => { cancelled = true; };
   }, [phase, opinionSource]);
+  // CS M.Sc. thesis exam invitations (server's services/thesisExam.ts) have
+  // their own date picking and form — probed the same way; null otherwise.
+  const [thesisExam, setThesisExam] = useState<ThesisExamCard | null>(null);
+  useEffect(() => {
+    if (phase !== 'accepted' || !token) return;
+    let cancelled = false;
+    apiClient.getExternalThesisExam(token).then((res) => { if (!cancelled) setThesisExam(res.exam); }).catch(() => { if (!cancelled) setThesisExam(null); });
+    return () => { cancelled = true; };
+  }, [phase, token]);
 
   const loadToken = useCallback(async () => {
     if (!token) {
@@ -332,9 +343,11 @@ function ExaminerAccessContent() {
 
       {token && <OnboardingForm token={token} />}
 
-      {token && <DefenseDateSection token={token} />}
+      {token && thesisExam ? (
+        <ThesisExamSection token={token} exam={thesisExam} lang={lang} />
+      ) : token && <DefenseDateSection token={token} />}
 
-      {token && usesOpinionForm ? (
+      {thesisExam ? null : token && usesOpinionForm ? (
         <div className="mt-5 rounded-[var(--radius)] border border-line bg-surface p-4 shadow-sm">
           <ExaminerOpinionForm source={opinionSource!} onChanged={() => undefined} />
         </div>

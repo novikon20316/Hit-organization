@@ -45,6 +45,10 @@ interface NotificationsContextValue {
    *  substituteCommitteeMember). Gates the supervisor-only Committees tab
    *  and Quick Tasks entry (see lib/roles.ts's isSupervisorWithoutHigherRole). */
   isCommitteeSubstitute: boolean;
+  /** True while the signed-in user takes part in any CS thesis exam (see
+   *  server's services/thesisExam.ts) — gates the "Thesis Exam" sidebar
+   *  link. Refetched whenever a new notification lands. */
+  hasThesisExams: boolean;
   /** Bumps every time a NEW notification lands for the signed-in user
    *  (never on the initial load). Screens watch it through
    *  hooks/useLiveRefresh.ts to refetch their own data the moment something
@@ -96,6 +100,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   hasOpenRelayTasks: false,
   isOnAnyCommittee: false,
   isCommitteeSubstitute: false,
+  hasThesisExams: false,
   liveEventTick: 0,
   liveEvent: null,
   dismissLiveEvent: () => {},
@@ -111,6 +116,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [hasOpenRelayTasks, setHasOpenRelayTasks] = useState(false);
   const [isOnFormalCommittee, setIsOnFormalCommittee] = useState(false);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
+  const [hasThesisExams, setHasThesisExams] = useState(false);
   const isOnAnyCommittee = isOnFormalCommittee || isCommitteeSubstitute;
   const [liveEventTick, setLiveEventTick] = useState(0);
   const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
@@ -335,6 +341,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     return () => cancel(unsubSubstitutions);
   }, [firebaseUser]);
 
+  // "Do I take part in any thesis exam" — an API read (the exam state is
+  // server-only), refreshed when the user signs in and whenever a new
+  // notification lands (every exam step notifies the people it concerns).
+  useEffect(() => {
+    if (!firebaseUser) return;
+    let cancelled = false;
+    apiClient.getMyThesisExams()
+      .then((res) => { if (!cancelled) setHasThesisExams(res.exams.length > 0); })
+      .catch(() => { /* leave the link as it was */ });
+    return () => { cancelled = true; };
+  }, [firebaseUser, liveEventTick]);
+
   const markTabSeen = useCallback(async (targetScreens: string[], role?: string) => {
     try {
       await apiClient.markNotificationsRead(targetScreens, role ?? activeRole);
@@ -356,6 +374,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     hasOpenRelayTasks: firebaseUser ? hasOpenRelayTasks : false,
     isOnAnyCommittee: firebaseUser ? isOnAnyCommittee : false,
     isCommitteeSubstitute: firebaseUser ? isCommitteeSubstitute : false,
+    hasThesisExams: firebaseUser ? hasThesisExams : false,
     liveEventTick,
     liveEvent: firebaseUser ? liveEvent : null,
     dismissLiveEvent,

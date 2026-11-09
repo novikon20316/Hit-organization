@@ -124,6 +124,10 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
     if (isSeminarInProgress(milestoneData.status)) {
       return res.status(409).json({ message: L(req, 'Your supervisor already approved this seminar.', 'המנחה כבר אישר/ה את הסמינר הזה.') });
     }
+    // The thesis exam has no student submission — see services/thesisExam.ts.
+    if (milestoneData.thesisExamFlow) {
+      return res.status(409).json({ message: L(req, 'Nothing to submit here — the exam steps run on the Thesis Exam page.', 'אין מה להגיש כאן — שלבי הבחינה מתנהלים בעמוד "בחינת תזה".') });
+    }
 
     // Team milestone (more than one owner — see projectEnrollment.ts) — once
     // any teammate has submitted, lock the rest out until it's rejected

@@ -110,6 +110,8 @@ export type AuditAction =
   | 'seminar_date_set'
   | 'seminar_performed'
   | 'seminar_not_performed'
+  // CS thesis exam steps — see services/thesisExam.ts.
+  | 'thesis_exam_step'
   | 'examiner_one_signoff_recorded'
   // "Standard supervisor" eligibility per degree category (see
   // adminController.ts's setStandardSupervisorFlag).

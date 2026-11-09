@@ -199,6 +199,20 @@ export const ADMINISTRATIVE_COORDINATOR_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/reports',
       },
       {
+        key: 'thesis_exam',
+        icon: '🎓',
+        href: '/thesis-exam',
+        label: { he: 'בחינת תזה', en: 'Thesis Exam' },
+        description: {
+          he: 'מינוי בוחנים, בחירת תאריכים, אישורים וטופס הבחינה.',
+          en: 'Examiner nomination, date picking, approvals and the exam form.',
+        },
+        isActive: (pathname: string) => pathname === '/thesis-exam',
+        badgeTargetScreens: ['thesis_exam'],
+        // Only for people taking part in a CS thesis exam (NotificationsContext).
+        visible: (_userData, live) => live.hasThesisExams,
+      },
+      {
         key: 'relay_tasks',
         icon: '📨',
         href: '/relay-tasks',

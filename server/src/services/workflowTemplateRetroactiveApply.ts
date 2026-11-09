@@ -314,6 +314,9 @@ export async function applyTemplateRetroactively(
           // not — see projectEnrollment.ts's identical comment.
           routing: resolveMilestoneRouting(spec, templateDefaultRouting),
           seminarScheduling: spec.seminarScheduling ? true : admin.firestore.FieldValue.delete(),
+          // Still pending, so the exam flow hasn't opened yet — safe to switch.
+          thesisExamFlow: spec.thesisExamFlow ? true : admin.firestore.FieldValue.delete(),
+          ...(spec.examinerOpinionForm ? { examinerOpinionForm: spec.examinerOpinionForm, examinerOpinionRound: 1 } : {}),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }));
         touched = true;
@@ -346,6 +349,8 @@ export async function applyTemplateRetroactively(
           ...(spec.staffRecordMode === 'upload_or_form' ? { staffRecordMode: spec.staffRecordMode, staffFormFields: spec.staffFormFields ?? [] } : {}),
           ...(spec.finalGradeComponents ? { finalGradeComponents: spec.finalGradeComponents } : {}),
           ...(spec.seminarScheduling ? { seminarScheduling: true } : {}),
+          ...(spec.examinerOpinionForm ? { examinerOpinionForm: spec.examinerOpinionForm, examinerOpinionRound: 1 } : {}),
+          ...(spec.thesisExamFlow ? { thesisExamFlow: true } : {}),
         }));
         touched = true;
       }
