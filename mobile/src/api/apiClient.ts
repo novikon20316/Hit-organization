@@ -220,15 +220,22 @@ class ApiClient {
               kind: error.code === 'ECONNABORTED' ? 'api_timeout' : 'network_failure',
               message: error.message || 'Request failed with no response',
               route: error.config?.url ?? null,
+              method: error.config?.method ?? null,
               startedAt: error.config?.startedAt,
               timeoutMs: error.config?.timeout || REQUEST_TIMEOUT_MS,
             });
           }
         } else if (error.response.status >= 500) {
+          const startedAt = error.config?.startedAt;
           reportClientError({
             kind: 'network_failure',
             message: `HTTP ${error.response.status} from ${error.config?.url}`,
             route: error.config?.url,
+            context: {
+              method: error.config?.method ?? null,
+              httpStatus: error.response.status,
+              durationMs: startedAt !== undefined ? Date.now() - startedAt : null,
+            },
           });
         }
 

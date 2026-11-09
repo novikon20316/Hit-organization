@@ -14,8 +14,14 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+# Source ships alongside dist/ so System Health can show the actual lines of
+# code behind a server error (services/codeLocator.ts) — read-only, never
+# served over HTTP.
+COPY --from=build /app/src ./src
 
 # Cloud Run injects PORT and expects the container to listen on it —
 # src/index.ts already reads process.env.PORT and binds 0.0.0.0.
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+# --enable-source-maps: stack traces point at src/**/*.ts lines (via the
+# dist/*.js.map files tsc already emits) instead of compiled JS.
+CMD ["node", "--enable-source-maps", "dist/index.js"]

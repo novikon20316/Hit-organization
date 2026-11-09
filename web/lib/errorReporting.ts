@@ -53,7 +53,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-let pendingFailures: Array<{ kind: ErrorReportKind; message: string; route: string }> = [];
+let pendingFailures: Array<{ kind: ErrorReportKind; message: string; route: string; context: ErrorReportContext }> = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flushPendingFailures(): void {
@@ -75,6 +75,7 @@ export function reportTransportFailure(input: {
   kind: 'api_timeout' | 'network_failure';
   message: string;
   route: string;
+  method?: string;
   startedAt: number;
   timeoutMs: number;
 }): void {
@@ -85,8 +86,40 @@ export function reportTransportFailure(input: {
   if (now - lastRecoveryAt < RECOVERY_GRACE_MS) return;
   if (input.kind === 'api_timeout' && now - input.startedAt > input.timeoutMs + SUSPEND_SLACK_MS) return;
 
-  pendingFailures.push({ kind: input.kind, message: input.message, route: input.route });
+  pendingFailures.push({
+    kind: input.kind,
+    message: input.message,
+    route: input.route,
+    context: { method: input.method ?? null, durationMs: now - input.startedAt, timeoutMs: input.timeoutMs },
+  });
   if (!flushTimer) flushTimer = setTimeout(flushPendingFailures, BURST_WINDOW_MS);
+}
+
+/** Per-occurrence diagnostics shown in the system_admin's System Health
+ *  detail window (see server/src/services/errorReports.ts). */
+export interface ErrorReportContext {
+  method?: string | null;
+  httpStatus?: number | null;
+  durationMs?: number | null;
+  timeoutMs?: number | null;
+}
+
+// Best-effort attribution of the report to the signed-in user, so the
+// detail window can show WHO it hit (one user vs everyone). Imported lazily
+// and raced against a short timeout: if Firebase itself is what's broken,
+// the report must still go out — anonymous rather than not at all.
+async function getIdTokenQuietly(): Promise<string | null> {
+  try {
+    const { auth } = await import('./firebase');
+    const user = auth.currentUser;
+    if (!user) return null;
+    return await Promise.race([
+      user.getIdToken(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ]);
+  } catch {
+    return null;
+  }
 }
 
 export function reportClientError(input: {
@@ -94,26 +127,39 @@ export function reportClientError(input: {
   message: string;
   stack?: string | null;
   route?: string | null;
+  context?: ErrorReportContext;
 }): void {
   if (typeof window === 'undefined') return; // SSR — nothing to report yet
   if (input.route === REPORT_ENDPOINT_PATH) return;
 
-  try {
-    fetch(`${getBaseUrl()}${REPORT_ENDPOINT_PATH}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kind: input.kind,
-        platform: 'web',
-        message: input.message.slice(0, 2000),
-        stack: input.stack?.slice(0, 4000) ?? null,
-        route: input.route ?? window.location.pathname,
-      }),
-      // Best-effort only — never let this hold up page unload/navigation.
-      keepalive: true,
-    }).catch(() => {});
-  } catch {
-    // fetch itself can throw synchronously in rare environments — swallow,
-    // this reporter must never be the thing that breaks the page further.
-  }
+  const body = JSON.stringify({
+    kind: input.kind,
+    platform: 'web',
+    message: input.message.slice(0, 2000),
+    stack: input.stack?.slice(0, 4000) ?? null,
+    route: input.route ?? window.location.pathname,
+    context: {
+      ...input.context,
+      page: window.location.pathname,
+      userAgent: navigator.userAgent,
+    },
+  });
+
+  void (async () => {
+    try {
+      const token = await getIdTokenQuietly();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      await fetch(`${getBaseUrl()}${REPORT_ENDPOINT_PATH}`, {
+        method: 'POST',
+        headers,
+        body,
+        // Best-effort only — never let this hold up page unload/navigation.
+        keepalive: true,
+      });
+    } catch {
+      // fetch itself can throw synchronously in rare environments — swallow,
+      // this reporter must never be the thing that breaks the page further.
+    }
+  })();
 }

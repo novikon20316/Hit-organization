@@ -53,6 +53,12 @@ const nextConfig: NextConfig = {
   // instead, same pattern as server/ — this trims the image to just the
   // files next start actually needs.
   output: "standalone",
+  // Browser source maps are generated so System Health can turn a minified
+  // crash stack into the real file:line (app/admin-tools/error-source) — but
+  // they are NOT served publicly: the Dockerfile moves every .map out of
+  // .next/static into a private folder that only that system_admin-gated
+  // route handler reads.
+  productionBrowserSourceMaps: true,
   async headers() {
     return [
       {

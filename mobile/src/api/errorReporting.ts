@@ -52,7 +52,16 @@ AppState.addEventListener('change', (state) => {
   if (state === 'active') lastRecoveryAt = Date.now();
 });
 
-let pendingFailures: Array<{ kind: ErrorReportKind; message: string; route: string | null }> = [];
+/** Per-occurrence diagnostics shown in the system_admin's System Health
+ *  detail window (see server/src/services/errorReports.ts). */
+export interface ErrorReportContext {
+  method?: string | null;
+  httpStatus?: number | null;
+  durationMs?: number | null;
+  timeoutMs?: number | null;
+}
+
+let pendingFailures: Array<{ kind: ErrorReportKind; message: string; route: string | null; context: ErrorReportContext }> = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flushPendingFailures(): void {
@@ -73,6 +82,7 @@ export function reportTransportFailure(input: {
   kind: 'api_timeout' | 'network_failure';
   message: string;
   route: string | null;
+  method?: string | null;
   startedAt: number | undefined;
   timeoutMs: number;
 }): void {
@@ -81,7 +91,16 @@ export function reportTransportFailure(input: {
   if (now - lastRecoveryAt < RECOVERY_GRACE_MS) return;
   if (input.kind === 'api_timeout' && input.startedAt !== undefined && now - input.startedAt > input.timeoutMs + SUSPEND_SLACK_MS) return;
 
-  pendingFailures.push({ kind: input.kind, message: input.message, route: input.route });
+  pendingFailures.push({
+    kind: input.kind,
+    message: input.message,
+    route: input.route,
+    context: {
+      method: input.method ?? null,
+      durationMs: input.startedAt !== undefined ? now - input.startedAt : null,
+      timeoutMs: input.timeoutMs,
+    },
+  });
   if (!flushTimer) flushTimer = setTimeout(flushPendingFailures, BURST_WINDOW_MS);
 }
 
@@ -90,6 +109,7 @@ export function reportClientError(input: {
   message: string;
   stack?: string | null;
   route?: string | null;
+  context?: ErrorReportContext;
 }): void {
   if (input.route === REPORT_ENDPOINT_PATH) return;
 
@@ -103,6 +123,11 @@ export function reportClientError(input: {
         message: input.message.slice(0, 2000),
         stack: input.stack?.slice(0, 4000) ?? null,
         route: input.route ?? null,
+        context: {
+          ...input.context,
+          appVersion: Constants.expoConfig?.version ?? null,
+          os: `${Platform.OS} ${String(Platform.Version)}`,
+        },
       }),
     }).catch(() => {});
   } catch {

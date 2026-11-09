@@ -141,6 +141,9 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   /** Set true when body is already a FormData/Blob/etc — skips JSON headers/stringify. */
   raw?: boolean;
+  /** Overrides DEFAULT_TIMEOUT_MS for a call known to be slow (e.g. the
+   *  System Health AI analysis, which runs a model call server-side). */
+  timeoutMs?: number;
 }
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
@@ -159,7 +162,8 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { params, body, raw, headers, signal: callerSignal, ...rest } = options;
+  const { params, body, raw, headers, signal: callerSignal, timeoutMs: timeoutOverride, ...rest } = options;
+  const timeoutMs = timeoutOverride ?? DEFAULT_TIMEOUT_MS;
 
   const finalHeaders = new Headers(headers);
   finalHeaders.set('Accept', 'application/json');
@@ -206,7 +210,7 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   // only OUR timeout firing counts as an api_timeout report below, a
   // caller-initiated abort is expected behavior, not a system problem.
   const timeoutController = new AbortController();
-  const timeoutId = setTimeout(() => timeoutController.abort(), DEFAULT_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
   if (callerSignal) {
     if (callerSignal.aborted) timeoutController.abort();
     else callerSignal.addEventListener('abort', () => timeoutController.abort(), { once: true });
@@ -229,10 +233,11 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
       // tab, multi-endpoint connectivity loss) — see errorReporting.ts.
       reportTransportFailure({
         kind: timedOut ? 'api_timeout' : 'network_failure',
-        message: timedOut ? `Request to ${path} timed out after ${DEFAULT_TIMEOUT_MS}ms` : (err instanceof Error ? err.message : String(err)),
+        message: timedOut ? `Request to ${path} timed out after ${timeoutMs}ms` : (err instanceof Error ? err.message : String(err)),
         route: path,
+        method: rest.method ?? 'GET',
         startedAt,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
+        timeoutMs,
       });
     }
     throw err;
@@ -245,7 +250,12 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
   // A 5xx is the server's own failure, not a validation/permission issue —
   // exactly the "data-receiving problem" system_admin needs to hear about.
   if (res.status >= 500) {
-    reportClientError({ kind: 'network_failure', message: `HTTP ${res.status} from ${path}`, route: path });
+    reportClientError({
+      kind: 'network_failure',
+      message: `HTTP ${res.status} from ${path}`,
+      route: path,
+      context: { method: rest.method ?? 'GET', httpStatus: res.status, durationMs: Date.now() - startedAt },
+    });
   }
 
   // Maintenance flipped on mid-session (useMaintenanceCheck only checks

@@ -72,6 +72,8 @@ import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { startMilestoneChangeWatcher } from './services/milestoneChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import { serverIncidentMiddleware, captureRequestError } from './services/serverIncidents.js';
+import { registerAppForCodeLocator } from './services/codeLocator.js';
 import { WEBSITE_URL } from './config/links.js';
 import { resolveLanguage } from './middleware/language.js';
 
@@ -201,6 +203,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Records the server-side cause (exception + source line, or real duration)
+// of failed/slow requests for the System Health detail window — see
+// services/serverIncidents.ts. Successful requests are not stored.
+app.use('/api', serverIncidentMiddleware);
+
 // After every successful write, close out whichever task notifications it
 // finished (services/pendingTasks.ts) — req.user is set later by the
 // route's own verifyToken, but is there by the time the response finishes.
@@ -283,9 +290,16 @@ app.use('/api/committees', committeesRoutes);
 app.use('/api/integrations', integrationsRoutes);
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
+  // Logged as err.stack (a string), which the console hook in
+  // services/serverIncidents.ts can't recognize as an Error — hand it over
+  // explicitly so System Health can show the failing line.
+  captureRequestError(err);
   console.error('Unhandled error:', err.stack);
   res.status(500).json({ message: 'Internal Server Error' });
 });
+// After every route is mounted — lets System Health resolve a client-reported
+// /api path to the controller function (and source line) that serves it.
+registerAppForCodeLocator(app);
 
 app.use((req, res) => {
   console.log(`🕵️‍♂️ 404 TRAP CAUGHT A REQUEST: ${req.method} ${req.url}`);

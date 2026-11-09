@@ -109,3 +109,65 @@ export async function askAssistantModel(params: {
     return null;
   }
 }
+
+const ERROR_ANALYSIS_MODEL = 'claude-opus-5-5';
+
+export type StructuredReply =
+  | { kind: 'json'; data: unknown }
+  | { kind: 'refused' }
+  | { kind: 'truncated' };
+
+/**
+ * Single-turn call that must come back as JSON matching `schema`
+ * (structured outputs, `output_config.format`). Used by the System Health
+ * "AI solution" analysis (services/errorAiAnalysis.ts). Returns null if no
+ * API key is configured or the call fails.
+ */
+export async function askStructuredModel(params: {
+  system: string;
+  prompt: string;
+  schema: Record<string, unknown>;
+  effort?: 'low' | 'medium' | 'high';
+  maxTokens?: number;
+}): Promise<StructuredReply | null> {
+  const anthropic = getClient();
+  if (!anthropic) return null;
+
+  const body = {
+    model: ERROR_ANALYSIS_MODEL,
+    max_tokens: params.maxTokens ?? 16000,
+    system: params.system,
+    messages: [{ role: 'user', content: params.prompt }],
+    output_config: {
+      effort: params.effort ?? 'medium',
+      format: { type: 'json_schema', schema: params.schema },
+    },
+    // Stack traces and code can trip a safety classifier (cyber) on benign
+    // debugging — re-run on the API's recommended fallback model instead of
+    // returning nothing.
+    fallbacks: 'default',
+  };
+
+  try {
+    const response = await anthropic.messages.create(
+      body as unknown as Anthropic.MessageCreateParamsNonStreaming,
+      { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' }, timeout: 170_000 },
+    );
+    if ((response.stop_reason as string) === 'refusal') return { kind: 'refused' };
+    if (response.stop_reason === 'max_tokens') return { kind: 'truncated' };
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+    if (!text) return null;
+    return { kind: 'json', data: JSON.parse(text) };
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error(`askStructuredModel API error ${error.status}:`, error.message);
+    } else {
+      console.error('askStructuredModel error:', error);
+    }
+    return null;
+  }
+}

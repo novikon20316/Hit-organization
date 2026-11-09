@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { apiClient } from '@/lib/apiClient';
+import { ErrorReportDetailModal } from '@/components/ErrorReportDetailModal';
 
 interface ErrorReportRow {
   id: string;
@@ -34,6 +35,7 @@ const KIND_LABEL: Record<ErrorReportRow['kind'], { he: string; en: string; icon:
 export function SystemHealthCard({ lang }: { lang: 'he' | 'en' }) {
   const [rows, setRows] = useState<ErrorReportRow[]>([]);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'errorReports'), orderBy('lastOccurredAt', 'desc'), limit(30));
@@ -97,10 +99,17 @@ export function SystemHealthCard({ lang }: { lang: 'he' | 'en' }) {
           {rows.map((r) => {
             const kindMeta = KIND_LABEL[r.kind];
             return (
-              <li key={r.id} className="rounded-md border border-admin-outline-variant/60 p-2.5 text-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 font-medium text-admin-on-surface">
+              <li key={r.id} className="rounded-md border border-admin-outline-variant/60 text-sm transition-colors hover:border-admin-primary">
+                <div className="flex items-start justify-between gap-2 p-2.5">
+                  {/* Whole text area opens the detail window — the Resolve
+                      button stays a separate quick action. */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(r.id)}
+                    className="min-w-0 flex-1 text-start"
+                    aria-label={lang === 'he' ? `פרטים: ${r.message}` : `Details: ${r.message}`}
+                  >
+                    <span className="flex flex-wrap items-center gap-1.5 font-medium text-admin-on-surface">
                       <span>{kindMeta.icon}</span>
                       <span>{lang === 'he' ? kindMeta.he : kindMeta.en}</span>
                       <span className="rounded-full bg-admin-surface-container px-1.5 py-0.5 text-[10px] uppercase text-admin-on-surface-variant">
@@ -111,12 +120,17 @@ export function SystemHealthCard({ lang }: { lang: 'he' | 'en' }) {
                           ×{r.count}
                         </span>
                       )}
-                    </div>
-                    <p className="mt-0.5 truncate text-admin-on-surface-variant" title={r.message}>
+                    </span>
+                    {/* LTR: these are English error strings — in an RTL card a
+                        plain truncate clipped the START of the message. */}
+                    <span className="mt-0.5 block truncate text-admin-on-surface-variant" dir="ltr" title={r.message}>
                       {r.message}
-                    </p>
-                    {r.route && <p className="text-xs text-admin-on-surface-variant">{r.route}</p>}
-                  </div>
+                    </span>
+                    {r.route && <span className="block break-all text-xs text-admin-on-surface-variant" dir="ltr">{r.route}</span>}
+                    <span className="mt-1 block text-xs font-medium text-admin-primary">
+                      {lang === 'he' ? 'לחץ לפרטים, מיקום בקוד ופתרון AI ←' : 'Details, code location & AI solution →'}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => resolve(r.id)}
@@ -131,6 +145,8 @@ export function SystemHealthCard({ lang }: { lang: 'he' | 'en' }) {
           })}
         </ul>
       )}
+
+      {openId && <ErrorReportDetailModal id={openId} lang={lang} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
