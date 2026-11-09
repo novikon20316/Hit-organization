@@ -121,27 +121,51 @@ function milestoneTitle(m: FirebaseFirestore.DocumentData) {
   return { he: m.nameHe ?? m.type ?? '', en: m.nameEn ?? m.type ?? '' };
 }
 
-async function notifySeminarStaff(
-  milestoneId: string,
-  m: FirebaseFirestore.DocumentData,
-  copy: { titleHe: string; titleEn: string; bodyHe: string; bodyEn: string },
-): Promise<void> {
+type StaffCopy = { titleHe: string; titleEn: string; bodyHe: string; bodyEn: string };
+
+function seminarStaffNotice(uid: string, milestoneId: string, m: FirebaseFirestore.DocumentData, copy: StaffCopy): NotifyParams {
+  return {
+    recipientId: uid,
+    type: 'general',
+    inAppType: 'seminar_action_needed',
+    ...copy,
+    relatedProjectId: m.projectId ?? null,
+    relatedMilestoneId: milestoneId,
+    taskKind: 'seminar',
+    taskRoleCandidates: ['administrative_secretary', 'coordinator'],
+    emailData: { message: { he: copy.bodyHe, en: copy.bodyEn } },
+    channels: { sms: false, whatsapp: false },
+  };
+}
+
+async function notifySeminarStaff(milestoneId: string, m: FirebaseFirestore.DocumentData, copy: StaffCopy): Promise<void> {
   const resource = (await resolveMilestoneScope(milestoneId)) ?? { facultyId: m.facultyId ?? '' };
   const staffIds = await seminarStaffIds(resource);
   await Promise.all(staffIds.map((uid) =>
-    notifyUser({
-      recipientId: uid,
-      type: 'general',
-      inAppType: 'seminar_action_needed',
-      ...copy,
-      relatedProjectId: m.projectId ?? null,
-      relatedMilestoneId: milestoneId,
-      taskKind: 'seminar',
-      taskRoleCandidates: ['administrative_secretary', 'coordinator'],
-      emailData: { message: { he: copy.bodyHe, en: copy.bodyEn } },
-      channels: { sms: false, whatsapp: false },
-    }).catch((err) => console.error(`notifySeminarStaff: failed for ${uid} on milestone ${milestoneId}:`, err))
+    notifyUser(seminarStaffNotice(uid, milestoneId, m, copy))
+      .catch((err) => console.error(`notifySeminarStaff: failed for ${uid} on milestone ${milestoneId}:`, err))
   ));
+}
+
+function dateNeededCopy(m: FirebaseFirestore.DocumentData): StaffCopy {
+  const title = milestoneTitle(m);
+  return {
+    titleHe: 'יש לקבוע מועד סמינר',
+    titleEn: 'Seminar date needed',
+    bodyHe: `המנחה אישר/ה את "${title.he}" — יש לקבוע לסטודנט/ית מועד להרצאת הסמינר.`,
+    bodyEn: `The supervisor approved "${title.en}" — please set the student's seminar date.`,
+  };
+}
+
+function outcomeNeededCopy(m: FirebaseFirestore.DocumentData, date: string): StaffCopy {
+  const title = milestoneTitle(m);
+  const day = formatSeminarDay(date);
+  return {
+    titleHe: 'האם הסמינר התקיים?',
+    titleEn: 'Did the seminar take place?',
+    bodyHe: `מועד "${title.he}" (${day}) עבר — יש לסמן אם הסטודנט/ית ביצע/ה את הסמינר.`,
+    bodyEn: `The date of "${title.en}" (${day}) has passed — please record whether the student performed it.`,
+  };
 }
 
 async function notifySeminarStudents(
@@ -163,12 +187,7 @@ async function notifySeminarStudents(
  *  student the milestone isn't stuck, it's waiting on that date. */
 export async function onSeminarChainComplete(milestoneId: string, m: FirebaseFirestore.DocumentData): Promise<void> {
   const title = milestoneTitle(m);
-  await notifySeminarStaff(milestoneId, m, {
-    titleHe: 'יש לקבוע מועד סמינר',
-    titleEn: 'Seminar date needed',
-    bodyHe: `המנחה אישר/ה את "${title.he}" — יש לקבוע לסטודנט/ית מועד להרצאת הסמינר.`,
-    bodyEn: `The supervisor approved "${title.en}" — please set the student's seminar date.`,
-  });
+  await notifySeminarStaff(milestoneId, m, dateNeededCopy(m));
   const bodyHe = `"${title.he}" אושר/ה על ידי המנחה. הרכזת האדמיניסטרטיבית תקבע מועד להרצאה ותישלח אליך הודעה.`;
   const bodyEn = `"${title.en}" was approved by your supervisor. The administrative coordinator will set the date and you'll be notified.`;
   await notifySeminarStudents(m, milestoneId, {
@@ -294,14 +313,43 @@ export async function sendSeminarOutcomeReminders(): Promise<void> {
     const m = doc.data();
     const date: string | undefined = m.seminarSchedule?.date;
     if (!date || !m.seminarSchedule?.time || !seminarHasStarted(m.seminarSchedule) || m.seminarOutcomeReminderFor === date) continue;
-    const title = milestoneTitle(m);
-    const day = formatSeminarDay(date);
-    await notifySeminarStaff(doc.id, m, {
-      titleHe: 'האם הסמינר התקיים?',
-      titleEn: 'Did the seminar take place?',
-      bodyHe: `מועד "${title.he}" (${day}) עבר — יש לסמן אם הסטודנט/ית ביצע/ה את הסמינר.`,
-      bodyEn: `The date of "${title.en}" (${day}) has passed — please record whether the student performed it.`,
-    });
+    await notifySeminarStaff(doc.id, m, outcomeNeededCopy(m, date));
     await doc.ref.update({ seminarOutcomeReminderFor: date });
   }
+}
+
+/** On app start (POST /api/notifications/reconcile-tasks): every seminar
+ *  waiting on the calendar staff — no date yet, or its time passed with no
+ *  yes/no — whose task never reached this user (they got the role or scope
+ *  after the one-time alert went out) gets one now, in-app only. That task is
+ *  what lights the Seminars tab badge until the work is done. */
+export async function catchUpSeminarTasks(uid: string): Promise<number> {
+  const snap = await db.collection('milestones').where('seminarScheduling', '==', true).get();
+  const needing = snap.docs.filter((d) => {
+    const m = d.data();
+    if (m.status === SEMINAR_AWAITING_DATE) return true;
+    return m.status === SEMINAR_SCHEDULED && !!m.seminarSchedule?.date && !!m.seminarSchedule?.time && seminarHasStarted(m.seminarSchedule);
+  });
+  if (!needing.length) return 0;
+
+  const open = await db.collection('notifications')
+    .where('recipientId', '==', uid)
+    .where('pendingTask', '==', true)
+    .get();
+  const covered = new Set(open.docs
+    .filter((d) => d.data().type === 'seminar_action_needed')
+    .map((d) => d.data().relatedMilestoneId));
+
+  let created = 0;
+  for (const doc of needing) {
+    if (covered.has(doc.id)) continue;
+    const m = doc.data();
+    const resource = (await resolveMilestoneScope(doc.id)) ?? { facultyId: m.facultyId ?? '' };
+    if (!(await seminarStaffIds(resource)).includes(uid)) continue;
+    const copy = m.status === SEMINAR_AWAITING_DATE ? dateNeededCopy(m) : outcomeNeededCopy(m, m.seminarSchedule.date);
+    const notice = seminarStaffNotice(uid, doc.id, m, copy);
+    await notifyUser({ ...notice, channels: { email: false, push: false, sms: false, whatsapp: false } });
+    created++;
+  }
+  return created;
 }

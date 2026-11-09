@@ -7,6 +7,7 @@ import { screensForRole, ROLE_AGNOSTIC_SCREENS } from '../services/notificationT
 import { L } from '../utils/localize.js';
 import { getPrivateContact, writePrivateContact } from '../services/privateContact.js';
 import { reconcileUserTasks } from '../services/pendingTasks.js';
+import { catchUpSeminarTasks } from '../services/seminarScheduling.js';
 
 const db = admin.firestore();
 
@@ -336,6 +337,11 @@ export const reconcileMyTasks = async (req: AuthenticatedRequest, res: Response)
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: L(req, 'Unauthorized user context.', 'הקשר משתמש לא מורשה.') });
     const resolved = await reconcileUserTasks(uid);
+    // A seminar waiting on this user whose alert went out before they held
+    // the role gets its task now — see catchUpSeminarTasks.
+    if (hasAnyRole(req.user, ['administrative_secretary', 'coordinator'])) {
+      await catchUpSeminarTasks(uid).catch((err) => console.error('catchUpSeminarTasks failed:', err));
+    }
     return res.status(200).json({ success: true, resolved });
   } catch (error: any) {
     return softError(res, 'Failed to reconcile tasks.', error);
