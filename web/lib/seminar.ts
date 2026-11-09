@@ -13,6 +13,9 @@ export interface SeminarSlot {
   time: string;
   location?: string;
   note?: string;
+  /** ISO instant the talk starts (Israel time) — only on the administrative
+   *  coordinator's seminar list. */
+  startsAt?: string;
 }
 
 export interface SeminarAttempt {
@@ -36,4 +39,10 @@ export function seminarDayToDate(date: string): Date {
 
 export function formatSeminarDay(date: string, lang: 'he' | 'en', opts: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }): string {
   return seminarDayToDate(date).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', opts);
+}
+
+/** The yes/no on whether the talk took place opens from its booked time —
+ *  same rule the server enforces. */
+export function seminarHasStarted(slot: SeminarSlot | null | undefined, now: number): boolean {
+  return !!slot?.startsAt && Date.parse(slot.startsAt) <= now;
 }

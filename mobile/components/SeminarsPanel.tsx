@@ -2,7 +2,7 @@
 // Mirror of web's app/administrative_coordinator/dashboard/SeminarsTab.tsx —
 // see server/src/services/seminarScheduling.ts. A month calendar with seminars
 // and defenses in their own colours, then the seminars waiting on her: set a
-// date, or once it arrives record whether the student performed it.
+// date, or once its booked time passes record whether the student performed it.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
@@ -10,7 +10,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { ap } from '@/constants/theme';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
-import { DEFENSE_CALENDAR_COLOR, SEMINAR_COLOR, formatSeminarDay, type SeminarAttempt, type SeminarSlot } from '@/utils/seminar';
+import { DEFENSE_CALENDAR_COLOR, SEMINAR_COLOR, formatSeminarDay, seminarHasStarted, type SeminarAttempt, type SeminarSlot } from '@/utils/seminar';
 
 interface SeminarRow {
   milestoneId: string;
@@ -38,7 +38,10 @@ export function SeminarsPanel({ lang, isRtl }: { lang: 'he' | 'en'; isRtl: boole
   const [today, setToday] = useState('');
   const [loading, setLoading] = useState(true);
   const [dateTarget, setDateTarget] = useState<{ seminar: SeminarRow; date: string } | null>(null);
-  const [outcomeTarget, setOutcomeTarget] = useState<SeminarRow | null>(null);
+  // choice null = the dialog asks; true/false = the card's own button was pressed.
+  const [outcomeTarget, setOutcomeTarget] = useState<{ seminar: SeminarRow; choice: boolean | null } | null>(null);
+  // Ticks so a talk booked for later today unlocks its buttons once it starts.
+  const [now, setNow] = useState(() => Date.now());
   const [selectedDay, setSelectedDay] = useState('');
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -63,6 +66,10 @@ export function SeminarsPanel({ lang, isRtl }: { lang: 'he' | 'en'; isRtl: boole
   useEffect(() => { fetchSeminars(); }, [fetchSeminars]);
   useLiveRefresh(fetchSeminars);
   useDefenseScheduleLiveRefresh(fetchSeminars);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const markersByDay = useMemo(() => {
     const map = new Map<string, { seminar: boolean; defense: boolean }>();
@@ -129,6 +136,41 @@ export function SeminarsPanel({ lang, isRtl }: { lang: 'he' | 'en'; isRtl: boole
     </Pressable>
   );
 
+  const outcomeActions = (s: SeminarRow) => {
+    const started = seminarHasStarted(s.schedule, now);
+    const outcomeButton = (performed: boolean) => (
+      <Pressable
+        onPress={() => setOutcomeTarget({ seminar: s, choice: performed })}
+        disabled={!started}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !started }}
+        style={{ flex: 1, backgroundColor: performed ? '#3F6B4C' : '#A8433A', borderRadius: 10, paddingVertical: 9, opacity: started ? 1 : 0.4 }}
+      >
+        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+          {performed ? `✅ ${lang === 'he' ? 'הסמינר בוצע' : 'Performed'}` : `✗ ${lang === 'he' ? 'הסמינר לא בוצע' : 'Not performed'}`}
+        </Text>
+      </Pressable>
+    );
+    return (
+      <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {outcomeButton(true)}
+          {outcomeButton(false)}
+        </View>
+        {!started && (
+          <>
+            <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, textAlign }}>
+              🕐 {lang === 'he' ? `ניתן לסמן החל מהשעה ${s.schedule!.time}` : `Can be recorded from ${s.schedule!.time}`}
+            </Text>
+            <Pressable onPress={() => setDateTarget({ seminar: s, date: s.schedule!.date })} accessibilityRole="button" style={{ borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 10, paddingVertical: 9 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: ap.onSurface, textAlign: 'center' }}>✏️ {lang === 'he' ? 'שינוי מועד' : 'Change date'}</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+    );
+  };
+
   const sectionTitle = (title: string, count: number) => (
     <Text style={{ fontSize: 14, fontWeight: '700', color: ap.onSurface, marginBottom: 8, marginTop: 6, textAlign }}>{title} ({count})</Text>
   );
@@ -188,7 +230,7 @@ export function SeminarsPanel({ lang, isRtl }: { lang: 'he' | 'en'; isRtl: boole
       </View>
 
       {dueForOutcome.length > 0 && sectionTitle(lang === 'he' ? 'יש לאשר אם הסמינר בוצע' : 'Confirm whether the seminar took place', dueForOutcome.length)}
-      {dueForOutcome.map((s) => renderCard(s, primaryButton(`✅ ${lang === 'he' ? 'סימון ביצוע' : 'Record outcome'}`, () => setOutcomeTarget(s))))}
+      {dueForOutcome.map((s) => renderCard(s, outcomeActions(s)))}
 
       {awaiting.length > 0 && sectionTitle(lang === 'he' ? 'ממתינים לקביעת מועד' : 'Waiting for a date', awaiting.length)}
       {awaiting.map((s) => renderCard(s, primaryButton(`📅 ${lang === 'he' ? 'קביעת מועד' : 'Set date'}`, () => setDateTarget({ seminar: s, date: selectedDay >= today ? selectedDay : '' }))))}
@@ -214,12 +256,13 @@ export function SeminarsPanel({ lang, isRtl }: { lang: 'he' | 'en'; isRtl: boole
       )}
       {outcomeTarget && (
         <SeminarOutcomeModal
-          seminar={outcomeTarget}
+          seminar={outcomeTarget.seminar}
+          choice={outcomeTarget.choice}
           lang={lang}
           isRtl={isRtl}
           onClose={() => setOutcomeTarget(null)}
           onSaved={async (performed) => {
-            const seminar = outcomeTarget;
+            const seminar = outcomeTarget.seminar;
             setOutcomeTarget(null);
             await fetchSeminars();
             // Not performed means a new date is mandatory — go straight to it.
@@ -288,8 +331,9 @@ function SeminarDateModal({ seminar, initialDate, lang, isRtl, onClose, onSaved 
   );
 }
 
-function SeminarOutcomeModal({ seminar, lang, isRtl, onClose, onSaved }: {
+function SeminarOutcomeModal({ seminar, choice, lang, isRtl, onClose, onSaved }: {
   seminar: SeminarRow;
+  choice: boolean | null;
   lang: 'he' | 'en';
   isRtl: boolean;
   onClose: () => void;
@@ -316,7 +360,13 @@ function SeminarOutcomeModal({ seminar, lang, isRtl, onClose, onSaved }: {
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 }}>
         <View style={{ backgroundColor: ap.surfaceContainerLowest, borderRadius: 16, padding: 18 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: ap.onSurface, textAlign }}>{lang === 'he' ? 'האם הסמינר התקיים?' : 'Did the seminar take place?'}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: ap.onSurface, textAlign }}>
+            {choice === true
+              ? lang === 'he' ? 'אישור: הסמינר בוצע' : 'Confirm: seminar performed'
+              : choice === false
+                ? lang === 'he' ? 'אישור: הסמינר לא בוצע' : 'Confirm: seminar not performed'
+                : lang === 'he' ? 'האם הסמינר התקיים?' : 'Did the seminar take place?'}
+          </Text>
           <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 4, textAlign }}>👤 {seminar.students.map((s) => s.name).join(', ')}</Text>
           {!!seminar.schedule && (
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginTop: 2, textAlign }}>📅 {formatSeminarDay(seminar.schedule.date, lang)} · 🕐 {seminar.schedule.time}</Text>
@@ -325,12 +375,16 @@ function SeminarOutcomeModal({ seminar, lang, isRtl, onClose, onSaved }: {
           <TextInput accessibilityLabel={lang === 'he' ? 'הערה (לא חובה)' : 'Note (optional)'} value={note} onChangeText={setNote} maxLength={500} multiline style={[inputStyle, { textAlign }]} />
           {!!error && <Text style={{ fontSize: 12, color: '#A8433A', marginTop: 6, textAlign }}>{error}</Text>}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <Pressable onPress={() => save(true)} disabled={saving} accessibilityRole="button" style={{ flex: 1, backgroundColor: '#3F6B4C', borderRadius: 10, paddingVertical: 10, opacity: saving ? 0.6 : 1 }}>
-              <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: '#fff' }}>✅ {lang === 'he' ? 'בוצע' : 'Performed'}</Text>
-            </Pressable>
-            <Pressable onPress={() => save(false)} disabled={saving} accessibilityRole="button" style={{ flex: 1, backgroundColor: '#A8433A', borderRadius: 10, paddingVertical: 10, opacity: saving ? 0.6 : 1 }}>
-              <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: '#fff' }}>✗ {lang === 'he' ? 'לא בוצע' : 'Not performed'}</Text>
-            </Pressable>
+            {choice !== false && (
+              <Pressable onPress={() => save(true)} disabled={saving} accessibilityRole="button" style={{ flex: 1, backgroundColor: '#3F6B4C', borderRadius: 10, paddingVertical: 10, opacity: saving ? 0.6 : 1 }}>
+                <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: '#fff' }}>✅ {lang === 'he' ? 'בוצע' : 'Performed'}</Text>
+              </Pressable>
+            )}
+            {choice !== true && (
+              <Pressable onPress={() => save(false)} disabled={saving} accessibilityRole="button" style={{ flex: 1, backgroundColor: '#A8433A', borderRadius: 10, paddingVertical: 10, opacity: saving ? 0.6 : 1 }}>
+                <Text style={{ textAlign: 'center', fontSize: 13, fontWeight: '700', color: '#fff' }}>✗ {lang === 'he' ? 'לא בוצע' : 'Not performed'}</Text>
+              </Pressable>
+            )}
           </View>
           <Pressable onPress={onClose} accessibilityRole="button" style={{ marginTop: 10 }}>
             <Text style={{ textAlign: 'center', fontSize: 13, color: ap.onSurfaceVariant }}>{lang === 'he' ? 'ביטול' : 'Cancel'}</Text>

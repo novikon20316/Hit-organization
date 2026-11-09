@@ -75,6 +75,16 @@ export function todayInIsrael(): string {
   return dayjs().tz(TZ).format('YYYY-MM-DD');
 }
 
+/** When the booked talk starts, Israel time. The yes/no on whether it took
+ *  place opens from this moment, not from midnight of that day. */
+export function seminarStartsAt(slot: { date: string; time: string }): dayjs.Dayjs {
+  return dayjs.tz(`${slot.date}T${slot.time}`, TZ);
+}
+
+export function seminarHasStarted(slot: { date: string; time: string }): boolean {
+  return !seminarStartsAt(slot).isAfter(dayjs());
+}
+
 export function isValidIsoDay(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && dayjs(value).format('YYYY-MM-DD') === value;
 }
@@ -272,11 +282,10 @@ export async function notifySeminarContactRequest(
   ));
 }
 
-/** Hourly sweep: a booked date has passed with no yes/no recorded — asks her
- *  for the answer once per date (the milestone blocks the student until
- *  someone records it, and nothing else would raise it). */
+/** Hourly sweep: a booked talk's start time has passed with no yes/no
+ *  recorded — asks her for the answer once per date (the milestone blocks the
+ *  student until someone records it, and nothing else would raise it). */
 export async function sendSeminarOutcomeReminders(): Promise<void> {
-  const today = todayInIsrael();
   const snap = await db.collection('milestones')
     .where('seminarScheduling', '==', true)
     .where('status', '==', SEMINAR_SCHEDULED)
@@ -284,7 +293,7 @@ export async function sendSeminarOutcomeReminders(): Promise<void> {
   for (const doc of snap.docs) {
     const m = doc.data();
     const date: string | undefined = m.seminarSchedule?.date;
-    if (!date || date >= today || m.seminarOutcomeReminderFor === date) continue;
+    if (!date || !m.seminarSchedule?.time || !seminarHasStarted(m.seminarSchedule) || m.seminarOutcomeReminderFor === date) continue;
     const title = milestoneTitle(m);
     const day = formatSeminarDay(date);
     await notifySeminarStaff(doc.id, m, {

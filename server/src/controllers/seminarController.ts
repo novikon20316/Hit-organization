@@ -28,6 +28,8 @@ import {
   notifySeminarContactRequest,
   notifySeminarDateSet,
   notifySeminarNotPerformed,
+  seminarHasStarted,
+  seminarStartsAt,
   todayInIsrael,
   type SeminarAttempt,
   type SeminarContactRequest,
@@ -135,7 +137,13 @@ export const getSeminars = async (req: AuthenticatedRequest, res: Response) => {
         students: ((m.studentIds ?? []) as string[]).map((id) => ({ id, name: names.get(id) ?? '' })),
         supervisorName: names.get(m.supervisorId) ?? '',
         schedule: isSeminarInProgress(m.status) && m.seminarSchedule
-          ? { date: m.seminarSchedule.date, time: m.seminarSchedule.time, location: m.seminarSchedule.location ?? '', note: m.seminarSchedule.note ?? '' }
+          ? {
+            date: m.seminarSchedule.date,
+            time: m.seminarSchedule.time,
+            location: m.seminarSchedule.location ?? '',
+            note: m.seminarSchedule.note ?? '',
+            startsAt: seminarStartsAt(m.seminarSchedule).toISOString(),
+          }
           : null,
         attempts,
         contactRequests,
@@ -178,7 +186,9 @@ export const scheduleSeminar = async (req: AuthenticatedRequest, res: Response) 
   if (!isValidIsoDay(date)) return res.status(400).json({ message: L(req, 'Please pick a valid date.', 'יש לבחור תאריך תקין.') });
   if (!isValidClockTime(time)) return res.status(400).json({ message: L(req, 'Please pick a valid time.', 'יש לבחור שעה תקינה.') });
   const today = todayInIsrael();
-  if (date < today) return res.status(400).json({ message: L(req, 'The seminar date cannot be in the past.', 'מועד הסמינר לא יכול להיות בעבר.') });
+  if (date < today || seminarHasStarted({ date, time })) {
+    return res.status(400).json({ message: L(req, 'The seminar date cannot be in the past.', 'מועד הסמינר לא יכול להיות בעבר.') });
+  }
 
   const milestoneRef = db.collection('milestones').doc(milestoneId);
   let rescheduled = false;
@@ -188,7 +198,9 @@ export const scheduleSeminar = async (req: AuthenticatedRequest, res: Response) 
       const snap = await transaction.get(milestoneRef);
       const fresh = snap.data();
       if (!fresh?.seminarScheduling || !isSeminarInProgress(fresh.status)) return 'wrong_status' as const;
-      if (fresh.status === SEMINAR_SCHEDULED && fresh.seminarSchedule?.date < today) return 'outcome_first' as const;
+      // Once the booked talk has started, the yes/no comes first — a missed
+      // talk is recorded as not performed, then a new date is set.
+      if (fresh.status === SEMINAR_SCHEDULED && fresh.seminarSchedule && seminarHasStarted(fresh.seminarSchedule)) return 'outcome_first' as const;
       rescheduled = fresh.status === SEMINAR_SCHEDULED;
       milestone = fresh;
       const slot: SeminarSlot = {
@@ -210,7 +222,7 @@ export const scheduleSeminar = async (req: AuthenticatedRequest, res: Response) 
       return res.status(400).json({ message: L(req, 'This seminar is not waiting for a date.', 'סמינר זה אינו ממתין לקביעת מועד.') });
     }
     if (outcome === 'outcome_first') {
-      return res.status(400).json({ message: L(req, 'This date has passed — please record first whether the seminar took place.', 'המועד כבר עבר — יש לסמן תחילה אם הסמינר התקיים.') });
+      return res.status(400).json({ message: L(req, 'This seminar time has passed — please record first whether the seminar took place.', 'מועד הסמינר כבר עבר — יש לסמן תחילה אם הסמינר התקיים.') });
     }
   } catch (error) {
     console.error('scheduleSeminar error:', error);
@@ -239,7 +251,7 @@ export const scheduleSeminar = async (req: AuthenticatedRequest, res: Response) 
 
 /**
  * POST /api/coordinator/seminars/:milestoneId/outcome
- * { performed: boolean, note? } — only once the booked day has arrived.
+ * { performed: boolean, note? } — only once the booked time has passed.
  * Performed closes the milestone (the next one opens); not performed puts it
  * back on her list for a new date.
  */
@@ -261,7 +273,7 @@ export const recordSeminarOutcome = async (req: AuthenticatedRequest, res: Respo
       const fresh = snap.data();
       if (!fresh?.seminarScheduling || fresh.status !== SEMINAR_SCHEDULED || !fresh.seminarSchedule) return 'wrong_status' as const;
       const slot = fresh.seminarSchedule as SeminarSlot;
-      if (slot.date > todayInIsrael()) return 'too_early' as const;
+      if (!seminarHasStarted(slot)) return 'too_early' as const;
 
       attempt = {
         date: slot.date,
@@ -296,7 +308,7 @@ export const recordSeminarOutcome = async (req: AuthenticatedRequest, res: Respo
       return res.status(400).json({ message: L(req, 'This seminar has no booked date to confirm.', 'לסמינר זה אין מועד קבוע לאישור.') });
     }
     if (outcome === 'too_early') {
-      return res.status(400).json({ message: L(req, "The seminar date hasn't arrived yet.", 'מועד הסמינר עדיין לא הגיע.') });
+      return res.status(400).json({ message: L(req, "The seminar hasn't started yet — this can be recorded from its booked time.", 'הסמינר עדיין לא התחיל — ניתן לסמן החל מהשעה שנקבעה.') });
     }
   } catch (error) {
     console.error('recordSeminarOutcome error:', error);

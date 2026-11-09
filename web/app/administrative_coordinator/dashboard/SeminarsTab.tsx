@@ -3,7 +3,7 @@
 // app/administrative_coordinator/dashboard/SeminarsTab.tsx
 // The seminar calendar — see server/src/services/seminarScheduling.ts. A
 // seminar reaches her once the supervisor approves it: she books a date, and
-// once that day arrives records whether the student gave the talk. Performed
+// once its booked time passes records whether the student gave the talk. Performed
 // closes the milestone; not performed sends her straight back to booking a
 // new date. Defenses in the same scope sit on the calendar in their own
 // colour, so a clash is visible before she books.
@@ -16,7 +16,7 @@ import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { Select } from '@/components/ui/Select';
 import { apiClient, type SeminarCalendarDefense, type SeminarRow } from '@/lib/apiClient';
-import { DEFENSE_CALENDAR_COLOR, SEMINAR_COLOR, formatSeminarDay } from '@/lib/seminar';
+import { DEFENSE_CALENDAR_COLOR, SEMINAR_COLOR, formatSeminarDay, seminarHasStarted } from '@/lib/seminar';
 
 const inputCls = 'w-full rounded-lg border border-administrative-coordinator-outline-variant bg-administrative-coordinator-surface-container-low px-3 py-2 text-sm text-administrative-coordinator-on-surface focus:border-administrative-coordinator-primary focus:bg-administrative-coordinator-surface-container-lowest focus:outline-none';
 
@@ -40,7 +40,10 @@ export function SeminarsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dateTarget, setDateTarget] = useState<{ seminar: SeminarRow | null; date: string } | null>(null);
-  const [outcomeTarget, setOutcomeTarget] = useState<SeminarRow | null>(null);
+  // choice null = the dialog asks; true/false = the card's own button was pressed.
+  const [outcomeTarget, setOutcomeTarget] = useState<{ seminar: SeminarRow; choice: boolean | null } | null>(null);
+  // Ticks so a talk booked for later today unlocks its buttons once it starts.
+  const [now, setNow] = useState(() => Date.now());
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -67,6 +70,10 @@ export function SeminarsTab() {
   }, [fetchSeminars]);
   useLiveRefresh(fetchSeminars);
   useDefenseScheduleLiveRefresh(fetchSeminars);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const awaiting = useMemo(() => seminars.filter((s) => s.status === 'seminar_awaiting_date'), [seminars]);
   const scheduled = useMemo(
@@ -105,7 +112,7 @@ export function SeminarsTab() {
   }, [seminars, defenses, lang]);
 
   const openSeminarEntry = (s: SeminarRow) => {
-    if (s.schedule && s.schedule.date <= today) setOutcomeTarget(s);
+    if (seminarHasStarted(s.schedule, now)) setOutcomeTarget({ seminar: s, choice: null });
     else setDateTarget({ seminar: s, date: s.schedule?.date ?? '' });
   };
 
@@ -128,8 +135,8 @@ export function SeminarsTab() {
     <div className="grid gap-5">
       <p className="text-xs text-administrative-coordinator-on-surface-variant">
         {lang === 'he'
-          ? 'סמינרים שהמנחה אישר/ה. יש לקבוע מועד (לחיצה על יום בלוח או על "קביעת מועד"), ולאחר המועד לסמן אם הסטודנט/ית ביצע/ה את הסמינר. אם לא — יש לקבוע מועד חדש.'
-          : "Seminars the supervisor approved. Set a date (click a day on the calendar, or \"Set date\"), then after that date record whether the student performed it. If not, set a new date."}
+          ? 'סמינרים שהמנחה אישר/ה. יש לקבוע מועד (לחיצה על יום בלוח או על "קביעת מועד"), ואחרי שעת הסמינר לסמן "הסמינר בוצע" או "הסמינר לא בוצע". אם לא בוצע — יש לקבוע מועד חדש.'
+          : "Seminars the supervisor approved. Set a date (click a day on the calendar, or \"Set date\"), then once the seminar's time has passed record \"Performed\" or \"Not performed\". If not performed, set a new date."}
       </p>
 
       {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
@@ -209,11 +216,45 @@ export function SeminarsTab() {
       </div>
 
       <SeminarSection title={lang === 'he' ? 'יש לאשר אם הסמינר בוצע' : 'Confirm whether the seminar took place'} seminars={dueForOutcome}>
-        {(s) => (
-          <button type="button" onClick={() => setOutcomeTarget(s)} className="rounded-lg px-3 py-2 text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: SEMINAR_COLOR }}>
-            ✅ {lang === 'he' ? 'סימון ביצוע' : 'Record outcome'}
-          </button>
-        )}
+        {(s) => {
+          const started = seminarHasStarted(s.schedule, now);
+          return (
+            <div className="grid gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!started}
+                  onClick={() => setOutcomeTarget({ seminar: s, choice: true })}
+                  className="rounded-lg bg-success px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ✅ {lang === 'he' ? 'הסמינר בוצע' : 'Performed'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!started}
+                  onClick={() => setOutcomeTarget({ seminar: s, choice: false })}
+                  className="rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ✗ {lang === 'he' ? 'הסמינר לא בוצע' : 'Not performed'}
+                </button>
+                {!started && (
+                  <button
+                    type="button"
+                    onClick={() => setDateTarget({ seminar: s, date: s.schedule!.date })}
+                    className="rounded-lg border border-administrative-coordinator-outline-variant px-3 py-2 text-xs font-semibold text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary"
+                  >
+                    ✏️ {lang === 'he' ? 'שינוי מועד' : 'Change date'}
+                  </button>
+                )}
+              </div>
+              {!started && (
+                <p className="text-xs text-administrative-coordinator-on-surface-variant">
+                  🕐 {lang === 'he' ? `ניתן לסמן החל מהשעה ${s.schedule!.time}` : `Can be recorded from ${s.schedule!.time}`}
+                </p>
+              )}
+            </div>
+          );
+        }}
       </SeminarSection>
 
       <SeminarSection title={lang === 'he' ? 'ממתינים לקביעת מועד' : 'Waiting for a date'} seminars={awaiting}>
@@ -254,10 +295,11 @@ export function SeminarsTab() {
       )}
       {outcomeTarget && (
         <SeminarOutcomeModal
-          seminar={outcomeTarget}
+          seminar={outcomeTarget.seminar}
+          choice={outcomeTarget.choice}
           onClose={() => setOutcomeTarget(null)}
           onSaved={async (performed) => {
-            const seminar = outcomeTarget;
+            const seminar = outcomeTarget.seminar;
             setOutcomeTarget(null);
             await fetchSeminars();
             // Not performed means a new date is mandatory — go straight to it.
@@ -442,7 +484,17 @@ function SeminarDateModal({
   );
 }
 
-function SeminarOutcomeModal({ seminar, onClose, onSaved }: { seminar: SeminarRow; onClose: () => void; onSaved: (performed: boolean) => Promise<void> | void }) {
+function SeminarOutcomeModal({
+  seminar,
+  choice,
+  onClose,
+  onSaved,
+}: {
+  seminar: SeminarRow;
+  choice: boolean | null;
+  onClose: () => void;
+  onSaved: (performed: boolean) => Promise<void> | void;
+}) {
   const { lang } = useLanguage();
   const modalRef = useRef<HTMLDivElement>(null);
   useModalA11y(modalRef, true, onClose);
@@ -472,7 +524,13 @@ function SeminarOutcomeModal({ seminar, onClose, onSaved }: { seminar: SeminarRo
         className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-administrative-coordinator-lg bg-administrative-coordinator-surface-container-lowest p-6 text-administrative-coordinator-on-surface shadow-lg outline-none"
       >
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold">{lang === 'he' ? 'האם הסמינר התקיים?' : 'Did the seminar take place?'}</h2>
+          <h2 className="text-lg font-semibold">
+            {choice === true
+              ? lang === 'he' ? 'אישור: הסמינר בוצע' : 'Confirm: seminar performed'
+              : choice === false
+                ? lang === 'he' ? 'אישור: הסמינר לא בוצע' : 'Confirm: seminar not performed'
+                : lang === 'he' ? 'האם הסמינר התקיים?' : 'Did the seminar take place?'}
+          </h2>
           <button type="button" onClick={onClose} aria-label={lang === 'he' ? 'סגור' : 'Close'} className="text-administrative-coordinator-on-surface-variant hover:text-administrative-coordinator-on-surface">✕</button>
         </div>
         <div className="mt-3 rounded-lg bg-administrative-coordinator-surface-container-low p-3">
@@ -489,12 +547,26 @@ function SeminarOutcomeModal({ seminar, onClose, onSaved }: { seminar: SeminarRo
         </label>
         {error && <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <button type="button" disabled={saving} onClick={() => save(true)} className="rounded-lg bg-success py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
-            ✅ {lang === 'he' ? 'בוצע' : 'Performed'}
-          </button>
-          <button type="button" disabled={saving} onClick={() => save(false)} className="rounded-lg bg-danger py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
-            ✗ {lang === 'he' ? 'לא בוצע' : 'Not performed'}
-          </button>
+          {choice !== false && (
+            <button type="button" disabled={saving} onClick={() => save(true)} className="rounded-lg bg-success py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
+              ✅ {lang === 'he' ? 'בוצע' : 'Performed'}
+            </button>
+          )}
+          {choice !== true && (
+            <button type="button" disabled={saving} onClick={() => save(false)} className="rounded-lg bg-danger py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
+              ✗ {lang === 'he' ? 'לא בוצע' : 'Not performed'}
+            </button>
+          )}
+          {choice !== null && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onClose}
+              className="rounded-lg border border-administrative-coordinator-outline-variant py-2.5 text-sm font-semibold text-administrative-coordinator-on-surface hover:border-administrative-coordinator-primary disabled:opacity-60"
+            >
+              {lang === 'he' ? 'ביטול' : 'Cancel'}
+            </button>
+          )}
         </div>
         <p className="mt-3 text-xs text-administrative-coordinator-on-surface-variant">
           {lang === 'he'
