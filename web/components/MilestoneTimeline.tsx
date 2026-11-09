@@ -154,14 +154,21 @@ type ChainStep = { label: string; done: boolean; current?: boolean };
  *  currently awaiting action (see server/src/controllers/projectController.ts
  *  and coordinatorController.ts's approveChainMilestone), so every stage
  *  before it is done. A 'graded' status parked ON a grade stage means that
- *  final grade stage itself already finished. */
+ *  final grade stage itself already finished. A 'rejected' milestone is
+ *  back with the student — currentStageIndex still reads 0 until they
+ *  resubmit, so the first reviewer mustn't show as "waiting now". */
 function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he' | 'en'): ChainStep[] {
-  const submitted = m.status !== 'pending';
+  const returned = m.status === 'rejected';
+  const submitted = m.status !== 'pending' && !returned;
   const allDone = isCompletedStatus(m.status);
   const idx = m.currentStageIndex ?? 0;
   const currentFinished = m.status === 'graded' && routing[idx]?.action === 'grade';
 
-  const steps: ChainStep[] = [{ label: lang === 'he' ? 'הגשה' : 'Submission', done: submitted }];
+  const steps: ChainStep[] = [{
+    label: returned ? (lang === 'he' ? 'הגשה מתוקנת (הוחזר לסטודנט/ית)' : 'Corrected resubmission (returned to student)') : (lang === 'he' ? 'הגשה' : 'Submission'),
+    done: submitted,
+    current: returned,
+  }];
   routing.forEach((stage, i) => {
     const done = allDone || (submitted && (i < idx || (i === idx && currentFinished)));
     steps.push({ label: chainStageLabel(stage, lang), done, current: submitted && !done && i === idx });
