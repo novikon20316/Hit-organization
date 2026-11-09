@@ -15,8 +15,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot } from '@/components/thesisExam/shared';
-import { AvailabilityPicker } from '@/components/thesisExam/AvailabilityPicker';
+import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
+import { AvailabilityPicker, Stepper, daysBetween, todayIso } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
 const errText = (err: any, fallback: string) => err?.response?.data?.message ?? fallback;
@@ -106,7 +106,7 @@ export default function ThesisExamScreen() {
 }
 
 function Steps({ status, lang }: { status: ThesisExamCard['status']; lang: Lang }) {
-  const current = THESIS_EXAM_STEPS.findIndex((s) => s.status === status);
+  const current = thesisExamStepIndex(status);
   return (
     <View style={{ flexDirection: lang === 'he' ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
       {THESIS_EXAM_STEPS.map((s, i) => {
@@ -180,9 +180,16 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
         </View>
       )}
 
+      {exam.status === 'exam_date_coordinator' && !has('set_date') && (
+        <Text style={{ marginTop: 8, fontSize: 13, color: C.muted, ...align }}>
+          {he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.'}
+        </Text>
+      )}
+      {has('set_date') && <CoordinatorDateForm exam={exam} lang={lang} onDone={onChanged} />}
+
       {(exam.status === 'exam_date_review' || exam.status === 'exam_date_final_review') && exam.proposedSlot && (
         <Text style={{ marginTop: 8, fontSize: 13, color: C.ink, ...align }}>
-          {he ? 'המועד המשותף שנמצא: ' : 'Common time found: '}<Text style={{ fontWeight: '700' }}>{formatExamSlot(exam.proposedSlot, lang)}</Text>
+          {exam.slotSource === 'coordinator' ? (he ? 'המועד שקבעה הרכזת: ' : 'Time set by the coordinator: ') : (he ? 'המועד המשותף שנמצא: ' : 'Common time found: ')}<Text style={{ fontWeight: '700' }}>{formatExamSlot(exam.proposedSlot, lang)}</Text>
         </Text>
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
@@ -416,7 +423,7 @@ function DateReview({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; 
       <Text style={{ fontSize: 12, color: C.muted, ...align }}>
         {exam.remainingSlots && exam.remainingSlots > 0
           ? (he ? `בדחייה יוצע המועד המשותף הבא (נותרו עוד ${exam.remainingSlots}).` : `Rejecting offers the next common time (${exam.remainingSlots} more).`)
-          : (he ? 'אין מועד משותף נוסף — דחייה תפתח סבב חדש של בחירת תאריכים לכל המשתתפים.' : 'No other common time — rejecting opens a new date-picking round for everyone.')}
+          : (he ? 'אין מועד נוסף — בדחייה הרכזת האדמיניסטרטיבית תקבע מועד אחר.' : 'No other time — rejecting sends it to the administrative coordinator to set another.')}
       </Text>
       {exam.rejectedSlots.map((r, i) => (
         <Text key={i} style={{ fontSize: 11, color: C.muted, marginTop: 3, ...align }}>
@@ -424,5 +431,96 @@ function DateReview({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; 
         </Text>
       ))}
     </ReasonedDecision>
+  );
+}
+
+function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const isRtl = he;
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const days = useMemo(() => {
+    const start = todayIso();
+    const end = new Date(`${start}T12:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 60);
+    return daysBetween(start, end.toISOString().slice(0, 10));
+  }, []);
+  const [date, setDate] = useState('');
+  const [from, setFrom] = useState('10:00');
+  const [to, setTo] = useState('11:00');
+  const [note, setNote] = useState('');
+  const [showPicks, setShowPicks] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!date) { setError(he ? 'יש לבחור תאריך.' : 'Choose a date.'); return; }
+    if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.setThesisExamCoordinatorDate(exam.milestoneId, { date, from, to, note: note.trim() });
+      await onDone();
+    } catch (err) {
+      setError(errText(err, he ? 'השמירה נכשלה' : 'Saving failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>{he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות' : 'No common time — set the date and hours'}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'המועד יועבר לאישור ראש התוכנית ולאחר מכן ראש בית הספר.' : 'The time goes to the program head, then the grad school head.'}</Text>
+      {exam.rejectedSlots.map((r, i) => (
+        <Text key={i} style={{ fontSize: 11, color: C.muted, marginTop: 3, ...align }}>✗ {formatExamDay(r.slot.date, lang)} {r.slot.from}–{r.slot.to} · {r.byName}: {r.reason}</Text>
+      ))}
+      {exam.availabilityPicks.length > 0 && (
+        <View style={{ marginTop: 8 }}>
+          <Pressable onPress={() => setShowPicks((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showPicks }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.primary, ...align }}>{showPicks ? '▾ ' : '▸ '}{he ? 'התאריכים שבחרו המשתתפים' : "Participants' picks"}</Text>
+          </Pressable>
+          {showPicks && exam.availabilityPicks.map((p, i) => (
+            <Text key={i} style={{ fontSize: 11, color: C.ink, marginTop: 4, ...align }}>
+              <Text style={{ fontWeight: '700' }}>{p.name}: </Text>
+              {p.entries.length === 0 ? (he ? 'לא בחר/ה' : 'no picks') : p.entries.map((e) => `${formatExamDay(e.date, lang)} ${e.from}–${e.to}`).join(' · ')}
+            </Text>
+          ))}
+        </View>
+      )}
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, ...align }}>{he ? 'תאריך' : 'Date'}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 6, flexDirection: isRtl ? 'row-reverse' : 'row' }}>
+        {days.map((d) => {
+          const on = date === d;
+          return (
+            <Pressable
+              key={d}
+              onPress={() => setDate(d)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={formatExamDay(d, lang, { weekday: 'long', day: 'numeric', month: 'long' })}
+              style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: on ? C.primary : C.line, backgroundColor: on ? C.primary : '#fff' }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: on ? '700' : '500', color: on ? '#fff' : C.ink }}>{formatExamDay(d, lang)}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
+        <Stepper lang={lang} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
+        <Stepper lang={lang} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
+      </View>
+      <TextInput
+        accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
+        placeholder={he ? 'הערה (לא חובה)' : 'Note (optional)'}
+        value={note}
+        onChangeText={setNote}
+        multiline
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 48, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
+      />
+      {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
+      <View style={{ flexDirection: 'row', marginTop: 8 }}>
+        <PrimaryButton busy={busy} onPress={submit} label={he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'} />
+      </View>
+    </View>
   );
 }

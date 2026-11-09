@@ -9,6 +9,7 @@ import {
   decideExaminerNomination,
   submitMyAvailability,
   decideExamDate,
+  setExamDateByCoordinator,
   getExamForm,
   submitMyExamForm,
 } from '../controllers/thesisExamController.js';
@@ -21,6 +22,7 @@ router.post('/:milestoneId/nominate', verifyToken, nominateExaminers);
 router.post('/:milestoneId/nomination-decision', verifyToken, decideExaminerNomination);
 router.post('/:milestoneId/availability', verifyToken, submitMyAvailability);
 router.post('/:milestoneId/date-decision', verifyToken, decideExamDate);
+router.post('/:milestoneId/coordinator-date', verifyToken, setExamDateByCoordinator);
 router.get('/:milestoneId/form', verifyToken, getExamForm);
 router.post('/:milestoneId/form', verifyToken, submitMyExamForm);
 

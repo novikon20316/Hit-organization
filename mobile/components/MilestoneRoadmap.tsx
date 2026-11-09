@@ -95,6 +95,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   exam_nomination: { color: '#736b8c', bg: '#edebf2', icon: '👥', he: 'ממתין למינוי בוחנים', en: 'Awaiting Nomination' },
   exam_nomination_review: { color: '#736b8c', bg: '#edebf2', icon: '👥', he: 'מינוי בוחנים בבדיקה', en: 'Nomination in Review' },
   exam_availability: { color: '#b8862e', bg: '#fbf3e3', icon: '📅', he: 'בחירת תאריכים לבחינה', en: 'Picking Exam Dates' },
+  exam_date_coordinator: { color: '#b8862e', bg: '#fbf3e3', icon: '📅', he: 'הרכזת קובעת מועד', en: 'Coordinator Setting the Time' },
   exam_date_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_date_final_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },

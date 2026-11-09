@@ -17,7 +17,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
-import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot } from '@/lib/thesisExam';
+import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
 import { AvailabilityPicker } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamFormPanel, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamFormPanel';
 
@@ -86,7 +86,7 @@ export default function ThesisExamPage() {
 }
 
 function Steps({ status, lang }: { status: ThesisExamCard['status']; lang: 'he' | 'en' }) {
-  const current = THESIS_EXAM_STEPS.findIndex((s) => s.status === status);
+  const current = thesisExamStepIndex(status);
   return (
     <ol className="mt-3 flex flex-wrap gap-1 text-[11px]">
       {THESIS_EXAM_STEPS.map((s, i) => (
@@ -148,8 +148,15 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
         </div>
       )}
 
+      {exam.status === 'exam_date_coordinator' && !has('set_date') && (
+        <p className="mt-3 text-sm text-muted">{he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.'}</p>
+      )}
+      {has('set_date') && <CoordinatorDateForm exam={exam} lang={lang} onDone={onChanged} />}
+
       {(exam.status === 'exam_date_review' || exam.status === 'exam_date_final_review') && exam.proposedSlot && (
-        <p className="mt-3 text-sm text-ink">{he ? 'המועד המשותף שנמצא' : 'Common time found'}: <strong>{formatExamSlot(exam.proposedSlot, lang)}</strong></p>
+        <p className="mt-3 text-sm text-ink">
+          {exam.slotSource === 'coordinator' ? (he ? 'המועד שקבעה הרכזת' : 'Time set by the coordinator') : (he ? 'המועד המשותף שנמצא' : 'Common time found')}: <strong>{formatExamSlot(exam.proposedSlot, lang)}</strong>
+        </p>
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
 
@@ -327,7 +334,7 @@ function DateReview({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' |
       <p className="text-xs text-muted">
         {exam.remainingSlots && exam.remainingSlots > 0
           ? (he ? `בדחייה יוצע המועד המשותף הבא (נותרו עוד ${exam.remainingSlots}).` : `Rejecting offers the next common time (${exam.remainingSlots} more).`)
-          : (he ? 'אין מועד משותף נוסף — דחייה תפתח סבב חדש של בחירת תאריכים לכל המשתתפים.' : 'No other common time — rejecting opens a new date-picking round for everyone.')}
+          : (he ? 'אין מועד נוסף — בדחייה הרכזת האדמיניסטרטיבית תקבע מועד אחר.' : 'No other time — rejecting sends it to the administrative coordinator to set another.')}
       </p>
       {exam.rejectedSlots.length > 0 && (
         <ul className="mt-2 grid gap-1 text-xs text-muted">
@@ -343,6 +350,74 @@ function DateReview({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' |
         <button type="button" onClick={() => decide('approve')} disabled={busy} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">{he ? '✓ אישור המועד' : '✓ Approve the date'}</button>
         <button type="button" onClick={() => decide('reject')} disabled={busy} className="rounded-full border border-line px-4 py-1.5 text-xs font-semibold text-danger hover:bg-danger-bg disabled:opacity-60">{he ? '✗ דחייה' : '✗ Reject'}</button>
       </div>
+    </div>
+  );
+}
+
+function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const today = new Date();
+  const min = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const [date, setDate] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!date || !from || !to) { setError(he ? 'יש לבחור תאריך, שעת התחלה ושעת סיום.' : 'Choose a date, a start time and an end time.'); return; }
+    if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.setThesisExamCoordinatorDate(exam.milestoneId, { date, from, to, note });
+      await onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'השמירה נכשלה' : 'Saving failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <p className="text-sm font-semibold text-ink">{he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות לבחינה' : 'No common time — set the exam date and hours'}</p>
+      <p className="mt-1 text-xs text-muted">{he ? 'המועד יועבר לאישור ראש התוכנית ולאחר מכן ראש בית הספר ללימודים מתקדמים.' : 'The time goes to the program head and then the head of the graduate school for approval.'}</p>
+      {exam.rejectedSlots.length > 0 && (
+        <ul className="mt-2 grid gap-1 text-xs text-muted">
+          {exam.rejectedSlots.map((r, i) => (
+            <li key={i}>✗ {formatExamDay(r.slot.date, lang, { day: 'numeric', month: 'numeric' })} {r.slot.from}–{r.slot.to} · {r.byName}: {r.reason}</li>
+          ))}
+        </ul>
+      )}
+      {exam.availabilityPicks.length > 0 && (
+        <details className="mt-2 rounded-md border border-line bg-surface p-2 text-xs">
+          <summary className="cursor-pointer font-semibold text-ink">{he ? 'התאריכים שבחרו המשתתפים' : "Participants' picks"}</summary>
+          <ul className="mt-2 grid gap-1.5">
+            {exam.availabilityPicks.map((p, i) => (
+              <li key={i}>
+                <span className="font-semibold">{p.name}</span>
+                <span className="text-muted">: {p.entries.length === 0 ? (he ? 'לא בחר/ה' : 'no picks') : p.entries.map((e) => `${formatExamDay(e.date, lang, { weekday: 'short', day: 'numeric', month: 'numeric' })} ${e.from}–${e.to}`).join(' · ')}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <label className="text-xs text-muted" htmlFor={`coord-date-${exam.milestoneId}`}>{he ? 'תאריך' : 'Date'}</label>
+        <input id={`coord-date-${exam.milestoneId}`} type="date" min={min} value={date} onChange={(e) => setDate(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+        <label className="text-xs text-muted" htmlFor={`coord-from-${exam.milestoneId}`}>{he ? 'משעה' : 'From'}</label>
+        <input id={`coord-from-${exam.milestoneId}`} type="time" step={900} value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+        <label className="text-xs text-muted" htmlFor={`coord-to-${exam.milestoneId}`}>{he ? 'עד שעה' : 'To'}</label>
+        <input id={`coord-to-${exam.milestoneId}`} type="time" step={900} value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+      </div>
+      <label htmlFor={`coord-note-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה (לא חובה)' : 'Note (optional)'}</label>
+      <textarea id={`coord-note-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+      <button type="button" onClick={submit} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+        {busy ? '…' : he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'}
+      </button>
     </div>
   );
 }

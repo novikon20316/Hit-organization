@@ -16,12 +16,12 @@ const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h
 const toClock = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const STEP = 15;
 
-function todayIso(): string {
+export function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function daysBetween(start: string, end: string): string[] {
+export function daysBetween(start: string, end: string): string[] {
   const out: string[] = [];
   const d = new Date(`${start}T12:00:00Z`);
   const last = new Date(`${end}T12:00:00Z`);
@@ -32,7 +32,7 @@ function daysBetween(start: string, end: string): string[] {
   return out;
 }
 
-function Stepper({ label, value, onChange, lang }: { label: string; value: string; onChange: (v: string) => void; lang: Lang }) {
+export function Stepper({ label, value, onChange, lang }: { label: string; value: string; onChange: (v: string) => void; lang: Lang }) {
   const isRtl = lang === 'he';
   const step = (delta: number) => onChange(toClock(Math.min(23 * 60 + 45, Math.max(0, toMin(value) + delta))));
   const btn = { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: C.line, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: '#fff' };

@@ -762,7 +762,7 @@ export default function ExaminerAccessScreen() {
                 onSubmit={async (entries) => { await apiClient.submitExternalThesisExamAvailability(token, entries); await loadThesisExam(); }}
               />
             )}
-            {(thesisExam.status === 'exam_date_review' || thesisExam.status === 'exam_date_final_review') && (
+            {(thesisExam.status === 'exam_date_coordinator' || thesisExam.status === 'exam_date_review' || thesisExam.status === 'exam_date_final_review') && (
               <Text style={[s.errorSub, { marginTop: 6 }]}>{L('נמצא מועד משותף — הוא ממתין לאישור. תישלח אליך הודעה עם המועד הסופי.', "A common time was found and is awaiting approval. You'll be emailed the final time.")}</Text>
             )}
             {thesisExam.actions.includes('form') && thesisExamFormSource && (

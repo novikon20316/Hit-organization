@@ -21,6 +21,7 @@ import {
   EXAM_NOMINATION,
   EXAM_NOMINATION_REVIEW,
   EXAM_AVAILABILITY,
+  EXAM_DATE_COORDINATOR,
   EXAM_DATE_REVIEW,
   EXAM_DATE_FINAL_REVIEW,
   EXAM_SCHEDULED,
@@ -34,6 +35,8 @@ import {
   loadExam,
   gradSchoolHeadIds,
   programHeadIds,
+  adminCoordinatorIds,
+  setCoordinatorDate,
   internalExaminerCandidates,
   submitNomination,
   decideNomination,
@@ -60,9 +63,11 @@ async function nameOf(uid: string): Promise<string> {
 /** Caches "who holds role X for scope Y" for one request. */
 function scopeRoleCache() {
   const cache = new Map<string, Promise<string[]>>();
-  return (role: 'grad_school_head' | 'program_head', scope: ResourceScope) => {
+  return (role: 'grad_school_head' | 'program_head' | 'administrative_secretary', scope: ResourceScope) => {
     const k = `${role}|${JSON.stringify(scope)}`;
-    if (!cache.has(k)) cache.set(k, role === 'grad_school_head' ? gradSchoolHeadIds(scope, true) : programHeadIds(scope, true));
+    if (!cache.has(k)) {
+      cache.set(k, role === 'grad_school_head' ? gradSchoolHeadIds(scope, true) : role === 'program_head' ? programHeadIds(scope, true) : adminCoordinatorIds(scope, true));
+    }
     return cache.get(k)!;
   };
 }
@@ -75,6 +80,7 @@ interface ViewerRelation {
   isCommittee: boolean;
   isGradHead: boolean;
   isProgramHead: boolean;
+  isAdminCoordinator: boolean;
 }
 
 /** What one viewer may see and do on one exam. Students see where it stands
@@ -82,7 +88,7 @@ interface ViewerRelation {
  *  grad school head see the nominated outside examiners' emails. */
 async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData, rel: ViewerRelation) {
   const project = (await db.collection('projects').doc(exam.projectId).get()).data() ?? {};
-  const staff = !rel.isStudent || rel.isSupervisor || rel.isCommittee || rel.isGradHead || rel.isProgramHead;
+  const staff = !rel.isStudent || rel.isSupervisor || rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator;
   const studentNames = await Promise.all(((milestone.studentIds ?? []) as string[]).map(nameOf));
   const supervisorName = milestone.supervisorId ? await nameOf(milestone.supervisorId) : '';
 
@@ -90,6 +96,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (exam.status === EXAM_NOMINATION && rel.isSupervisor) actions.push('nominate');
   if (exam.status === EXAM_NOMINATION_REVIEW && rel.isGradHead) actions.push('review_nomination');
   if (exam.status === EXAM_AVAILABILITY && rel.participantKey) actions.push('availability');
+  if (exam.status === EXAM_DATE_COORDINATOR && rel.isAdminCoordinator) actions.push('set_date');
   if (exam.status === EXAM_DATE_REVIEW && rel.isProgramHead) actions.push('review_date');
   if (exam.status === EXAM_DATE_FINAL_REVIEW && rel.isGradHead) actions.push('review_date');
   if ((exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW) && rel.isExaminer) actions.push('form');
@@ -116,7 +123,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     actions,
     myRoles: {
       student: rel.isStudent, supervisor: rel.isSupervisor, examiner: rel.isExaminer, committee: rel.isCommittee,
-      gradSchoolHead: rel.isGradHead, programHead: rel.isProgramHead,
+      gradSchoolHead: rel.isGradHead, programHead: rel.isProgramHead, adminCoordinator: rel.isAdminCoordinator,
     },
     nomination: showNomination && exam.nomination
       ? {
@@ -139,9 +146,15 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     pendingParticipants: staff && exam.status === EXAM_AVAILABILITY
       ? exam.participants.filter((p) => !submittedKeys.includes(p.key)).map((p) => ({ name: p.name, roles: p.roles }))
       : [],
-    proposedSlot: (rel.isGradHead || rel.isProgramHead || rel.isSupervisor) ? proposed : null,
+    proposedSlot: (rel.isGradHead || rel.isProgramHead || rel.isSupervisor || rel.isAdminCoordinator) ? proposed : null,
+    slotSource: exam.slotSource ?? 'matched',
+    // Everyone's picks — only for the coordinator who has to set the time
+    // because they didn't overlap.
+    availabilityPicks: rel.isAdminCoordinator && exam.status === EXAM_DATE_COORDINATOR
+      ? exam.participants.map((p) => ({ name: p.name, roles: p.roles, entries: exam.availability?.[p.key]?.entries ?? [] }))
+      : [],
     remainingSlots: (rel.isGradHead || rel.isProgramHead) && proposed ? exam.commonSlots.length - exam.slotIndex - 1 : null,
-    rejectedSlots: (rel.isGradHead || rel.isProgramHead) ? (exam.rejectedSlots ?? []).filter((r) => exam.commonSlots.some((s) => s.date === r.slot.date && s.from === r.slot.from && s.to === r.slot.to)) : [],
+    rejectedSlots: (rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator) ? (exam.rejectedSlots ?? []).filter((r) => exam.commonSlots.some((s) => s.date === r.slot.date && s.from === r.slot.from && s.to === r.slot.to)) : [],
     schedule: exam.schedule ? { date: exam.schedule.date, from: exam.schedule.from, to: exam.schedule.to } : null,
     formsSubmittedCount: Object.keys(forms).length,
     examinerCount: exam.examiners.length,
@@ -174,6 +187,7 @@ export const getMyThesisExams = async (req: AuthenticatedRequest, res: Response)
         isCommittee: (exam.committeeMemberIds ?? []).includes(uid),
         isGradHead: (await heads('grad_school_head', exam.scope)).includes(uid),
         isProgramHead: (await heads('program_head', exam.scope)).includes(uid),
+        isAdminCoordinator: (await heads('administrative_secretary', exam.scope)).includes(uid),
       };
       if (!Object.entries(rel).some(([k, v]) => k !== 'participantKey' && v) && !rel.participantKey) continue;
       cards.push(await buildCard(exam, m, rel));
@@ -286,6 +300,24 @@ export const decideExamDate = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+// ─── POST /api/thesis-exam/:milestoneId/coordinator-date ─────────────────────
+// Body: { date: 'YYYY-MM-DD', from: 'HH:MM', to: 'HH:MM', note? } — the
+// administrative coordinator, when nobody's picks overlapped (or the heads
+// rejected every common time). Goes to the program head, then the grad
+// school head, like a matched time.
+export const setExamDateByCoordinator = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    await setCoordinatorDate(milestoneId, { uid, name: await nameOf(uid) }, req.body ?? {});
+    await audit(req, milestoneId, 'coordinator_set_date', { date: req.body?.date, from: req.body?.from, to: req.body?.to });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to set the time.', 'קביעת המועד נכשלה.');
+  }
+};
+
 // ─── GET /api/thesis-exam/:milestoneId/form ──────────────────────────────────
 export const getExamForm = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
@@ -349,7 +381,7 @@ export const getExternalThesisExam = async (req: Request, res: Response) => {
     if (!loaded) return;
     const card = await buildCard(loaded.exam, loaded.milestone, {
       participantKey: loaded.exam.participants.some((p) => p.key === loaded.key) ? loaded.key : null,
-      isStudent: false, isSupervisor: false, isExaminer: true, isCommittee: false, isGradHead: false, isProgramHead: false,
+      isStudent: false, isSupervisor: false, isExaminer: true, isCommittee: false, isGradHead: false, isProgramHead: false, isAdminCoordinator: false,
     });
     // An outside examiner doesn't need the staff-only lists.
     return res.status(200).json({ exam: { ...card, pendingParticipants: [], examinerNames: [] } });

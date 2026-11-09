@@ -42,7 +42,7 @@ export function ThesisExamSection({ token, exam: initial, lang }: { token: strin
           onSubmit={async (entries) => { await apiClient.submitExternalThesisExamAvailability(token, entries); await reload(); }}
         />
       )}
-      {(exam.status === 'exam_date_review' || exam.status === 'exam_date_final_review') && (
+      {(exam.status === 'exam_date_coordinator' || exam.status === 'exam_date_review' || exam.status === 'exam_date_final_review') && (
         <p className="mt-3 text-sm text-muted">{he ? 'נמצא מועד משותף — הוא ממתין לאישור. תישלח אליך הודעה עם המועד הסופי.' : "A common time was found and is awaiting approval. You'll be emailed the final time."}</p>
       )}
 

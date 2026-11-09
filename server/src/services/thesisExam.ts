@@ -16,11 +16,15 @@
 //                            When the last one submits, every date ALL of them
 //                            picked is intersected by hours; each overlap of at
 //                            least MIN_EXAM_MINUTES is a candidate slot,
-//                            earliest first. None → everyone picks again.
+//                            earliest first. None → exam_date_coordinator.
+//   exam_date_coordinator    no common time (or the heads rejected every one):
+//                            the administrative coordinator sets the date and
+//                            hours herself, seeing everyone's picks
 //   exam_date_review         the program head approves the proposed slot
 //   exam_date_final_review   then the grad school head. A rejection at either
 //                            moves to the next common slot (back to the program
-//                            head); when none is left, everyone picks again.
+//                            head); when none is left — or the rejected time was
+//                            the coordinator's — back to the coordinator.
 //   exam_scheduled           the exam takes place; from its start time the
 //                            examiners fill the faculty's "טופס מבחן תיזה"
 //                            (CS_THESIS_EXAM_FORM below)
@@ -64,13 +68,14 @@ export const THESIS_EXAMS = 'thesisExams';
 export const EXAM_NOMINATION = 'exam_nomination';
 export const EXAM_NOMINATION_REVIEW = 'exam_nomination_review';
 export const EXAM_AVAILABILITY = 'exam_availability';
+export const EXAM_DATE_COORDINATOR = 'exam_date_coordinator';
 export const EXAM_DATE_REVIEW = 'exam_date_review';
 export const EXAM_DATE_FINAL_REVIEW = 'exam_date_final_review';
 export const EXAM_SCHEDULED = 'exam_scheduled';
 export const EXAM_COMMITTEE_REVIEW = 'exam_committee_review';
 
 export const THESIS_EXAM_STATUSES = [
-  EXAM_NOMINATION, EXAM_NOMINATION_REVIEW, EXAM_AVAILABILITY,
+  EXAM_NOMINATION, EXAM_NOMINATION_REVIEW, EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR,
   EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW,
 ] as const;
 
@@ -160,6 +165,11 @@ export interface ThesisExamDoc {
   slotIndex: number;
   rejectedSlots: SlotRejection[];
   schedule: (ExamSlot & { approvedAt: string }) | null;
+  /** Where the slot under review came from: the system's match, or the
+   *  administrative coordinator (who then gets it back on a rejection). */
+  slotSource?: 'matched' | 'coordinator';
+  /** Every time the coordinator set, newest last. */
+  coordinatorSlots?: Array<ExamSlot & { note: string; setById: string; setByName: string; setAt: string }>;
   /** Set once the "the exam started — fill the form" reminder went out. */
   opinionReminderSentFor?: string | null;
   updatedAt: string;
@@ -747,17 +757,18 @@ export async function submitAvailability(milestoneId: string, participantKey: st
     }
     const slots = computeCommonSlots(fresh.participants.map((p) => availability[p.key]!.entries));
     if (slots.length === 0) {
-      tx.update(examRef(milestoneId), { availability, commonSlots: [], updatedAt: now });
+      tx.update(examRef(milestoneId), { availability, commonSlots: [], slotIndex: 0, status: EXAM_DATE_COORDINATOR, updatedAt: now });
+      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { kind: 'none' as const };
     }
-    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, status: EXAM_DATE_REVIEW, updatedAt: now });
+    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, slotSource: 'matched', status: EXAM_DATE_REVIEW, updatedAt: now });
     tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { kind: 'matched' as const, slot: slots[0]! };
   });
 
   if (outcome.kind === 'waiting') return { resolved: false };
   if (outcome.kind === 'none') {
-    await openAvailabilityRound(milestoneId, { reason: 'no_common_slot' });
+    await handToCoordinator(milestoneId, 'no_common_slot');
     return { resolved: true };
   }
   await notifyDateReviewer(milestoneId, 'program_head', outcome.slot);
@@ -774,9 +785,83 @@ async function notifyDateReviewer(milestoneId: string, who: 'program_head' | 'gr
   await notifyUsers(ids, loaded.exam, {
     titleHe: 'מועד בחינת תזה ממתין לאישורך',
     titleEn: 'Thesis exam date awaiting your approval',
-    bodyHe: `המערכת מצאה מועד משותף לבחינת התזה "${title.he}": ${formatSlot(slot)}.`,
-    bodyEn: `The system found a common time for the thesis exam "${title.en}": ${formatSlot(slot)}.`,
+    bodyHe: loaded.exam.slotSource === 'coordinator'
+      ? `הרכזת האדמיניסטרטיבית קבעה מועד לבחינת התזה "${title.he}": ${formatSlot(slot)}.`
+      : `המערכת מצאה מועד משותף לבחינת התזה "${title.he}": ${formatSlot(slot)}.`,
+    bodyEn: loaded.exam.slotSource === 'coordinator'
+      ? `The administrative coordinator set a time for the thesis exam "${title.en}": ${formatSlot(slot)}.`
+      : `The system found a common time for the thesis exam "${title.en}": ${formatSlot(slot)}.`,
   }, { pending: true });
+}
+
+// ── Step 2b: the administrative coordinator sets the time ────────────────────
+
+/** Who sets the time when nobody's picks overlap — the administrative
+ *  coordinator in scope (system_admin too, for authorization only). */
+export async function adminCoordinatorIds(scope: ResourceScope, forAuth = false): Promise<string[]> {
+  return resolveStaffForScope('administrative_secretary', scope, [], [], forAuth);
+}
+
+/** No common time, or the heads rejected every one: the administrative
+ *  coordinator is asked to set the date and hours; the student and
+ *  supervisor are told why it's taking longer. */
+async function handToCoordinator(milestoneId: string, why: 'no_common_slot' | 'slots_rejected'): Promise<void> {
+  const now = new Date().toISOString();
+  await examRef(milestoneId).update({ status: EXAM_DATE_COORDINATOR, updatedAt: now });
+  await db.collection('milestones').doc(milestoneId).update({ status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) return;
+  const title = projectTitle(await projectOf(loaded.milestone.projectId));
+  const reason = why === 'no_common_slot'
+    ? { he: 'לא נמצא מועד ושעות המשותפים לכל המשתתפים', en: 'No date and hours were common to every participant' }
+    : { he: 'המועד שהוצע לא אושר', en: 'The proposed time was not approved' };
+  await notifyUsers(await adminCoordinatorIds(loaded.exam.scope), loaded.exam, {
+    titleHe: 'יש לקבוע מועד לבחינת תזה',
+    titleEn: 'Set a thesis exam time',
+    bodyHe: `${reason.he} בבחינת התזה "${title.he}". יש לקבוע תאריך ושעות — הם יועברו לאישור ראש התוכנית וראש בית הספר.`,
+    bodyEn: `${reason.en} for the thesis exam "${title.en}". Please set a date and hours — they go to the program head and the grad school head for approval.`,
+  }, { pending: true });
+  const supervisors = [loaded.milestone.supervisorId, loaded.milestone.secondarySupervisorId].filter(Boolean) as string[];
+  await notifyUsers([...supervisors, ...(loaded.milestone.studentIds ?? [])], loaded.exam, {
+    titleHe: 'מועד הבחינה ייקבע על ידי הרכזת',
+    titleEn: 'The coordinator will set the exam time',
+    bodyHe: `${reason.he} בבחינת התזה "${title.he}". הרכזת האדמיניסטרטיבית תקבע את המועד ותישלח הודעה.`,
+    bodyEn: `${reason.en} for the thesis exam "${title.en}". The administrative coordinator will set the time and you'll be notified.`,
+  });
+}
+
+export async function setCoordinatorDate(
+  milestoneId: string,
+  actor: { uid: string; name: string },
+  raw: { date?: unknown; from?: unknown; to?: unknown; note?: unknown },
+): Promise<void> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  if (!(await adminCoordinatorIds(loaded.exam.scope, true)).includes(actor.uid)) {
+    throw new ThesisExamError('רק הרכזת האדמיניסטרטיבית רשאית לקבוע את המועד.', 'Only the administrative coordinator may set the time.', 403);
+  }
+  const { date, from, to } = raw;
+  if (!isValidIsoDay(date)) throw new ThesisExamError('תאריך לא תקין.', 'Invalid date.');
+  if (!isValidClockTime(from) || !isValidClockTime(to)) throw new ThesisExamError('יש למלא שעת התחלה ושעת סיום.', 'Fill in a start and end time.');
+  if (minutesOf(to) <= minutesOf(from)) throw new ThesisExamError('שעת הסיום חייבת להיות אחרי שעת ההתחלה.', 'The end time must be after the start time.');
+  if (slotHasStarted({ date, from })) throw new ThesisExamError('המועד שנבחר כבר עבר.', 'That time has already passed.');
+  const note = typeof raw.note === 'string' ? raw.note.trim().slice(0, 1000) : '';
+  const slot: ExamSlot = { date, from, to };
+  const now = new Date().toISOString();
+  await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (fresh?.status !== EXAM_DATE_COORDINATOR) throw new ThesisExamError('הבחינה אינה ממתינה כעת לקביעת מועד.', 'The exam is not waiting for a time right now.', 409);
+    tx.update(examRef(milestoneId), {
+      status: EXAM_DATE_REVIEW,
+      commonSlots: [slot],
+      slotIndex: 0,
+      slotSource: 'coordinator',
+      coordinatorSlots: admin.firestore.FieldValue.arrayUnion({ ...slot, note, setById: actor.uid, setByName: actor.name, setAt: now }),
+      updatedAt: now,
+    });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  await notifyDateReviewer(milestoneId, 'program_head', slot);
 }
 
 /** The next still-future common slot after `fromIndex`, or -1. */
@@ -843,7 +928,7 @@ export async function decideDate(
 
   if (result.kind === 'to_grad_head') return notifyDateReviewer(milestoneId, 'grad_school_head', slot);
   if (result.kind === 'next_slot') return notifyDateReviewer(milestoneId, 'program_head', result.slot);
-  if (result.kind === 'exhausted') return openAvailabilityRound(milestoneId, { reason: 'slots_exhausted' });
+  if (result.kind === 'exhausted') return handToCoordinator(milestoneId, 'slots_rejected');
 
   const fresh = (await examRef(milestoneId).get()).data() as ThesisExamDoc;
   const title = projectTitle(await projectOf(loaded.milestone.projectId));
@@ -1099,7 +1184,7 @@ export async function sweepThesisExams(): Promise<void> {
           await db.collection('milestones').doc(exam.milestoneId).update({ status: EXAM_DATE_REVIEW });
           await notifyDateReviewer(exam.milestoneId, 'program_head', exam.commonSlots[next]!);
         } else {
-          await openAvailabilityRound(exam.milestoneId, { reason: 'slots_exhausted' });
+          await handToCoordinator(exam.milestoneId, 'slots_rejected');
         }
       } else if (exam.status === EXAM_SCHEDULED && exam.schedule && slotHasStarted(exam.schedule) && exam.opinionReminderSentFor !== exam.schedule.date) {
         await doc.ref.update({ opinionReminderSentFor: exam.schedule.date });

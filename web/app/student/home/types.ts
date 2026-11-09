@@ -27,6 +27,7 @@ export type MilestoneStatus =
   | 'exam_nomination'
   | 'exam_nomination_review'
   | 'exam_availability'
+  | 'exam_date_coordinator'
   | 'exam_date_review'
   | 'exam_date_final_review'
   | 'exam_scheduled'
@@ -355,6 +356,7 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   exam_nomination: { color: '#736B8C', bg: '#EDEBF2', icon: '👥' },
   exam_nomination_review: { color: '#736B8C', bg: '#EDEBF2', icon: '👥' },
   exam_availability: { color: '#B8862E', bg: '#FBF3E3', icon: '📅' },
+  exam_date_coordinator: { color: '#B8862E', bg: '#FBF3E3', icon: '📅' },
   exam_date_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_date_final_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
@@ -380,6 +382,7 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   exam_nomination: { he: 'ממתין למינוי בוחנים', en: 'Awaiting Examiner Nomination' },
   exam_nomination_review: { he: 'מינוי בוחנים בבדיקה', en: 'Nomination Under Review' },
   exam_availability: { he: 'בחירת תאריכים לבחינה', en: 'Picking Exam Dates' },
+  exam_date_coordinator: { he: 'הרכזת קובעת מועד', en: 'Coordinator Setting the Time' },
   exam_date_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_date_final_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },

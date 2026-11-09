@@ -3416,6 +3416,9 @@ export const apiClient = {
   async submitThesisExamAvailability(milestoneId: string, entries: ThesisExamAvailabilityEntry[]) {
     return request<{ success: boolean; resolved: boolean }>(`/api/thesis-exam/${milestoneId}/availability`, { method: 'POST', body: { entries } });
   },
+  async setThesisExamCoordinatorDate(milestoneId: string, body: { date: string; from: string; to: string; note?: string }) {
+    return request<{ success: boolean }>(`/api/thesis-exam/${milestoneId}/coordinator-date`, { method: 'POST', body });
+  },
   async decideThesisExamDate(milestoneId: string, decision: 'approve' | 'reject', reason = '') {
     return request<{ success: boolean }>(`/api/thesis-exam/${milestoneId}/date-decision`, { method: 'POST', body: { decision, reason } });
   },
@@ -4048,9 +4051,9 @@ export interface ThesisOpinionQueueItem {
 
 // ── CS M.Sc. thesis exam — see server's services/thesisExam.ts ─────────────
 export type ThesisExamStatus =
-  | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability'
+  | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'review_date' | 'form' | 'view_forms';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'set_date' | 'review_date' | 'form' | 'view_forms';
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -4067,7 +4070,7 @@ export interface ThesisExamCard {
   supervisorName: string;
   status: ThesisExamStatus;
   actions: ThesisExamAction[];
-  myRoles: { student: boolean; supervisor: boolean; examiner: boolean; committee: boolean; gradSchoolHead: boolean; programHead: boolean };
+  myRoles: { student: boolean; supervisor: boolean; examiner: boolean; committee: boolean; gradSchoolHead: boolean; programHead: boolean; adminCoordinator: boolean };
   nomination: { examiners: Array<{ type: 'internal' | 'external'; name: string; email: string | null; institution: string | null }>; submittedByName: string; submittedAt: string } | null;
   lastNominationRejection: { reason: string; decidedByName: string; decidedAt: string } | null;
   examinerNames: string[];
@@ -4078,6 +4081,10 @@ export interface ThesisExamCard {
   submittedCount: number;
   pendingParticipants: Array<{ name: string; roles: string[] }>;
   proposedSlot: ThesisExamSlot | null;
+  /** Where the proposed time came from — the system's match or the administrative coordinator. */
+  slotSource: 'matched' | 'coordinator';
+  /** Everyone's picks — only for the administrative coordinator setting the time. */
+  availabilityPicks: Array<{ name: string; roles: string[]; entries: ThesisExamAvailabilityEntry[] }>;
   remainingSlots: number | null;
   rejectedSlots: Array<{ slot: ThesisExamSlot; by: 'program_head' | 'grad_school_head'; byName: string; reason: string; at: string }>;
   schedule: ThesisExamSlot | null;

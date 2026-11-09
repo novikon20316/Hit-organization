@@ -61,6 +61,7 @@ export type MilestoneStatus =
   | 'exam_nomination'
   | 'exam_nomination_review'
   | 'exam_availability'
+  | 'exam_date_coordinator'
   | 'exam_date_review'
   | 'exam_date_final_review'
   | 'exam_scheduled'
