@@ -35,6 +35,7 @@ const TIERS: { key: string; label: { he: string; en: string }; roles: AppRole[] 
     label: { he: 'סגל אקדמי', en: 'Academic Staff' },
     roles: ['supervisor', 'secondary_supervisor', 'internal_examiner'],
   },
+  { key: 'student', label: { he: 'סטודנטים', en: 'Students' }, roles: ['student'] },
 ];
 
 export function RolePermissionsCard({ users, lockedUsers, lang }: RolePermissionsCardProps) {
