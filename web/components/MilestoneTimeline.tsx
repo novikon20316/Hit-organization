@@ -270,7 +270,14 @@ function MilestoneCard({
   const statusLabel = STATUS_LABEL[milestone.status]?.[lang] ?? milestone.status;
 
   const canAdjustDate = COORDINATOR_ADJUST_ROLES.includes(viewerRole);
-  const canApprove = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && (milestone.status === 'supervisor_graded' || milestone.status === 'graded');
+  // A chain milestone parked on a 'committee' stage is decided only through
+  // the committee vote flow — the server's generic approve endpoint refuses
+  // it for every role, system_admin included (see milestoneRouting.ts's
+  // authorizeStageActor), so offering "Approve Grade" there only produced a
+  // misleading "outside your assigned scope" error.
+  const awaitingCommittee = !!milestone.routing?.length && milestone.routing[milestone.currentStageIndex ?? 0]?.role === 'committee';
+  const canApprove = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && !awaitingCommittee && (milestone.status === 'supervisor_graded' || milestone.status === 'graded');
+  const showCommitteeNotice = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && awaitingCommittee && !isCompleted && milestone.status !== 'pending' && milestone.status !== 'rejected';
   const canScheduleDefense = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && isDefense && milestone.status === 'coordinator_approved' && !milestone.defenseDate;
   const canExaminerGrade = EXAMINER_ROLES.includes(viewerRole) && isDefense && milestone.status === 'coordinator_approved';
   const canStudentSubmit = viewerRole === 'student' && milestone.status === 'pending' && !isDefense;
@@ -588,6 +595,13 @@ function MilestoneCard({
             >
               ✅ {lang === 'he' ? 'אשר ציון' : 'Approve Grade'}
             </button>
+          )}
+          {showCommitteeNotice && (
+            <p className="mt-2 rounded-md bg-paper px-3 py-2 text-xs text-muted">
+              {lang === 'he'
+                ? 'שלב זה ממתין להחלטת הוועדה — חברי הוועדה מצביעים והיו"ר מחליט/ה. לא ניתן לאשר אותו מכאן.'
+                : 'This step is waiting on the committee — members vote and the chair decides. It cannot be approved from here.'}
+            </p>
           )}
           {canScheduleDefense && (
             <button

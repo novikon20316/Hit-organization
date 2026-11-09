@@ -114,6 +114,11 @@ export async function authorizeStageActor(
  *  drifted from its live source) has hit this codebase repeatedly, always
  *  presenting as "nothing happens" until someone reads the network tab. */
 export function scopeMismatchMessage(stage: ChainStage, resource: ResourceScope): string {
+  // authorizeStageActor refuses every committee stage regardless of who is
+  // asking (system_admin included), so "outside your scope" would be false.
+  if (stage.role === 'committee') {
+    return 'This milestone is waiting on a committee decision — it is decided through the committee vote, not approved directly.';
+  }
   const where = [resource.facultyId, resource.major].filter(Boolean).join(' / ');
   return `This milestone is outside your assigned scope for its current stage (requires role: ${stage.role}${where ? `, faculty/major: ${where}` : ''}).`;
 }
