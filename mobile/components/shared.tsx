@@ -594,7 +594,7 @@ export function TopBar({
   const router = useRouter();
   const accent = ROLE_ACCENT[role];
   const [securityModal, setSecurityModal] = useState(false);
-  const { unreadCount, unreadByTargetScreen, isCommitteeSubstitute, markTabSeen } = useNotifications();
+  const { unreadCount, unreadByTargetScreen, isCommitteeSubstitute, hasThesisExams, markTabSeen } = useNotifications();
   const { roles } = useActiveRole();
   // Committees (app/committees.tsx): every coordinator-and-above role, plus
   // a supervisor with no higher role only while substituted onto a
@@ -643,6 +643,13 @@ export function TopBar({
         label: lang === 'he' ? 'ועדות' : 'Committees',
         badge: unreadByTargetScreen.committees ?? 0,
         onPress: () => { markTabSeen(['committees']); router.push('/committees' as any); },
+      }] : []),
+      // CS thesis exam (app/thesis-exam.tsx) — any role, only while taking part.
+      ...(hasThesisExams ? [{
+        key: 'thesis-exam', icon: '🎓',
+        label: lang === 'he' ? 'בחינת תזה' : 'Thesis Exam',
+        badge: unreadByTargetScreen.thesis_exam ?? 0,
+        onPress: () => { markTabSeen(['thesis_exam']); router.push('/thesis-exam' as any); },
       }] : []),
       ...(extraMenuItems ?? []),
     ].map((item, i) => ({ ...item, dividerBefore: i === 0 })),

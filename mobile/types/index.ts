@@ -57,6 +57,14 @@ export type MilestoneStatus =
   | 'scheduled'              // full defense logistics set
   | 'seminar_awaiting_date'  // supervisor approved a seminar, administrative coordinator sets the date
   | 'seminar_scheduled'      // seminar date booked, waiting on the talk itself
+  // CS thesis exam — see components/thesisExam/shared.ts.
+  | 'exam_nomination'
+  | 'exam_nomination_review'
+  | 'exam_availability'
+  | 'exam_date_review'
+  | 'exam_date_final_review'
+  | 'exam_scheduled'
+  | 'exam_committee_review'
   | 'completed';
 
 // A defense milestone's `dueDate` is dual-purpose: it's set at creation to a
@@ -986,6 +994,11 @@ export interface Milestone {
   /** Only on a seminar milestone — see utils/seminar.ts. */
   seminarSchedule?: { date: string; time: string; location?: string; note?: string } | null;
   seminarAttempts?: { date: string; time: string; location?: string; outcome: 'performed' | 'not_performed'; note?: string }[];
+  /** CS thesis exam (server's services/thesisExam.ts) — no student
+   *  submission; the steps run on app/thesis-exam.tsx. */
+  thesisExamFlow?: boolean;
+  /** Set once both heads approved the exam time. */
+  examSchedule?: { date: string; from: string; to: string } | null;
   defenseDate: string | null;
   defenseRoom: string | null;
   defenseBuilding?: string | null;

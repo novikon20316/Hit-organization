@@ -576,6 +576,56 @@ class ApiClient {
     return response.data as { success: boolean };
   }
 
+  // ─── CS M.Sc. THESIS EXAM — see server/src/services/thesisExam.ts ─────────
+  async getMyThesisExams() {
+    const response = await this.api.get('/api/thesis-exam/mine');
+    return response.data as { exams: ThesisExamCard[] };
+  }
+  async getThesisExamCandidates(milestoneId: string) {
+    const response = await this.api.get(`/api/thesis-exam/${milestoneId}/examiner-candidates`);
+    return response.data as { candidates: Array<{ uid: string; name: string; facultyId: string | null }> };
+  }
+  async nominateThesisExaminers(milestoneId: string, examiners: ThesisExamNomineeInput[]) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/nominate`, { examiners });
+    return response.data as { success: boolean };
+  }
+  async decideThesisExamNomination(milestoneId: string, decision: 'approve' | 'reject', reason = '') {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/nomination-decision`, { decision, reason });
+    return response.data as { success: boolean; emailFailed?: string[] };
+  }
+  async submitThesisExamAvailability(milestoneId: string, entries: ThesisExamAvailabilityEntry[]) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/availability`, { entries });
+    return response.data as { success: boolean; resolved: boolean };
+  }
+  async decideThesisExamDate(milestoneId: string, decision: 'approve' | 'reject', reason = '') {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/date-decision`, { decision, reason });
+    return response.data as { success: boolean };
+  }
+  async getThesisExamForm(milestoneId: string) {
+    const response = await this.api.get(`/api/thesis-exam/${milestoneId}/form`);
+    return response.data as ThesisExamFormView;
+  }
+  async submitThesisExamForm(milestoneId: string, body: ThesisExamFormInput) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/form`, body);
+    return response.data as { success: boolean; allIn: boolean };
+  }
+  async getExternalThesisExam(token: string) {
+    const response = await this.api.get(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam`);
+    return response.data as { exam: ThesisExamCard | null };
+  }
+  async submitExternalThesisExamAvailability(token: string, entries: ThesisExamAvailabilityEntry[]) {
+    const response = await this.api.post(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/availability`, { entries });
+    return response.data as { success: boolean; resolved: boolean };
+  }
+  async getExternalThesisExamForm(token: string) {
+    const response = await this.api.get(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/form`);
+    return response.data as ThesisExamFormView;
+  }
+  async submitExternalThesisExamForm(token: string, body: ThesisExamFormInput) {
+    const response = await this.api.post(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/form`, body);
+    return response.data as { success: boolean; allIn: boolean };
+  }
+
   // ─── RELAY TASKS — see server/src/services/decisionRelay.ts. A committee
   // chairman (CS-enabled only, for now) can route a terminal decision to
   // someone other than the student; that person is responsible for passing
@@ -651,4 +701,81 @@ export interface DecisionRecipientCandidate {
   id: string;
   name: string;
   role: 'supervisor' | 'secondary_supervisor' | 'coordinator' | 'administrative_secretary' | 'program_head';
+}
+
+// ── CS M.Sc. thesis exam — see server's services/thesisExam.ts ─────────────
+export type ThesisExamStatus =
+  | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability'
+  | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'review_date' | 'form' | 'view_forms';
+export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
+export interface ThesisExamSlot { date: string; from: string; to: string }
+export type ThesisExamNomineeInput =
+  | { type: 'internal'; uid: string }
+  | { type: 'external'; name: string; email: string; institution?: string };
+export interface ThesisExamCard {
+  milestoneId: string;
+  projectId: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  studentNames: string[];
+  supervisorName: string;
+  status: ThesisExamStatus;
+  actions: ThesisExamAction[];
+  myRoles: { student: boolean; supervisor: boolean; examiner: boolean; committee: boolean; gradSchoolHead: boolean; programHead: boolean };
+  nomination: { examiners: Array<{ type: 'internal' | 'external'; name: string; email: string | null; institution: string | null }>; submittedByName: string; submittedAt: string } | null;
+  lastNominationRejection: { reason: string; decidedByName: string; decidedAt: string } | null;
+  examinerNames: string[];
+  availabilityRound: number;
+  window: { start: string; end: string } | null;
+  myAvailability: ThesisExamAvailabilityEntry[] | null;
+  participantCount: number;
+  submittedCount: number;
+  pendingParticipants: Array<{ name: string; roles: string[] }>;
+  proposedSlot: ThesisExamSlot | null;
+  remainingSlots: number | null;
+  rejectedSlots: Array<{ slot: ThesisExamSlot; by: 'program_head' | 'grad_school_head'; byName: string; reason: string; at: string }>;
+  schedule: ThesisExamSlot | null;
+  formsSubmittedCount: number;
+  examinerCount: number;
+  myFormSubmitted: boolean;
+  formOpen: boolean;
+  rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number };
+}
+export interface ThesisExamFormInput {
+  ratings: Record<string, number>;
+  comments: string;
+  components: Record<string, number>;
+}
+export interface ThesisExamSubmittedForm {
+  examinerName: string;
+  external: boolean;
+  ratings: Record<string, number>;
+  comments: string;
+  components: Record<string, number>;
+  finalGrade: number;
+  submittedAt: string;
+  signature: { code: string; signerName: string; signedAt: string; positionHe: string; positionEn: string };
+}
+export interface ThesisExamFormView {
+  milestoneId: string;
+  form: {
+    titleHe: string;
+    titleEn: string;
+    ratingScale: { min: number; max: number; minLabelHe: string; maxLabelHe: string; minLabelEn: string; maxLabelEn: string };
+    questions: Array<{ key: string; labelHe: string; labelEn: string }>;
+    gradeComponents: Array<{ key: string; labelHe: string; labelEn: string; weight: number }>;
+    gradeKey: Array<{ range: string; statusHe: string; statusEn: string; publicationHe: string; publicationEn: string }>;
+  };
+  header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
+  status: ThesisExamStatus;
+  canEdit: boolean;
+  lockedReasonHe: string | null;
+  lockedReasonEn: string | null;
+  submittedCount: number;
+  examinerCount: number;
+  mine: ThesisExamSubmittedForm | null;
+  all: Array<{ index: number; name: string; submitted: boolean; form: ThesisExamSubmittedForm | null }> | null;
 }

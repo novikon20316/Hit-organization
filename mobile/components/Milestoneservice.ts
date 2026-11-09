@@ -57,6 +57,14 @@ export type MilestoneStatus =
   | 'examiners_assigned'    // coordinator picked 2 examiners (after final_report)
   | 'seminar_awaiting_date' // supervisor approved a seminar, administrative coordinator sets the date
   | 'seminar_scheduled'     // seminar date booked, waiting on the talk itself
+  // CS thesis exam — see components/thesisExam/shared.ts.
+  | 'exam_nomination'
+  | 'exam_nomination_review'
+  | 'exam_availability'
+  | 'exam_date_review'
+  | 'exam_date_final_review'
+  | 'exam_scheduled'
+  | 'exam_committee_review'
   | 'examiner_graded'       // at least one examiner graded
   | 'both_examiners_graded' // both examiners submitted grades
   | 'completed';

@@ -36,7 +36,10 @@ import {
   daysUntilExpiry,
   type ExaminerTokenDoc,
 } from '@/src/firebase/examinerTokens';
-import { apiClient } from '@/src/api/apiClient';
+import { apiClient, type ThesisExamCard } from '@/src/api/apiClient';
+import { AvailabilityPicker as ThesisExamAvailabilityPicker } from '@/components/thesisExam/AvailabilityPicker';
+import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
+import { THESIS_EXAM_STATUS_LABEL, formatExamSlot } from '@/components/thesisExam/shared';
 import type { Lang } from '@/components/i18n';
 import { t } from '@/components/i18n';
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
@@ -107,6 +110,20 @@ export default function ExaminerAccessScreen() {
     'accepted' | 'submitted' | 'declined' | 'superseded' | 'error' | 'otp_required'
   >('loading');
   const [tokenDoc, setTokenDoc]  = useState<ExaminerTokenDoc | null>(null);
+  // CS M.Sc. thesis exam invitations (server's services/thesisExam.ts) have
+  // their own date picking and exam form instead of the defense-date and
+  // opinion sections below — probed once the examiner is in; null otherwise.
+  const [thesisExam, setThesisExam] = useState<ThesisExamCard | null>(null);
+  const loadThesisExam = useCallback(async () => {
+    if (!token) return;
+    try { setThesisExam((await apiClient.getExternalThesisExam(token)).exam); } catch { setThesisExam(null); }
+  }, [token]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch once the examiner is in
+  useEffect(() => { if (phase === 'accepted') void loadThesisExam(); }, [phase, loadThesisExam]);
+  const thesisExamFormSource = React.useMemo<ThesisExamFormSource | null>(() => token ? {
+    load: () => apiClient.getExternalThesisExamForm(token),
+    submit: (body) => apiClient.submitExternalThesisExamForm(token, body),
+  } : null, [token]);
 
   // Second-factor: a one-time code emailed to the examiner, required before
   // the token document (and everything behind it) becomes readable — see
@@ -729,8 +746,35 @@ export default function ExaminerAccessScreen() {
           </Pressable>
         </View>
 
+        {thesisExam && token && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>🎓 {L('בחינת התזה', 'The thesis exam')}</Text>
+            <Text style={s.errorSub}>{THESIS_EXAM_STATUS_LABEL[thesisExam.status][lang]}</Text>
+            {thesisExam.schedule && (
+              <Text style={[s.errorSub, { color: '#0F7B4B', fontWeight: '700', marginTop: 6 }]}>🗓️ {formatExamSlot(thesisExam.schedule, lang)}</Text>
+            )}
+            {thesisExam.actions.includes('availability') && thesisExam.window && (
+              <ThesisExamAvailabilityPicker
+                lang={lang}
+                window={thesisExam.window}
+                count={thesisExam.rules.datesPerParticipant}
+                initial={thesisExam.myAvailability}
+                onSubmit={async (entries) => { await apiClient.submitExternalThesisExamAvailability(token, entries); await loadThesisExam(); }}
+              />
+            )}
+            {(thesisExam.status === 'exam_date_review' || thesisExam.status === 'exam_date_final_review') && (
+              <Text style={[s.errorSub, { marginTop: 6 }]}>{L('נמצא מועד משותף — הוא ממתין לאישור. תישלח אליך הודעה עם המועד הסופי.', "A common time was found and is awaiting approval. You'll be emailed the final time.")}</Text>
+            )}
+            {thesisExam.actions.includes('form') && thesisExamFormSource && (
+              <View style={{ marginTop: 12 }}>
+                <ThesisExamForm source={thesisExamFormSource} lang={lang} onSubmitted={() => { void loadThesisExam(); }} />
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Defense date submission — separate from the thesis review above */}
-        {dateStatus !== 'not_open' && (
+        {!thesisExam && dateStatus !== 'not_open' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>
               📅 {L('בחירת תאריך הגנה', 'Defense date selection')}
@@ -790,7 +834,7 @@ export default function ExaminerAccessScreen() {
             flow; kept as a separate component (not a branch inline here)
             so this generic opinion form stays byte-for-byte unchanged for
             every other faculty's tokens. */}
-        {tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
+        {thesisExam ? null : tokenDoc?.facultyId === 'data_science' && tokenDoc?.finalGradeComponents ? (
           <DataScienceEvaluationSection
             token={token}
             tokenDoc={tokenDoc}

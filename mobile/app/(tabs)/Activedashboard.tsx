@@ -177,7 +177,8 @@ export default function ActiveDashboard({
   // pending one becomes unlocked.
   const actionableNextMilestone: Milestone | null =
     milestones.find(m => m.status === 'rejected') ??
-    milestones.find(m => m.status === 'pending' && isUnlocked(m)) ??
+    // The CS thesis exam has nothing to submit (app/thesis-exam.tsx).
+    milestones.find(m => m.status === 'pending' && !m.thesisExamFlow && isUnlocked(m)) ??
     null;
 
   // ── Days until deadline ────────────────────────────────────────────────────

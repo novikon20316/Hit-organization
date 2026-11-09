@@ -27,6 +27,8 @@ import type { Milestone, MilestoneType } from '@/types';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { SeminarDetails } from '@/components/SeminarDetails';
 import { isSeminarInProgress } from '@/utils/seminar';
+import { useRouter } from 'expo-router';
+import { formatExamSlot } from '@/components/thesisExam/shared';
 import { waitingText } from '@/utils/milestoneWaiting';
 import { SubmissionHistory } from '@/components/SubmissionHistory';
 
@@ -90,6 +92,7 @@ export default function StudentMilestones() {
   const [lang, setLang] = useState<Lang>('he');
   const isRtl = lang === 'he';
   const [submitTarget, setSubmitTarget] = useState<Milestone | null>(null);
+  const router = useRouter();
 
   const {
     studentState, studentName,
@@ -270,7 +273,25 @@ export default function StudentMilestones() {
                         )}
 
                         {/* Current, actionable milestone — Requirements + Submit */}
-                        {isCurrent && !isDefense && (
+                        {/* CS thesis exam — no submission; the steps run on their own screen. */}
+                        {m.thesisExamFlow && unlocked && !isApprovedOrDone && (
+                          <View style={mt.requirementsBox}>
+                            {m.examSchedule && (
+                              <Text style={[mt.requirementsText, isRtl && styles.textRight, { fontWeight: '700' }]}>
+                                🗓️ {formatExamSlot(m.examSchedule, lang)}
+                              </Text>
+                            )}
+                            <Pressable style={mt.submitBtn} onPress={() => router.push({ pathname: '/thesis-exam', params: { lang } } as any)} accessibilityRole="button">
+                              <Text style={mt.submitBtnText}>
+                                {m.status === 'exam_availability'
+                                  ? (lang === 'he' ? 'בחירת תאריכים לבחינה' : 'Pick exam dates')
+                                  : (lang === 'he' ? 'לעמוד בחינת התזה' : 'Open the thesis exam')}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+
+                        {isCurrent && !isDefense && !m.thesisExamFlow && (
                           <View style={mt.requirementsBox}>
                             <Text style={[mt.requirementsTitle, isRtl && styles.textRight]}>
                               {lang === 'he' ? 'דרישות' : 'Requirements'}

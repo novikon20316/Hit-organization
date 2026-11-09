@@ -130,6 +130,7 @@ const TARGET_SCREEN_ROUTE: Record<string, string> = {
   admin_panel_signoffs: '/admin/panel?tab=signoffs',
   admin_panel_feedback: '/admin/panel?tab=feedback',
   relay_tasks: '/relay-tasks',
+  thesis_exam: '/thesis-exam',
   committees: '/committees',
   stuck_milestones: '/stuck-milestones',
   login_security: '/login-security',

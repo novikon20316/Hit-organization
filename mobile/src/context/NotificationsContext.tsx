@@ -53,6 +53,10 @@ interface NotificationsContextValue {
    *  the supervisor-only Committees menu entry (TopBar). Mirrors web's
    *  NotificationsContext.isCommitteeSubstitute. */
   isCommitteeSubstitute: boolean;
+  /** True while the signed-in user takes part in any CS thesis exam (see
+   *  server's services/thesisExam.ts) — gates the TopBar's "Thesis Exam"
+   *  entry. Refetched whenever a new notification lands. Mirrors web. */
+  hasThesisExams: boolean;
 }
 
 export interface LiveEvent {
@@ -76,6 +80,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   liveEvent: null,
   dismissLiveEvent: () => {},
   isCommitteeSubstitute: false,
+  hasThesisExams: false,
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
@@ -110,6 +115,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
   const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
+  const [hasThesisExams, setHasThesisExams] = useState(false);
 
    // Track auth state
   useEffect(() => {
@@ -254,6 +260,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     );
   }, [isLoggedIn]);
 
+  // "Do I take part in any thesis exam" — an API read (the exam state is
+  // server-only), on sign-in and whenever a new notification lands.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the gate on sign-out
+    if (!isLoggedIn) { setHasThesisExams(false); return; }
+    let cancelled = false;
+    apiClient.getMyThesisExams()
+      .then((res) => { if (!cancelled) setHasThesisExams(res.exams.length > 0); })
+      .catch(() => { /* leave the entry as it was */ });
+    return () => { cancelled = true; };
+  }, [isLoggedIn, liveEventTick]);
+
   const markTabSeen = useCallback(async (targetScreens: string[]) => {
     try {
       await apiClient.markNotificationsRead(targetScreens, activeRole);
@@ -268,8 +286,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // every consumer (e.g. one only reading markTabSeen) on every unread-count
   // tick from the live listener above.
   const value = useMemo<NotificationsContextValue>(() => ({
-    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute,
-  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute]);
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams]);
 
   return (
     <NotificationsContext.Provider value={value}>

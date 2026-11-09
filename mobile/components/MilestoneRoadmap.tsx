@@ -92,6 +92,13 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מתוזמן', en: 'Scheduled' },
   seminar_awaiting_date: { color: '#7c3aed', bg: '#f1ecfd', icon: '📅', he: 'ממתין למועד סמינר', en: 'Awaiting Seminar Date' },
   seminar_scheduled: { color: '#7c3aed', bg: '#f1ecfd', icon: '🎤', he: 'מועד סמינר נקבע', en: 'Seminar Date Set' },
+  exam_nomination: { color: '#736b8c', bg: '#edebf2', icon: '👥', he: 'ממתין למינוי בוחנים', en: 'Awaiting Nomination' },
+  exam_nomination_review: { color: '#736b8c', bg: '#edebf2', icon: '👥', he: 'מינוי בוחנים בבדיקה', en: 'Nomination in Review' },
+  exam_availability: { color: '#b8862e', bg: '#fbf3e3', icon: '📅', he: 'בחירת תאריכים לבחינה', en: 'Picking Exam Dates' },
+  exam_date_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
+  exam_date_final_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
+  exam_scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
+  exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🏛️', he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
   completed: { color: p.success, bg: p.successContainer, icon: '🏁', he: 'הושלם', en: 'Completed' },
 };
 
