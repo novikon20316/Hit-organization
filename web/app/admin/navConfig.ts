@@ -92,6 +92,13 @@ export const ADMIN_NAV_SECTIONS: SidebarSection[] = [
         isActive: (pathname) => pathname === '/admin/live-transportation',
       },
       {
+        key: 'recovery',
+        icon: '🛟',
+        href: '/admin/recovery',
+        label: { he: 'גיבוי ושחזור', en: 'Backup & Recovery' },
+        isActive: (pathname) => pathname === '/admin/recovery',
+      },
+      {
         key: 'reports',
         icon: '📈',
         href: '/reports',

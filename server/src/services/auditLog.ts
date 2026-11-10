@@ -134,7 +134,18 @@ export type AuditAction =
   // system_admin changed the per-milestone day limits, or a scoped staff
   // member nudged whoever a stuck milestone is waiting on.
   | 'stuck_limits_updated'
-  | 'stuck_milestone_reminder_sent';
+  | 'stuck_milestone_reminder_sent'
+  // Disaster recovery (services/recovery/*) — encrypted recovery files,
+  // key checks and restores. A restore is the most destructive action in
+  // the system, so every step is logged with its counts.
+  | 'recovery_backup_created'
+  | 'recovery_backup_failed'
+  | 'recovery_backup_requested'
+  | 'recovery_key_tested'
+  | 'recovery_restore_dry_run'
+  | 'recovery_restore_started'
+  | 'recovery_restore_finished'
+  | 'recovery_outage_grace_applied';
 
 export interface AuditLogEntry {
   userId: string;

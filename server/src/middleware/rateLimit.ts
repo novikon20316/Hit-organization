@@ -41,6 +41,10 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
+  // A restore sends one request per uploaded file (thousands). Those routes
+  // only work for a system_admin with an open, 2FA-confirmed restore
+  // (recoveryController.ts openRestore), so the IP budget isn't needed there.
+  skip: (req) => req.path.startsWith('/admin/recovery/restore/'),
 });
 
 // TOTP validate + recovery request/verify — guessable 6-digit codes.

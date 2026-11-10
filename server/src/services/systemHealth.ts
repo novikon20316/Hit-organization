@@ -30,6 +30,7 @@ import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from '../config/firebase.js';
+import { inRecoveryGrace } from './recovery/grace.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -62,7 +63,25 @@ export const SYSTEM_JOBS = {
   sendScheduledReminders:               { intervalMs: ONE_HOUR_MS, he: 'תזכורות שתזמנו מנחים', en: 'Supervisor-scheduled reminders' },
   sendEmailDigests:                     { intervalMs: ONE_HOUR_MS, he: 'שליחת סיכום יומי בדוא"ל', en: 'Daily email digest' },
   pruneFormDrafts:                      { intervalMs: ONE_DAY_MS,  he: 'מחיקת טיוטות בוחנים שפג תוקפן', en: 'Prune expired examiner drafts' },
+  // Runs in the separate recovery-backup Cloud Run Job (scripts/recovery.ts),
+  // not in this process — recorded here so the page shows it with the rest.
+  recoveryBackup:                       { intervalMs: ONE_DAY_MS,  he: 'קובץ שחזור מוצפן (גיבוי יומי/שבועי)', en: 'Encrypted recovery file (daily/weekly backup)' },
+  checkRecoveryBackupFreshness:         { intervalMs: ONE_HOUR_MS, he: 'בדיקה שהגיבוי האחרון עדכני', en: 'Check the last backup is recent' },
+  retryRecoveryJournal:                 { intervalMs: FIVE_MIN_MS, he: 'יומן אירועים לשחזור — שליחה חוזרת', en: 'Recovery event journal — retries' },
 } as const;
+
+/** User-facing reminder/escalation sweeps that stay quiet for 24 hours
+ *  after a restore with "outage grace" (services/recovery/restore.ts), so
+ *  nobody is flooded with "overdue" messages caused by the outage itself. */
+const QUIET_AFTER_RECOVERY = new Set<SystemJobId>([
+  'sendMilestoneDeadlineReminders',
+  'sendExaminerDeadlineReminders',
+  'sendSeminarOutcomeReminders',
+  'sweepStuckMilestones',
+  'sendSupervisorPendingReviewReminders',
+  'sendScheduledReminders',
+  'sendEmailDigests',
+]);
 
 export type SystemJobId = keyof typeof SYSTEM_JOBS;
 
@@ -79,6 +98,7 @@ function scrubError(err: unknown): string {
 /** Runs `job` and records the outcome. Never throws — a job's own failure is
  *  logged and recorded, and a failed health write is only logged. */
 export async function runTrackedJob(jobId: SystemJobId, job: () => Promise<unknown>): Promise<void> {
+  if (QUIET_AFTER_RECOVERY.has(jobId) && await inRecoveryGrace()) return;
   const startedAt = Date.now();
   let error: unknown = null;
   try {

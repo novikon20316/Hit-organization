@@ -72,6 +72,9 @@ import { startUsersChangeWatcher } from './services/usersChangeSignal.js';
 import { startMilestoneChangeWatcher } from './services/milestoneChangeSignal.js';
 import { startDefenseScheduleChangeWatcher, getDefenseScheduleSignal } from './services/defenseScheduleChangeSignal.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import recoveryRoutes from './routes/recoveryRoutes.js';
+import { checkRecoveryBackupFreshness } from './services/recovery/status.js';
+import { retryRecoveryJournal } from './services/recovery/journal.js';
 import { serverIncidentMiddleware, captureRequestError } from './services/serverIncidents.js';
 import { registerAppForCodeLocator } from './services/codeLocator.js';
 import { WEBSITE_URL } from './config/links.js';
@@ -241,6 +244,8 @@ app.use('/api/assistant',     assistantRoutes);
 app.use('/api/search',        searchRoutes);
 app.use('/api/projects',      projectRoutes);
 app.use('/api/chats',         chatRoutes);
+// Before /api/admin so its own body parser (raw file uploads) applies.
+app.use('/api/admin/recovery', recoveryRoutes);
 app.use('/api/admin',         adminRoutes);
 app.use('/api/coordinator',   coordinatorRoutes);
 app.use('/api/project-coordinator', projectCoordinatorRoutes);
@@ -395,6 +400,15 @@ setInterval(() => {
 setInterval(() => {
   void runTrackedJob('pruneFormDrafts', pruneFormDrafts);
 }, ONE_DAY_MS);
+// Alerts system admins when the nightly encrypted recovery file stops
+// arriving (the backup itself runs in the recovery-backup Cloud Run Job).
+setInterval(() => {
+  void runTrackedJob('checkRecoveryBackupFreshness', checkRecoveryBackupFreshness);
+}, ONE_HOUR_MS);
+// Re-sends real-time journal events that couldn't reach the vault in time.
+setInterval(() => {
+  void runTrackedJob('retryRecoveryJournal', retryRecoveryJournal);
+}, 5 * 60 * 1000);
 // Live refresh for staff user lists — see services/usersChangeSignal.ts.
 startUsersChangeWatcher();
 // Live refresh for defense scheduling screens — see services/defenseScheduleChangeSignal.ts.

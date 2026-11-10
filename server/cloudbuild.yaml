@@ -36,6 +36,15 @@ steps:
       # those into this file (or Secret Manager) so nothing depends on
       # untracked state again.
       - '--update-env-vars=APP_CHECK_ENFORCEMENT_MODE=monitor'
+  # The nightly encrypted recovery file runs as a Cloud Run Job from this
+  # same image (src/scripts/recovery.ts backup --job) — keep it on the code
+  # just deployed. Tolerates the job not existing yet (see
+  # RECOVERY_RUNBOOK_HE.md for the one-time setup).
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'gcloud run jobs update recovery-backup --image=us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA --region=us-central1 || echo "recovery-backup job not set up yet - skipping"'
 images:
   - 'us-central1-docker.pkg.dev/hit-organization/cloud-run-source-deploy/api:$COMMIT_SHA'
 options:

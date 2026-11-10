@@ -25,7 +25,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node --enable-source-maps dist/index.js"
+    "start": "node --enable-source-maps dist/index.js",
+    "recovery": "tsx src/scripts/recovery.ts",
+    "test:recovery": "node --import tsx --test src/services/recovery/recovery.test.ts"
   },
   "keywords": [],
   "author": "",

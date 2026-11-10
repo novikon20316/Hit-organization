@@ -30,6 +30,7 @@
 
 import { db } from '../config/firebase.js';
 import admin from 'firebase-admin';
+import { journalEvent } from './recovery/journal.js';
 
 export type RecordEntryType =
   | 'student_joined_project'
@@ -69,7 +70,7 @@ export interface ProjectRecordEntry {
 
 export async function logProjectRecordEntry(entry: ProjectRecordEntry): Promise<void> {
   try {
-    await db.collection('projectRecordEntries').add({
+    const ref = await db.collection('projectRecordEntries').add({
       projectId: entry.projectId,
       type: entry.type,
       actorId: entry.actorId,
@@ -78,6 +79,11 @@ export async function logProjectRecordEntry(entry: ProjectRecordEntry): Promise<
       data: entry.data ?? null,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
+    // Disaster recovery: an encrypted copy of this project's state right
+    // after the event goes off-site now, not just in tonight's backup
+    // (services/recovery/journal.ts). Bounded wait, never throws.
+    const milestoneId = typeof entry.data?.milestoneId === 'string' ? entry.data.milestoneId : null;
+    await journalEvent({ event: entry.type, projectId: entry.projectId, recordPath: ref.path, milestoneId });
   } catch (err) {
     console.error(`logProjectRecordEntry failed (type=${entry.type}, projectId=${entry.projectId}):`, err);
   }
