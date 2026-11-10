@@ -18,6 +18,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import { FieldPath, Timestamp, type CollectionReference, type DocumentReference, type Transaction } from 'firebase-admin/firestore';
+import { getApps } from 'firebase-admin/app';
 import { auth, db } from '../../config/firebase.js';
 import { encodeDoc } from './encode.js';
 import {
@@ -142,6 +143,24 @@ export interface BackupResult {
   errors: Record<string, string>;
 }
 
+/** The Firebase project ID for the manifest. Firestore's own `projectId`
+ *  getter THROWS ("Client is not yet ready") until the client has made its
+ *  first request — which is exactly the state of a fresh Cloud Run Job
+ *  (no GOOGLE_CLOUD_PROJECT env there). So: env, then the app options, then
+ *  one cheap request to warm the client and read it. Never throws. */
+async function resolveProjectId(): Promise<string | null> {
+  const fromEnv = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT;
+  if (fromEnv) return fromEnv;
+  const fromApp = getApps()[0]?.options.projectId;
+  if (fromApp) return fromApp;
+  try {
+    await db.listCollections();
+    return (db as unknown as { projectId?: string }).projectId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createRecoveryFile(opts: BackupOptions): Promise<BackupResult> {
   const log = opts.log ?? ((m: string) => console.log(`[recovery] ${m}`));
   const createdAt = new Date();
@@ -155,7 +174,7 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
     kind: opts.kind,
     createdAt: createdAt.toISOString(),
     finishedAt: '',
-    projectId: process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? (db as unknown as { projectId?: string }).projectId ?? null,
+    projectId: await resolveProjectId(),
     gitRevision: process.env.K_REVISION ?? process.env.CLOUD_RUN_EXECUTION ?? null,
     cloudinaryCloud: cloudName,
     firestore: {},
