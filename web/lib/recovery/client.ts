@@ -77,11 +77,15 @@ export interface RecoveryStatus {
   stale: boolean;
   runs: { daily: RunSummary | null; weekly: RunSummary | null; manual: RunSummary | null };
   job: { lastStartedAt: number | null; lastOk: boolean | null; lastError: string | null } | null;
-  openRestore: { id: string; mode: 'merge' | 'full'; startedBy: string; startedAt: number | null } | null;
+  openRestore: { id: string; mode: 'merge' | 'full' | 'selective'; startedBy: string; startedAt: number | null } | null;
   journal: { enabled: boolean; lastOkAt: number | null; lastFailAt: number | null; lastError: string | null; okCount: number; queued: number };
 }
 
-export type RestoreMode = 'merge' | 'full';
+export type RestoreMode = 'merge' | 'full' | 'selective';
+
+export type RestoreScope =
+  | { kind: 'collections'; collections: string[] }
+  | { kind: 'project'; projectId: string; roots: string[] };
 
 export const recoveryApi = {
   status: () => call<RecoveryStatus>('GET', '/status'),
@@ -92,7 +96,7 @@ export const recoveryApi = {
     call<{ auth: { added: number; existing: number; emailChanged: number; withoutPassword: number } | null; firestore: Record<string, { added: number; same: number; changed: number }> | null }>('POST', '/restore/dry-run', payload),
   liveFiles: () => call<{ cloudName: string | null; keys: string[] }>('GET', '/restore/live-files'),
   liveCollections: () => call<{ collections: string[] }>('GET', '/restore/live-collections'),
-  begin: (p: { mode: RestoreMode; totpCode: string; confirmText: string; file: Record<string, unknown> }) => call<{ restoreId: string; mode: RestoreMode }>('POST', '/restore/begin', p),
+  begin: (p: { mode: RestoreMode; totpCode: string; confirmText: string; file: Record<string, unknown>; scope?: RestoreScope | null }) => call<{ restoreId: string; mode: RestoreMode }>('POST', '/restore/begin', p),
   wipe: (restoreId: string, collection: string) => call<{ deleted: number }>('POST', '/restore/wipe', { restoreId, collection }),
   auth: (restoreId: string, users: AuthUserLine[], hash: FirebaseHashConfig | null) =>
     call<{ imported: number; skipped: number; withoutPassword: number; failed: Array<{ uid: string; error: string }> }>('POST', '/restore/auth', { restoreId, users, hash }),

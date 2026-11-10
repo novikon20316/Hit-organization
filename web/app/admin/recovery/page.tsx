@@ -16,10 +16,10 @@ import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { AppRole } from '@/lib/roles';
 import {
-  JournalOverlay, RecoveryDecryptor, fromB64, openKeyFile, readRecoveryHeader, parseJson, parseKeyFile, parseNdjson, toB64,
+  JournalOverlay, ProjectScopeCollector, RecoveryDecryptor, fromB64, openKeyFile, readRecoveryHeader, parseJson, parseKeyFile, parseNdjson, toB64,
   type AuthUserLine, type FileIndexLine, type FsDocLine, type KeyFile, type KeyKit, type RecoveryManifest,
 } from '@/lib/recovery/format';
-import { batchDocs, readRecoveryFile, recoveryApi, type RecoveryStatus, type RestoreMode, type RunSummary } from '@/lib/recovery/client';
+import { batchDocs, readRecoveryFile, recoveryApi, type RecoveryStatus, type RestoreMode, type RestoreScope, type RunSummary } from '@/lib/recovery/client';
 
 const ADMIN_ROLES: AppRole[] = ['system_admin'];
 const FULL_CONFIRM = 'שחזור מלא';
@@ -331,6 +331,9 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<RestoreMode>('merge');
   const [confirmText, setConfirmText] = useState('');
+  const [scopeKind, setScopeKind] = useState<'project' | 'collections'>('project');
+  const [scopeProject, setScopeProject] = useState('');
+  const [scopeCols, setScopeCols] = useState<string[]>([]);
   const [grace, setGrace] = useState(true);
   const [graceFrom, setGraceFrom] = useState('');
   const [graceTo, setGraceTo] = useState('');
@@ -410,8 +413,30 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
     const summary = { auth: { imported: 0, skipped: 0, withoutPassword: 0, failed: 0 }, docs: { written: 0, skipped: 0 }, files: { uploaded: 0, existed: 0, failed: 0 }, disabled: 0 };
     try {
       const m = report.manifest;
+      const selective = mode === 'selective';
+      // Selective by project: one extra read of the file (no writes) to find
+      // every document that belongs to the project, so the server is told the
+      // exact scope up front and refuses anything outside it.
+      let projectScope: ProjectScopeCollector | null = null;
+      let scope: RestoreScope | null = null;
+      if (selective && scopeKind === 'project') {
+        const { overlay: scopeOverlay } = await loadJournal(file, journalFiles, kit);
+        const collector = new ProjectScopeCollector(scopeProject.trim());
+        await readRecoveryFile(file, kit, async (meta, body) => {
+          if (meta.t === 'fs') for (const l of scopeOverlay.overlay(parseNdjson<FsDocLine>(body))) collector.add(l);
+        }, (read, total) => setProgress(t(`מאתר את רשומות הפרויקט ${Math.round((read / total) * 100)}%`, `Finding the project's documents ${Math.round((read / total) * 100)}%`)));
+        for (const l of scopeOverlay.leftovers()) collector.add(l);
+        if (collector.roots.size <= 1) throw new Error(t('הפרויקט לא נמצא בקובץ.', 'That project is not in the file.'));
+        projectScope = collector;
+        scope = { kind: 'project', projectId: collector.projectId, roots: [...collector.roots] };
+        addLog(t(`נמצאו ${collector.roots.size} רשומות של הפרויקט (ועוד תתי-האוספים שלהן)`, `Found ${collector.roots.size} project documents (plus their subcollections)`));
+      } else if (selective) {
+        scope = { kind: 'collections', collections: scopeCols };
+      }
+      const inScope = (l: FsDocLine) => !selective ? true
+        : projectScope ? projectScope.includes(l.p) : scopeCols.includes(l.p.split('/')[0]!);
       const { restoreId } = await recoveryApi.begin({
-        mode, totpCode: code, confirmText,
+        mode, totpCode: code, confirmText, scope,
         file: { name: file.name, kind: m.kind, createdAt: m.createdAt, fingerprint: report.fingerprint },
       });
       setCode('');
@@ -425,12 +450,13 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
         }
       }
 
-      const live = mode === 'merge' ? new Set((await recoveryApi.liveFiles()).keys) : new Set<string>();
+      const live = mode !== 'full' ? new Set((await recoveryApi.liveFiles()).keys) : new Set<string>();
       const { overlay } = await loadJournal(file, journalFiles, kit);
       const uids: string[] = [];
       let lastDocLog = 0;
       await readRecoveryFile(file, kit, async (meta, body) => {
         if (meta.t === 'auth') {
+          if (selective) return;
           const users = parseNdjson<AuthUserLine>(body);
           users.forEach((u) => uids.push(u.uid));
           const r = await recoveryApi.auth(restoreId, users, kit.firebaseHash);
@@ -438,7 +464,7 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
           addLog(t(`משתמשים: ${summary.auth.imported} שוחזרו, ${summary.auth.skipped} קיימים`, `Logins: ${summary.auth.imported} restored, ${summary.auth.skipped} existed`));
           r.failed.slice(0, 5).forEach((f) => addLog(`⚠ ${f.uid}: ${f.error}`));
         } else if (meta.t === 'fs') {
-          for (const batch of batchDocs(overlay.overlay(parseNdjson<FsDocLine>(body)))) {
+          for (const batch of batchDocs(overlay.overlay(parseNdjson<FsDocLine>(body)).filter(inScope))) {
             const r = await recoveryApi.firestore(restoreId, batch, m.cloudinaryCloud);
             summary.docs.written += r.written; summary.docs.skipped += r.skipped;
           }
@@ -447,7 +473,7 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
             addLog(t(`רשומות: ${summary.docs.written} נכתבו`, `Documents: ${summary.docs.written} written`));
           }
         } else if (meta.t === 'file') {
-          if (mode === 'merge' && live.has(`${meta.type}/${meta.resourceType}/${meta.publicId}`)) { summary.files.existed++; return; }
+          if (mode !== 'full' && live.has(`${meta.type}/${meta.resourceType}/${meta.publicId}`)) { summary.files.existed++; return; }
           try {
             const r = await recoveryApi.file(restoreId, meta, body);
             summary.files[r.result]++;
@@ -460,7 +486,7 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
         }
       }, (read, total) => setProgress(t(`התקדמות ${Math.round((read / total) * 100)}%`, `Progress ${Math.round((read / total) * 100)}%`)));
       if (overlay.events.size) {
-        for (const batch of batchDocs(overlay.leftovers())) {
+        for (const batch of batchDocs(overlay.leftovers().filter(inScope))) {
           const r = await recoveryApi.firestore(restoreId, batch, m.cloudinaryCloud);
           summary.docs.written += r.written; summary.docs.skipped += r.skipped;
         }
@@ -504,7 +530,8 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
     return Object.values(report.firestore).reduce((a, v) => ({ added: a.added + v.added, same: a.same + v.same, changed: a.changed + v.changed }), { added: 0, same: 0, changed: 0 });
   }, [report]);
 
-  const canApply = !!report && !busy && code.length === 6 && safetyOk && (mode === 'merge' || confirmText.trim() === FULL_CONFIRM);
+  const scopeOk = mode !== 'selective' || (scopeKind === 'project' ? /^[A-Za-z0-9_-]{1,128}$/.test(scopeProject.trim()) : scopeCols.length > 0);
+  const canApply = !!report && !busy && code.length === 6 && safetyOk && scopeOk && (mode !== 'full' || confirmText.trim() === FULL_CONFIRM);
 
   return (
     <section className={card}>
@@ -581,6 +608,32 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
                 <input type="radio" name="mode" checked={mode === 'full'} onChange={() => setMode('full')} />
                 <span><b>{t('שחזור מלא', 'Full restore')}</b> — {t('מחזיר את המערכת בדיוק למצב שבקובץ: מוחק את המידע הנוכחי וכותב את שבקובץ. חשבונות שלא בקובץ מושבתים. לאחר פריצה או השחתה.', 'returns the system exactly to the file: deletes current data and writes the file. Logins not in the file are disabled. After a breach or corruption.')}</span>
               </label>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="mode" checked={mode === 'selective'} onChange={() => setMode('selective')} />
+                <span><b>{t('שחזור חלקי', 'Selective')}</b> — {t('מחזיר רק פרויקט אחד (אבני הדרך, הרשומות, הבקשות, הצ׳אט והקבצים שלו) או אוספים נבחרים לגרסה שבקובץ. כל השאר במערכת לא משתנה, והחשבונות לא נוגעים. כשרק פרויקט אחד נפגע או נמחק בטעות.', 'returns only one project (its milestones, records, applications, chat and files) or chosen collections to the version in the file. Everything else is untouched, and logins are not changed. For when only one project was damaged or deleted by mistake.')}</span>
+              </label>
+              {mode === 'selective' && (
+                <div className="grid gap-2 ps-6 text-xs text-muted">
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-1"><input type="radio" name="scopeKind" checked={scopeKind === 'project'} onChange={() => setScopeKind('project')} />{t('פרויקט אחד', 'One project')}</label>
+                    <label className="flex items-center gap-1"><input type="radio" name="scopeKind" checked={scopeKind === 'collections'} onChange={() => setScopeKind('collections')} />{t('אוספים נבחרים', 'Chosen collections')}</label>
+                  </div>
+                  {scopeKind === 'project' ? (
+                    <label className="grid gap-1">
+                      {t('מזהה הפרויקט (מופיע בכתובת של דף הפרויקט)', 'Project ID (shown in the project page address)')}
+                      <input className={`${input} w-72`} dir="ltr" value={scopeProject} onChange={(e) => setScopeProject(e.target.value)} />
+                    </label>
+                  ) : (
+                    <div className="flex max-h-40 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
+                      {Object.keys(report.firestore).sort().map((c) => (
+                        <label key={c} className="flex items-center gap-1" dir="ltr">
+                          <input type="checkbox" checked={scopeCols.includes(c)} onChange={(e) => setScopeCols((cs) => e.target.checked ? [...cs, c] : cs.filter((x) => x !== c))} />{c}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {mode === 'full' && (
                 <label className="grid gap-1 text-xs text-muted">
                   {t(`להמשך הקלידו: ${FULL_CONFIRM}`, `To continue type: ${FULL_CONFIRM}`)}
@@ -613,7 +666,7 @@ function RestoreWizard({ status, t, lang, onChanged }: { status: RecoveryStatus;
                   <input className={`${input} w-28`} inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
                 </label>
                 <button className={mode === 'full' ? 'rounded-lg bg-danger px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50' : btn} disabled={!canApply} onClick={() => void apply()}>
-                  {mode === 'full' ? t('בצע שחזור מלא', 'Run full restore') : t('בצע השלמה', 'Run merge')}
+                  {mode === 'full' ? t('בצע שחזור מלא', 'Run full restore') : mode === 'selective' ? t('בצע שחזור חלקי', 'Run selective restore') : t('בצע השלמה', 'Run merge')}
                 </button>
               </div>
             </fieldset>

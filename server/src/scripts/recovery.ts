@@ -13,7 +13,8 @@
 //   drive-auth                             one-time: sign in as the backup-only
 //                                          Google account, create its folder,
 //                                          print the Drive refresh token + folder id
-//   restore <file> --key <file> --mode dry-run|merge|full
+//   restore <file> --key <file> --mode dry-run|merge|full|selective
+//           (selective: --scope-project <projectId> or --scope-collections a,b)
 //           [--journal <dir>] [--outage-from ISO --outage-to ISO] [--no-revoke] [--yes]
 //                                          --journal: a folder of journal .hitrec files
 //                                          (gsutil/gcloud cp from gs://…/journal/<day>/);
@@ -172,9 +173,18 @@ async function restore() {
   const R = await import('../services/recovery/restore.js');
   const F = await import('../services/recovery/format.js');
   const { ensureCloudinaryConfigured } = await import('../services/recovery/cloudinaryFiles.js');
-  const path = positional ?? die('Usage: restore <file.hitrec> --key <file.hitkey> --mode dry-run|merge|full');
+  const path = positional ?? die('Usage: restore <file.hitrec> --key <file.hitkey> --mode dry-run|merge|full|selective');
   const mode = flag('mode') ?? 'dry-run';
-  if (!['dry-run', 'merge', 'full'].includes(mode)) die('--mode must be dry-run|merge|full');
+  if (!['dry-run', 'merge', 'full', 'selective'].includes(mode)) die('--mode must be dry-run|merge|full|selective');
+  // Selective: one project (its doc, everything pointing at it, their
+  // subcollections) or chosen collections. Overwrites only those docs; logins
+  // untouched; files only filled in where missing.
+  const scopeProject = flag('scope-project');
+  const scopeCollections = flag('scope-collections')?.split(',').map((c) => c.trim()).filter(Boolean) ?? [];
+  if (mode === 'selective' && !scopeProject && !scopeCollections.length) die('selective needs --scope-project <id> or --scope-collections a,b');
+  const projectScope = mode === 'selective' && scopeProject ? new (await import('../services/recovery/format.js')).ProjectScopeCollector(scopeProject) : null;
+  const inScope = (l: { p: string; d: Record<string, unknown> }) =>
+    mode !== 'selective' ? true : projectScope ? projectScope.add(l) : scopeCollections.includes(l.p.split('/')[0]!);
   const { kit } = await loadKit();
   const project = process.env.GOOGLE_CLOUD_PROJECT ?? '(from credentials)';
 
@@ -231,7 +241,7 @@ async function restore() {
   }
 
   if (!has('yes')) {
-    const expect = mode === 'full' ? `FULL RESTORE ${project}` : `MERGE ${project}`;
+    const expect = mode === 'full' ? `FULL RESTORE ${project}` : mode === 'selective' ? `SELECTIVE ${project}` : `MERGE ${project}`;
     const typed = await prompt(`This writes to project ${project}. Type "${expect}" to continue: `, false);
     if (typed.trim() !== expect) die('Not confirmed.');
   }
@@ -248,7 +258,7 @@ async function restore() {
     }
   }
 
-  const restoreMode = mode as 'merge' | 'full';
+  const restoreMode = mode as 'merge' | 'full' | 'selective';
   if (restoreMode === 'full') {
     console.log('Wiping backed-up collections…');
     await R.wipeForFullRestore(null, (msg) => console.log(`  ${msg}`));
@@ -257,13 +267,14 @@ async function restore() {
   const totals = { auth: { imported: 0, skipped: 0, withoutPassword: 0, failed: 0 }, docs: { written: 0, skipped: 0 }, files: { uploaded: 0, existed: 0, failed: 0 } };
   await R.readRecoveryStream(readFileChunks(path), kit, async (meta, body) => {
     if (meta.t === 'auth') {
+      if (restoreMode === 'selective') return;
       const users = F.parseNdjson<import('../services/recovery/format.js').AuthUserLine>(body);
       users.forEach((u) => uidsInFile.add(u.uid));
       const r = await R.restoreAuthUsers(users, restoreMode, kit.firebaseHash, null);
       totals.auth.imported += r.imported; totals.auth.skipped += r.skipped; totals.auth.withoutPassword += r.withoutPassword; totals.auth.failed += r.failed.length;
       for (const f of r.failed.slice(0, 5)) console.warn(`  login ${f.uid}: ${f.error}`);
     } else if (meta.t === 'fs') {
-      const r = await R.restoreFirestoreDocs(overlay.overlay(F.parseNdjson(body)), restoreMode, { rewriteCloud, protectUid: null });
+      const r = await R.restoreFirestoreDocs(overlay.overlay(F.parseNdjson<import('../services/recovery/format.js').FsDocLine>(body)).filter(inScope), restoreMode, { rewriteCloud, protectUid: null });
       totals.docs.written += r.written; totals.docs.skipped += r.skipped;
       process.stdout.write(`\r  documents written: ${totals.docs.written}`);
     } else if (meta.t === 'file') {
@@ -278,7 +289,7 @@ async function restore() {
   });
   if (overlay.events.size) {
     // Journal: docs created after the backup, and recent uploads.
-    const left = await R.restoreFirestoreDocs(overlay.leftovers(), restoreMode, { rewriteCloud, protectUid: null });
+    const left = await R.restoreFirestoreDocs(overlay.leftovers().filter(inScope), restoreMode, { rewriteCloud, protectUid: null });
     totals.docs.written += left.written;
     for (const f of overlay.files) {
       try { totals.files[await R.restoreFile(f.meta, Buffer.from(f.body), restoreMode)]++; } catch (e) { totals.files.failed++; console.warn(`

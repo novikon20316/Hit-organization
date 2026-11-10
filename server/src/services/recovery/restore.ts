@@ -27,7 +27,36 @@ import {
 import { EXCLUDED_COLLECTIONS, isExcludedDocPath } from './config.js';
 import { restoreAsset } from './cloudinaryFiles.js';
 
-export type RestoreMode = 'merge' | 'full';
+export type RestoreMode = 'merge' | 'full' | 'selective';
+
+/** Selective restore: only these collections, or only one project (its doc,
+ *  every top-level doc pointing at it, and their subcollections). In scope
+ *  docs are written with the file's version (overwriting the live one); the
+ *  rest of the system is untouched. Logins are never part of it. */
+export type RestoreScope =
+  | { kind: 'collections'; collections: string[] }
+  | { kind: 'project'; projectId: string; roots: string[] };
+
+export const MAX_SCOPE_ROOTS = 5000;
+
+export function parseRestoreScope(v: unknown): RestoreScope | null {
+  const s = v as Partial<{ kind: string; collections: unknown; projectId: unknown; roots: unknown }> | null | undefined;
+  if (s?.kind === 'collections' && Array.isArray(s.collections)) {
+    const cols = [...new Set(s.collections.map(String))].filter((c) => c && !c.includes('/') && !EXCLUDED_COLLECTIONS.has(c));
+    return cols.length ? { kind: 'collections', collections: cols } : null;
+  }
+  if (s?.kind === 'project' && typeof s.projectId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(s.projectId) && Array.isArray(s.roots)) {
+    const roots = [...new Set(s.roots.map(String))].filter(isValidDocPath).slice(0, MAX_SCOPE_ROOTS);
+    if (!roots.includes(`projects/${s.projectId}`)) roots.unshift(`projects/${s.projectId}`);
+    return { kind: 'project', projectId: s.projectId, roots };
+  }
+  return null;
+}
+
+export function inRestoreScope(path: string, scope: RestoreScope): boolean {
+  if (scope.kind === 'collections') return scope.collections.includes(path.split('/')[0]!);
+  return scope.roots.some((r) => path === r || path.startsWith(`${r}/`));
+}
 
 // ── Reading a file (Node: CLI / tests) ───────────────────────────────────────
 
@@ -303,6 +332,7 @@ export async function restoreFile(
   mode: RestoreMode,
 ): Promise<'uploaded' | 'existed'> {
   if (!meta.publicId || meta.publicId.includes('..')) throw new Error('Invalid file id.');
+  // Selective never overwrites a live file: it only fills in missing ones.
   return restoreAsset(meta, bytes, mode === 'full');
 }
 

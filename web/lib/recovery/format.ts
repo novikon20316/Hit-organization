@@ -576,3 +576,36 @@ export class JournalOverlay {
     return max;
   }
 }
+
+// ── Selective restore: which documents belong to one project ─────────────────
+
+/** Fields that tie a top-level document to a project. */
+export const PROJECT_LINK_FIELDS = ['projectId', 'relatedProjectId'] as const;
+
+/** Streams through a recovery file's documents (parents always come before
+ *  their subcollections) and collects the "roots" of one project: the
+ *  project doc, every top-level doc whose projectId/relatedProjectId points
+ *  at it, and — through the prefix rule — all their subcollection docs
+ *  (e.g. a project chat's messages and files). */
+export class ProjectScopeCollector {
+  readonly roots = new Set<string>();
+  constructor(readonly projectId: string) {
+    this.roots.add(`projects/${projectId}`);
+  }
+
+  private linked(d: Record<string, unknown>): boolean {
+    return PROJECT_LINK_FIELDS.some((f) => d[f] === this.projectId);
+  }
+
+  /** Returns true when the doc is in scope (and remembers it as a root). */
+  add(line: { p: string; d: Record<string, unknown> }): boolean {
+    if (this.includes(line.p)) return true;
+    if (line.p.split('/').length === 2 && this.linked(line.d)) { this.roots.add(line.p); return true; }
+    return false;
+  }
+
+  includes(path: string): boolean {
+    for (const r of this.roots) if (path === r || path.startsWith(`${r}/`)) return true;
+    return false;
+  }
+}

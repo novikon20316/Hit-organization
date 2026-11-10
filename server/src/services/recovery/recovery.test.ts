@@ -149,3 +149,20 @@ test('journal overlay: newest updateTime wins, old events ignored, idempotent', 
   assert.deepEqual(o.leftovers().map((l) => l.p).sort(), ['projectRecordEntries/r1', 'projectRecordEntries/r2']);
   assert.equal(o.lastEventAt, new Date(after + 200).toISOString());
 });
+
+test('selective restore: project scope picks the project, linked docs and their subcollections only', async () => {
+  const { ProjectScopeCollector } = await import('./format.js');
+  const c = new ProjectScopeCollector('P1');
+  const lines = [
+    { p: 'projects/P1', d: {} },
+    { p: 'projects/P2', d: {} },
+    { p: 'milestones/m1', d: { projectId: 'P1' } },
+    { p: 'milestones/m2', d: { projectId: 'P2' } },
+    { p: 'chats/c1', d: { relatedProjectId: 'P1' } },
+    { p: 'chats/c1/messages/x', d: {} },
+    { p: 'chats/c2/messages/y', d: { projectId: 'P1' } },
+    { p: 'projectRecordEntries/r1', d: { projectId: 'P1' } },
+  ];
+  const picked = lines.filter((l) => c.add(l)).map((l) => l.p);
+  assert.deepEqual(picked, ['projects/P1', 'milestones/m1', 'chats/c1', 'chats/c1/messages/x', 'projectRecordEntries/r1']);
+});

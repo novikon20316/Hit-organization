@@ -26,6 +26,7 @@ import { journalStatus } from '../services/recovery/journal.js';
 import {
   applyOutageGrace, disableUsersNotIn, dryRunAuthUsers, dryRunFirestoreDocs, restoreAuthUsers,
   restoreFile, restoreFirestoreDocs, revokeAllSessions, type RestoreMode,
+  parseRestoreScope, inRestoreScope, type RestoreScope,
 } from '../services/recovery/restore.js';
 import { listAllAssets, ensureCloudinaryConfigured } from '../services/recovery/cloudinaryFiles.js';
 import { EXCLUDED_COLLECTIONS, isExcludedDocPath } from '../services/recovery/config.js';
@@ -187,7 +188,7 @@ export const restoreLiveCollections = async (req: AuthenticatedRequest, res: Res
 
 // ── Restore: apply ───────────────────────────────────────────────────────────
 
-async function openRestore(req: AuthenticatedRequest, res: Response): Promise<{ id: string; mode: RestoreMode } | null> {
+async function openRestore(req: AuthenticatedRequest, res: Response): Promise<{ id: string; mode: RestoreMode; scope: RestoreScope | null } | null> {
   const r = (await db.doc(RESTORE_DOC).get()).data();
   const id = String(req.body?.restoreId ?? req.query?.restoreId ?? '');
   const fresh = r?.startedAt instanceof Timestamp && Date.now() - r.startedAt.toMillis() < RESTORE_MAX_AGE_MS;
@@ -195,13 +196,24 @@ async function openRestore(req: AuthenticatedRequest, res: Response): Promise<{ 
     res.status(409).json({ error: L(req, 'This restore is not open (expired, finished, or started by someone else). Start it again.', 'השחזור אינו פתוח (פג תוקף, הסתיים או הופעל ע"י מישהו אחר). יש להתחיל מחדש.') });
     return null;
   }
-  return { id, mode: r.mode === 'full' ? 'full' : 'merge' };
+  const mode: RestoreMode = r.mode === 'full' ? 'full' : r.mode === 'selective' ? 'selective' : 'merge';
+  const scope = mode === 'selective' ? parseRestoreScope(r.scope) : null;
+  if (mode === 'selective' && !scope) {
+    res.status(409).json({ error: 'Selective restore has no valid scope.' });
+    return null;
+  }
+  return { id, mode, scope };
 }
 
 export const beginRestore = async (req: AuthenticatedRequest, res: Response) => {
   if (!requireAdmin(req, res)) return;
   if (!(await checkFreshTotp(req, res, req.user.uid))) return;
-  const mode: RestoreMode = req.body?.mode === 'full' ? 'full' : 'merge';
+  const mode: RestoreMode = req.body?.mode === 'full' ? 'full' : req.body?.mode === 'selective' ? 'selective' : 'merge';
+  const scope = mode === 'selective' ? parseRestoreScope(req.body?.scope) : null;
+  if (mode === 'selective' && !scope) {
+    res.status(400).json({ error: L(req, 'Choose a project or at least one collection for a selective restore.', 'יש לבחור פרויקט או לפחות אוסף אחד לשחזור חלקי.') });
+    return;
+  }
   if (mode === 'full' && String(req.body?.confirmText ?? '').trim() !== 'שחזור מלא') {
     res.status(400).json({ error: L(req, 'Type the confirmation text exactly to run a full restore.', 'יש להקליד בדיוק את טקסט האישור כדי לבצע שחזור מלא.') });
     return;
@@ -210,7 +222,7 @@ export const beginRestore = async (req: AuthenticatedRequest, res: Response) => 
     const id = randomBytes(12).toString('hex');
     const name = await displayName(req.user.uid);
     await db.doc(RESTORE_DOC).set({
-      id, open: true, mode, startedBy: req.user.uid, startedByName: name, startedAt: FieldValue.serverTimestamp(),
+      id, open: true, mode, scope, startedBy: req.user.uid, startedByName: name, startedAt: FieldValue.serverTimestamp(),
       file: req.body?.file ?? null,
     });
     if (req.body?.maintenance !== false) {
@@ -225,7 +237,7 @@ export const beginRestore = async (req: AuthenticatedRequest, res: Response) => 
     }
     await logAuditEvent({
       userId: req.user.uid, userRole: 'system_admin', action: 'recovery_restore_started', entityType: 'recovery', entityId: id,
-      newValue: { mode, file: req.body?.file ?? null }, userDisplayName: name,
+      newValue: { mode, file: req.body?.file ?? null, scope: scope?.kind === 'project' ? { kind: 'project', projectId: scope.projectId, docs: scope.roots.length } : scope }, userDisplayName: name,
     });
     res.json({ restoreId: id, mode });
   } catch (err) { fail(req, res, 'begin', err); }
@@ -266,6 +278,7 @@ export const restoreAuthBatch = async (req: AuthenticatedRequest, res: Response)
   const r = await openRestore(req, res);
   if (!r) return;
   try {
+    if (r.mode === 'selective') { res.status(400).json({ error: 'Logins are not part of a selective restore.' }); return; }
     const users = (Array.isArray(req.body?.users) ? req.body.users : []).slice(0, MAX_BATCH_USERS) as AuthUserLine[];
     res.json(await restoreAuthUsers(users, r.mode, parseHash(req.body?.hash), req.user.uid));
   } catch (err) { fail(req, res, 'auth', err); }
@@ -276,13 +289,23 @@ export const restoreFirestoreBatch = async (req: AuthenticatedRequest, res: Resp
   const r = await openRestore(req, res);
   if (!r) return;
   try {
-    const docs = (Array.isArray(req.body?.docs) ? req.body.docs : []).slice(0, MAX_BATCH_DOCS) as FsDocLine[];
+    let docs = (Array.isArray(req.body?.docs) ? req.body.docs : []).slice(0, MAX_BATCH_DOCS) as FsDocLine[];
+    // Enforced here too, not only in the browser: a selective restore can
+    // never write outside the scope it was opened with.
+    let outOfScope = 0;
+    if (r.scope) {
+      const scope = r.scope;
+      const n = docs.length;
+      docs = docs.filter((d) => typeof d?.p === 'string' && inRestoreScope(d.p, scope));
+      outOfScope = n - docs.length;
+    }
     const from = typeof req.body?.fromCloud === 'string' ? req.body.fromCloud : null;
     const to = ensureCloudinaryConfigured();
-    res.json(await restoreFirestoreDocs(docs, r.mode, {
+    const out = await restoreFirestoreDocs(docs, r.mode, {
       rewriteCloud: from && to && from !== to ? { from, to } : null,
       protectUid: req.user.uid,
-    }));
+    });
+    res.json({ ...out, skipped: out.skipped + outOfScope });
   } catch (err) { fail(req, res, 'firestore', err); }
 };
 
