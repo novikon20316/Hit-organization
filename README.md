@@ -73,14 +73,17 @@ In-app, push (Expo), email (Brevo) and SMS, with per-tab unread badges. A WhatsA
 
 ---
 
-## 🆕 Latest Updates (October 2026)
+## 📅 Scheduling and Meetings (November 2026)
 
-### 📹 Zoom defense meetings (in development, not live yet)
-Defenses can now be **in person**, **Zoom** or **hybrid**. One shared logistics form for coordinators, administrative coordinators and system admins sets the format, time, building/room and length.
+Three integrations take the back-and-forth out of finding a time and meeting: **Zoom** for the defense itself, **Google Calendar** for supervisors' meetings and availability, and **Doodle** (coming next) for finding a time that suits a whole group.
+
+### 📹 Zoom defense meetings
+Defenses can be **in person**, **Zoom** or **hybrid**. One shared logistics form for coordinators, administrative coordinators and system admins sets the format, date, time, building/room and length, and staff can still edit it after scheduling, until grading starts.
 - When the server has Zoom credentials, saving the defense **creates the Zoom meeting automatically** through Zoom's API, and updates or deletes it when the defense changes
 - Without credentials, staff paste a meeting link by hand, so nothing breaks before Zoom is set up
-- Meetings are created with a waiting room, passcode, mute on entry and no joining before the host
-- Students, examiners and the defense-access page show the format and the join link. Defense emails include the link
+- Meetings are created with a waiting room, passcode, mute on entry and no joining before the host. The host's start link is fetched on demand and never stored
+- Students, examiners and the external-examiner access page show the format and the join link. Defense emails include the link
+- Moving the defense date re-issues external examiners' access automatically and revokes the old access
 - **Before go-live:** a licensed Zoom account (an institutional HIT licence or one Zoom Pro seat), the credentials stored in Secret Manager, and a privacy-policy update naming Zoom
 
 Server configuration (`server/src/services/zoomService.ts`, Zoom Server-to-Server OAuth app):
@@ -91,6 +94,22 @@ ZOOM_CLIENT_ID=...
 ZOOM_CLIENT_SECRET=...
 ZOOM_HOST_USER=defenses@example.com   # optional, the licensed account that hosts every meeting
 ```
+
+### 🗓 Google Calendar for supervisors
+Supervisors can connect their Google Calendar from the dashboard (web or mobile). This is a separate, optional consent from Google sign-in, and it can be disconnected at any time.
+- **Meeting sync:** when a student picks one of the meeting times a supervisor proposed for an application, the meeting goes on the supervisor's Google Calendar automatically and the student gets a real calendar invite. Both sides get a reminder an hour before
+- **"Suggest times":** the system reads only the supervisor's **free/busy** status, never event titles or details, and suggests free one-hour windows, Sunday–Thursday 09:00–17:00, over the next two weeks
+- Calendar sync is optional: if a supervisor isn't connected or revokes access, scheduling still works inside the system
+- Supervisors who connected before the free/busy feature need to reconnect once to allow it
+
+Server code: `server/src/services/googleCalendarService.ts`.
+
+### 📊 Doodle scheduling polls (coming soon)
+Next up is a **Doodle** integration for scheduling that involves several people, such as committee meetings and defenses with multiple examiners. Instead of everyone answering separately inside the system, staff will be able to open a Doodle poll with the candidate times and let participants vote in a tool they already know. Details will be added here once it ships.
+
+---
+
+## 🆕 Latest Updates (October 2026)
 
 ### 🔐 Security round
 - Two-factor authentication enforcement, which can be limited to chosen faculties and to staff, students or both. The server now checks that each session actually passed the 2FA code
