@@ -26,7 +26,7 @@ import {
   EXAM_DATE_FINAL_REVIEW,
   EXAM_SCHEDULED,
   EXAM_COMMITTEE_REVIEW,
-  EXAMINER_COUNT,
+  examinerCountFor,
   DATES_PER_PARTICIPANT,
   AVAILABILITY_WINDOW_DAYS,
   MIN_EXAM_MINUTES,
@@ -160,7 +160,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     examinerCount: exam.examiners.length,
     myFormSubmitted: !!myForm,
     formOpen: formGate.open,
-    rules: { examinerCount: EXAMINER_COUNT, datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES },
+    rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES },
   };
 }
 

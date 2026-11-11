@@ -83,8 +83,17 @@ export function isThesisExamStatus(status: string | null | undefined): boolean {
   return !!status && (THESIS_EXAM_STATUSES as readonly string[]).includes(status);
 }
 
-/** How many examiners the supervisor nominates (the faculty's answer). */
+/** Fallback for how many examiners the supervisor nominates. The real
+ *  number is the workflow template's examinerCount, which enrollment copies
+ *  onto the milestone — see examinerCountFor. */
 export const EXAMINER_COUNT = 2;
+
+/** How many examiners THIS exam needs: the template's examinerCount as
+ *  snapshotted on the milestone, falling back to EXAMINER_COUNT. */
+export function examinerCountFor(milestone: FirebaseFirestore.DocumentData | undefined): number {
+  const n = milestone?.examinerCount;
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 10 ? n : EXAMINER_COUNT;
+}
 /** How many dates each participant picks. */
 export const DATES_PER_PARTICIPANT = 5;
 /** Days ahead of the round's opening day a date may be picked. */
@@ -499,8 +508,8 @@ async function openThesisExam(ref: FirebaseFirestore.DocumentReference, m: Fireb
   await notifyUsers(supervisors, doc, {
     titleHe: 'יש למנות בוחנים לבחינת התזה',
     titleEn: 'Nominate the thesis examiners',
-    bodyHe: `התזה "${title.he}" אושרה. יש למנות ${EXAMINER_COUNT} בוחנים לבחינה — המינוי יועבר לאישור ראש בית הספר ללימודים מתקדמים.`,
-    bodyEn: `The thesis "${title.en}" was approved. Please nominate ${EXAMINER_COUNT} examiners for the exam — the nomination goes to the head of the graduate school for approval.`,
+    bodyHe: `התזה "${title.he}" אושרה. יש למנות ${examinerCountFor(m)} בוחנים לבחינה — המינוי יועבר לאישור ראש בית הספר ללימודים מתקדמים.`,
+    bodyEn: `The thesis "${title.en}" was approved. Please nominate ${examinerCountFor(m)} examiners for the exam — the nomination goes to the head of the graduate school for approval.`,
   }, { pending: true });
   await notifyUsers(m.studentIds ?? [], doc, {
     titleHe: 'שלב הבחינה נפתח',
@@ -543,8 +552,9 @@ export async function submitNomination(milestoneId: string, actor: { uid: string
   if (![milestone.supervisorId, milestone.secondarySupervisorId].includes(actor.uid)) {
     throw new ThesisExamError('רק מנחה הפרויקט רשאי/ת למנות בוחנים.', "Only the project's supervisor may nominate examiners.", 403);
   }
-  if (!Array.isArray(raw) || raw.length !== EXAMINER_COUNT) {
-    throw new ThesisExamError(`יש למנות בדיוק ${EXAMINER_COUNT} בוחנים.`, `Nominate exactly ${EXAMINER_COUNT} examiners.`);
+  const needed = examinerCountFor(milestone);
+  if (!Array.isArray(raw) || raw.length !== needed) {
+    throw new ThesisExamError(`יש למנות בדיוק ${needed} בוחנים.`, `Nominate exactly ${needed} examiners.`);
   }
   const candidates = new Map((await internalExaminerCandidates(milestone)).map((c) => [c.uid, c]));
   const examiners: Nominee[] = [];
@@ -724,7 +734,15 @@ export async function decideNomination(
 async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<{ participants: Participant[]; committeeId: string | null; committeeMemberIds: string[] }> {
   const project = await projectOf(milestone.projectId);
   const committee = await resolveCommitteeForMilestone(milestone, project).catch(() => null);
-  const committeeMemberIds = committee ? [...new Set([...(committee.memberIds ?? []), committee.chairmanId].filter(Boolean) as string[])] : [];
+  // The project's own supervisor can't sit on the committee that judges
+  // their student's exam (conflict of interest — same rule as the committee
+  // stage's COI hold). They still take part, as the supervisor; a per-
+  // milestone substitution by the administrative coordinator is already
+  // applied by resolveCommitteeForMilestone.
+  const supervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
+  const committeeMemberIds = committee
+    ? [...new Set([...(committee.memberIds ?? []), committee.chairmanId].filter(Boolean) as string[])].filter((id) => !supervisorIds.includes(id))
+    : [];
   const byKey = new Map<string, Participant>();
   const addUser = async (uid: string, role: ParticipantRole) => {
     const key = `u:${uid}`;
