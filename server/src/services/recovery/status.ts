@@ -114,6 +114,14 @@ function runOut(v: unknown) {
   return { ...r, at: ms(r.at) };
 }
 
+/** True when the latest daily/weekly/manual run that succeeded reached `dest`. */
+function deliveredTo(s: Record<string, unknown>, dest: string): boolean {
+  return ['last_daily', 'last_weekly', 'last_manual'].some((k) => {
+    const r = s[k] as RunSummary | undefined;
+    return !!r?.ok && !!r.locations?.[dest];
+  });
+}
+
 export async function getRecoveryStatus() {
   const env = recoveryEnv();
   const fingerprint = await currentKeyFingerprint();
@@ -140,7 +148,15 @@ export async function getRecoveryStatus() {
     });
   const lastOk = ms(s.lastSuccessAt);
   return {
-    configured: { publicKey: !!fingerprint, bucket: !!env.bucket, drive: !!env.drive, job: env.jobName },
+    // Drive credentials live only on the recovery-backup job (the api never
+    // uploads to Drive), so "configured" also counts a recent run that
+    // actually delivered there.
+    configured: {
+      publicKey: !!fingerprint,
+      bucket: !!env.bucket || deliveredTo(s, 'bucket'),
+      drive: !!env.drive || deliveredTo(s, 'drive'),
+      job: env.jobName,
+    },
     key: {
       fingerprint,
       firstSeenAt: keyFirstSeen,
