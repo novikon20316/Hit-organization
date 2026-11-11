@@ -25,6 +25,35 @@ export function isShabbat(date: string): boolean {
   return new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
 }
 
+/** Israel daylight-saving rule (since 2013): summer time from the Friday
+ *  before March's last Sunday until October's last Sunday. Same pure date
+ *  math as the server's services/thesisExam.ts, so all sides agree. */
+function isIsraelSummerTime(date: string): boolean {
+  const y = Number(date.slice(0, 4));
+  const lastSunday = (month: number) => {
+    const d = new Date(Date.UTC(y, month + 1, 0));
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    return d;
+  };
+  const start = lastSunday(2);
+  start.setUTCDate(start.getUTCDate() - 2);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return date >= iso(start) && date < iso(lastSunday(9));
+}
+
+/** Latest end time on a Friday (Shabbat comes in): 15:30 in winter, 16:30
+ *  in summer. null on any other day. */
+export function fridayLatestEnd(date: string): string | null {
+  if (!date || new Date(`${date}T12:00:00Z`).getUTCDay() !== 5) return null;
+  return isIsraelSummerTime(date) ? '16:30' : '15:30';
+}
+
+/** The latest hour an exam may end on that date. */
+export function latestEndFor(date: string): string {
+  return fridayLatestEnd(date) ?? EXAM_DAY_END;
+}
+
+
 /** Israel's date and clock — the server's window and "already passed" check
  *  (services/thesisExam.ts validateAvailability) are in Asia/Jerusalem, so a
  *  device in another zone must offer the same days. Falls back to the device
@@ -120,6 +149,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     if (d < now.date || d > window.end) return he ? 'התאריך מחוץ לטווח המותר — יש לבטל אותו ולבחור אחר.' : 'This date is outside the allowed range — unselect it and pick another.';
     if (isShabbat(d)) return he ? 'לא ניתן לבחור יום שבת.' : 'Saturday (Shabbat) cannot be picked.';
     if ([pk.from, pk.to].some((t) => t < EXAM_DAY_START || t > EXAM_DAY_END)) return he ? `ניתן לבחור רק שעות בין ${EXAM_DAY_START} ל-${EXAM_DAY_END}.` : `Only hours between ${EXAM_DAY_START} and ${EXAM_DAY_END}.`;
+    const fridayEnd = fridayLatestEnd(d);
+    if (fridayEnd && (pk.to > fridayEnd || pk.from >= fridayEnd)) return he ? `יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).` : `Friday — hours only until ${fridayEnd} (Shabbat begins).`;
     if (toMin(pk.to) <= toMin(pk.from)) return he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.';
     if (d === now.date && toMin(pk.to) <= toMin(now.time)) return he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.';
     return null;
@@ -145,8 +176,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
       <Text style={{ fontSize: 12, color: C.muted, textAlign: isRtl ? 'right' : 'left' }}>
         {he
-          ? `בחר/י ${count} תאריכים (${chosen.length}/${count}), ובכל אחד את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
-          : `Pick ${count} dates (${chosen.length}/${count}) and the hours you're free on each (${EXAM_DAY_START}–${EXAM_DAY_END}, no Saturdays). The system sets the time everyone shares.`}
+          ? `בחר/י ${count} תאריכים (${chosen.length}/${count}), ובכל אחד את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, בשישי עד כניסת השבת, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
+          : `Pick ${count} dates (${chosen.length}/${count}) and the hours you're free on each (${EXAM_DAY_START}–${EXAM_DAY_END}, Fridays until Shabbat comes in, no Saturdays). The system sets the time everyone shares.`}
       </Text>
       <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
         {days.map((d) => {
@@ -176,8 +207,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
             {formatExamDay(d, lang, { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
           <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12 }}>
-            <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
-            <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
+            <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(d)} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
+            <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(d)} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
           </View>
           {!!dayIssue(d) && (
             <Text style={{ fontSize: 12, color: C.danger, textAlign: isRtl ? 'right' : 'left' }}>⚠ {dayIssue(d)}</Text>

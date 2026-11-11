@@ -18,7 +18,7 @@ import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
 import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
-import { AvailabilityPicker, EXAM_DAY_END, EXAM_DAY_START, EXAM_TIMES, isShabbat } from '@/components/thesisExam/AvailabilityPicker';
+import { AvailabilityPicker, EXAM_DAY_START, EXAM_TIMES, fridayLatestEnd, isShabbat, latestEndFor } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamFormPanel, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamFormPanel';
 
 export default function ThesisExamPage() {
@@ -368,12 +368,15 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
   // Same rules as the participants' picker (and the server): no Shabbat,
   // daytime hours only — the hour lists simply don't offer night times.
   const dateBad = !!date && isShabbat(date);
-  const timesBad = !!from && !!to && to <= from;
+  const fridayEnd = fridayLatestEnd(date);
+  const fridayBad = !!fridayEnd && ((!!to && to > fridayEnd) || (!!from && from >= fridayEnd));
+  const timesBad = fridayBad || (!!from && !!to && to <= from);
   const fieldCls = (bad: boolean) => `rounded-md border px-2 py-1 text-sm ${bad ? 'border-danger bg-surface ring-2 ring-danger' : 'border-line bg-surface'}`;
 
   const submit = async () => {
     if (!date || !from || !to) { setError(he ? 'יש לבחור תאריך, שעת התחלה ושעת סיום.' : 'Choose a date, a start time and an end time.'); return; }
     if (dateBad) { setError(he ? 'לא ניתן לקבוע בחינה ביום שבת.' : 'No exams on Saturday (Shabbat).'); return; }
+    if (fridayBad) { setError(he ? `ביום שישי ניתן לקבוע עד ${fridayEnd} בלבד.` : `On Friday only until ${fridayEnd}.`); return; }
     if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
     setBusy(true);
     setError('');
@@ -417,16 +420,17 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
         <label className="text-xs text-muted" htmlFor={`coord-from-${exam.milestoneId}`}>{he ? 'משעה' : 'From'}</label>
         <select id={`coord-from-${exam.milestoneId}`} value={from} onChange={(e) => { setFrom(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
           <option value="">--:--</option>
-          {EXAM_TIMES.filter((t) => t < EXAM_DAY_END).map((t) => <option key={t} value={t}>{t}</option>)}
+          {EXAM_TIMES.filter((t) => t < latestEndFor(date)).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <label className="text-xs text-muted" htmlFor={`coord-to-${exam.milestoneId}`}>{he ? 'עד שעה' : 'To'}</label>
         <select id={`coord-to-${exam.milestoneId}`} value={to} onChange={(e) => { setTo(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
           <option value="">--:--</option>
-          {EXAM_TIMES.filter((t) => t > EXAM_DAY_START).map((t) => <option key={t} value={t}>{t}</option>)}
+          {EXAM_TIMES.filter((t) => t > EXAM_DAY_START && t <= latestEndFor(date)).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       {dateBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'יום שבת — לא ניתן לקבוע בו בחינה.' : 'Saturday (Shabbat) — no exams.'}</p>}
-      {timesBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'}</p>}
+      {fridayBad && <p className="mt-1 text-xs text-danger">⚠ {he ? `יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).` : `Friday — hours only until ${fridayEnd} (Shabbat begins).`}</p>}
+      {timesBad && !fridayBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'}</p>}
       <label htmlFor={`coord-note-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה (לא חובה)' : 'Note (optional)'}</label>
       <textarea id={`coord-note-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
       {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}

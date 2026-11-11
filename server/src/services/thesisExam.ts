@@ -104,9 +104,40 @@ export function isShabbat(date: string): boolean {
   return dayjs(date).day() === 6;
 }
 
+/** Israel daylight-saving rule (since 2013): summer time starts on the Friday
+ *  before the last Sunday of March and ends on the last Sunday of October.
+ *  Pure date math on purpose — web and mobile carry the identical function,
+ *  so all three agree without depending on a device's time-zone database. */
+function isIsraelSummerTime(date: string): boolean {
+  const y = Number(date.slice(0, 4));
+  const lastSunday = (month: number) => {
+    const d = new Date(Date.UTC(y, month + 1, 0)); // last day of the month
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    return d;
+  };
+  const start = lastSunday(2);
+  start.setUTCDate(start.getUTCDate() - 2);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return date >= iso(start) && date < iso(lastSunday(9));
+}
+
+/** Latest end time on a Friday (Shabbat comes in): 15:30 in winter, 16:30
+ *  in summer. null on any other day. */
+export function fridayLatestEnd(date: string): string | null {
+  if (dayjs(date).day() !== 5) return null;
+  return isIsraelSummerTime(date) ? '16:30' : '15:30';
+}
+
 function assertExamTime(date: string, from: string, to: string): void {
   if (isShabbat(date)) {
     throw new ThesisExamError(`${formatDay(date)} הוא יום שבת — לא ניתן לקבוע בו בחינה.`, `${formatDay(date)} is a Saturday — no exams on Shabbat.`);
+  }
+  const fridayEnd = fridayLatestEnd(date);
+  if (fridayEnd && to > fridayEnd) {
+    throw new ThesisExamError(
+      `${formatDay(date)} הוא יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).`,
+      `${formatDay(date)} is a Friday — hours only until ${fridayEnd} (Shabbat begins).`,
+    );
   }
   if (from < EXAM_DAY_START || to > EXAM_DAY_END) {
     throw new ThesisExamError(

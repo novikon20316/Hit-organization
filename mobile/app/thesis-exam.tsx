@@ -16,7 +16,7 @@ import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/s
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
-import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, EXAM_DAY_END } from '@/components/thesisExam/AvailabilityPicker';
+import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, fridayLatestEnd, latestEndFor } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
 const errText = (err: any, fallback: string) => err?.response?.data?.message ?? fallback;
@@ -455,6 +455,8 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
 
   const submit = async () => {
     if (!date) { setError(he ? 'יש לבחור תאריך.' : 'Choose a date.'); return; }
+    const fridayEnd = fridayLatestEnd(date);
+    if (fridayEnd && (to > fridayEnd || from >= fridayEnd)) { setError(he ? `יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).` : `Friday — hours only until ${fridayEnd} (Shabbat begins).`); return; }
     if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
     setBusy(true);
     setError('');
@@ -507,8 +509,8 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
         })}
       </ScrollView>
       <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
-        <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
-        <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
+        <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(date)} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
+        <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(date)} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
       </View>
       <TextInput
         accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
