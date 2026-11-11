@@ -132,6 +132,12 @@ function assertExamTime(date: string, from: string, to: string): void {
   if (isShabbat(date)) {
     throw new ThesisExamError(`${formatDay(date)} הוא יום שבת — לא ניתן לקבוע בו בחינה.`, `${formatDay(date)} is a Saturday — no exams on Shabbat.`);
   }
+  if (minutesOf(to) - minutesOf(from) < MIN_EXAM_MINUTES) {
+    throw new ThesisExamError(
+      `בתאריך ${formatDay(date)}: יש לבחור טווח של ${MIN_EXAM_MINUTES} דקות לפחות — זה האורך המינימלי של בחינה.`,
+      `On ${formatDay(date)}: pick at least ${MIN_EXAM_MINUTES} minutes — the shortest an exam can be.`,
+    );
+  }
   const fridayEnd = fridayLatestEnd(date);
   if (fridayEnd && to > fridayEnd) {
     throw new ThesisExamError(

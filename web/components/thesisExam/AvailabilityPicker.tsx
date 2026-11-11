@@ -27,6 +27,17 @@ function israelNow(): { date: string; time: string } {
 export const EXAM_DAY_START = '06:00';
 export const EXAM_DAY_END = '22:00';
 
+/** Shortest exam the system schedules — server's MIN_EXAM_MINUTES. Every
+ *  picked range must be at least this long, or it could never become the exam. */
+export const EXAM_MIN_MINUTES = 60;
+
+/** "HH:MM" moved by `minutes`. */
+export function shiftTime(t: string, minutes: number): string {
+  const [h, m] = t.split(':').map(Number);
+  const total = h! * 60 + m! + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export function isShabbat(date: string): boolean {
   return new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
 }
@@ -153,6 +164,9 @@ export function AvailabilityPicker({
     if (r.from && r.to && r.to <= r.from) {
       return { date: false, from: true, to: true, message: he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.' };
     }
+    if (r.from && r.to && r.to < shiftTime(r.from, EXAM_MIN_MINUTES)) {
+      return { date: false, from: true, to: true, message: he ? `יש לבחור טווח של ${EXAM_MIN_MINUTES} דקות לפחות — זה האורך המינימלי של בחינה.` : `Pick at least ${EXAM_MIN_MINUTES} minutes — the shortest an exam can be.` };
+    }
     if (r.date === now.date && r.to && r.to <= now.time) {
       return { date: false, from: true, to: true, message: he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.' };
     }
@@ -188,10 +202,14 @@ export function AvailabilityPicker({
   // Only daytime quarter hours can be chosen ("from" can't be the last one,
   // "to" can't be the first). A saved value outside the list is still shown
   // so its row's red message makes sense.
-  const timeOptions = (value: string, kind: 'from' | 'to', date: string) => {
-    // On a Friday the list stops at 15:30 (winter) / 16:30 (summer).
+  const timeOptions = (value: string, kind: 'from' | 'to', date: string, from = '') => {
+    // On a Friday the list stops at 15:30 (winter) / 16:30 (summer). Every
+    // range must be at least EXAM_MIN_MINUTES long, so "from" stops an hour
+    // before the day's end and "to" starts an hour after the chosen start.
     const end = latestEndFor(date);
-    const list = EXAM_TIMES.filter((t) => (kind === 'from' ? t < end : t > EXAM_DAY_START && t <= end));
+    const lastStart = shiftTime(end, -EXAM_MIN_MINUTES);
+    const firstEnd = shiftTime(from && from > EXAM_DAY_START ? from : EXAM_DAY_START, EXAM_MIN_MINUTES);
+    const list = EXAM_TIMES.filter((t) => (kind === 'from' ? t <= lastStart : t >= firstEnd && t <= end));
     const all = value && !list.includes(value) ? [value, ...list] : list;
     return [
       <option key="" value="">--:--</option>,
@@ -232,7 +250,7 @@ export function AvailabilityPicker({
                 </select>
                 <label className="text-xs text-muted" htmlFor={`exam-to-${i}`}>{he ? 'עד שעה' : 'To'}</label>
                 <select id={`exam-to-${i}`} value={r.to} onChange={(e) => update(i, 'to', e.target.value)} aria-invalid={!!issue?.to} aria-describedby={issue ? `exam-row-err-${i}` : undefined} className={field(!!issue?.to)}>
-                  {timeOptions(r.to, 'to', r.date)}
+                  {timeOptions(r.to, 'to', r.date, r.from)}
                 </select>
               </div>
               {issue && <p id={`exam-row-err-${i}`} className="mt-1 ps-7 text-xs text-danger">⚠ {issue.message}</p>}

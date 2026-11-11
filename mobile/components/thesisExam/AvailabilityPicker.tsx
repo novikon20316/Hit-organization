@@ -21,6 +21,17 @@ const STEP = 15;
 export const EXAM_DAY_START = '06:00';
 export const EXAM_DAY_END = '22:00';
 
+/** Shortest exam the system schedules — server's MIN_EXAM_MINUTES. Every
+ *  picked range must be at least this long, or it could never become the exam. */
+export const EXAM_MIN_MINUTES = 60;
+
+/** "HH:MM" moved by `minutes`. */
+export function shiftTime(t: string, minutes: number): string {
+  const [h, m] = t.split(':').map(Number);
+  const total = h! * 60 + m! + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export function isShabbat(date: string): boolean {
   return new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
 }
@@ -152,6 +163,7 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     const fridayEnd = fridayLatestEnd(d);
     if (fridayEnd && (pk.to > fridayEnd || pk.from >= fridayEnd)) return he ? `יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).` : `Friday — hours only until ${fridayEnd} (Shabbat begins).`;
     if (toMin(pk.to) <= toMin(pk.from)) return he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.';
+    if (toMin(pk.to) - toMin(pk.from) < EXAM_MIN_MINUTES) return he ? `יש לבחור טווח של ${EXAM_MIN_MINUTES} דקות לפחות — זה האורך המינימלי של בחינה.` : `Pick at least ${EXAM_MIN_MINUTES} minutes — the shortest an exam can be.`;
     if (d === now.date && toMin(pk.to) <= toMin(now.time)) return he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.';
     return null;
   };
