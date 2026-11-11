@@ -62,6 +62,26 @@ export interface RunSummary {
   durationMs: number;
 }
 
+/** Live state of the current/last backup run (server status.ts). */
+export interface BackupProgress {
+  state: 'starting' | 'running' | 'done' | 'failed' | 'stalled';
+  kind: string | null;
+  phase: 'auth' | 'firestore' | 'files' | 'finishing' | null;
+  percent: number;
+  authUsers: number;
+  collectionsDone: number;
+  collectionsTotal: number;
+  docs: number;
+  filesDone: number;
+  filesTotal: number;
+  fileBytesDone: number;
+  fileBytesTotal: number;
+  startedAt: number | null;
+  updatedAt: number | null;
+  finishedAt: number | null;
+  error: string | null;
+}
+
 export interface RecoveryStatus {
   configured: { publicKey: boolean; bucket: boolean; drive: boolean; job: string };
   key: {
@@ -72,6 +92,7 @@ export interface RecoveryStatus {
     passphraseRotateAfterDays: number;
     holders: Array<{ uid: string; name: string; verifiedAt: number | null; passphraseSealedAt: number | null; passphraseDue: boolean }>;
   };
+  progress: BackupProgress | null;
   lastSuccessAt: number | null;
   lastFailureAt: number | null;
   stale: boolean;

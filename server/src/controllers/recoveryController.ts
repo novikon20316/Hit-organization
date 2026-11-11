@@ -23,6 +23,7 @@ import { RecoveryEncryptor, type AuthUserLine, type FirebaseHashConfig, type FsD
 import { recoveryEnv } from '../services/recovery/config.js';
 import { currentKeyFingerprint, getRecoveryStatus, recordKeyTest } from '../services/recovery/status.js';
 import { journalStatus } from '../services/recovery/journal.js';
+import { setProgress } from '../services/recovery/job.js';
 import {
   applyOutageGrace, disableUsersNotIn, dryRunAuthUsers, dryRunFirestoreDocs, restoreAuthUsers,
   restoreFile, restoreFirestoreDocs, revokeAllSessions, type RestoreMode,
@@ -103,6 +104,7 @@ export const runRecoveryBackupNow = async (req: AuthenticatedRequest, res: Respo
       name: `projects/${project}/locations/${env.jobRegion}/jobs/${env.jobName}`,
       requestBody: { overrides: { containerOverrides: [{ args: ['dist/scripts/recovery.js', 'backup', '--job', '--kind', kind] }] } },
     });
+    await setProgress({ state: 'starting', kind, phase: null, percent: 0, startedAt: Timestamp.now(), error: null });
     await logAuditEvent({
       userId: req.user.uid, userRole: 'system_admin', action: 'recovery_backup_requested', entityType: 'recovery', entityId: kind,
       userDisplayName: await displayName(req.user.uid),

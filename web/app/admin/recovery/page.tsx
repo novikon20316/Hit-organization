@@ -77,6 +77,14 @@ export default function RecoveryPage() {
     return () => { cancelled = true; };
   }, [isAllowed, reloadTick]);
 
+  // While a backup runs, refresh every 3 s so the progress bar moves.
+  const backupActive = status?.progress?.state === 'starting' || status?.progress?.state === 'running';
+  useEffect(() => {
+    if (!backupActive) return;
+    const id = setInterval(() => setReloadTick((n) => n + 1), 3000);
+    return () => clearInterval(id);
+  }, [backupActive]);
+
   if (guardLoading || !isAllowed) {
     return <div className="flex min-h-screen items-center justify-center bg-paper"><p className="text-sm text-muted">…</p></div>;
   }
@@ -125,6 +133,54 @@ function RunRow({ label, run, t, lang }: { label: string; run: RunSummary | null
   );
 }
 
+const KIND_LABEL: Record<string, { he: string; en: string }> = {
+  daily: { he: 'יומי', en: 'Daily' },
+  weekly: { he: 'שבועי (מלא)', en: 'Weekly (full)' },
+  manual: { he: 'ידני', en: 'Manual' },
+};
+
+/** Live bar for the running backup; after it ends, a one-line result that
+ *  stays until the next run (the table below has the details). */
+function BackupProgressBar({ p, t, lang }: { p: NonNullable<RecoveryStatus['progress']>; t: T; lang: 'he' | 'en' }) {
+  const kind = p.kind ? (KIND_LABEL[p.kind]?.[lang] ?? p.kind) : '';
+  // Ticks once a second while running (elapsed time), and keeps "how long
+  // ago did it finish" honest; the clock is read in the effect, not render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (p.state === 'done' || p.state === 'failed' || p.state === 'stalled') {
+    // Only show a recent outcome; older ones are just the table.
+    if (!p.finishedAt && p.state !== 'stalled') return null;
+    if (p.finishedAt && now - p.finishedAt > 6 * 3_600_000) return null;
+    const text = p.state === 'done'
+      ? t(`✅ גיבוי ${kind} הסתיים ב-${fmtDate(p.finishedAt, lang)}`, `✅ ${kind} backup finished at ${fmtDate(p.finishedAt, lang)}`)
+      : p.state === 'failed'
+        ? t(`❌ גיבוי ${kind} נכשל: ${p.error ?? ''}`, `❌ ${kind} backup failed: ${p.error ?? ''}`)
+        : t('⚠ הגיבוי הפסיק לדווח יותר מ-10 דקות — כנראה נעצר. בדקו את משימת recovery-backup ב-Google Cloud.', '⚠ The backup stopped reporting for over 10 minutes — it probably died. Check the recovery-backup job in Google Cloud.');
+    return <p className={`mb-3 rounded-md px-3 py-2 text-sm ${p.state === 'done' ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`} role="status">{text}</p>;
+  }
+  const step = p.state === 'starting'
+    ? t('מפעיל את משימת הגיבוי (עד דקה)…', 'Starting the backup job (up to a minute)…')
+    : p.phase === 'auth' ? t('קורא משתמשים וסיסמאות…', 'Reading logins…')
+      : p.phase === 'firestore' ? t(`נתונים: ${p.collectionsDone}/${p.collectionsTotal} אוספים · ${p.docs} רשומות`, `Data: ${p.collectionsDone}/${p.collectionsTotal} collections · ${p.docs} documents`)
+        : p.phase === 'files' ? t(`קבצים: ${p.filesDone}/${p.filesTotal} · ${fmtBytes(p.fileBytesDone)} מתוך ${fmtBytes(p.fileBytesTotal)}`, `Files: ${p.filesDone}/${p.filesTotal} · ${fmtBytes(p.fileBytesDone)} of ${fmtBytes(p.fileBytesTotal)}`)
+          : t('מסיים ושולח לכספת ול-Drive…', 'Finishing and sending to the vault and Drive…');
+  const elapsed = p.startedAt ? Math.max(0, Math.round((now - p.startedAt) / 1000)) : 0;
+  return (
+    <div className="mb-3 rounded-md border border-line bg-paper px-3 py-2" role="status" aria-live="polite">
+      <div className="mb-1 flex items-center justify-between gap-3 text-sm text-ink">
+        <span>⏳ {t(`גיבוי ${kind} רץ עכשיו`, `${kind} backup running`)} — {step}</span>
+        <span className="tabular-nums text-muted">{p.percent}% · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={p.percent} aria-valuemin={0} aria-valuemax={100}>
+        <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${Math.max(2, p.percent)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function StatusCard({ status, t, lang, onChanged }: { status: RecoveryStatus; t: T; lang: 'he' | 'en'; onChanged: () => void }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -135,9 +191,9 @@ function StatusCard({ status, t, lang, onChanged }: { status: RecoveryStatus; t:
     setBusy(true); setMsg('');
     try {
       await recoveryApi.runNow(kind, code);
-      setMsg(t('הגיבוי התחיל. הוא רץ ברקע (כמה דקות, ועם קבצים יותר). רעננו את הדף בהמשך.', 'Backup started. It runs in the background (minutes; longer with files). Refresh later.'));
+      setMsg('');
       setCode('');
-      setTimeout(onChanged, 5000);
+      onChanged();
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -149,6 +205,7 @@ function StatusCard({ status, t, lang, onChanged }: { status: RecoveryStatus; t:
           {t('אין קובץ שחזור תקין מהיממה וחצי האחרונות. מנהלי המערכת קיבלו התראה בדוא"ל.', 'No successful recovery file in the last 36 hours. System admins were emailed.')}
         </p>
       )}
+      {status.progress && <BackupProgressBar p={status.progress} t={t} lang={lang} />}
       <ul className="mb-3 grid gap-1 text-sm sm:grid-cols-2">
         <li>{c.publicKey ? '✅' : '❌'} {t('מפתח ציבורי מוגדר בשרת', 'Public key set on the server')}</li>
         <li>{c.bucket ? '✅' : '❌'} {t('דלי נעול בפרויקט נפרד', 'Locked bucket in a separate project')}</li>

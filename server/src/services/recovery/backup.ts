@@ -133,6 +133,24 @@ export interface BackupOptions {
   /** Override the default (weekly/manual = all files, daily = last 8 days). */
   files?: 'all' | 'recent' | 'none';
   log?: (msg: string) => void;
+  /** Live progress for the admin page (job.ts throttles the writes). */
+  onProgress?: (p: BackupProgress) => void;
+}
+
+export type BackupPhase = 'auth' | 'firestore' | 'files' | 'finishing';
+
+export interface BackupProgress {
+  phase: BackupPhase;
+  /** 0–100 over the whole run. */
+  percent: number;
+  authUsers: number;
+  collectionsDone: number;
+  collectionsTotal: number;
+  docs: number;
+  filesDone: number;
+  filesTotal: number;
+  fileBytesDone: number;
+  fileBytesTotal: number;
 }
 
 export interface BackupResult {
@@ -190,7 +208,28 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
     warnings: [],
   };
 
+  // Weights per phase: without files Firestore is nearly all the work;
+  // with files, downloading them dominates.
+  const W = filesMode === 'none' ? { auth: 10, firestore: 85 } : { auth: 5, firestore: 25 };
+  const prog: BackupProgress = {
+    phase: 'auth', percent: 0, authUsers: 0, collectionsDone: 0, collectionsTotal: 0, docs: 0,
+    filesDone: 0, filesTotal: 0, fileBytesDone: 0, fileBytesTotal: 0,
+  };
+  const report = (phase: BackupPhase) => {
+    prog.phase = phase;
+    const fsFrac = prog.collectionsTotal ? prog.collectionsDone / prog.collectionsTotal : 0;
+    const fileFrac = prog.fileBytesTotal ? prog.fileBytesDone / prog.fileBytesTotal : (prog.filesTotal ? prog.filesDone / prog.filesTotal : 0);
+    const filesW = 100 - W.auth - W.firestore - 2;
+    let pct = phase === 'auth' ? 0 : W.auth;
+    if (phase === 'firestore') pct += W.firestore * fsFrac;
+    if (phase === 'files' || phase === 'finishing') pct += W.firestore + (filesMode === 'none' ? 0 : filesW * fileFrac);
+    if (phase === 'finishing') pct = 98;
+    prog.percent = Math.min(99, Math.round(pct));
+    opts.onProgress?.({ ...prog });
+  };
+
   async function* entries(): AsyncGenerator<Uint8Array> {
+    report('auth');
     // 1. Logins
     let pageToken: string | undefined;
     do {
@@ -205,10 +244,13 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
       manifest.warnings.push('No password hashes were returned — the service account lacks permission to read them; restored email/password users would need a password reset.');
     }
     log(`auth: ${manifest.authUsers} users (${manifest.authUsersWithPassword} with password)`);
+    prog.authUsers = manifest.authUsers;
 
     // 2. Firestore — every document as of ONE instant (readTime).
     const cols = (await db.listCollections()).filter((c) => !EXCLUDED_COLLECTIONS.has(c.id)).sort((a, b) => a.id.localeCompare(b.id));
     const snap = await openSnapshot(readTime);
+    prog.collectionsTotal = cols.length;
+    report('firestore');
     try {
       for (const col of cols) {
         let lines: FsDocLine[] = [];
@@ -228,6 +270,9 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
         if (lines.length) yield encodeEntry({ t: 'fs', collection: col.id, n: lines.length }, ndjson(lines));
         manifest.firestore[col.id] = count;
         log(`firestore: ${col.id} ${count}`);
+        prog.collectionsDone++;
+        prog.docs += count;
+        report('firestore');
       }
     } finally {
       snap.release();
@@ -252,6 +297,10 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
     manifest.filesIndexed = index.length;
     yield encodeEntry({ t: 'fileindex', n: index.length }, ndjson(index));
 
+    prog.filesTotal = include.length;
+    prog.fileBytesTotal = include.reduce((n, a) => n + a.bytes, 0);
+    report('files');
+
     // Sliding window of downloads, written in order.
     const queue = include.map((a) => ({ a, p: null as Promise<Buffer | Error> | null }));
     const start = (i: number) => {
@@ -264,6 +313,9 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
       const { a, p } = queue[i]!;
       const got = await p!;
       queue[i]!.p = null;
+      prog.filesDone++;
+      prog.fileBytesDone += a.bytes;
+      report('files');
       if (got instanceof Error) {
         manifest.warnings.push(`File not saved: ${a.type}/${a.resourceType}/${a.publicId} (${got.message.slice(0, 120)})`);
         continue;
@@ -277,6 +329,7 @@ export async function createRecoveryFile(opts: BackupOptions): Promise<BackupRes
     }
     log(`files: ${manifest.filesIncluded}/${include.length} saved (${(manifest.filesIncludedBytes / 1048576).toFixed(1)} MB), ${index.length} indexed`);
 
+    report('finishing');
     // 4. Manifest — always last
     manifest.finishedAt = new Date().toISOString();
     yield encodeEntry({ t: 'manifest' }, new TextEncoder().encode(JSON.stringify(manifest)));

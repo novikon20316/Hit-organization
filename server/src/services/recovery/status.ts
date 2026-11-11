@@ -126,11 +126,35 @@ export async function getRecoveryStatus() {
   const env = recoveryEnv();
   const fingerprint = await currentKeyFingerprint();
   if (fingerprint) await touchKey(fingerprint).catch(() => undefined);
-  const [statusSnap, keySnap, jobSnap] = await Promise.all([
+  const [statusSnap, keySnap, jobSnap, progressSnap] = await Promise.all([
     db.doc(STATUS_DOC).get(),
     db.doc(KEY_DOC).get(),
     db.collection('systemJobRuns').doc('recoveryBackup').get(),
+    db.doc('systemMeta/recoveryProgress').get(),
   ]);
+  const p = progressSnap.data();
+  const updatedAt = ms(p?.updatedAt);
+  const active = p?.state === 'starting' || p?.state === 'running';
+  // No update for 10 min while "running" = the job died without saying so.
+  const stalled = active && updatedAt != null && Date.now() - updatedAt > 10 * 60_000;
+  const progress = p ? {
+    state: stalled ? 'stalled' : (p.state as string),
+    kind: (p.kind as string) ?? null,
+    phase: (p.phase as string | null) ?? null,
+    percent: Number(p.percent ?? 0),
+    authUsers: Number(p.authUsers ?? 0),
+    collectionsDone: Number(p.collectionsDone ?? 0),
+    collectionsTotal: Number(p.collectionsTotal ?? 0),
+    docs: Number(p.docs ?? 0),
+    filesDone: Number(p.filesDone ?? 0),
+    filesTotal: Number(p.filesTotal ?? 0),
+    fileBytesDone: Number(p.fileBytesDone ?? 0),
+    fileBytesTotal: Number(p.fileBytesTotal ?? 0),
+    startedAt: ms(p.startedAt),
+    updatedAt,
+    finishedAt: ms(p.finishedAt),
+    error: (p.error as string | null) ?? null,
+  } : null;
   const s = statusSnap.data() ?? {};
   const k = keySnap.data() ?? {};
   const keyFirstSeen = k.fingerprint === fingerprint ? ms(k.firstSeenAt) : null;
@@ -165,6 +189,7 @@ export async function getRecoveryStatus() {
       passphraseRotateAfterDays: PASSPHRASE_ROTATE_AFTER_DAYS,
       holders,
     },
+    progress,
     lastSuccessAt: lastOk,
     lastFailureAt: ms(s.lastFailureAt),
     stale: !!fingerprint && (lastOk == null || Date.now() - lastOk > BACKUP_STALE_HOURS * 3_600_000),
