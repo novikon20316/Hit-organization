@@ -50,6 +50,11 @@ export interface RoadmapMilestone {
    *  simply not shown. */
   routing?: RoutingStage[];
   currentStageIndex?: number;
+  /** CS M.Sc. "בחינה" milestone — runs the server's thesisExam.ts flow
+   *  instead of its routing; see buildThesisExamChain. */
+  thesisExamFlow?: boolean;
+  /** Mirrored onto the milestone once both heads approved the exam time. */
+  examSchedule?: { date: string; from: string; to: string } | null;
 }
 
 export interface RoutingStage {
@@ -160,7 +165,43 @@ type ChainStep = { label: string; done: boolean; current?: boolean };
  *  buildApprovalChain — currentStageIndex is the stage currently awaiting
  *  action, so every stage before it is done; a 'graded' status parked ON a
  *  grade stage means that final grade stage itself already finished. */
+// Same as web's components/MilestoneTimeline.tsx buildThesisExamChain — the
+// CS "בחינה" milestone runs server/src/services/thesisExam.ts's own status
+// machine, never its template routing.
+const EXAM_STATUS_ORDER = [
+  'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
+  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
+] as const;
+
+function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
+  const he = lang === 'he';
+  const allDone = isCompletedStatus(m.status);
+  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(m.status);
+  const step = (status: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
+    const at = EXAM_STATUS_ORDER.indexOf(status);
+    return { label, done: allDone || (pos >= 0 && pos > at), current: m.status === status };
+  };
+  const sched = m.examSchedule;
+  const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י הבוחנים' : 'Exam held + examiners fill the thesis exam form';
+  const steps: ChainStep[] = [
+    step('exam_nomination', he ? 'מינוי 2 בוחנים ע״י המנחה' : 'Supervisor nominates 2 examiners'),
+    step('exam_nomination_review', he ? 'אישור המינוי ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the nomination'),
+    step('exam_availability', he ? 'בחירת 5 מועדים ע״י כל המשתתפים' : 'Every participant picks 5 dates'),
+  ];
+  if (m.status === 'exam_date_coordinator') {
+    steps.push(step('exam_date_coordinator', he ? 'קביעת מועד ע״י הרכזת האדמיניסטרטיבית (אין מועד משותף)' : 'Admin coordinator sets the time (no common slot)'));
+  }
+  steps.push(
+    step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
+    step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
+    step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang)} ${sched.from}–${sched.to}` : examLabel),
+    step('exam_committee_review', he ? 'בדיקת הוועדה' : 'Committee review'),
+  );
+  return steps;
+}
+
 function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
+  if (m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status)) return buildThesisExamChain(m, lang);
   const routing = (m.routing ?? []).filter((st) => st && typeof st.role === 'string');
   if (routing.length === 0) return [];
   // A 'rejected' milestone is back with the student — currentStageIndex still

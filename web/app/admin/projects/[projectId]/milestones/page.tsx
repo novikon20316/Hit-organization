@@ -83,6 +83,8 @@ function toMilestoneData(raw: Record<string, unknown> & { id: string }): Milesto
     examinerIds: Array.isArray(raw.examinerIds) ? (raw.examinerIds as string[]) : [],
     routing: Array.isArray(raw.routing) ? (raw.routing as RoutingStage[]) : undefined,
     currentStageIndex: typeof raw.currentStageIndex === 'number' ? raw.currentStageIndex : undefined,
+    thesisExamFlow: raw.thesisExamFlow === true,
+    examSchedule: raw.examSchedule && typeof raw.examSchedule === 'object' ? (raw.examSchedule as MilestoneData['examSchedule']) : null,
   };
 }
 

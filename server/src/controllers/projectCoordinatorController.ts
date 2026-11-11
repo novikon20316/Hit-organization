@@ -905,6 +905,10 @@ export const getStudentDetail = async (req: AuthenticatedRequest, res: Response)
         // generic supervisor→coordinator chain for every milestone.
         routing: Array.isArray(m.routing) ? m.routing.map((s: any) => ({ id: s.id, role: s.role, action: s.action })) : undefined,
         currentStageIndex: typeof m.currentStageIndex === 'number' ? m.currentStageIndex : undefined,
+        // CS "בחינה" milestone — its real chain is thesisExam.ts's own flow,
+        // not `routing` (see MilestoneTimeline's buildThesisExamChain).
+        thesisExamFlow: m.thesisExamFlow === true,
+        examSchedule: m.examSchedule ?? null,
       })),
     });
   } catch (error: any) {

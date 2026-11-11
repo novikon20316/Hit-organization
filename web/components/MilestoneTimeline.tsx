@@ -81,6 +81,11 @@ export interface MilestoneData {
    *  status-derived chain in buildApprovalChain. */
   routing?: RoutingStage[];
   currentStageIndex?: number;
+  /** CS M.Sc. "בחינה" milestone — runs server/src/services/thesisExam.ts's
+   *  own flow instead of its routing; see buildThesisExamChain. */
+  thesisExamFlow?: boolean;
+  /** Mirrored onto the milestone once both heads approved the exam time. */
+  examSchedule?: { date: string; from: string; to: string } | null;
 }
 
 export interface RoutingStage {
@@ -176,7 +181,50 @@ function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he'
   return steps;
 }
 
+// The CS M.Sc. "בחינה" milestone (thesisExamFlow) never goes through its
+// template routing — server/src/services/thesisExam.ts runs its own status
+// machine instead, so the generic routing chain would show steps (submission,
+// supervisor approval…) that never happen. Order matches that file's header.
+const EXAM_STATUS_ORDER = [
+  'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
+  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
+] as const;
+
+function isThesisExamMilestone(m: MilestoneData): boolean {
+  return !!m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status);
+}
+
+function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
+  const he = lang === 'he';
+  const allDone = isCompletedStatus(m.status);
+  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(m.status);
+  const step = (status: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
+    const at = EXAM_STATUS_ORDER.indexOf(status);
+    return { label, done: allDone || (pos >= 0 && pos > at), current: m.status === status };
+  };
+  const sched = m.examSchedule;
+  const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י הבוחנים' : 'Exam held + examiners fill the thesis exam form';
+  const steps: ChainStep[] = [
+    step('exam_nomination', he ? 'מינוי 2 בוחנים ע״י המנחה' : 'Supervisor nominates 2 examiners'),
+    step('exam_nomination_review', he ? 'אישור המינוי ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the nomination'),
+    step('exam_availability', he ? 'בחירת 5 מועדים ע״י כל המשתתפים' : 'Every participant picks 5 dates'),
+  ];
+  // Only reached when no common time was found (or the heads rejected every
+  // one) — shown just while it's actually happening.
+  if (m.status === 'exam_date_coordinator') {
+    steps.push(step('exam_date_coordinator', he ? 'קביעת מועד ע״י הרכזת האדמיניסטרטיבית (אין מועד משותף)' : 'Admin coordinator sets the time (no common slot)'));
+  }
+  steps.push(
+    step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
+    step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
+    step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang, { day: 'numeric', month: 'short', year: 'numeric' })} ${sched.from}–${sched.to}` : examLabel),
+    step('exam_committee_review', he ? 'בדיקת הוועדה' : 'Committee review'),
+  );
+  return steps;
+}
+
 function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
+  if (isThesisExamMilestone(m)) return buildThesisExamChain(m, lang);
   const isDefense = m.type === 'defense';
   const routing = (m.routing ?? []).filter((s) => s && typeof s.role === 'string');
   if (routing.length > 0) {
@@ -275,7 +323,7 @@ function MilestoneCard({
   // it for every role, system_admin included (see milestoneRouting.ts's
   // authorizeStageActor), so offering "Approve Grade" there only produced a
   // misleading "outside your assigned scope" error.
-  const awaitingCommittee = !!milestone.routing?.length && milestone.routing[milestone.currentStageIndex ?? 0]?.role === 'committee';
+  const awaitingCommittee = !isThesisExamMilestone(milestone) && !!milestone.routing?.length && milestone.routing[milestone.currentStageIndex ?? 0]?.role === 'committee';
   const canApprove = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && !awaitingCommittee && (milestone.status === 'supervisor_graded' || milestone.status === 'graded');
   const showCommitteeNotice = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && awaitingCommittee && !isCompleted && milestone.status !== 'pending' && milestone.status !== 'rejected';
   const canScheduleDefense = COORDINATOR_APPROVE_ROLES.includes(viewerRole) && isDefense && milestone.status === 'coordinator_approved' && !milestone.defenseDate;
