@@ -101,13 +101,22 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     }
   };
 
+  // Per-day problem, shown on that day's block (red frame + message) as soon
+  // as it exists — not only as one line under the whole picker.
+  const now = israelNow();
+  const dayIssue = (d: string): string | null => {
+    const pk = picks[d];
+    if (!pk) return null;
+    if (d < now.date || d > window.end) return he ? 'התאריך מחוץ לטווח המותר — יש לבטל אותו ולבחור אחר.' : 'This date is outside the allowed range — unselect it and pick another.';
+    if (toMin(pk.to) <= toMin(pk.from)) return he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.';
+    if (d === now.date && toMin(pk.to) <= toMin(now.time)) return he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.';
+    return null;
+  };
+  const badDays = chosen.filter((d) => dayIssue(d));
+
   const submit = async () => {
     if (chosen.length !== count) { setError(he ? `יש לבחור בדיוק ${count} תאריכים.` : `Pick exactly ${count} dates.`); return; }
-    const bad = chosen.find((d) => toMin(picks[d]!.to) <= toMin(picks[d]!.from));
-    if (bad) { setError(he ? `ב-${formatExamDay(bad, lang)} שעת הסיום חייבת להיות אחרי שעת ההתחלה.` : `On ${formatExamDay(bad, lang)} the end must be after the start.`); return; }
-    const now = israelNow();
-    if (chosen.some((d) => d < now.date || d > window.end)) { setError(he ? 'אחד התאריכים מחוץ לטווח המותר — יש לבחור מחדש.' : 'One of the dates is outside the allowed range — pick again.'); return; }
-    if (picks[now.date] && toMin(picks[now.date]!.to) <= toMin(now.time)) { setError(he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.'); return; }
+    if (badDays.length > 0) { setError(he ? 'יש לתקן את התאריכים המסומנים באדום.' : 'Fix the dates marked in red.'); return; }
     setBusy(true);
     setError('');
     try {
@@ -145,14 +154,22 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
         })}
       </View>
       {chosen.map((d) => (
-        <View key={d} style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line, gap: 6 }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, textAlign: isRtl ? 'right' : 'left' }}>
+        <View
+          key={d}
+          style={dayIssue(d)
+            ? { marginTop: 10, padding: 8, borderWidth: 1.5, borderColor: C.danger, borderRadius: 8, backgroundColor: C.dangerBg, gap: 6 }
+            : { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.line, gap: 6 }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '700', color: dayIssue(d) ? C.danger : C.ink, textAlign: isRtl ? 'right' : 'left' }}>
             {formatExamDay(d, lang, { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
           <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12 }}>
-            <Stepper lang={lang} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
-            <Stepper lang={lang} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
+            <Stepper lang={lang} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
+            <Stepper lang={lang} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
           </View>
+          {!!dayIssue(d) && (
+            <Text style={{ fontSize: 12, color: C.danger, textAlign: isRtl ? 'right' : 'left' }}>⚠ {dayIssue(d)}</Text>
+          )}
         </View>
       ))}
       {!!error && <Text style={{ marginTop: 8, fontSize: 12, color: C.danger, textAlign: isRtl ? 'right' : 'left' }} accessibilityRole="alert">{error}</Text>}
