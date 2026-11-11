@@ -74,6 +74,47 @@ interface ProcessSummary {
   completed: number;
   overdue: number;
 }
+interface FacultyProject {
+  id: string;
+  facultyId: string;
+  titleHe: string;
+  titleEn: string;
+  studentNames: string[];
+  supervisorId: string;
+  supervisorName: string;
+  status: string;
+  trackType: string;
+  currentMilestone: string;
+  currentMilestoneHe: string;
+  daysInStage: number;
+  active: boolean;
+  stuck: boolean;
+  completed: boolean;
+  overdue: boolean;
+}
+// Overview drill-down: ?faculty=<facultyId>&show=<category>. 'all' is what
+// the faculty name (and the box's Total) opens; the others match the box's
+// per-category counts one-to-one (same server-side flags they're tallied from).
+type FacultyCategory = 'all' | 'active' | 'stuck' | 'completed' | 'overdue';
+const FACULTY_CATEGORIES: FacultyCategory[] = ['all', 'active', 'stuck', 'completed', 'overdue'];
+const isFacultyCategory = (v: string | null): v is FacultyCategory => !!v && (FACULTY_CATEGORIES as string[]).includes(v);
+const FACULTY_CATEGORY_LABEL: Record<FacultyCategory, { he: string; en: string }> = {
+  all: { he: 'סה"כ', en: 'Total' },
+  active: { he: 'פעילים', en: 'Active' },
+  stuck: { he: 'תקועים', en: 'Stuck' },
+  completed: { he: 'סיימו', en: 'Done' },
+  overdue: { he: 'באיחור', en: 'Overdue' },
+};
+const FACULTY_CATEGORY_COLOR: Record<FacultyCategory, string | undefined> = {
+  all: undefined,
+  active: '#3E6C8C',
+  stuck: 'var(--danger)',
+  completed: 'var(--success)',
+  overdue: 'var(--accent)',
+};
+const facultyDrillHref = (facultyId: string, show: FacultyCategory) =>
+  `/grad_school_head/dashboard?tab=overview&faculty=${encodeURIComponent(facultyId)}&show=${show}`;
+
 interface StuckStudent {
   studentName: string;
   supervisorName: string;
@@ -142,9 +183,14 @@ function GradSchoolHeadDashboardContent() {
   // Tab switching now happens via GradSchoolHeadLayout's sidebar links.
   const paramTab = searchParams.get('tab');
   const tab: GradSchoolHeadTab = isGradSchoolHeadTab(paramTab) && (paramTab !== 'ungraded' || canSeeUngraded) ? paramTab : 'overview';
+  // Overview's per-faculty drill-down (see FacultyCategory above).
+  const drillFacultyId = tab === 'overview' ? searchParams.get('faculty') : null;
+  const paramShow = searchParams.get('show');
+  const drillCategory: FacultyCategory = isFacultyCategory(paramShow) ? paramShow : 'all';
   const [headName, setHeadName] = useState('');
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [processSummaries, setProcessSummaries] = useState<ProcessSummary[]>([]);
+  const [facultyProjects, setFacultyProjects] = useState<FacultyProject[]>([]);
   const [stuckStudents, setStuckStudents] = useState<StuckStudent[]>([]);
   const [examinerLoad, setExaminerLoad] = useState<ExaminerLoad[]>([]);
   const [approvedFinalGrades, setApprovedFinalGrades] = useState<ApprovedFinalGrade[]>([]);
@@ -170,6 +216,7 @@ function GradSchoolHeadDashboardContent() {
       setHeadName(data.headName ?? '');
       setApprovals(data.pendingApprovals ?? []);
       setProcessSummaries(data.processSummaries ?? []);
+      setFacultyProjects(data.facultyProjects ?? []);
       setStuckStudents(data.stuckStudents ?? []);
       setExaminerLoad(data.examinerLoad ?? []);
       setApprovedFinalGrades(data.approvedFinalGrades ?? []);
@@ -316,7 +363,7 @@ function GradSchoolHeadDashboardContent() {
     <DashboardShell
       title={headName ? `${lang === 'he' ? 'שלום' : 'Hello'}, ${headName}` : lang === 'he' ? 'ראש בית הספר ללימודי מוסמכים' : 'Graduate School Head'}
       subtitle={lang === 'he' ? 'אישורים, תקועים ועומס בוחנים' : 'Approvals, stuck students, and examiner load'}
-      showBackButton={tab !== 'overview'}
+      showBackButton={tab !== 'overview' || !!drillFacultyId}
     >
       <div className="mb-5">
         <CreateOwnProjectButton onCreated={fetchDashboard} />
@@ -452,6 +499,21 @@ function GradSchoolHeadDashboardContent() {
           ))}
           {approvals.length === 0 && <p className="text-sm text-grad-school-head-on-surface-variant">✅ {lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'}</p>}
         </div>
+      ) : tab === 'overview' && drillFacultyId ? (
+        <FacultyDrillDown
+          facultyId={drillFacultyId}
+          category={drillCategory}
+          summary={processSummaries.find((f) => f.facultyId === drillFacultyId)}
+          projects={facultyProjects}
+          lang={lang}
+          // A system_admin can open this dashboard too, but the grad-head
+          // record page is gated to grad_school_head — send them to the
+          // admin record page instead (both only read projectId).
+          recordHref={(p) =>
+            [userData?.role, ...(userData?.roles ?? [])].includes('grad_school_head')
+              ? `/grad_school_head/records/${encodeURIComponent(p.supervisorId || '_')}/${encodeURIComponent(p.id)}`
+              : `/admin/records/${encodeURIComponent(p.facultyId)}/_/${encodeURIComponent(p.supervisorId || '_')}/${encodeURIComponent(p.id)}`}
+        />
       ) : tab === 'overview' ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -462,13 +524,22 @@ function GradSchoolHeadDashboardContent() {
           </div>
           {processSummaries.map((f) => (
             <div key={f.facultyId} className="role-rail rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4" style={{ '--rail-color': '#6E5A99' } as React.CSSProperties}>
-              <p className="text-sm font-semibold text-grad-school-head-on-surface">{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</p>
+              <Link
+                href={facultyDrillHref(f.facultyId, 'all')}
+                className="text-sm font-semibold text-grad-school-head-on-surface hover:text-grad-school-head-primary hover:underline"
+              >
+                {lang === 'he' ? f.facultyNameHe : f.facultyNameEn}
+              </Link>
               <div className="mt-2 grid grid-cols-5 gap-1 text-center">
-                <MiniStat value={f.total} label={lang === 'he' ? 'סה"כ' : 'Total'} />
-                <MiniStat value={f.active} label={lang === 'he' ? 'פעילים' : 'Active'} color="#3E6C8C" />
-                <MiniStat value={f.stuck} label={lang === 'he' ? 'תקועים' : 'Stuck'} color="var(--danger)" />
-                <MiniStat value={f.completed} label={lang === 'he' ? 'סיימו' : 'Done'} color="var(--success)" />
-                <MiniStat value={f.overdue} label={lang === 'he' ? 'באיחור' : 'Overdue'} color="var(--accent)" />
+                {FACULTY_CATEGORIES.map((c) => (
+                  <MiniStat
+                    key={c}
+                    value={c === 'all' ? f.total : f[c]}
+                    label={FACULTY_CATEGORY_LABEL[c][lang]}
+                    color={FACULTY_CATEGORY_COLOR[c]}
+                    href={facultyDrillHref(f.facultyId, c)}
+                  />
+                ))}
               </div>
             </div>
           ))}
@@ -616,13 +687,125 @@ function StatCard({ value, label, color, href }: { value: number; label: string;
   );
 }
 
-function MiniStat({ value, label, color }: { value: number; label: string; color?: string }) {
-  return (
-    <div>
+function MiniStat({ value, label, color, href }: { value: number; label: string; color?: string; href?: string }) {
+  const content = (
+    <>
       <div className="text-sm font-semibold" style={{ color: color ?? 'var(--grad-school-head-on-surface)' }}>
         {value}
       </div>
       <div className="text-[10px] leading-tight text-grad-school-head-on-surface-variant">{label}</div>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="block rounded-md py-0.5 transition-colors hover:bg-grad-school-head-surface-container-low" aria-label={`${label}: ${value}`}>
+      {content}
+    </Link>
+  ) : (
+    <div>{content}</div>
+  );
+}
+
+// The list a per-faculty box on the Overview tab drills into: that
+// faculty's master's projects, narrowed to the clicked category. Filter
+// chips switch category in place; every row opens the project's read-only
+// record (recordHref — chosen by the caller per the viewer's role).
+function FacultyDrillDown({ facultyId, category, summary, projects, lang, recordHref }: {
+  facultyId: string;
+  category: FacultyCategory;
+  summary: ProcessSummary | undefined;
+  projects: FacultyProject[];
+  lang: 'he' | 'en';
+  recordHref: (p: FacultyProject) => string;
+}) {
+  const inFaculty = projects.filter((p) => p.facultyId === facultyId);
+  const countFor = (c: FacultyCategory) => (c === 'all' ? inFaculty.length : inFaculty.filter((p) => p[c]).length);
+  const rows = category === 'all' ? inFaculty : inFaculty.filter((p) => p[category]);
+  const titleOf = (p: FacultyProject) => (lang === 'he' ? p.titleHe : p.titleEn);
+  // Stuck/overdue lists read best longest-waiting first; the rest by title.
+  const sorted = [...rows].sort((a, b) =>
+    category === 'stuck' || category === 'overdue' ? b.daysInStage - a.daysInStage : titleOf(a).localeCompare(titleOf(b)),
+  );
+  const facultyLabel = summary ? (lang === 'he' ? summary.facultyNameHe : summary.facultyNameEn) : facultyId;
+
+  return (
+    <div>
+      <Link href="/grad_school_head/dashboard?tab=overview" className="text-xs font-medium text-grad-school-head-primary hover:underline">
+        {lang === 'he' ? '→ כל הפקולטות' : '← All faculties'}
+      </Link>
+      <h2 className="mt-2 text-base font-semibold text-grad-school-head-on-surface">{facultyLabel}</h2>
+      <nav className="mt-3 flex flex-wrap gap-2" aria-label={lang === 'he' ? 'סינון לפי מצב' : 'Filter by status'}>
+        {FACULTY_CATEGORIES.map((c) => {
+          const selected = c === category;
+          return (
+            <Link
+              key={c}
+              href={facultyDrillHref(facultyId, c)}
+              replace
+              scroll={false}
+              aria-current={selected ? 'page' : undefined}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                selected
+                  ? 'border-grad-school-head-primary bg-grad-school-head-primary text-white'
+                  : 'border-grad-school-head-outline-variant text-grad-school-head-on-surface-variant hover:border-grad-school-head-primary'
+              }`}
+            >
+              {FACULTY_CATEGORY_LABEL[c][lang]} · {countFor(c)}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {sorted.map((p) => {
+          const railColor = p.stuck ? 'var(--danger)' : p.overdue ? 'var(--accent)' : p.completed ? 'var(--success)' : '#6E5A99';
+          const stage = lang === 'he' ? p.currentMilestoneHe : p.currentMilestone;
+          return (
+            <Link
+              key={p.id}
+              href={recordHref(p)}
+              className="role-rail block rounded-grad-school-head border border-grad-school-head-outline-variant bg-grad-school-head-surface-container-lowest p-4 transition-colors hover:border-grad-school-head-primary"
+              style={{ '--rail-color': railColor } as React.CSSProperties}
+            >
+              <p className="text-sm font-semibold text-grad-school-head-on-surface">
+                {titleOf(p) || (lang === 'he' ? 'ללא כותרת' : 'Untitled')}
+              </p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">
+                👤 {p.studentNames.length > 0 ? p.studentNames.join(', ') : lang === 'he' ? 'אין סטודנטים רשומים' : 'No enrolled students'}
+              </p>
+              <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">👨‍🏫 {p.supervisorName}</p>
+              {stage && (
+                <p className="mt-0.5 text-xs text-grad-school-head-on-surface-variant">
+                  📍 {lang === 'he' ? 'שלב נוכחי:' : 'Current stage:'} {stage}
+                </p>
+              )}
+              {(p.stuck || p.overdue || p.completed) && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p.stuck && (
+                    <span className="rounded-full bg-danger-bg px-2.5 py-0.5 text-xs font-medium text-danger">
+                      ⏱ {p.daysInStage} {lang === 'he' ? 'ימים בשלב' : 'days in stage'}
+                    </span>
+                  )}
+                  {p.overdue && (
+                    <span className="rounded-full border border-accent px-2.5 py-0.5 text-xs font-medium text-accent">
+                      {lang === 'he' ? 'באיחור' : 'Overdue'}
+                    </span>
+                  )}
+                  {p.completed && (
+                    <span className="rounded-full border border-success px-2.5 py-0.5 text-xs font-medium text-success">
+                      ✅ {lang === 'he' ? 'הסתיים' : 'Completed'}
+                    </span>
+                  )}
+                </div>
+              )}
+            </Link>
+          );
+        })}
+        {sorted.length === 0 && (
+          <p className="text-sm text-grad-school-head-on-surface-variant">
+            📭 {lang === 'he' ? 'אין פרויקטים בקטגוריה הזו' : 'No projects in this category'}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

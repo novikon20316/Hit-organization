@@ -3468,6 +3468,16 @@ export const GradSchoolHeadDashboardStyles = StyleSheet.create({
                     paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
   stuckBadgeText: { color: '#991B1B', fontWeight: '600', fontSize: 12 },
 
+  // Overview per-faculty drill-down (grad_school_head_dashboard.tsx's FacultyDrillDown).
+  facultyLink:    { color: '#7C3AED' },
+  drillBack:      { fontSize: 13, fontWeight: '600', color: '#7C3AED' },
+  drillTitle:     { fontSize: 17, fontWeight: '800', color: ap.onSurface, marginBottom: 10 },
+  chipRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  chip:           { borderWidth: 1, borderColor: ap.outlineVariant, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chipActive:     { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  chipText:       { fontSize: 12, fontWeight: '600', color: ap.onSurfaceVariant },
+  chipTextActive: { color: '#fff' },
+
   empty:     { alignItems: 'center', paddingVertical: 48 },
   emptyEmoji:{ fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 15, color: ap.onSurfaceVariant, textAlign: 'center' },

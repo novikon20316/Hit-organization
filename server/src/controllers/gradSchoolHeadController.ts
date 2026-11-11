@@ -136,6 +136,29 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
       daysInStage: number;
       trackType: string;
     }> = [];
+    // One row per master's project, carrying the same per-category flags the
+    // processSummaries counts above are tallied from — so the Overview tab's
+    // per-faculty boxes can drill down (faculty name → all of its projects,
+    // each count → just that category) client-side, with the list always
+    // matching the number that was clicked.
+    const facultyProjects: Array<{
+      id: string;
+      facultyId: string;
+      titleHe: string;
+      titleEn: string;
+      studentNames: string[];
+      supervisorId: string;
+      supervisorName: string;
+      status: string;
+      trackType: string;
+      currentMilestone: string;
+      currentMilestoneHe: string;
+      daysInStage: number;
+      active: boolean;
+      stuck: boolean;
+      completed: boolean;
+      overdue: boolean;
+    }> = [];
 
     let completedThisYear = 0;
     const currentYear = new Date().getFullYear();
@@ -163,6 +186,26 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
         const approvedAt = defenseMilestone?.coordinatorApprovedAt;
         if (approvedAt?.toDate?.().getFullYear() === currentYear) completedThisYear++;
       }
+
+      const isActive = data.status === 'active' || data.status === 'in_progress';
+      facultyProjects.push({
+        id: doc.id,
+        facultyId,
+        titleHe: data.titleHe || data.titleEn || '',
+        titleEn: data.titleEn || data.titleHe || '',
+        studentNames: (data.enrolledStudentIds ?? []).map((sid: string) => usersById[sid] ?? 'Unknown'),
+        supervisorId: data.supervisorId ?? '',
+        supervisorName: data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned',
+        status: data.status ?? '',
+        trackType: trackTypeOf(data.projectType),
+        currentMilestone: progress.current?.nameEn ?? progress.current?.type ?? '',
+        currentMilestoneHe: progress.current?.nameHe ?? progress.current?.nameEn ?? progress.current?.type ?? '',
+        daysInStage: progress.daysInStage,
+        active: isActive,
+        stuck: progress.isStuck,
+        completed: isCompleted,
+        overdue: progress.isOverdue,
+      });
 
       if (progress.isStuck) {
         const supervisorName = data.supervisorId ? (usersById[data.supervisorId] ?? 'Unknown') : 'Unassigned';
@@ -309,6 +352,7 @@ export const getGradSchoolHeadDashboard = async (req: AuthenticatedRequest, res:
       headName: userData.displayName ?? '',
       pendingApprovals,
       processSummaries,
+      facultyProjects,
       stuckStudents,
       examinerLoad,
       approvedFinalGrades,

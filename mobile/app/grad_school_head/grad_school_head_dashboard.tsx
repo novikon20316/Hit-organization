@@ -61,6 +61,47 @@ interface ProcessSummary {
   overdue:        number;
 }
 
+// One row per master's project — the same per-category flags the
+// processSummaries counts are tallied from (server's facultyProjects), so a
+// drill-down list always matches the number that was tapped.
+interface FacultyProject {
+  id:                 string;
+  facultyId:          string;
+  titleHe:            string;
+  titleEn:            string;
+  studentNames:       string[];
+  supervisorId:       string;
+  supervisorName:     string;
+  status:             string;
+  trackType:          string;
+  currentMilestone:   string;
+  currentMilestoneHe: string;
+  daysInStage:        number;
+  active:             boolean;
+  stuck:              boolean;
+  completed:          boolean;
+  overdue:            boolean;
+}
+
+// Overview drill-down: tapping a faculty's name opens 'all' of its projects,
+// tapping one of its box's counts opens just that category.
+type FacultyCategory = 'all' | 'active' | 'stuck' | 'completed' | 'overdue';
+const FACULTY_CATEGORIES: FacultyCategory[] = ['all', 'active', 'stuck', 'completed', 'overdue'];
+const FACULTY_CATEGORY_LABEL: Record<FacultyCategory, { he: string; en: string }> = {
+  all:       { he: 'סה"כ',   en: 'Total' },
+  active:    { he: 'פעילים', en: 'Active' },
+  stuck:     { he: 'תקועים', en: 'Stuck' },
+  completed: { he: 'סיימו',  en: 'Done' },
+  overdue:   { he: 'באיחור', en: 'Overdue' },
+};
+const FACULTY_CATEGORY_COLOR: Record<FacultyCategory, string> = {
+  all:       ap.onSurface,
+  active:    '#2E86FF',
+  stuck:     '#EF4444',
+  completed: '#10B981',
+  overdue:   '#F59E0B',
+};
+
 interface StuckStudent {
   studentName:      string;
   supervisorName:   string;
@@ -92,6 +133,7 @@ interface DashboardData {
   headName:          string;
   pendingApprovals:  PendingApproval[];
   processSummaries:  ProcessSummary[];
+  facultyProjects?:  FacultyProject[];
   stuckStudents:     StuckStudent[];
   examinerLoad:      ExaminerLoad[];
   approvedFinalGrades: ApprovedFinalGrade[];
@@ -136,6 +178,7 @@ export default function GradSchoolHeadDashboard() {
   type GradSchoolHeadTab = 'overview' | 'approvals' | 'stuck' | 'examiners' | 'grades' | 'staff' | 'students';
   const GRAD_SCHOOL_HEAD_TABS: GradSchoolHeadTab[] = ['overview', 'approvals', 'stuck', 'examiners', 'grades', 'staff', 'students'];
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [facultyDrill, setFacultyDrill] = useState<{ facultyId: string; category: FacultyCategory } | null>(null);
   const [activeTab, setActiveTab]  = useState<GradSchoolHeadTab>(
     GRAD_SCHOOL_HEAD_TABS.includes(tabParam as GradSchoolHeadTab) ? (tabParam as GradSchoolHeadTab) : 'overview'
   );
@@ -539,7 +582,7 @@ export default function GradSchoolHeadDashboard() {
           <TourTarget key={tab.key} tourKey={tab.key}>
             <Pressable
               style={[s.tab, activeTab === tab.key && s.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
+              onPress={() => { setActiveTab(tab.key); setFacultyDrill(null); }}
               accessibilityRole="button"
             >
               <Text style={[s.tabText, activeTab === tab.key && s.tabTextActive]} numberOfLines={1}>
@@ -756,27 +799,50 @@ export default function GradSchoolHeadDashboard() {
         )}
 
         {/* ── FACULTY OVERVIEW ── */}
-        {activeTab === 'overview' && (
+        {activeTab === 'overview' && facultyDrill && (
+          <FacultyDrillDown
+            facultyId={facultyDrill.facultyId}
+            category={facultyDrill.category}
+            summary={data?.processSummaries.find(f => f.facultyId === facultyDrill.facultyId)}
+            projects={data?.facultyProjects ?? []}
+            lang={lang}
+            onChangeCategory={category => setFacultyDrill({ facultyId: facultyDrill.facultyId, category })}
+            onBack={() => setFacultyDrill(null)}
+            onOpenProject={projectId => router.push({ pathname: '/records/[projectId]', params: { projectId, lang } } as any)}
+          />
+        )}
+        {activeTab === 'overview' && !facultyDrill && (
           <>
             {(data?.processSummaries.length ?? 0) === 0 ? (
               <EmptyState emoji="📊" text={lang === 'he' ? 'אין נתוני פקולטות' : 'No faculty data'} />
             ) : (
               data!.processSummaries.map(f => (
                 <View key={f.facultyId} style={[s.card, { borderLeftColor: '#7C3AED' }]}>
-                  <Text style={s.cardTitle}>{lang === 'he' ? f.facultyNameHe : f.facultyNameEn}</Text>
+                  <Pressable
+                    onPress={() => setFacultyDrill({ facultyId: f.facultyId, category: 'all' })}
+                    accessibilityRole="link"
+                    accessibilityHint={lang === 'he' ? 'הצג את הפרויקטים של הפקולטה' : "Show this faculty's projects"}
+                  >
+                    <Text style={[s.cardTitle, s.facultyLink]}>{lang === 'he' ? f.facultyNameHe : f.facultyNameEn} ›</Text>
+                  </Pressable>
                   <View style={s.statsRow}>
-                    {[
-                      { label: lang === 'he' ? 'סה"כ' : 'Total',     value: f.total,     color: ap.onSurface },
-                      { label: lang === 'he' ? 'פעילים' : 'Active',   value: f.active,    color: '#2E86FF' },
-                      { label: lang === 'he' ? 'תקועים' : 'Stuck',    value: f.stuck,     color: '#EF4444' },
-                      { label: lang === 'he' ? 'סיימו' : 'Done',      value: f.completed, color: '#10B981' },
-                      { label: lang === 'he' ? 'באיחור' : 'Overdue',  value: f.overdue,   color: '#F59E0B' },
-                    ].map(st => (
-                      <View key={st.label} style={s.miniStat}>
-                        <Text style={[s.miniStatValue, { color: st.color }]}>{st.value}</Text>
-                        <Text style={s.miniStatLabel}>{st.label}</Text>
-                      </View>
-                    ))}
+                    {FACULTY_CATEGORIES.map(c => {
+                      const value = c === 'all' ? f.total : f[c];
+                      const label = FACULTY_CATEGORY_LABEL[c][lang];
+                      return (
+                        <Pressable
+                          key={c}
+                          style={s.miniStat}
+                          onPress={() => setFacultyDrill({ facultyId: f.facultyId, category: c })}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${label}: ${value}`}
+                          hitSlop={6}
+                        >
+                          <Text style={[s.miniStatValue, { color: FACULTY_CATEGORY_COLOR[c] }]}>{value}</Text>
+                          <Text style={s.miniStatLabel}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
               ))
@@ -962,6 +1028,97 @@ export default function GradSchoolHeadDashboard() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+// The list a per-faculty Overview box drills into: that faculty's master's
+// projects narrowed to the tapped category, with chips to switch category
+// in place. Each row opens the shared read-only project record screen.
+function FacultyDrillDown({ facultyId, category, summary, projects, lang, onChangeCategory, onBack, onOpenProject }: {
+  facultyId: string;
+  category: FacultyCategory;
+  summary: ProcessSummary | undefined;
+  projects: FacultyProject[];
+  lang: Lang;
+  onChangeCategory: (c: FacultyCategory) => void;
+  onBack: () => void;
+  onOpenProject: (projectId: string) => void;
+}) {
+  const inFaculty = projects.filter(p => p.facultyId === facultyId);
+  const countFor = (c: FacultyCategory) => (c === 'all' ? inFaculty.length : inFaculty.filter(p => p[c]).length);
+  const rows = category === 'all' ? inFaculty : inFaculty.filter(p => p[category]);
+  const titleOf = (p: FacultyProject) => (lang === 'he' ? p.titleHe : p.titleEn);
+  // Stuck/overdue read best longest-waiting first; the rest by title.
+  const sorted = [...rows].sort((a, b) =>
+    category === 'stuck' || category === 'overdue' ? b.daysInStage - a.daysInStage : titleOf(a).localeCompare(titleOf(b)),
+  );
+  const facultyLabel = summary ? (lang === 'he' ? summary.facultyNameHe : summary.facultyNameEn) : facultyId;
+
+  return (
+    <>
+      <Pressable onPress={onBack} accessibilityRole="button" style={{ marginBottom: 8 }}>
+        <Text style={s.drillBack}>{lang === 'he' ? '→ כל הפקולטות' : '← All faculties'}</Text>
+      </Pressable>
+      <Text style={s.drillTitle}>{facultyLabel}</Text>
+      <View style={s.chipRow}>
+        {FACULTY_CATEGORIES.map(c => {
+          const selected = c === category;
+          return (
+            <Pressable
+              key={c}
+              onPress={() => onChangeCategory(c)}
+              style={[s.chip, selected && s.chipActive]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+            >
+              <Text style={[s.chipText, selected && s.chipTextActive]}>
+                {FACULTY_CATEGORY_LABEL[c][lang]} · {countFor(c)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {sorted.length === 0 ? (
+        <EmptyState emoji="📭" text={lang === 'he' ? 'אין פרויקטים בקטגוריה הזו' : 'No projects in this category'} />
+      ) : (
+        sorted.map(p => {
+          const railColor = p.stuck ? '#EF4444' : p.overdue ? '#F59E0B' : p.completed ? '#10B981' : '#7C3AED';
+          const stage = lang === 'he' ? p.currentMilestoneHe : p.currentMilestone;
+          return (
+            <Pressable
+              key={p.id}
+              style={[s.card, { borderLeftColor: railColor }]}
+              onPress={() => onOpenProject(p.id)}
+              accessibilityRole="button"
+            >
+              <Text style={s.cardTitle}>{titleOf(p) || (lang === 'he' ? 'ללא כותרת' : 'Untitled')}</Text>
+              <Text style={s.cardSub}>
+                👤 {p.studentNames.length > 0 ? p.studentNames.join(', ') : lang === 'he' ? 'אין סטודנטים רשומים' : 'No enrolled students'}
+              </Text>
+              <Text style={s.cardSub}>👨‍🏫 {p.supervisorName}</Text>
+              {!!stage && (
+                <Text style={s.cardSub}>📍 {lang === 'he' ? 'שלב נוכחי:' : 'Current stage:'} {stage}</Text>
+              )}
+              {p.stuck && (
+                <View style={s.stuckBadge}>
+                  <Text style={s.stuckBadgeText}>⏱ {p.daysInStage} {lang === 'he' ? 'ימים בשלב' : 'days in stage'}</Text>
+                </View>
+              )}
+              {p.overdue && (
+                <View style={[s.stuckBadge, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={[s.stuckBadgeText, { color: '#92400E' }]}>{lang === 'he' ? 'באיחור' : 'Overdue'}</Text>
+                </View>
+              )}
+              {p.completed && (
+                <View style={[s.stuckBadge, { backgroundColor: '#D1FAE5' }]}>
+                  <Text style={[s.stuckBadgeText, { color: '#065F46' }]}>✅ {lang === 'he' ? 'הסתיים' : 'Completed'}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })
+      )}
+    </>
+  );
+}
+
 function EmptyState({ emoji, text }: { emoji: string; text: string }) {
   return (
     <View style={s.empty}>

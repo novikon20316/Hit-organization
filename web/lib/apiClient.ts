@@ -2858,6 +2858,24 @@ export const apiClient = {
         completed: number;
         overdue: number;
       }>;
+      facultyProjects?: Array<{
+        id: string;
+        facultyId: string;
+        titleHe: string;
+        titleEn: string;
+        studentNames: string[];
+        supervisorId: string;
+        supervisorName: string;
+        status: string;
+        trackType: string;
+        currentMilestone: string;
+        currentMilestoneHe: string;
+        daysInStage: number;
+        active: boolean;
+        stuck: boolean;
+        completed: boolean;
+        overdue: boolean;
+      }>;
       stuckStudents: Array<{ studentName: string; supervisorName: string; facultyId: string; currentMilestone: string; daysInStage: number; trackType: string }>;
       examinerLoad: Array<{ examinerName: string; institution: string; activeReviews: number; pending: number; overdue: number }>;
       approvedFinalGrades: Array<{
