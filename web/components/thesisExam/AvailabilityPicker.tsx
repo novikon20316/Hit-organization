@@ -10,9 +10,27 @@ import { useState } from 'react';
 import type { ThesisExamAvailabilityEntry } from '@/lib/apiClient';
 import { formatExamDay } from '@/lib/thesisExam';
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Israel's date/clock, not the browser's — the server's window and its
+// "already passed" check (services/thesisExam.ts validateAvailability) are
+// both in Asia/Jerusalem, so an examiner abroad must see the same days.
+function israelNow(): { date: string; time: string } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date())
+      .map((p) => [p.type, p.value]),
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+function daysBetween(start: string, end: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (d <= last) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
 }
 
 export function AvailabilityPicker({
@@ -29,10 +47,18 @@ export function AvailabilityPicker({
   onSubmit: (entries: ThesisExamAvailabilityEntry[]) => Promise<void>;
 }) {
   const he = lang === 'he';
-  const min = todayIso() > window.start ? todayIso() : window.start;
-  const [rows, setRows] = useState<ThesisExamAvailabilityEntry[]>(() =>
-    initial && initial.length === count ? initial.map((e) => ({ ...e })) : Array.from({ length: count }, () => ({ date: '', from: '', to: '' })),
-  );
+  const now = israelNow();
+  const min = now.date > window.start ? now.date : window.start;
+  // The ONLY days that can be chosen: today (or the round's first day) up to
+  // the window's last day. A free date box let people type any date and only
+  // learn it was illegal on submit.
+  const allowedDays = daysBetween(min, window.end);
+  const [rows, setRows] = useState<ThesisExamAvailabilityEntry[]>(() => {
+    const blank = { date: '', from: '', to: '' };
+    if (!initial || initial.length !== count) return Array.from({ length: count }, () => ({ ...blank }));
+    // A saved pick whose day has since passed is cleared, not kept.
+    return initial.map((e) => (e.date >= min && e.date <= window.end ? { ...e } : { ...blank }));
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -47,6 +73,7 @@ export function AvailabilityPicker({
     if (new Set(rows.map((r) => r.date)).size !== rows.length) return he ? 'כל תאריך יכול להופיע פעם אחת בלבד.' : 'Each date may appear only once.';
     if (rows.some((r) => r.date < min || r.date > window.end)) return he ? 'אחד התאריכים מחוץ לטווח המותר.' : 'One of the dates is outside the allowed range.';
     if (rows.some((r) => r.to <= r.from)) return he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.';
+    if (rows.some((r) => r.date === now.date && r.to <= now.time)) return he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.';
     return '';
   })();
 
@@ -76,12 +103,19 @@ export function AvailabilityPicker({
           <div key={i} className="flex flex-wrap items-center gap-2">
             <span className="w-5 text-xs font-semibold text-muted">{i + 1}.</span>
             <label className="sr-only" htmlFor={`exam-date-${i}`}>{he ? `תאריך ${i + 1}` : `Date ${i + 1}`}</label>
-            <input id={`exam-date-${i}`} type="date" min={min} max={window.end} value={r.date} onChange={(e) => update(i, 'date', e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+            <select id={`exam-date-${i}`} value={r.date} onChange={(e) => update(i, 'date', e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm">
+              <option value="">{he ? 'בחירת תאריך' : 'Choose a date'}</option>
+              {allowedDays.map((d) => (
+                // A day already used in another row can't be chosen twice.
+                <option key={d} value={d} disabled={d !== r.date && rows.some((o) => o.date === d)}>
+                  {formatExamDay(d, lang, { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}
+                </option>
+              ))}
+            </select>
             <label className="text-xs text-muted" htmlFor={`exam-from-${i}`}>{he ? 'משעה' : 'From'}</label>
             <input id={`exam-from-${i}`} type="time" step={900} value={r.from} onChange={(e) => update(i, 'from', e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
             <label className="text-xs text-muted" htmlFor={`exam-to-${i}`}>{he ? 'עד שעה' : 'To'}</label>
             <input id={`exam-to-${i}`} type="time" step={900} value={r.to} onChange={(e) => update(i, 'to', e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
-            {r.date && <span className="text-xs text-muted">{formatExamDay(r.date, lang, { weekday: 'short' })}</span>}
           </div>
         ))}
       </div>

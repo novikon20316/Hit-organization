@@ -16,9 +16,29 @@ const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h
 const toClock = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const STEP = 15;
 
-export function todayIso(): string {
+/** Israel's date and clock — the server's window and "already passed" check
+ *  (services/thesisExam.ts validateAvailability) are in Asia/Jerusalem, so a
+ *  device in another zone must offer the same days. Falls back to the device
+ *  clock if this engine's Intl lacks time-zone support. */
+export function israelNow(): { date: string; time: string } {
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date())
+        .map((p) => [p.type, p.value]),
+    );
+    if (parts.year && parts.month && parts.day && parts.hour && parts.minute) {
+      return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+    }
+  } catch {
+    // fall through to the device clock
+  }
   const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+}
+
+export function todayIso(): string {
+  return israelNow().date;
 }
 
 export function daysBetween(start: string, end: string): string[] {
@@ -56,9 +76,12 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
   const he = lang === 'he';
   const isRtl = he;
   const today = todayIso();
-  const days = useMemo(() => daysBetween(today > window.start ? today : window.start, window.end), [today, window.start, window.end]);
+  const min = today > window.start ? today : window.start;
+  const days = useMemo(() => daysBetween(min, window.end), [min, window.end]);
+  // Only days still inside the window — a saved pick whose day has passed
+  // was invisible in the chips yet still counted and re-submitted.
   const [picks, setPicks] = useState<Record<string, { from: string; to: string }>>(() =>
-    Object.fromEntries((initial ?? []).map((e) => [e.date, { from: e.from, to: e.to }])),
+    Object.fromEntries((initial ?? []).filter((e) => e.date >= min && e.date <= window.end).map((e) => [e.date, { from: e.from, to: e.to }])),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +105,9 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     if (chosen.length !== count) { setError(he ? `יש לבחור בדיוק ${count} תאריכים.` : `Pick exactly ${count} dates.`); return; }
     const bad = chosen.find((d) => toMin(picks[d]!.to) <= toMin(picks[d]!.from));
     if (bad) { setError(he ? `ב-${formatExamDay(bad, lang)} שעת הסיום חייבת להיות אחרי שעת ההתחלה.` : `On ${formatExamDay(bad, lang)} the end must be after the start.`); return; }
+    const now = israelNow();
+    if (chosen.some((d) => d < now.date || d > window.end)) { setError(he ? 'אחד התאריכים מחוץ לטווח המותר — יש לבחור מחדש.' : 'One of the dates is outside the allowed range — pick again.'); return; }
+    if (picks[now.date] && toMin(picks[now.date]!.to) <= toMin(now.time)) { setError(he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.'); return; }
     setBusy(true);
     setError('');
     try {
