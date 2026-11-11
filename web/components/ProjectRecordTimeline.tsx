@@ -81,8 +81,16 @@ function describeEntry(entry: RecordEntry, lang: 'he' | 'en'): string {
     }
     case 'message_sent':
       return typeof d.preview === 'string' ? `"${d.preview}"` : '';
-    case 'milestone_rejected':
-      return typeof d.reason === 'string' ? d.reason : '';
+    case 'milestone_rejected': {
+      // milestoneName*/rejectionNumber present on entries from 2026-11-11 on.
+      const name = lang === 'he' ? (d.milestoneNameHe ?? d.milestoneNameEn) : (d.milestoneNameEn ?? d.milestoneNameHe);
+      const parts = [
+        typeof name === 'string' ? name : null,
+        typeof d.rejectionNumber === 'number' ? (lang === 'he' ? `דחייה מס' ${d.rejectionNumber}` : `Rejection #${d.rejectionNumber}`) : null,
+        typeof d.reason === 'string' && d.reason ? d.reason : null,
+      ].filter(Boolean);
+      return parts.join(' · ');
+    }
     case 'project_status_changed':
       return typeof d.newStatus === 'string' ? d.newStatus : '';
     default: {

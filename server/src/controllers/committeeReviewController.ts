@@ -17,6 +17,8 @@
 import { Response } from 'express';
 import { maybeOpenThesisExamForProject } from '../services/thesisExam.js';
 import admin from 'firebase-admin';
+import { nextRejectionCount, milestoneNames } from '../services/milestoneRevisions.js';
+import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { notifyUser } from '../services/notify.js';
@@ -439,6 +441,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
   };
 
   let finalized = false;
+  let rejectionNumber: number | null = null;
   let nextStageForNotify: ChainStage | null = null;
 
   try {
@@ -481,6 +484,7 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
           transaction.update(milestoneRef, {
             ...baseUpdate,
             status: 'rejected',
+            rejectionCount: (rejectionNumber = nextRejectionCount(fresh)),
             currentStageIndex: 0,
             coordinatorRejectedAt: admin.firestore.FieldValue.serverTimestamp(),
             coordinatorId: uid,
@@ -505,6 +509,15 @@ export const submitCommitteeDecision = async (req: AuthenticatedRequest, res: Re
       newValue: { stageId: stage.id, committeeId: committee.id, finalized },
       explanation: typeof comment === 'string' ? comment : undefined,
     });
+    if (rejectionNumber != null && milestone.projectId) {
+      await logProjectRecordEntry({
+        projectId: milestone.projectId,
+        type: 'milestone_rejected',
+        actorId: uid,
+        actorRole: req.user?.role ?? 'committee_chairman',
+        data: { milestoneId, stageId: stage.id, reason: typeof comment === 'string' ? comment.trim() : '', ...milestoneNames(milestone), rejectionNumber },
+      });
+    }
 
     // The outcome is told to someone only when this was a genuine student-
     // facing rejection or the milestone's final approval — an internal

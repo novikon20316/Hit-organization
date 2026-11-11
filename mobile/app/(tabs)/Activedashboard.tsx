@@ -29,6 +29,7 @@ import {
 } from '../../constants/studentFieldGuide';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { waitingText } from '@/utils/milestoneWaiting';
+import { gradeTabState } from '@/utils/milestoneDecision';
 
 interface Props {
   project:       ActiveProject;
@@ -581,21 +582,14 @@ export default function ActiveDashboard({
             {milestones.map((m) => {
               const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
 
-              const normalizedStatus = (m.status ?? '').trim().toLowerCase();
               const grade   = m.finalGrade ?? m.supervisorScore ?? null;
               const hasGrade = typeof grade === 'number' && !isNaN(grade);
 
-              const isSubmittedState = !hasGrade && (
-                normalizedStatus === 'submitted' ||
-                normalizedStatus === 'supervisor_graded' ||
-                normalizedStatus === 'graded'
-              );
-
-              const isGradeVisible =
-                normalizedStatus === 'coordinator_approved' ||
-                normalizedStatus === 'completed';
-
-              const gradeVisible = isGradeVisible && hasGrade;
+              // graded (a number) / approved / rejected (approve-reject
+              // milestones, no number) / submitted (in review) / not_submitted.
+              const gradeState = gradeTabState(m, hasGrade);
+              const gradeVisible = gradeState === 'graded';
+              const isSubmittedState = gradeState === 'submitted' && !hasGrade;
 
               const barColor   = hasGrade ? gradeColor(grade)      : '#E0E8FF';
               const trackColor = hasGrade ? gradeTrackColor(grade) : '#F0F4FF';
@@ -657,7 +651,19 @@ export default function ActiveDashboard({
                             </Text>
                           )}
                         </>
-                      ) : isSubmittedState ? (
+                      ) : gradeState === 'approved' ? (
+                        <View style={[styles.gradePill, { backgroundColor: '#DCFCE7' }]}>
+                          <Text style={[styles.gradePillText, { color: '#15803D' }]}>
+                            ✅ {lang === 'he' ? 'אושר' : 'Approved'}
+                          </Text>
+                        </View>
+                      ) : gradeState === 'rejected' ? (
+                        <View style={[styles.gradePill, { backgroundColor: '#FEE2E2' }]}>
+                          <Text style={[styles.gradePillText, { color: '#B91C1C' }]}>
+                            ❌ {lang === 'he' ? 'נדחה' : 'Rejected'}
+                          </Text>
+                        </View>
+                      ) : gradeState === 'submitted' ? (
                         <Text style={{ fontSize: 12, color: '#F59E0B', fontWeight: '600' }}>
                           📤 {lang === 'he' ? 'הוגש' : 'Submitted'}
                         </Text>
@@ -686,6 +692,17 @@ export default function ActiveDashboard({
                         <Text style={{ fontSize: 11, color: '#8899BB' }}>{!isRtl ? '0' : '100'}</Text>
                         <Text style={{ fontSize: 11, color: '#8899BB' }}>{!isRtl ? '100' : '0'}</Text>
                       </View>
+                    </View>
+                  ) : gradeState === 'approved' || gradeState === 'rejected' ? (
+                    <View style={{ marginTop: 8 }}>
+                      <View style={[styles.gradeProgress, { flexDirection: 'row', backgroundColor: gradeState === 'approved' ? '#DCFCE7' : '#FEE2E2' }]}>
+                        <View style={{ flexGrow: 1, borderRadius: 6, backgroundColor: gradeState === 'approved' ? '#22C55E' : '#EF4444' }} />
+                      </View>
+                      {gradeState === 'rejected' && (
+                        <Text style={[{ fontSize: 11, color: '#B91C1C', marginTop: 4 }, isRtl && styles.textRight]}>
+                          {lang === 'he' ? 'יש לתקן ולהגיש מחדש לאישור' : 'Fix and resubmit for approval'}
+                        </Text>
+                      )}
                     </View>
                   ) : isSubmittedState ? (
                     <View style={{ marginTop: 8 }}>

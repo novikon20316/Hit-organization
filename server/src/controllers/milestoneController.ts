@@ -945,7 +945,8 @@ export const getMilestonesByQuery = async (req: AuthenticatedRequest, res: Respo
       // S5 — a student sees which role their milestone waits on and since
       // when (decided 2026-11-08: role + days), never the sweep's record of
       // exactly which staff members it is waiting on.
-      const { stuckWatch: _stuckWatch, ...forStudent } = redacted;
+      // rejectionCount is staff-only (Students Report, project record).
+      const { stuckWatch: _stuckWatch, rejectionCount: _rejectionCount, ...forStudent } = redacted as typeof redacted & { rejectionCount?: unknown };
       const done = data.status === 'coordinator_approved' || data.status === 'completed';
       const { role } = waitingRoleOf(data);
       return {

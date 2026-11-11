@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { nextRejectionCount, milestoneNames } from '../services/milestoneRevisions.js';
 import { maybeOpenThesisExamForProject } from '../services/thesisExam.js';
 import { Request, Response } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
@@ -1597,6 +1598,7 @@ async function rejectChainMilestone(
   const milestoneRef = db.collection('milestones').doc(milestoneId);
   let previousStatus: string | undefined;
   let rejectedMilestone: FirebaseFirestore.DocumentData | undefined;
+  let rejectionNumber: number | null = null;
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -1618,6 +1620,7 @@ async function rejectChainMilestone(
       if (rejectsToStudent) {
         transaction.update(milestoneRef, {
           status: 'rejected',
+          rejectionCount: (rejectionNumber = nextRejectionCount(fresh)),
           currentStageIndex: 0,
           coordinatorRejectedAt: admin.firestore.FieldValue.serverTimestamp(),
           coordinatorId: actorId,
@@ -1699,7 +1702,7 @@ async function rejectChainMilestone(
         type: 'milestone_rejected',
         actorId,
         actorRole: req.user?.role ?? stage.role,
-        data: { milestoneId, stageId: stage.id, reason },
+        data: { milestoneId, stageId: stage.id, reason, ...milestoneNames(rejectedMilestone), ...(rejectionNumber != null ? { rejectionNumber } : {}) },
       });
     }
 
@@ -1837,6 +1840,8 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
 
   let previousStatus: string | undefined;
   let rejectedProjectId: string | undefined;
+  let legacyRejectionNumber: number | null = null;
+  let legacyRejectedNames: Record<string, string> = {};
   try {
     await db.runTransaction(async (transaction) => {
       const milestoneRef = db.collection('milestones').doc(milestoneId);
@@ -1851,10 +1856,12 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
       const studentIds: string[] = milestone.studentIds ?? [];
       previousStatus = milestone.status;
       rejectedProjectId = projectId;
+      legacyRejectedNames = milestoneNames(milestone);
 
       // 1. Revert milestone to pending so it can be resubmitted
       transaction.update(milestoneRef, {
         status: 'rejected',
+        rejectionCount: (legacyRejectionNumber = nextRejectionCount(milestone)),
         coordinatorRejectedAt: admin.firestore.FieldValue.serverTimestamp(),
         coordinatorId,
         rejectionReason: reason,
@@ -1918,7 +1925,7 @@ export const coordinatorRejectMilestone = async (req: AuthenticatedRequest, res:
         type: 'milestone_rejected',
         actorId: coordinatorId,
         actorRole: req.user?.role ?? 'coordinator',
-        data: { milestoneId, reason },
+        data: { milestoneId, reason, ...legacyRejectedNames, ...(legacyRejectionNumber != null ? { rejectionNumber: legacyRejectionNumber } : {}) },
       });
     }
 

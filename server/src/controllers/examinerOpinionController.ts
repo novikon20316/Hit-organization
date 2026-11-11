@@ -10,6 +10,7 @@
 
 import { Response } from 'express';
 import admin from 'firebase-admin';
+import { nextRejectionCount, milestoneNames } from '../services/milestoneRevisions.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../config/firebase.js';
 import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
@@ -350,6 +351,7 @@ export const sendThesisBackForCorrections = async (req: AuthenticatedRequest, re
       opinionSendBack: { at: new Date().toISOString(), by: uid, note, round: data.examinerOpinionRound ?? 1 },
       statusBeforeSendBack: data.status ?? null,
       status: 'rejected',
+      rejectionCount: nextRejectionCount(data),
       rejectionReason: note,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -374,6 +376,15 @@ export const sendThesisBackForCorrections = async (req: AuthenticatedRequest, re
       newValue: { sentBackForCorrections: true, reReviewers: reReviewers.length },
       explanation: note,
     });
+    if (data.projectId) {
+      await logProjectRecordEntry({
+        projectId: data.projectId,
+        type: 'milestone_rejected',
+        actorId: uid,
+        actorRole: req.user?.role ?? 'administrative_secretary',
+        data: { milestoneId, reason: note, ...milestoneNames(data), rejectionNumber: update.rejectionCount as number },
+      });
+    }
 
     await Promise.all((data.studentIds ?? []).map((sid: string) => notifyUser({
       recipientId: sid,

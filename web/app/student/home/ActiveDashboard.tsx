@@ -20,6 +20,7 @@ import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { downloadFile } from '@/lib/fileClickPreview';
 import { waitingText } from '@/lib/milestoneWaiting';
+import { gradeTabState } from '@/lib/milestoneDecision';
 import { SubmissionHistory, fileNameFromUrl } from './SubmissionHistory';
 import {
   OVERVIEW_TAB_FIELD_GUIDE, OVERVIEW_TAB_GUIDE_KEY,
@@ -608,9 +609,11 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
             const label = milestoneDisplayName(m, lang, MILESTONE_LABEL);
             const grade = m.finalGrade ?? m.supervisorScore ?? null;
             const hasGrade = typeof grade === 'number' && !isNaN(grade);
-            const isSubmittedState = !hasGrade && (['submitted', 'supervisor_graded', 'graded'] as string[]).includes(m.status);
-            const isGradeVisible = (['coordinator_approved', 'completed'] as string[]).includes(m.status);
-            const gradeVisible = isGradeVisible && hasGrade;
+            // graded (a number) / approved / rejected (approve-reject
+            // milestones, no number) / submitted (in review) / not_submitted.
+            const gradeState = gradeTabState(m, hasGrade);
+            const gradeVisible = gradeState === 'graded';
+            const isSubmittedState = gradeState === 'submitted' && !hasGrade;
             // Anything worth expanding into — the three-rubric workflow's
             // supervisor evaluation, a staff record, or a still-pending
             // coordinator sign-off (see workflowTemplates.ts's
@@ -632,7 +635,11 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                     <span className="rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: gradeColor(grade as number), backgroundColor: 'var(--student-surface-container)' }}>
                       {grade}
                     </span>
-                  ) : isSubmittedState ? (
+                  ) : gradeState === 'approved' ? (
+                    <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">✅ {lang === 'he' ? 'אושר' : 'Approved'}</span>
+                  ) : gradeState === 'rejected' ? (
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">❌ {lang === 'he' ? 'נדחה' : 'Rejected'}</span>
+                  ) : gradeState === 'submitted' ? (
                     <span className="text-xs font-medium text-accent">📤 {lang === 'he' ? 'הוגש' : 'Submitted'}</span>
                   ) : (
                     <span className="text-xs text-student-on-surface-variant">📭 {lang === 'he' ? 'טרם הוגש' : 'Not submitted yet'}</span>
@@ -643,9 +650,16 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-student-surface-container">
                     <div className="h-full rounded-full" style={{ width: `${grade}%`, backgroundColor: gradeColor(grade as number) }} />
                   </div>
+                ) : gradeState === 'approved' || gradeState === 'rejected' ? (
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-student-surface-container">
+                    <div className={`h-full w-full rounded-full ${gradeState === 'approved' ? 'bg-green-500' : 'bg-red-500'}`} />
+                  </div>
                 ) : isSubmittedState ? (
                   <p className="mt-2 text-xs text-accent">⏳ {lang === 'he' ? 'ממתין לאישור ציון ע"י הרכז' : 'Awaiting grade approval by coordinator'}</p>
                 ) : null}
+                {gradeState === 'rejected' && (
+                  <p className="mt-1.5 text-xs text-red-700">{lang === 'he' ? 'יש לתקן ולהגיש מחדש לאישור' : 'Fix and resubmit for approval'}</p>
+                )}
 
                 {isExpanded && hasExpandableDetail && (
                   <div className="mt-3 grid gap-2 border-t border-student-outline-variant pt-3">

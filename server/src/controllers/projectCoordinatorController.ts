@@ -19,6 +19,7 @@ import {
 import { FACULTY_NAMES } from '../services/studentProgress.js';
 import { resolveMilestoneOrder, isDefenseDateConfirmed } from '../services/workflowTemplates.js';
 import { computeMedianGrade } from '../services/gradeEngine.js';
+import { countMilestoneRejections } from '../services/milestoneRevisions.js';
 import { resolveTrackPolicy, resolveEffectiveTrack, type StudentTrack } from '../config/studentTrack.js';
 import { resolveEnrolledTrack } from '../services/studentTrack.js';
 import { specializationsForStudent } from '../config/specialization.js';
@@ -463,6 +464,10 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
       // When the administrative coordinator's final approval closed the
       // project (see projectCompletion.ts).
       let completedAt: string | null = null;
+      // How many times each milestone of the current project was returned
+      // to the student (staff-only — the student's own Grades tab doesn't
+      // show the count). Only milestones rejected at least once are listed.
+      let rejections: Array<{ milestoneNameHe: string; milestoneNameEn: string; count: number }> = [];
 
       if (enrolled && project) {
         projectTitleHe = project.titleHe || project.titleEn || '';
@@ -475,6 +480,9 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
           .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b));
         const current = studentMilestones.find((m) => !DONE_MILESTONE_STATUSES.has(m.status)) ?? studentMilestones[studentMilestones.length - 1];
         medianGrade = computeMedianGrade(studentMilestones.map((m) => m.finalGradeByStudent?.[s.id] ?? m.finalGrade));
+        rejections = studentMilestones
+          .map((m) => ({ milestoneNameHe: m.nameHe ?? m.type ?? '', milestoneNameEn: m.nameEn ?? m.type ?? '', count: countMilestoneRejections(m) }))
+          .filter((r) => r.count > 0);
 
         if (current) {
           milestoneNameHe = current.nameHe ?? current.type;
@@ -541,6 +549,7 @@ export const getStudentsReport = async (req: AuthenticatedRequest, res: Response
         milestoneNameEn,
         days,
         medianGrade,
+        rejections,
         completedAt,
         // Written by server/src/controllers/userController.ts's
         // logLogin/logout handlers — ISO strings, null if never recorded.

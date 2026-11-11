@@ -11,6 +11,8 @@
 // services/milestoneRevisions.ts already established for resubmissions).
 
 import admin from 'firebase-admin';
+import { nextRejectionCount, milestoneNames } from './milestoneRevisions.js';
+import { logProjectRecordEntry } from './projectRecords.js';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
 
@@ -111,6 +113,7 @@ export async function recordRevisionDecision(
       // (milestoneRevisions.ts) picks these up transparently on the next resubmit.
       nextStatus = 'rejected';
       updatePayload.status = nextStatus;
+      updatePayload.rejectionCount = nextRejectionCount(milestone!);
       updatePayload.coordinatorRejectedAt = admin.firestore.FieldValue.serverTimestamp();
       updatePayload.coordinatorId = decidedBy;
       updatePayload.rejectionReason = entry.note ?? 'Corrections required following examiner opinions.';
@@ -144,6 +147,15 @@ export async function recordRevisionDecision(
     newValue: { decision, status: nextStatus! },
     explanation: entry.note ?? undefined,
   });
+  if (decision === 'require_corrections' && projectId) {
+    await logProjectRecordEntry({
+      projectId,
+      type: 'milestone_rejected',
+      actorId: decidedBy,
+      actorRole: decidedByRole,
+      data: { milestoneId, reason: entry.note ?? '', ...milestoneNames(milestone!), rejectionNumber: nextRejectionCount(milestone!) },
+    });
+  }
 
   const decisionLabelHe: Record<RevisionDecisionType, string> = {
     proceed_to_defense: 'המשך להגנה',

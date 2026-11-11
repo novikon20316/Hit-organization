@@ -34,6 +34,9 @@ interface StudentReportRow {
   milestoneNameEn: string | null;
   days: number | null;
   medianGrade: number | null;
+  /** Times each milestone of the current project was returned to the
+   *  student — only milestones rejected at least once. Staff-only. */
+  rejections?: Array<{ milestoneNameHe: string; milestoneNameEn: string; count: number }>;
   /** When the administrative coordinator's final approval closed the project. */
   completedAt?: string | null;
   facultyId: string | null;
@@ -309,6 +312,7 @@ export function StudentsReportTab({ enableMessaging = false }: { enableMessaging
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'אבן דרך נוכחית' : 'Current Milestone'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ימים' : 'Days'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'ציון חציוני' : 'Median Grade'}</th>
+              <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'דחיות' : 'Rejections'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'כניסה אחרונה' : 'Last Login'}</th>
               <th className="px-3 py-2 text-start font-medium">{lang === 'he' ? 'יציאה אחרונה' : 'Last Logout'}</th>
             </tr>
@@ -362,6 +366,18 @@ export function StudentsReportTab({ enableMessaging = false }: { enableMessaging
                     {daysLabel}
                   </td>
                   <td className="px-3 py-2 text-administrative-coordinator-on-surface">{r.medianGrade ?? '-'}</td>
+                  <td className="px-3 py-2 text-administrative-coordinator-on-surface">
+                    {r.rejections && r.rejections.length > 0 ? (
+                      <div className="grid gap-0.5">
+                        <span className="font-semibold text-red-700">{r.rejections.reduce((sum, x) => sum + x.count, 0)}</span>
+                        {r.rejections.map((x) => (
+                          <span key={x.milestoneNameEn + x.milestoneNameHe} className="whitespace-nowrap text-[11px] text-administrative-coordinator-on-surface-variant">
+                            {lang === 'he' ? x.milestoneNameHe : x.milestoneNameEn}: {x.count}
+                          </span>
+                        ))}
+                      </div>
+                    ) : '-'}
+                  </td>
                   <td className="px-3 py-2 text-xs text-administrative-coordinator-on-surface-variant">{formatLastAt(r.lastLoginAt, r.lastLoginPlatform, lang)}</td>
                   <td className="px-3 py-2 text-xs text-administrative-coordinator-on-surface-variant">{formatLastAt(r.lastLogoutAt, r.lastLogoutPlatform, lang)}</td>
                 </tr>
@@ -369,7 +385,7 @@ export function StudentsReportTab({ enableMessaging = false }: { enableMessaging
             })}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={enableMessaging ? 12 : 11} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
+                <td colSpan={enableMessaging ? 13 : 12} className="px-3 py-6 text-center text-sm text-administrative-coordinator-on-surface-variant">
                   📭 {lang === 'he' ? 'אין סטודנטים להצגה' : 'No students to show'}
                 </td>
               </tr>

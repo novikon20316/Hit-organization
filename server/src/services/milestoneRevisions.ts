@@ -92,3 +92,43 @@ export function buildRevisionArchiveUpdate(
     coordinatorRejectedAt: admin.firestore.FieldValue.delete(),
   };
 }
+
+/** How many times this milestone has been returned to the student
+ *  (status → 'rejected'), across every round. Stored as `rejectionCount`
+ *  on the milestone doc from 2026-11-11 on; for older milestones that
+ *  never had it, derived from the archived rounds in revisionHistory plus
+ *  the current round if it's sitting rejected right now. The student's
+ *  Grades tab shows a rejected approve/reject milestone red and turns it
+ *  green once approved — this count is what keeps the record of how many
+ *  tries it took. Keep in sync with web/lib/milestoneDecision.ts and
+ *  mobile/utils/milestoneDecision.ts. */
+export function countMilestoneRejections(data: FirebaseFirestore.DocumentData): number {
+  if (typeof data.rejectionCount === 'number') return data.rejectionCount;
+  const archived = Array.isArray(data.revisionHistory)
+    ? data.revisionHistory.filter((r: { decision?: unknown }) => r?.decision === 'rejected').length
+    : 0;
+  return archived + (data.status === 'rejected' ? 1 : 0);
+}
+
+/** The value to write as `rejectionCount` in the same update() that sets
+ *  status: 'rejected'. Call with the milestone's data as read BEFORE that
+ *  update (inside the transaction where there is one). An absolute value,
+ *  not FieldValue.increment, so a pre-2026-11-11 milestone picks up the
+ *  rejections it already had instead of restarting from 1. */
+export function nextRejectionCount(data: FirebaseFirestore.DocumentData): number {
+  if (typeof data.rejectionCount === 'number') return data.rejectionCount + 1;
+  // Legacy doc: the archived rejected rounds, plus this one. (A doc already
+  // sitting 'rejected' here is being re-rejected in the same round — its
+  // current round isn't counted twice.)
+  return countMilestoneRejections({ ...data, status: null }) + 1;
+}
+
+/** Milestone name fields for a project-record entry, so the timeline and the
+ *  records export can say WHICH milestone was rejected without a lookup. */
+export function milestoneNames(data: FirebaseFirestore.DocumentData | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof data?.nameHe === 'string') out.milestoneNameHe = data.nameHe;
+  if (typeof data?.nameEn === 'string') out.milestoneNameEn = data.nameEn;
+  if (typeof data?.type === 'string') out.milestoneType = data.type;
+  return out;
+}
