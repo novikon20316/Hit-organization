@@ -18,7 +18,7 @@ import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
 import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
-import { AvailabilityPicker } from '@/components/thesisExam/AvailabilityPicker';
+import { AvailabilityPicker, EXAM_DAY_END, EXAM_DAY_START, EXAM_TIMES, isShabbat } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamFormPanel, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamFormPanel';
 
 export default function ThesisExamPage() {
@@ -365,8 +365,15 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Same rules as the participants' picker (and the server): no Shabbat,
+  // daytime hours only — the hour lists simply don't offer night times.
+  const dateBad = !!date && isShabbat(date);
+  const timesBad = !!from && !!to && to <= from;
+  const fieldCls = (bad: boolean) => `rounded-md border px-2 py-1 text-sm ${bad ? 'border-danger bg-surface ring-2 ring-danger' : 'border-line bg-surface'}`;
+
   const submit = async () => {
     if (!date || !from || !to) { setError(he ? 'יש לבחור תאריך, שעת התחלה ושעת סיום.' : 'Choose a date, a start time and an end time.'); return; }
+    if (dateBad) { setError(he ? 'לא ניתן לקבוע בחינה ביום שבת.' : 'No exams on Saturday (Shabbat).'); return; }
     if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
     setBusy(true);
     setError('');
@@ -406,12 +413,20 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="text-xs text-muted" htmlFor={`coord-date-${exam.milestoneId}`}>{he ? 'תאריך' : 'Date'}</label>
-        <input id={`coord-date-${exam.milestoneId}`} type="date" min={min} value={date} onChange={(e) => setDate(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+        <input id={`coord-date-${exam.milestoneId}`} type="date" min={min} value={date} onChange={(e) => { setDate(e.target.value); setError(''); }} aria-invalid={dateBad} className={fieldCls(dateBad)} />
         <label className="text-xs text-muted" htmlFor={`coord-from-${exam.milestoneId}`}>{he ? 'משעה' : 'From'}</label>
-        <input id={`coord-from-${exam.milestoneId}`} type="time" step={900} value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+        <select id={`coord-from-${exam.milestoneId}`} value={from} onChange={(e) => { setFrom(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
+          <option value="">--:--</option>
+          {EXAM_TIMES.filter((t) => t < EXAM_DAY_END).map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
         <label className="text-xs text-muted" htmlFor={`coord-to-${exam.milestoneId}`}>{he ? 'עד שעה' : 'To'}</label>
-        <input id={`coord-to-${exam.milestoneId}`} type="time" step={900} value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-sm" />
+        <select id={`coord-to-${exam.milestoneId}`} value={to} onChange={(e) => { setTo(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
+          <option value="">--:--</option>
+          {EXAM_TIMES.filter((t) => t > EXAM_DAY_START).map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
+      {dateBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'יום שבת — לא ניתן לקבוע בו בחינה.' : 'Saturday (Shabbat) — no exams.'}</p>}
+      {timesBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'}</p>}
       <label htmlFor={`coord-note-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה (לא חובה)' : 'Note (optional)'}</label>
       <textarea id={`coord-note-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
       {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}

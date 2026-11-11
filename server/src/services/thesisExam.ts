@@ -93,6 +93,28 @@ export const AVAILABILITY_WINDOW_DAYS = 14;
  *  set by the faculty yet; the user's own example (a 14:00–15:00 overlap)
  *  is exactly this long. */
 export const MIN_EXAM_MINUTES = 60;
+/** Exam hours: nothing at night (the faculty's "about 22:00–06:00"). Every
+ *  pick and the coordinator's time must sit inside [EXAM_DAY_START,
+ *  EXAM_DAY_END]. Mirrored in web/mobile AvailabilityPicker. */
+export const EXAM_DAY_START = '06:00';
+export const EXAM_DAY_END = '22:00';
+
+/** Saturday (Shabbat) is never an exam day. */
+export function isShabbat(date: string): boolean {
+  return dayjs(date).day() === 6;
+}
+
+function assertExamTime(date: string, from: string, to: string): void {
+  if (isShabbat(date)) {
+    throw new ThesisExamError(`${formatDay(date)} הוא יום שבת — לא ניתן לקבוע בו בחינה.`, `${formatDay(date)} is a Saturday — no exams on Shabbat.`);
+  }
+  if (from < EXAM_DAY_START || to > EXAM_DAY_END) {
+    throw new ThesisExamError(
+      `בתאריך ${formatDay(date)}: ניתן לבחור רק שעות בין ${EXAM_DAY_START} ל-${EXAM_DAY_END}.`,
+      `On ${formatDay(date)}: only hours between ${EXAM_DAY_START} and ${EXAM_DAY_END} can be picked.`,
+    );
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,6 +271,7 @@ export function validateAvailability(raw: unknown, window: { start: string; end:
     if (minutesOf(to) <= minutesOf(from)) {
       throw new ThesisExamError(`בתאריך ${formatDay(date)} שעת הסיום חייבת להיות אחרי שעת ההתחלה.`, `On ${formatDay(date)} the end time must be after the start time.`);
     }
+    assertExamTime(date, from, to);
     if (date === today && slotHasStarted({ date, from: to })) {
       throw new ThesisExamError('השעות שנבחרו להיום כבר עברו.', "The hours picked for today have already passed.");
     }
@@ -844,6 +867,7 @@ export async function setCoordinatorDate(
   if (!isValidIsoDay(date)) throw new ThesisExamError('תאריך לא תקין.', 'Invalid date.');
   if (!isValidClockTime(from) || !isValidClockTime(to)) throw new ThesisExamError('יש למלא שעת התחלה ושעת סיום.', 'Fill in a start and end time.');
   if (minutesOf(to) <= minutesOf(from)) throw new ThesisExamError('שעת הסיום חייבת להיות אחרי שעת ההתחלה.', 'The end time must be after the start time.');
+  assertExamTime(date, from, to);
   if (slotHasStarted({ date, from })) throw new ThesisExamError('המועד שנבחר כבר עבר.', 'That time has already passed.');
   const note = typeof raw.note === 'string' ? raw.note.trim().slice(0, 1000) : '';
   const slot: ExamSlot = { date, from, to };

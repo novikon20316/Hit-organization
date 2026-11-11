@@ -16,6 +16,15 @@ const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h
 const toClock = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const STEP = 15;
 
+// Exam rules the server enforces too (services/thesisExam.ts assertExamTime):
+// no exams on Shabbat, and only daytime hours — nothing at night.
+export const EXAM_DAY_START = '06:00';
+export const EXAM_DAY_END = '22:00';
+
+export function isShabbat(date: string): boolean {
+  return new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
+}
+
 /** Israel's date and clock — the server's window and "already passed" check
  *  (services/thesisExam.ts validateAvailability) are in Asia/Jerusalem, so a
  *  device in another zone must offer the same days. Falls back to the device
@@ -52,9 +61,9 @@ export function daysBetween(start: string, end: string): string[] {
   return out;
 }
 
-export function Stepper({ label, value, onChange, lang }: { label: string; value: string; onChange: (v: string) => void; lang: Lang }) {
+export function Stepper({ label, value, onChange, lang, min = '00:00', max = '23:45' }: { label: string; value: string; onChange: (v: string) => void; lang: Lang; min?: string; max?: string }) {
   const isRtl = lang === 'he';
-  const step = (delta: number) => onChange(toClock(Math.min(23 * 60 + 45, Math.max(0, toMin(value) + delta))));
+  const step = (delta: number) => onChange(toClock(Math.min(toMin(max), Math.max(toMin(min), toMin(value) + delta))));
   const btn = { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: C.line, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: '#fff' };
   return (
     <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
@@ -77,11 +86,12 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
   const isRtl = he;
   const today = todayIso();
   const min = today > window.start ? today : window.start;
-  const days = useMemo(() => daysBetween(min, window.end), [min, window.end]);
+  // Saturdays are never offered.
+  const days = useMemo(() => daysBetween(min, window.end).filter((d) => !isShabbat(d)), [min, window.end]);
   // Only days still inside the window — a saved pick whose day has passed
   // was invisible in the chips yet still counted and re-submitted.
   const [picks, setPicks] = useState<Record<string, { from: string; to: string }>>(() =>
-    Object.fromEntries((initial ?? []).filter((e) => e.date >= min && e.date <= window.end).map((e) => [e.date, { from: e.from, to: e.to }])),
+    Object.fromEntries((initial ?? []).filter((e) => e.date >= min && e.date <= window.end && !isShabbat(e.date)).map((e) => [e.date, { from: e.from, to: e.to }])),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -108,6 +118,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     const pk = picks[d];
     if (!pk) return null;
     if (d < now.date || d > window.end) return he ? 'התאריך מחוץ לטווח המותר — יש לבטל אותו ולבחור אחר.' : 'This date is outside the allowed range — unselect it and pick another.';
+    if (isShabbat(d)) return he ? 'לא ניתן לבחור יום שבת.' : 'Saturday (Shabbat) cannot be picked.';
+    if ([pk.from, pk.to].some((t) => t < EXAM_DAY_START || t > EXAM_DAY_END)) return he ? `ניתן לבחור רק שעות בין ${EXAM_DAY_START} ל-${EXAM_DAY_END}.` : `Only hours between ${EXAM_DAY_START} and ${EXAM_DAY_END}.`;
     if (toMin(pk.to) <= toMin(pk.from)) return he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.';
     if (d === now.date && toMin(pk.to) <= toMin(now.time)) return he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.';
     return null;
@@ -133,8 +145,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
       <Text style={{ fontSize: 12, color: C.muted, textAlign: isRtl ? 'right' : 'left' }}>
         {he
-          ? `בחר/י ${count} תאריכים (${chosen.length}/${count}), ובכל אחד את השעות שבהן את/ה פנוי/ה. המערכת תקבע את המועד המשותף לכולם.`
-          : `Pick ${count} dates (${chosen.length}/${count}) and the hours you're free on each. The system sets the time everyone shares.`}
+          ? `בחר/י ${count} תאריכים (${chosen.length}/${count}), ובכל אחד את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
+          : `Pick ${count} dates (${chosen.length}/${count}) and the hours you're free on each (${EXAM_DAY_START}–${EXAM_DAY_END}, no Saturdays). The system sets the time everyone shares.`}
       </Text>
       <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
         {days.map((d) => {
@@ -164,8 +176,8 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
             {formatExamDay(d, lang, { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
           <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12 }}>
-            <Stepper lang={lang} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
-            <Stepper lang={lang} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
+            <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'משעה' : 'From'} value={picks[d]!.from} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, from: v } })); }} />
+            <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'עד' : 'To'} value={picks[d]!.to} onChange={(v) => { setSaved(false); setError(''); setPicks((p) => ({ ...p, [d]: { ...p[d]!, to: v } })); }} />
           </View>
           {!!dayIssue(d) && (
             <Text style={{ fontSize: 12, color: C.danger, textAlign: isRtl ? 'right' : 'left' }}>⚠ {dayIssue(d)}</Text>

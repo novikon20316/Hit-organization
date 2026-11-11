@@ -22,7 +22,25 @@ function israelNow(): { date: string; time: string } {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
-function daysBetween(start: string, end: string): string[] {
+// Exam rules the server enforces too (services/thesisExam.ts assertExamTime):
+// no exams on Shabbat, and only daytime hours — nothing at night.
+export const EXAM_DAY_START = '06:00';
+export const EXAM_DAY_END = '22:00';
+
+export function isShabbat(date: string): boolean {
+  return new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
+}
+
+/** Every quarter hour from EXAM_DAY_START to EXAM_DAY_END, inclusive. */
+export const EXAM_TIMES: string[] = (() => {
+  const out: string[] = [];
+  const [sh, sm] = EXAM_DAY_START.split(':').map(Number);
+  const [eh, em] = EXAM_DAY_END.split(':').map(Number);
+  for (let m = sh! * 60 + sm!; m <= eh! * 60 + em!; m += 15) out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  return out;
+})();
+
+export function daysBetween(start: string, end: string): string[] {
   const out: string[] = [];
   const d = new Date(`${start}T12:00:00Z`);
   const last = new Date(`${end}T12:00:00Z`);
@@ -52,12 +70,13 @@ export function AvailabilityPicker({
   // The ONLY days that can be chosen: today (or the round's first day) up to
   // the window's last day. A free date box let people type any date and only
   // learn it was illegal on submit.
-  const allowedDays = daysBetween(min, window.end);
+  // Saturdays are left out altogether.
+  const allowedDays = daysBetween(min, window.end).filter((d) => !isShabbat(d));
   const [rows, setRows] = useState<ThesisExamAvailabilityEntry[]>(() => {
     const blank = { date: '', from: '', to: '' };
     if (!initial || initial.length !== count) return Array.from({ length: count }, () => ({ ...blank }));
     // A saved pick whose day has since passed is cleared, not kept.
-    return initial.map((e) => (e.date >= min && e.date <= window.end ? { ...e } : { ...blank }));
+    return initial.map((e) => (e.date >= min && e.date <= window.end && !isShabbat(e.date) ? { ...e } : { ...blank }));
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -79,8 +98,20 @@ export function AvailabilityPicker({
     if (r.date && (r.date < min || r.date > window.end)) {
       return { date: true, from: false, to: false, message: he ? 'התאריך מחוץ לטווח המותר.' : 'This date is outside the allowed range.' };
     }
+    if (r.date && isShabbat(r.date)) {
+      return { date: true, from: false, to: false, message: he ? 'לא ניתן לבחור יום שבת.' : 'Saturday (Shabbat) cannot be picked.' };
+    }
     if (r.date && rows.some((o, j) => j !== i && o.date === r.date)) {
       return { date: true, from: false, to: false, message: he ? 'התאריך כבר נבחר בשורה אחרת.' : 'This date is already used in another row.' };
+    }
+    const atNight = (t: string) => !!t && (t < EXAM_DAY_START || t > EXAM_DAY_END);
+    if (atNight(r.from) || atNight(r.to)) {
+      return {
+        date: false,
+        from: atNight(r.from),
+        to: atNight(r.to),
+        message: he ? `ניתן לבחור רק שעות בין ${EXAM_DAY_START} ל-${EXAM_DAY_END} (לא בשעות הלילה).` : `Only hours between ${EXAM_DAY_START} and ${EXAM_DAY_END} (no night hours).`,
+      };
     }
     if (r.from && r.to && r.to <= r.from) {
       return { date: false, from: true, to: true, message: he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.' };
@@ -117,6 +148,18 @@ export function AvailabilityPicker({
     }
   };
 
+  // Only daytime quarter hours can be chosen ("from" can't be the last one,
+  // "to" can't be the first). A saved value outside the list is still shown
+  // so its row's red message makes sense.
+  const timeOptions = (value: string, kind: 'from' | 'to') => {
+    const list = EXAM_TIMES.filter((t) => (kind === 'from' ? t < EXAM_DAY_END : t > EXAM_DAY_START));
+    const all = value && !list.includes(value) ? [value, ...list] : list;
+    return [
+      <option key="" value="">--:--</option>,
+      ...all.map((t) => <option key={t} value={t}>{t}</option>),
+    ];
+  };
+
   const field = (bad: boolean) =>
     `rounded-md border px-2 py-1 text-sm ${bad ? 'border-danger bg-surface ring-2 ring-danger' : 'border-line bg-surface'}`;
 
@@ -124,8 +167,8 @@ export function AvailabilityPicker({
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
       <p className="text-xs text-muted">
         {he
-          ? `בחר/י ${count} תאריכים בין ${formatExamDay(min, 'he', { day: 'numeric', month: 'numeric' })} ל-${formatExamDay(window.end, 'he', { day: 'numeric', month: 'numeric' })}, ובכל תאריך את השעות שבהן את/ה פנוי/ה. המערכת תקבע את המועד המשותף לכולם.`
-          : `Pick ${count} dates between ${formatExamDay(min, 'en', { day: 'numeric', month: 'numeric' })} and ${formatExamDay(window.end, 'en', { day: 'numeric', month: 'numeric' })}, and the hours you're free on each. The system sets the time everyone shares.`}
+          ? `בחר/י ${count} תאריכים בין ${formatExamDay(min, 'he', { day: 'numeric', month: 'numeric' })} ל-${formatExamDay(window.end, 'he', { day: 'numeric', month: 'numeric' })}, ובכל תאריך את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
+          : `Pick ${count} dates between ${formatExamDay(min, 'en', { day: 'numeric', month: 'numeric' })} and ${formatExamDay(window.end, 'en', { day: 'numeric', month: 'numeric' })}, and the hours you're free on each (${EXAM_DAY_START}–${EXAM_DAY_END}, no Saturdays). The system sets the time everyone shares.`}
       </p>
       <div className="mt-2 grid gap-2">
         {rows.map((r, i) => {
@@ -145,9 +188,13 @@ export function AvailabilityPicker({
                   ))}
                 </select>
                 <label className="text-xs text-muted" htmlFor={`exam-from-${i}`}>{he ? 'משעה' : 'From'}</label>
-                <input id={`exam-from-${i}`} type="time" step={900} value={r.from} onChange={(e) => update(i, 'from', e.target.value)} aria-invalid={!!issue?.from} aria-describedby={issue ? `exam-row-err-${i}` : undefined} className={field(!!issue?.from)} />
+                <select id={`exam-from-${i}`} value={r.from} onChange={(e) => update(i, 'from', e.target.value)} aria-invalid={!!issue?.from} aria-describedby={issue ? `exam-row-err-${i}` : undefined} className={field(!!issue?.from)}>
+                  {timeOptions(r.from, 'from')}
+                </select>
                 <label className="text-xs text-muted" htmlFor={`exam-to-${i}`}>{he ? 'עד שעה' : 'To'}</label>
-                <input id={`exam-to-${i}`} type="time" step={900} value={r.to} onChange={(e) => update(i, 'to', e.target.value)} aria-invalid={!!issue?.to} aria-describedby={issue ? `exam-row-err-${i}` : undefined} className={field(!!issue?.to)} />
+                <select id={`exam-to-${i}`} value={r.to} onChange={(e) => update(i, 'to', e.target.value)} aria-invalid={!!issue?.to} aria-describedby={issue ? `exam-row-err-${i}` : undefined} className={field(!!issue?.to)}>
+                  {timeOptions(r.to, 'to')}
+                </select>
               </div>
               {issue && <p id={`exam-row-err-${i}`} className="mt-1 ps-7 text-xs text-danger">⚠ {issue.message}</p>}
             </div>

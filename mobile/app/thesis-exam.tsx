@@ -16,7 +16,7 @@ import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/s
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
-import { AvailabilityPicker, Stepper, daysBetween, todayIso } from '@/components/thesisExam/AvailabilityPicker';
+import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, EXAM_DAY_END } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
 const errText = (err: any, fallback: string) => err?.response?.data?.message ?? fallback;
@@ -442,7 +442,8 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
     const start = todayIso();
     const end = new Date(`${start}T12:00:00Z`);
     end.setUTCDate(end.getUTCDate() + 60);
-    return daysBetween(start, end.toISOString().slice(0, 10));
+    // No Saturdays (Shabbat) — same rule as the participants' picker.
+    return daysBetween(start, end.toISOString().slice(0, 10)).filter((d) => !isShabbat(d));
   }, []);
   const [date, setDate] = useState('');
   const [from, setFrom] = useState('10:00');
@@ -506,8 +507,8 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
         })}
       </ScrollView>
       <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
-        <Stepper lang={lang} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
-        <Stepper lang={lang} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
+        <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
+        <Stepper lang={lang} min={EXAM_DAY_START} max={EXAM_DAY_END} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
       </View>
       <TextInput
         accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
