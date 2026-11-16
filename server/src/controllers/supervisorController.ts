@@ -7,7 +7,6 @@ import { getPrivateContact } from '../services/privateContact.js';
 import { majorsForFaculty } from '../config/majors.js';
 import { notifyUser } from '../services/notify.js';
 import { resolveStaffForScope, withinCoordinatorScope } from '../services/scopeAuthorization.js';
-import { targetScreenFor } from '../services/notificationTargets.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import {
   resolveWorkflowTemplateRefs, DEGREE_TYPE_ORDER, PROJECT_TYPE_ORDER,
@@ -1570,34 +1569,39 @@ export const decideFinalGrade = async (req: AuthenticatedRequest, res: Response)
       // holding 'coordinator') can be matched into this fan-out via
       // resolveStaffForScope(signoffRole, ...) while their primary role
       // resolves to a different (or no) destination, same class of bug as
-      // notify.ts's taskRoleCandidates fixes elsewhere.
-      const recipientSnaps = await Promise.all(uids.map((uid) => db.collection('users').doc(uid).get()));
-      await Promise.all(uids.map((recipientId, idx) => {
-        const recipientData = recipientSnaps[idx]?.data();
-        const rolesHeld = new Set<string>([recipientData?.role, ...(Array.isArray(recipientData?.roles) ? recipientData.roles : [])].filter(Boolean));
-        const effectiveRole = rolesHeld.has(signoffRole) ? signoffRole : recipientData?.role;
-        const targetScreen = targetScreenFor(effectiveRole, 'signoff');
-        return db.collection('notifications').add({
-          recipientId,
-          type: 'grade_override_pending',
-          titleHe: kind === 'override' ? '⚖️ שינוי ציון ממתין לאישור' : '✅ ציון סופי ממתין לאישור',
-          titleEn: kind === 'override' ? '⚖️ Grade Override Pending Approval' : '✅ Final Grade Pending Approval',
-          bodyHe: kind === 'override'
-            ? `המנחה הציע לשנות את הציון המחושב (${data.autoCalculatedFinalGrade}) ל-${proposedGrade}.`
-            : `המנחה אישר את הציון המחושב (${proposedGrade}) — ממתין לאישורך הסופי.`,
-          bodyEn: kind === 'override'
-            ? `The supervisor proposed changing the computed grade (${data.autoCalculatedFinalGrade}) to ${proposedGrade}.`
-            : `The supervisor confirmed the computed grade (${proposedGrade}) — awaiting your final sign-off.`,
-          isRead: false,
-          relatedProjectId: data.projectId ?? null,
-          relatedMilestoneId: milestoneId,
-          // targetRole lets the client switch its own activeRole (same as
-          // the sidebar's "Switch Role" section) before navigating — see
-          // notify.ts's identical field for the same reasoning.
-          ...(targetScreen ? { targetScreen, targetRole: effectiveRole } : {}),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }));
+      // notify.ts's taskRoleCandidates fixes elsewhere — which is exactly
+      // what passing taskRoleCandidates: [signoffRole] does there.
+      //
+      // Through notifyUser (not a bare Firestore add) so the approver also
+      // gets email + push: an in-app-only notice meant a staff member who
+      // doesn't open the system never learned a grade was waiting on them.
+      const bodyHe = kind === 'override'
+        ? `המנחה הציע לשנות את הציון המחושב (${data.autoCalculatedFinalGrade}) ל-${proposedGrade}.`
+        : `המנחה אישר את הציון המחושב (${proposedGrade}) — ממתין לאישורך הסופי.`;
+      const bodyEn = kind === 'override'
+        ? `The supervisor proposed changing the computed grade (${data.autoCalculatedFinalGrade}) to ${proposedGrade}.`
+        : `The supervisor confirmed the computed grade (${proposedGrade}) — awaiting your final sign-off.`;
+      await Promise.all(uids.map((recipientId) => notifyUser({
+        recipientId,
+        type: 'final_grade_approval_due',
+        inAppType: 'grade_override_pending',
+        titleHe: kind === 'override' ? '⚖️ שינוי ציון ממתין לאישור' : '✅ ציון סופי ממתין לאישור',
+        titleEn: kind === 'override' ? '⚖️ Grade Override Pending Approval' : '✅ Final Grade Pending Approval',
+        bodyHe,
+        bodyEn,
+        // No grade on the lock screen.
+        pushBodyHe: 'ציון סופי ממתין לאישורך.',
+        pushBodyEn: 'A final grade is awaiting your approval.',
+        relatedProjectId: data.projectId ?? null,
+        relatedMilestoneId: milestoneId,
+        taskKind: 'signoff',
+        taskRoleCandidates: [signoffRole],
+        emailData: {
+          detail: { he: bodyHe, en: bodyEn },
+          projectTitle: { he: project.titleHe || project.titleEn || '', en: project.titleEn || project.titleHe || '' },
+          milestoneTitle: { he: data.nameHe ?? data.type ?? '', en: data.nameEn ?? data.type ?? '' },
+        },
+      }).catch((err) => console.error(`decideFinalGrade: notify ${recipientId} failed:`, err))));
     } catch (notifyErr) {
       console.error('decideFinalGrade: failed to notify signoff role:', notifyErr);
     }

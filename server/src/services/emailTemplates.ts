@@ -95,6 +95,10 @@ export type NotificationType =
   // `message` and an optional `link` (a button), so one template carries
   // every step's copy.
   | 'thesis_exam_update'
+  // A final grade (or a finished evaluation form) waiting on the staff
+  // member who gives the final approval — `detail` is the one-line
+  // what-happened text, `projectTitle`/`milestoneTitle` say where.
+  | 'final_grade_approval_due'
   | 'general';
 
 interface EmailTemplate {
@@ -779,6 +783,12 @@ export const EMAIL_TEMPLATES: Record<NotificationType, EmailTemplate> = {
     subjectEn: (d) => d.subject || '🎓 Thesis exam',
     bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>${d.message || ''}</p>${d.link ? `<p><a href="${d.link}">${d.linkLabel || 'מעבר למערכת'}</a></p>` : ''}`,
     bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>${d.message || ''}</p>${d.link ? `<p><a href="${d.link}">${d.linkLabel || 'Open the system'}</a></p>` : ''}`,
+  },
+  final_grade_approval_due: {
+    subjectHe: (d) => `✅ ציון סופי ממתין לאישורך${d.projectTitle ? ` — ${d.projectTitle}` : ''}`,
+    subjectEn: (d) => `✅ Final grade awaiting your approval${d.projectTitle ? ` — ${d.projectTitle}` : ''}`,
+    bodyHe: (d) => `<p>שלום ${d.name || ''},</p><p>${d.detail || ''}</p>${d.projectTitle ? `<p>פרויקט: <strong>${d.projectTitle}</strong>${d.milestoneTitle ? ` · ${d.milestoneTitle}` : ''}</p>` : ''}<p>הציון ייסגר רק לאחר אישורך. יש להיכנס למערכת, ללשונית אישורי הציונים, כדי לאשר.</p>`,
+    bodyEn: (d) => `<p>Hello ${d.name || ''},</p><p>${d.detail || ''}</p>${d.projectTitle ? `<p>Project: <strong>${d.projectTitle}</strong>${d.milestoneTitle ? ` · ${d.milestoneTitle}` : ''}</p>` : ''}<p>The grade is only finalized once you approve it. Log in and open the grade approvals tab to approve.</p>`,
   },
   general: {
     subjectHe: '🔔 עדכון מהמערכת',

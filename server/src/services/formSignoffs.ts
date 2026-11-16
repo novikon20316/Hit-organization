@@ -136,7 +136,9 @@ export async function notifyFinalApprovalDue(milestoneId: string, m: MilestoneDa
   const targetScreen = targetScreenFor(role, 'signoff');
   await Promise.all(uids.map((uid) => notifyUser({
     recipientId: uid,
-    type: 'milestone_submitted',
+    // Not 'milestone_submitted' — that email says "a new submission is
+    // waiting for a grade", which isn't what this is.
+    type: 'final_grade_approval_due',
     inAppType: 'grade_override_pending',
     titleHe: `✅ טופס הערכה ממתין לאישור סופי — ${title}`,
     titleEn: `✅ Evaluation form awaiting final approval — ${title}`,
@@ -144,6 +146,11 @@ export async function notifyFinalApprovalDue(milestoneId: string, m: MilestoneDa
     bodyEn: 'All signatures on the form are in — awaiting your final approval.',
     relatedProjectId: m.projectId ?? null,
     relatedMilestoneId: milestoneId,
+    emailData: {
+      detail: { he: 'כל החתימות על טופס ההערכה הושלמו — ממתין לאישורך הסופי.', en: 'All signatures on the evaluation form are in — awaiting your final approval.' },
+      projectTitle: { he: project.titleHe || project.titleEn || '', en: project.titleEn || project.titleHe || '' },
+      milestoneTitle: { he: m.nameHe ?? m.type ?? '', en: m.nameEn ?? m.type ?? '' },
+    },
     ...(targetScreen ? { targetScreen } : {}),
   }).catch((err) => console.error('notifyFinalApprovalDue: notify failed:', err))));
 }
