@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
 import { apiClient } from '@/lib/apiClient';
 import { notifMatchesRole, badgeMatchesRole } from '@/lib/notificationScreens';
+import { thesisExamTasks, type ThesisExamTask } from '@/lib/thesisExamTasks';
 
 interface NotificationsContextValue {
   unreadCount: number;
@@ -49,6 +50,9 @@ interface NotificationsContextValue {
    *  server's services/thesisExam.ts) — gates the "Thesis Exam" sidebar
    *  link. Refetched whenever a new notification lands. */
   hasThesisExams: boolean;
+  /** Thesis exam steps waiting on the signed-in user right now (see
+   *  lib/thesisExamTasks.ts) - drives the dashboard alert strip. */
+  thesisExamTasks: ThesisExamTask[];
   /** Bumps every time a NEW notification lands for the signed-in user
    *  (never on the initial load). Screens watch it through
    *  hooks/useLiveRefresh.ts to refetch their own data the moment something
@@ -101,6 +105,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   isOnAnyCommittee: false,
   isCommitteeSubstitute: false,
   hasThesisExams: false,
+  thesisExamTasks: [],
   liveEventTick: 0,
   liveEvent: null,
   dismissLiveEvent: () => {},
@@ -117,6 +122,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [isOnFormalCommittee, setIsOnFormalCommittee] = useState(false);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
   const [hasThesisExams, setHasThesisExams] = useState(false);
+  const [examTasks, setExamTasks] = useState<ThesisExamTask[]>([]);
   const isOnAnyCommittee = isOnFormalCommittee || isCommitteeSubstitute;
   const [liveEventTick, setLiveEventTick] = useState(0);
   const [liveEvent, setLiveEvent] = useState<LiveEvent | null>(null);
@@ -348,7 +354,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (!firebaseUser) return;
     let cancelled = false;
     apiClient.getMyThesisExams()
-      .then((res) => { if (!cancelled) setHasThesisExams(res.exams.length > 0); })
+      .then((res) => { if (!cancelled) { setHasThesisExams(res.exams.length > 0); setExamTasks(thesisExamTasks(res.exams)); } })
       .catch(() => { /* leave the link as it was */ });
     return () => { cancelled = true; };
   }, [firebaseUser, liveEventTick]);
@@ -375,6 +381,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     isOnAnyCommittee: firebaseUser ? isOnAnyCommittee : false,
     isCommitteeSubstitute: firebaseUser ? isCommitteeSubstitute : false,
     hasThesisExams: firebaseUser ? hasThesisExams : false,
+    thesisExamTasks: firebaseUser ? examTasks : [],
     liveEventTick,
     liveEvent: firebaseUser ? liveEvent : null,
     dismissLiveEvent,

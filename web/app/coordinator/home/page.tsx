@@ -53,6 +53,8 @@ import { ArchivedProjectsTab } from '@/components/ArchivedProjectsTab';
 import { CreateOwnProjectButton } from '@/components/CreateOwnProjectButton';
 import { MyApplicationsWidget } from '@/components/MyApplicationsWidget';
 import { MyProjectsWidget } from '@/components/MyProjectsWidget';
+import { useNotifications } from '@/contexts/NotificationsContext';
+import { formatTaskDeadline, thesisExamTaskLabel } from '@/lib/thesisExamTasks';
 import type { CoordinatorDeadline, CoordinatorPendingMilestone, ExaminerRecommendation, ExaminerUser, InProgressProject, Project } from './types';
 
 const COORDINATOR_ROLES: AppRole[] = ['coordinator', 'administrative_secretary', 'system_admin'];
@@ -66,6 +68,7 @@ function CoordinatorHomeContent() {
   const { loading: guardLoading, isAllowed, firebaseUser, userData } = useRequireRole(COORDINATOR_ROLES);
   const { activeRole } = useAuth();
   const { lang, t } = useLanguage();
+  const { thesisExamTasks } = useNotifications();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -459,12 +462,26 @@ function CoordinatorHomeContent() {
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-coordinator-on-surface">
               ⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}
             </h3>
-            {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 ? (
+            {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 && thesisExamTasks.length === 0 ? (
               <p className="text-sm text-coordinator-on-surface-variant">
                 ✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}
               </p>
             ) : (
               <ul className="grid gap-2">
+                {/* 0. Thesis exam steps waiting on this user personally
+                    (picking dates, approvals, the exam form) — first, since
+                    one person not acting holds up the whole exam. */}
+                {thesisExamTasks.map((x) => (
+                  <UrgentActionRow
+                    key={`exam-${x.milestoneId}-${x.kind}`}
+                    href="/thesis-exam"
+                    clickable
+                    accent="error"
+                    badgeClassName="bg-coordinator-error-container text-coordinator-error"
+                    badge={lang === 'he' ? 'בחינת תזה' : 'Thesis Exam'}
+                    title={`${thesisExamTaskLabel(x.kind, lang)}${x.deadline ? (lang === 'he' ? ` עד ${formatTaskDeadline(x.deadline, lang)}` : ` by ${formatTaskDeadline(x.deadline, lang)}`) : ''} — ${x.studentNames.join(', ') || (lang === 'he' ? x.projectTitleHe : x.projectTitleEn)}`}
+                  />
+                ))}
                 {/* 1. Defense exams needing coordinator attention (examiners,
                     date conflicts, logistics, overdue grading). */}
                 {defenseActionCards.slice(0, 3).map((c) => (

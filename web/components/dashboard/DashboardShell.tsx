@@ -16,6 +16,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { ChatbotFab } from '@/components/ChatbotFab';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThesisExamAlert } from '@/components/dashboard/ThesisExamAlert';
 import { getRoleAccent } from '@/lib/facultyColors';
 import { roleLabel, type AppRole } from '@/lib/i18n';
 import { getHomeRoute } from '@/lib/roles';
@@ -103,6 +104,8 @@ export function DashboardShell({ title, subtitle, showBackButton = true, childre
           </div>
         </div>
       </header>
+
+      <ThesisExamAlert />
 
       {showTotpNudge && (
         <div className="border-b border-line bg-primary/10">
