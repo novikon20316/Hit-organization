@@ -10,7 +10,7 @@
 
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { L } from '../utils/localize.js';
 import { isOtpSessionFresh } from '../services/examinerAccess.js';
 import { logAuditEvent } from '../services/auditLog.js';
@@ -47,7 +47,7 @@ import {
   loadExamForms,
   examFormGate,
 } from '../services/thesisExam.js';
-import type { ResourceScope } from '../services/scopeAuthorization.js';
+import { withinCoordinatorScope, type ResourceScope } from '../services/scopeAuthorization.js';
 
 function sendError(req: Request, res: Response, err: unknown, en: string, he: string) {
   if (err instanceof ThesisExamError) return res.status(err.status).json({ message: L(req, err.en, err.he) });
@@ -197,6 +197,57 @@ export const getMyThesisExams = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ exams: cards });
   } catch (err) {
     return sendError(req, res, err, 'Failed to load thesis exams.', 'טעינת בחינות התזה נכשלה.');
+  }
+};
+
+// ─── GET /api/thesis-exam/:milestoneId/overview ──────────────────────────────
+// Oversight view for staff who aren't necessarily participants (system_admin,
+// coordinator tier in scope) plus the exam's own staff: who the examiners are
+// (the milestone card's examiner-opinions panel only ever knew about outside
+// examiners' access tokens, so an internal examiner was invisible there) and,
+// while dates are being picked, who still owes them. Names only, never the
+// dates themselves.
+const OVERVIEW_COORDINATOR_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
+
+export const getThesisExamOverview = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId ?? '');
+  try {
+    const loaded = await loadExam(milestoneId);
+    if (!loaded) return res.status(200).json({ exam: null });
+    const { exam, milestone } = loaded;
+    const allowed =
+      (hasAnyRole(req.user, OVERVIEW_COORDINATOR_ROLES) && withinCoordinatorScope(req.user, exam.scope))
+      || milestone.supervisorId === uid || milestone.secondarySupervisorId === uid
+      || (exam.committeeMemberIds ?? []).includes(uid)
+      || (await gradSchoolHeadIds(exam.scope, true)).includes(uid)
+      || (await programHeadIds(exam.scope, true)).includes(uid)
+      || (await adminCoordinatorIds(exam.scope, true)).includes(uid);
+    if (!allowed) return res.status(403).json({ message: L(req, 'Forbidden.', 'הפעולה אסורה.') });
+
+    const submittedKeys = Object.keys(exam.availability ?? {});
+    const picking = exam.status === EXAM_AVAILABILITY;
+    return res.status(200).json({
+      exam: {
+        status: exam.status,
+        requiredExaminers: examinerCountFor(milestone),
+        // Before approval only the nomination exists; after it, the onboarded list.
+        examiners: (exam.examiners?.length ? exam.examiners : exam.nomination?.examiners ?? []).map((e) => ({
+          name: e.name,
+          type: e.type,
+          institution: e.institution ?? null,
+        })),
+        examinersApproved: (exam.examiners?.length ?? 0) > 0,
+        availabilityRound: exam.availabilityRound ?? 0,
+        window: exam.window,
+        participants: picking
+          ? exam.participants.map((p) => ({ name: p.name, roles: p.roles, submitted: submittedKeys.includes(p.key) }))
+          : [],
+      },
+    });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to load the thesis exam.', 'טעינת בחינת התזה נכשלה.');
   }
 };
 

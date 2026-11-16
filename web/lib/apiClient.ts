@@ -3422,6 +3422,9 @@ export const apiClient = {
   async getMyThesisExams() {
     return request<{ exams: ThesisExamCard[] }>('/api/thesis-exam/mine', { method: 'GET' });
   },
+  async getThesisExamOverview(milestoneId: string) {
+    return request<{ exam: ThesisExamOverview | null }>(`/api/thesis-exam/${milestoneId}/overview`, { method: 'GET' });
+  },
   async getThesisExamCandidates(milestoneId: string) {
     return request<{ candidates: Array<{ uid: string; name: string; facultyId: string | null }> }>(`/api/thesis-exam/${milestoneId}/examiner-candidates`, { method: 'GET' });
   },
@@ -4077,6 +4080,17 @@ export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
   | { type: 'internal'; uid: string }
   | { type: 'external'; name: string; email: string; institution?: string };
+/** Staff oversight of one exam (GET /api/thesis-exam/:milestoneId/overview). */
+export interface ThesisExamOverview {
+  status: ThesisExamStatus;
+  requiredExaminers: number;
+  examiners: Array<{ name: string; type: 'internal' | 'external'; institution: string | null }>;
+  examinersApproved: boolean;
+  availabilityRound: number;
+  window: { start: string; end: string } | null;
+  /** Only while dates are being picked (exam_availability). */
+  participants: Array<{ name: string; roles: Array<'student' | 'supervisor' | 'committee' | 'examiner'>; submitted: boolean }>;
+}
 export interface ThesisExamCard {
   milestoneId: string;
   projectId: string;

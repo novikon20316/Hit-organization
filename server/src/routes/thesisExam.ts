@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { verifyToken } from '../middleware/auth.js';
 import {
   getMyThesisExams,
+  getThesisExamOverview,
   getExaminerCandidates,
   nominateExaminers,
   decideExaminerNomination,
@@ -17,6 +18,7 @@ import {
 const router = Router();
 
 router.get('/mine', verifyToken, getMyThesisExams);
+router.get('/:milestoneId/overview', verifyToken, getThesisExamOverview);
 router.get('/:milestoneId/examiner-candidates', verifyToken, getExaminerCandidates);
 router.post('/:milestoneId/nominate', verifyToken, nominateExaminers);
 router.post('/:milestoneId/nomination-decision', verifyToken, decideExaminerNomination);

@@ -9,6 +9,7 @@ import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { recordRevisionDecision, isValidRevisionDecision } from '../services/revisionDecisions.js';
 import { hasActionGrant, withinCoordinatorScope, resolveMilestoneScope } from '../services/scopeAuthorization.js';
 import { L } from '../utils/localize.js';
+import { isThesisExamStatus } from '../services/thesisExam.js';
 
 const COORDINATOR_TIER_ROLES = ['coordinator', 'faculty_admin', 'administrative_secretary', 'system_admin'];
 
@@ -75,6 +76,13 @@ export const submitRevisionDecision = async (req: AuthenticatedRequest, res: Res
     const milestoneSnap = await db.collection('milestones').doc(milestoneId).get();
     if (!milestoneSnap.exists) return res.status(404).json({ message: L(req, 'Milestone not found.', 'אבן הדרך לא נמצאה.') });
     const milestone = milestoneSnap.data()!;
+
+    // The CS thesis exam runs its own status machine (services/thesisExam.ts);
+    // these decisions would overwrite its status (e.g. proceed_to_defense →
+    // coordinator_approved) and strand thesisExams/{id} mid-flow.
+    if (milestone.thesisExamFlow || isThesisExamStatus(milestone.status)) {
+      return res.status(409).json({ message: L(req, 'The thesis exam has its own steps — this decision does not apply to it.', 'לבחינת התזה תהליך משלה — החלטה זו אינה רלוונטית לה.') });
+    }
 
     const isOwnAdvisee = milestone.supervisorId === req.user.uid || milestone.secondarySupervisorId === req.user.uid;
     const isCoordinatorTier = hasAnyRole(req.user, COORDINATOR_TIER_ROLES);

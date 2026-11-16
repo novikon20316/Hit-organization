@@ -27,6 +27,7 @@ import type { DefenseMode, DefenseZoomMeeting } from '@/lib/defenseDisplay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, ApiError, SoftError } from '@/lib/apiClient';
 import { RevisionDecisionPanel } from '@/components/RevisionDecisionPanel';
+import { ThesisExamOverviewPanel } from '@/components/thesisExam/ThesisExamOverviewPanel';
 import { MilestoneFilePanel } from '@/components/MilestoneFilePanel';
 import { downloadFile, fileNameFromUrl } from '@/lib/fileClickPreview';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
@@ -671,8 +672,13 @@ function MilestoneCard({
             </button>
           )}
 
+          {/* The thesis exam runs its own flow — the generic examiner-opinions
+              panel only listed outside examiners' tokens and its decision
+              buttons would overwrite the exam's status. */}
           {(viewerRole === 'supervisor' || COORDINATOR_APPROVE_ROLES.includes(viewerRole)) && (
-            <RevisionDecisionPanel milestoneId={milestone.id} canDecide />
+            isThesisExamMilestone(milestone)
+              ? <ThesisExamOverviewPanel milestoneId={milestone.id} />
+              : <RevisionDecisionPanel milestoneId={milestone.id} canDecide />
           )}
         </div>
       )}
