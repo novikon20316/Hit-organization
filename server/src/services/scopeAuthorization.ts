@@ -243,6 +243,14 @@ export async function resolveProjectScope(projectId: string | undefined | null):
 // across two different fields in one query.
 const COORDINATOR_TIER_ROLES = new Set<string>(['coordinator', 'administrative_secretary']);
 
+/** Chain roles that carry their own extra-faculty grant field (see
+ *  RoleFacultyField / effectiveFacultyIds). */
+const ROLE_FACULTY_FIELD: Partial<Record<ChainRole, RoleFacultyField>> = {
+  faculty_admin: 'facultyAdminFacultyIds',
+  program_head: 'programHeadFacultyIds',
+  grad_school_head: 'gradSchoolHeadFacultyIds',
+};
+
 async function usersWithRole(role: string): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
   const [byRoles, byRole] = await Promise.all([
     db.collection('users').where('roles', 'array-contains', role).get(),
@@ -301,6 +309,15 @@ export async function resolveStaffForScope(
       return;
     }
     if (scopeMatches(descriptor, resource) || coordinatorScopes.some((scope) => scopeMatches(scope, resource))) {
+      uids.add(doc.id);
+      return;
+    }
+    // The role's own extra-faculty grant (e.g. gradSchoolHeadFacultyIds — a
+    // grad school head who serves every faculty) — the same field that role's
+    // dashboard is already scoped by, so a chain stage reaches whoever that
+    // dashboard shows the project to.
+    const roleField = ROLE_FACULTY_FIELD[role];
+    if (roleField && resource.facultyId && facultyIdMatches(data, resource.facultyId, roleField)) {
       uids.add(doc.id);
     }
   });
