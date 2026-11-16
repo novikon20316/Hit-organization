@@ -11,6 +11,7 @@ import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
 import { deadlineReminderResetFields } from './notificationScheduler.js';
+import { atDueTime } from '../utils/dueTime.js';
 
 export async function applySingleDueDateOverride(
   milestoneId: string,
@@ -19,6 +20,8 @@ export async function applySingleDueDateOverride(
   actingUid: string,
   actingRole: string,
 ): Promise<{ success: true; message: string }> {
+  // Staff pick a day; the deadline is 12:00 Israel time on it.
+  dueDate = atDueTime(dueDate);
   const milestoneRef = db.collection('milestones').doc(milestoneId);
   const milestoneSnap = await milestoneRef.get();
   if (!milestoneSnap.exists) throw new Error('Milestone not found.');
@@ -74,6 +77,7 @@ export async function applyBulkDueDateOverride(
   actingUid: string,
   actingRole: string,
 ): Promise<{ success: true; message: string; updatedCount: number }> {
+  dueDate = atDueTime(dueDate);
   // Firestore 'in' queries cap at 30 values — chunk projectIds accordingly.
   const CHUNK_SIZE = 30;
   const chunks: string[][] = [];

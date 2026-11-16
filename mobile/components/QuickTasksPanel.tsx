@@ -20,6 +20,7 @@ import { isSupervisorWithoutHigherRole } from '@/firebase/roles';
 import { ap } from '@/constants/theme';
 import type { Lang } from './i18n';
 import type { Application, MyProject } from '@/types';
+import { underADayLeftLabel } from '@/utils/timeLeft';
 
 /** The fields this panel reads off a pending-grade row — the supervisor
  *  dashboard keeps its own richer PendingMilestone type. */
@@ -121,7 +122,7 @@ export function QuickTasksPanel<T extends PendingGradeLike>({ lang, myProjects, 
             ? ''
             : daysLeft < 0
               ? he ? `באיחור של ${Math.abs(daysLeft)} ימים` : `${Math.abs(daysLeft)} days overdue`
-              : he ? `${daysLeft} ימים נותרו` : `${daysLeft} days left`,
+              : (p.currentMilestone!.type !== 'defense' && underADayLeftLabel(p.currentMilestone!.dueDate, lang)) || (he ? `${daysLeft} ימים נותרו` : `${daysLeft} days left`),
         onPress: () => onOpenProject(p),
       };
     }),

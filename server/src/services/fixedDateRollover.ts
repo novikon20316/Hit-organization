@@ -25,12 +25,15 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import type { WorkflowMilestoneSpec } from './workflowTemplates.js';
+import { atDueTime } from '../utils/dueTime.js';
 
 async function hasAnySubmission(facultyId: string, type: string, fixedDate: Date): Promise<boolean> {
   const snap = await db.collection('milestones')
     .where('facultyId', '==', facultyId)
     .where('type', '==', type)
-    .where('dueDate', '==', admin.firestore.Timestamp.fromDate(fixedDate))
+    // Milestones created before due dates were pinned to 12:00 Israel time
+    // (utils/dueTime.ts) still carry the raw fixedDate instant — match both.
+    .where('dueDate', 'in', [admin.firestore.Timestamp.fromDate(fixedDate), admin.firestore.Timestamp.fromDate(atDueTime(fixedDate.toISOString().slice(0, 10)))])
     .get();
   return snap.docs.some((d) => !!d.data().submittedAt);
 }

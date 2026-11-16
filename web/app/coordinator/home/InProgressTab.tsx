@@ -16,6 +16,7 @@ import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
 import { ProjectStageChain } from '@/components/ProjectStageChain';
 import { EditProjectModal } from './EditProjectModal';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 interface InProgressTabProps {
   projects: InProgressProject[];
@@ -245,7 +246,7 @@ export function InProgressTab({ projects, currentUserId, onChanged }: InProgress
                                           <p className="mt-0.5 text-[11px] text-ink">📅 {formatMilestoneDate(m.dueDate)}</p>
                                           {!done && daysUntilDue(m.dueDate) !== null && (
                                             <p className="mt-0.5 text-[11px] font-bold" style={{ color: urgencyColorFor(daysUntilDue(m.dueDate)) }}>
-                                              {daysUntilDueLabel(daysUntilDue(m.dueDate)!)}
+                                              {(m.type !== 'defense' && underADayLeftLabel(m.dueDate, lang)) || daysUntilDueLabel(daysUntilDue(m.dueDate)!)}
                                             </p>
                                           )}
                                         </div>

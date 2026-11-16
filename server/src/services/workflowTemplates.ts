@@ -16,6 +16,7 @@
 // for the role gating, this file is pure data/logic.
 
 import { db } from '../config/firebase.js';
+import { atDueTime } from '../utils/dueTime.js';
 
 export type ProcessType = 'msc_thesis' | 'msc_project' | 'bsc_project';
 
@@ -312,13 +313,14 @@ export function resolveMilestoneDueDate(
       return resolveMilestoneDueDate(target, baseDate, allSpecs, _visited);
     }
   }
+  // Always 12:00 Israel time on the due day — see utils/dueTime.ts.
   if (spec.dateMode === 'fixed' && spec.fixedDate) {
     const fixed = new Date(spec.fixedDate);
-    if (!isNaN(fixed.getTime())) return fixed;
+    if (!isNaN(fixed.getTime())) return atDueTime(spec.fixedDate.length === 10 ? spec.fixedDate : fixed);
   }
   const dueDate = new Date(baseDate);
   dueDate.setDate(baseDate.getDate() + spec.dueDaysFromStart);
-  return dueDate;
+  return atDueTime(dueDate);
 }
 
 // A defense milestone's `dueDate` is dual-purpose: resolveMilestoneDueDate

@@ -24,6 +24,7 @@ import { milestonePalette } from '@/constants/milestoneTheme';
 import { GradeMilestoneModal } from '@/components/GradeMilestoneModal';
 import { examinerSignatureStyle } from '@/utils/examinerSignature';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
+import { underADayLeftLabel } from '@/utils/timeLeft';
 import ChatbotFab from '@/components/ChatbotFab';
 import { TourTarget } from '@/components/onboarding/TourTarget';
 import { useNotifications } from '@/src/context/NotificationsContext';
@@ -1247,9 +1248,9 @@ export default function SupervisorHome() {
                               ? lang === 'he'
                                 ? `באיחור של ${Math.abs(p.currentMilestone.daysLeft)} ימים`
                                 : `${Math.abs(p.currentMilestone.daysLeft)}d overdue`
-                              : lang === 'he'
+                              : (p.currentMilestone.type !== 'defense' && underADayLeftLabel(p.currentMilestone.dueDate, lang)) || (lang === 'he'
                                 ? `${p.currentMilestone.daysLeft} ימים נותרו`
-                                : `${p.currentMilestone.daysLeft}d left`
+                                : `${p.currentMilestone.daysLeft}d left`)
                           }`}
                       </Text>
                     )}

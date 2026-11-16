@@ -25,6 +25,7 @@ import { isSupervisorWithoutHigherRole } from '@/lib/roles';
 import type { MyProject, Application, SupervisorPendingMilestone } from './types';
 import { MILESTONE_LABEL } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 const URGENCY_ICON: Record<'red' | 'orange', string> = { red: '🔴', orange: '🟠' };
 const URGENCY_TEXT: Record<'red' | 'orange', string> = { red: '#a8433a', orange: '#b8862e' };
@@ -121,9 +122,9 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
               ? lang === 'he'
                 ? `באיחור של ${Math.abs(daysLeft)} ימים`
                 : `${Math.abs(daysLeft)} days overdue`
-              : lang === 'he'
+              : (p.currentMilestone!.type !== 'defense' && underADayLeftLabel(p.currentMilestone!.dueDate, lang)) || (lang === 'he'
                 ? `${daysLeft} ימים נותרו`
-                : `${daysLeft} days left`,
+                : `${daysLeft} days left`),
         onClick: () => onOpenMilestone(p),
       };
     }),

@@ -21,6 +21,7 @@ import { BulkDueDateModal } from '@/components/BulkDueDateModal';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import type { FacultyAdminDeadline, FacultyAdminProjectRecord, FacultyAdminUserRecord } from './types';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 // Same thresholds as the supervisor dashboard's per-project urgency color
 // (green: more than a week left · orange: 1-7 days left · red: due today or
@@ -89,7 +90,7 @@ export function DeadlinesTab({ deadlines, projects, users, onSaved }: DeadlinesT
                 <div className="flex items-center justify-between border-t border-faculty-admin-outline-variant pt-1.5">
                   <span className="text-faculty-admin-on-surface-variant">{lang === 'he' ? 'ימים לסיום:' : 'Days Left:'}</span>
                   <span className="font-bold" style={{ color: urgencyColorFor(d.daysLeft) }}>
-                    {d.daysLeft !== null && d.daysLeft !== undefined ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A'}
+                    {underADayLeftLabel(d.dueDate, lang) ?? (d.daysLeft !== null && d.daysLeft !== undefined ? `${d.daysLeft} ${lang === 'he' ? 'ימים' : 'days'}` : 'N/A')}
                   </span>
                 </div>
                 {formatDueDate(d.dueDate, lang) && (

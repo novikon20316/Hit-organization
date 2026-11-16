@@ -30,6 +30,7 @@ import {
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
 import { waitingText } from '@/utils/milestoneWaiting';
 import { gradeTabState } from '@/utils/milestoneDecision';
+import { underADayLeftLabel, underADayParts } from '@/utils/timeLeft';
 
 interface Props {
   project:       ActiveProject;
@@ -246,6 +247,10 @@ export default function ActiveDashboard({
   // ─── Next deadline card — sourced straight from the `nextMilestone` prop ──
   const nextDeadlineDate = nextMilestone ? toDate(nextMilestone.dueDate) : null;
   const nextDeadlineDays = nextMilestone ? daysUntil(nextMilestone.dueDate) : null;
+  // Under a day: the chip shows h:mm and a "14 hours and 13 minutes left" line.
+  const nextDeadlineUnderADay = nextMilestone && nextMilestone.type !== 'defense' ? underADayLeftLabel(nextMilestone.dueDate, lang) : null;
+  const nextDeadlineParts = nextDeadlineUnderADay && nextMilestone ? underADayParts(nextMilestone.dueDate) : null;
+  const nextDeadlineHm = nextDeadlineParts ? `${nextDeadlineParts.hours}:${String(nextDeadlineParts.minutes).padStart(2, '0')}` : null;
   const nextMilestoneLabel = nextMilestone ? milestoneDisplayName(nextMilestone, lang, MILESTONE_LABEL) : '';
 
   // ─── Recent Activity — derived from real data already loaded on this
@@ -447,12 +452,14 @@ export default function ActiveDashboard({
                   {nextDeadlineDays !== null && (
                     <View style={ov.deadlineChip}>
                       <Text style={ov.deadlineChipNum}>
-                        {nextDeadlineDays < 0 ? Math.abs(nextDeadlineDays) : nextDeadlineDays}
+                        {nextDeadlineHm ?? (nextDeadlineDays < 0 ? Math.abs(nextDeadlineDays) : nextDeadlineDays)}
                       </Text>
                       <Text style={ov.deadlineChipLabel}>
                         {nextDeadlineDays < 0
                           ? (lang === 'he' ? 'איחור' : 'LATE')
-                          : (lang === 'he' ? 'ימים' : 'DAYS')}
+                          : nextDeadlineHm
+                            ? (lang === 'he' ? 'שעות' : 'HRS')
+                            : (lang === 'he' ? 'ימים' : 'DAYS')}
                       </Text>
                     </View>
                   )}
@@ -467,6 +474,9 @@ export default function ActiveDashboard({
                         { day: 'numeric', month: 'short', year: 'numeric' }
                       ) ?? '—'}
                     </Text>
+                    {nextDeadlineUnderADay && (
+                      <Text style={[ov.deadlineSub, isRtl && styles.textRight, { fontWeight: '700' }]}>{nextDeadlineUnderADay}</Text>
+                    )}
                   </View>
                 </View>
               </View>

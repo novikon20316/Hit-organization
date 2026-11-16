@@ -42,6 +42,7 @@ import {
   type MilestoneType,
   type MilestoneStatus,
 } from '@/app/student/home/types';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -411,7 +412,7 @@ function MilestoneCard({
             <p className="truncate text-sm font-semibold text-ink">{label}</p>
             {!isCompleted && days !== null && (
               <p className={`mt-0.5 text-xs font-medium ${days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-muted'}`}>
-                {days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`}
+                {days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : (isDefense ? null : underADayLeftLabel(milestone.dueDate, lang)) ?? `${days} ${lang === 'he' ? 'ימים' : 'days left'}`}
               </p>
             )}
           </div>

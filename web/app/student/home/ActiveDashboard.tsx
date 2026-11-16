@@ -39,6 +39,7 @@ import {
   type SupervisorReviewFeedback,
   type Milestone,
 } from './types';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 interface ActiveDashboardProps {
   project: ActiveProject;
@@ -255,9 +256,10 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                 ) : (
                   (() => {
                     const days = daysUntil(overviewDisplayMilestone.type === 'defense' ? overviewDisplayMilestone.defenseDate : overviewDisplayMilestone.dueDate);
+                    const underADay = overviewDisplayMilestone.type === 'defense' ? null : underADayLeftLabel(overviewDisplayMilestone.dueDate, lang);
                     return days !== null ? (
                       <span className="rounded-full bg-[#E9F0F5] px-2.5 py-1 text-xs font-medium text-[#3E6C8C]">
-                        {days} {lang === 'he' ? 'ימים' : 'days left'}
+                        {underADay ?? `${days} ${lang === 'he' ? 'ימים' : 'days left'}`}
                       </span>
                     ) : null;
                   })()
@@ -390,7 +392,7 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
                           {days !== null && m.status === 'pending' && unlocked && (
                             <span className={days < 0 ? 'text-danger' : days <= 7 ? 'text-accent' : 'text-success'}>
                               {' '}
-                              ({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : `${days} ${lang === 'he' ? 'ימים' : 'days left'}`})
+                              ({days < 0 ? `${Math.abs(days)} ${lang === 'he' ? 'ימי איחור' : 'days overdue'}` : underADayLeftLabel(m.dueDate, lang) ?? `${days} ${lang === 'he' ? 'ימים' : 'days left'}`})
                             </span>
                           )}
                         </p>

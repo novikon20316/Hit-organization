@@ -11,6 +11,7 @@ import { ProjectWorkflowSection } from './ProjectWorkflowSection';
 import { RequestErasureModal } from './RequestErasureModal';
 import type { FacultyId } from '@/lib/i18n';
 import type { MyProject, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 
 // Due-date urgency border color — green: more than a week left, orange:
 // 1-7 days left, red: due today or already past due. Matches the same
@@ -175,9 +176,9 @@ export function ProjectCard({ project: p, onEdit, onChanged, pendingGrades, onGr
                   supervisorController.ts), so it prints its own minus sign
                   instead of needing a separate "overdue" phrasing. */}
               <span className="font-bold">
-                {lang === 'he'
+                {(p.currentMilestone.type !== 'defense' && underADayLeftLabel(p.currentMilestone.dueDate, lang)) || (lang === 'he'
                   ? `${p.currentMilestone.daysLeft} ${Math.abs(p.currentMilestone.daysLeft) === 1 ? 'יום' : 'ימים'} עד תאריך היעד`
-                  : `${p.currentMilestone.daysLeft} day${Math.abs(p.currentMilestone.daysLeft) === 1 ? '' : 's'} until due date`}
+                  : `${p.currentMilestone.daysLeft} day${Math.abs(p.currentMilestone.daysLeft) === 1 ? '' : 's'} until due date`)}
               </span>
             </>
           )}

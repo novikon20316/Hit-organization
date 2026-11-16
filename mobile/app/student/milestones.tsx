@@ -30,6 +30,7 @@ import { isSeminarInProgress } from '@/utils/seminar';
 import { useRouter } from 'expo-router';
 import { formatExamSlot } from '@/components/thesisExam/shared';
 import { waitingText } from '@/utils/milestoneWaiting';
+import { underADayLeftLabel } from '@/utils/timeLeft';
 import { SubmissionHistory } from '@/components/SubmissionHistory';
 
 // ─── Milestone type labels ──────────────────────────────────────────────────
@@ -303,7 +304,7 @@ export default function StudentMilestones() {
                               <Text style={[mt.dueHint, days < 0 ? mt.dueHintLate : null, isRtl && styles.textRight]}>
                                 {days < 0
                                   ? (lang === 'he' ? `${Math.abs(days)} ימי איחור` : `${Math.abs(days)} days overdue`)
-                                  : (lang === 'he' ? `נותרו ${days} ימים` : `${days} days left`)}
+                                  : ((!isDefense && underADayLeftLabel(m.dueDate, lang)) || (lang === 'he' ? `נותרו ${days} ימים` : `${days} days left`))}
                               </Text>
                             )}
                             <Pressable style={mt.submitBtn} onPress={() => setSubmitTarget(m)} accessibilityRole="button">
