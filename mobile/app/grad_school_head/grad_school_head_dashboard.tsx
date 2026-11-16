@@ -18,6 +18,7 @@ import { t, tx, type Lang } from '../../components/i18n';
 import { GradSchoolHeadDashboardStyles, adminPanelStyles } from '../../constants/styles';
 import { ap } from '../../constants/theme';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import ManagedStaffSection, { type ManagedStaffRecord } from '@/components/ManagedStaffSection';
 import StudentsListSection from '@/components/StudentsListSection';
 import { DELEGATE_MANAGEABLE_ROLES } from '@/firebase/roles';
@@ -606,6 +607,8 @@ export default function GradSchoolHeadDashboard() {
           <>
             <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
             <ExceptionalActionQueue lang={lang} />
+            {/* Chain stages waiting on the grad school head — mirrors web. */}
+            <PendingSignoffsWidget lang={lang} onlyTypes={['chain_stage']} />
             {(data?.pendingApprovals.length ?? 0) === 0 ? (
               <EmptyState emoji="✅" text={lang === 'he' ? 'אין פריטים הממתינים לאישורך' : 'Nothing pending your approval'} />
             ) : (

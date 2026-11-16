@@ -27,6 +27,7 @@ import { apiClient } from '@/lib/apiClient';
 import { DELEGATE_MANAGEABLE_ROLES, type AppRole } from '@/lib/roles';
 import { withinCoordinatorScope, CS_MASTERS_SCOPE } from '@/lib/permissions';
 import { ExceptionalActionQueue } from '@/components/ExceptionalActionQueue';
+import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { ExaminerEscalationPanel } from '@/components/ExaminerEscalationPanel';
 import { ManagedStaffTab } from '@/components/staff/ManagedStaffTab';
 import { StudentsListTab } from '@/components/students/StudentsListTab';
@@ -384,6 +385,9 @@ function GradSchoolHeadDashboardContent() {
           <FieldGuideOverlay guideKey={APPROVALS_TAB_GUIDE_KEY} steps={APPROVALS_TAB_FIELD_GUIDE} />
           <div className="sm:col-span-2">
             <ExceptionalActionQueue />
+            {/* Workflow-chain stages waiting on the grad school head (e.g. Electrical M.Sc.
+                thesis milestones) — examiner/final-grade items are already listed below. */}
+            <PendingSignoffsWidget onlyTypes={['chain_stage']} />
           </div>
           {approvals.map((item) => (
             <div

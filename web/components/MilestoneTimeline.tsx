@@ -247,7 +247,7 @@ function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
       ...steps,
       { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: !!(m.examinerIds && m.examinerIds.length > 0) },
       { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: !!m.defenseDate },
-      { label: lang === 'he' ? 'ציונים הוגשו' : 'Grades submitted', done: graded },
+      { label: lang === 'he' ? 'הגשת הציונים' : 'Grades submitted', done: graded },
     ];
   }
 
@@ -267,11 +267,16 @@ function buildApprovalChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
   const defenseDateSet = !!m.defenseDate;
   const graded = (['examiner_graded', 'both_examiners_graded', 'completed'] as MilestoneStatus[]).includes(m.status);
 
+  // An explicit empty routing means the template opted this defense out of
+  // any pre-check (e.g. Electrical M.Sc.) — the admin coordinator starts it
+  // straight from the Defenses tab, so there's no "approved for defense" step.
+  // A missing routing is a legacy (pre-chain) milestone, which still had one.
+  const noPrecheck = Array.isArray(m.routing) && m.routing.length === 0;
   return [
-    { label: lang === 'he' ? 'אושר להגנה' : 'Approved for defense', done: coordinatorApproved },
+    ...(noPrecheck ? [] : [{ label: lang === 'he' ? 'אושר להגנה' : 'Approved for defense', done: coordinatorApproved }]),
     { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: examinersAssigned },
     { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: defenseDateSet },
-    { label: lang === 'he' ? 'ציונים הוגשו' : 'Grades submitted', done: graded },
+    { label: lang === 'he' ? 'הגשת הציונים' : 'Grades submitted', done: graded },
   ];
 }
 

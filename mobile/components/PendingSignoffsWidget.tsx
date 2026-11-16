@@ -68,7 +68,9 @@ const URGENCY_COLOR: Record<Urgency, string> = {
   low: '#10B981',
 };
 
-export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: Lang; showEmptyState?: boolean }) {
+// onlyTypes: show just these item types — for a dashboard that renders the
+// rest itself (grad_school_head lists its own examiner/final-grade cards).
+export function PendingSignoffsWidget({ lang, showEmptyState = false, onlyTypes }: { lang: Lang; showEmptyState?: boolean; onlyTypes?: PendingSignoffItem['type'][] }) {
   const router = useRouter();
   const [openForm, setOpenForm] = useState<{ id: string; kind: 'evaluation' | 'opinion' } | null>(null);
   const [items, setItems] = useState<PendingSignoffItem[]>([]);
@@ -90,14 +92,16 @@ export function PendingSignoffsWidget({ lang, showEmptyState = false }: { lang: 
   const fetchItems = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/staff/pending-signoffs');
-      setItems(res.data?.items ?? []);
+      const all: PendingSignoffItem[] = res.data?.items ?? [];
+      setItems(onlyTypes ? all.filter((i) => onlyTypes.includes(i.type)) : all);
       setError('');
     } catch (err) {
       setError(lang === 'he' ? 'טעינת האישורים הממתינים נכשלה' : 'Failed to load pending sign-offs');
     } finally {
       setLoading(false);
     }
-  }, [lang]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onlyTypes is a literal array per call site; keyed by its contents
+  }, [lang, onlyTypes?.join(',')]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
   // The previous stage's approver notifies whoever is next in the chain.

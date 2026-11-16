@@ -50,6 +50,10 @@ export interface PendingSignoffItem {
   formRoleLabelEn?: string;
 }
 
+/** Chain roles with no approve/reject queue of their own — their chain stages
+ *  are only ever actionable from this widget. */
+const HEAD_CHAIN_ROLES = new Set<ChainRole>(['program_head', 'grad_school_head', 'school_head', 'division_head', 'dean']);
+
 function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacultyId: string): ResourceScope {
   return {
     facultyId: project.facultyId ?? fallbackFacultyId,
@@ -60,7 +64,7 @@ function resourceScopeOf(project: FirebaseFirestore.DocumentData, fallbackFacult
 }
 
 export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingSignoffItem[]> {
-  const [examinerRecsSnap, defenseMilestonesSnap, researchProposalsSnap, pendingFormsSnap, approvedThesesSnap] = await Promise.all([
+  const [examinerRecsSnap, defenseMilestonesSnap, researchProposalsSnap, pendingFormsSnap, approvedThesesSnap, approveStageSnap] = await Promise.all([
     db.collection('examinerRecommendations').where('status', '==', 'coordinator_approved').get(),
     db.collection('milestones').where('type', '==', 'defense').where('status', '==', 'graded').get(),
     // Chain-driven 'approve' stages on the research_proposal milestone (the
@@ -73,6 +77,12 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
     // the final_grade query above can't see them.
     db.collection('milestones').where('gradeOverride.status', '==', 'pending').get(),
     db.collection('milestones').where('opinionOutcome.result', '==', 'continue').get(),
+    // Any other chain milestone parked on an 'approve' stage (statusForStage
+    // → 'supervisor_graded') — e.g. the Electrical M.Sc. thesis's custom
+    // "הצעת מחקר" / "דוח התזה" milestones, whose chain ends at program_head →
+    // grad_school_head. Filtered below to head roles only: coordinator-tier
+    // stages already have their own Pending tab on coordinator/home.
+    db.collection('milestones').where('status', '==', 'supervisor_graded').get(),
   ]);
 
   // Every cache below is scoped to this one call — avoids re-fetching the
@@ -172,7 +182,13 @@ export async function resolveMyPendingSignoffs(user: AuthUser): Promise<PendingS
     });
   }
 
-  for (const doc of researchProposalsSnap.docs) {
+  const otherChainDocs = approveStageSnap.docs.filter((doc) => {
+    const data = doc.data();
+    if (data.type === 'research_proposal') return false; // already in researchProposalsSnap
+    const stage: ChainStage | undefined = (data.routing ?? [])[data.currentStageIndex ?? 0];
+    return !!stage && HEAD_CHAIN_ROLES.has(stage.role);
+  });
+  for (const doc of [...researchProposalsSnap.docs, ...otherChainDocs]) {
     const data = doc.data();
     if (!isChainDriven(data)) continue;
     // A finished chain's currentStageIndex is left pointing at its own last

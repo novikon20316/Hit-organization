@@ -77,9 +77,12 @@ interface PendingSignoffsWidgetProps {
    *  on an already-busy page should leave this false (the default) so the
    *  widget stays invisible for staff who never have anything pending. */
   showEmptyState?: boolean;
+  /** Only show these item types — for a dashboard that already renders the
+   *  rest itself (grad_school_head shows its own examiner/final-grade cards). */
+  onlyTypes?: SignoffType[];
 }
 
-export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoffsWidgetProps = {}) {
+export function PendingSignoffsWidget({ showEmptyState = false, onlyTypes }: PendingSignoffsWidgetProps = {}) {
   const { lang } = useLanguage();
   const [items, setItems] = useState<PendingSignoffItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,14 +106,16 @@ export function PendingSignoffsWidget({ showEmptyState = false }: PendingSignoff
   const fetchItems = useCallback(async () => {
     try {
       const data = await apiClient.getMyPendingSignoffs();
-      setItems((data.items ?? []) as PendingSignoffItem[]);
+      const all = (data.items ?? []) as PendingSignoffItem[];
+      setItems(onlyTypes ? all.filter((i) => onlyTypes.includes(i.type)) : all);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : lang === 'he' ? 'טעינת האישורים הממתינים נכשלה' : 'Failed to load pending sign-offs');
     } finally {
       setLoading(false);
     }
-  }, [lang]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onlyTypes is a literal array per call site; keyed by its contents
+  }, [lang, onlyTypes?.join(',')]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount; setState calls happen after the awaited network call resolves, not synchronously in this effect

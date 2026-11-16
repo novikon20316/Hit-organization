@@ -203,7 +203,9 @@ function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep
 function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
   if (m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status)) return buildThesisExamChain(m, lang);
   const routing = (m.routing ?? []).filter((st) => st && typeof st.role === 'string');
-  if (routing.length === 0) return [];
+  // A defense with no pre-check (e.g. Electrical M.Sc.) still has its
+  // examiner steps — the admin coordinator starts it from the Defenses tab.
+  if (routing.length === 0) return m.type === 'defense' ? defenseTailSteps(m, lang) : [];
   // A 'rejected' milestone is back with the student — currentStageIndex still
   // reads 0 until they resubmit, so the first reviewer isn't "waiting now".
   const returned = m.status === 'rejected';
@@ -229,19 +231,21 @@ function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[]
       { label: lang === 'he' ? 'ביצוע הסמינר' : 'Seminar performed', done: allDone, current: m.status === 'seminar_scheduled' },
     );
   }
-  if (m.type === 'defense') {
-    // A defense's routing is only its pre-check chain — the examiner
-    // scheduling/grading engine takes over after it.
-    steps.push(
-      { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: !!m.examinerIds?.length },
-      { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: !!m.defenseDate },
-      {
-        label: lang === 'he' ? 'ציונים הוגשו' : 'Grades submitted',
-        done: ['examiner_graded', 'both_examiners_graded', 'completed'].includes(m.status),
-      },
-    );
-  }
+  // A defense's routing is only its pre-check chain — the examiner
+  // scheduling/grading engine takes over after it.
+  if (m.type === 'defense') steps.push(...defenseTailSteps(m, lang));
   return steps;
+}
+
+function defenseTailSteps(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
+  return [
+    { label: lang === 'he' ? 'שיבוץ בוחנים' : 'Examiners assigned', done: !!m.examinerIds?.length },
+    { label: lang === 'he' ? 'קביעת מועד הגנה' : 'Defense date set', done: !!m.defenseDate },
+    {
+      label: lang === 'he' ? 'הגשת הציונים' : 'Grades submitted',
+      done: ['examiner_graded', 'both_examiners_graded', 'completed'].includes(m.status),
+    },
+  ];
 }
 
 function ApprovalChain({ milestone, lang, isRtl }: { milestone: RoadmapMilestone; lang: 'he' | 'en'; isRtl: boolean }) {
