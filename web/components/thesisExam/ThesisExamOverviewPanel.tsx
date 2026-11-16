@@ -110,6 +110,13 @@ export function ThesisExamOverviewPanel({ milestoneId }: { milestoneId: string }
           )}
         </div>
       )}
+      {exam.status === 'exam_date_coordinator' && (
+        <p className="mt-2 text-xs font-medium text-accent">
+          {exam.coordinatorTask === 'set_hours' && exam.hoursWindow
+            ? (he ? `נמצא מועד משותף: ${exam.hoursWindow.date.split('-').reverse().join('.')} ${exam.hoursWindow.from}–${exam.hoursWindow.to} — הרכזת האדמיניסטרטיבית קובעת את שעות הבחינה` : `Common time found: ${exam.hoursWindow.date} ${exam.hoursWindow.from}–${exam.hoursWindow.to} — the administrative coordinator is setting the hours`)
+            : (he ? 'אין מועד משותף לכל המשתתפים — הרכזת האדמיניסטרטיבית קובעת תאריך ושעות' : 'No time common to everyone — the administrative coordinator is setting the date and hours')}
+        </p>
+      )}
       {exam.excludedNames.length > 0 && exam.status !== 'exam_availability' && (
         <p className="mt-2 text-xs text-muted">{he ? 'המועד נקבע ללא תאריכים של' : 'Time set without dates from'}: {exam.excludedNames.join(', ')}</p>
       )}

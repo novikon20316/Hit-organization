@@ -63,12 +63,12 @@ async function nameOf(uid: string): Promise<string> {
 }
 
 /** Caches "who holds role X for scope Y" for one request. */
-function scopeRoleCache() {
+function scopeRoleCache(forAuth = true) {
   const cache = new Map<string, Promise<string[]>>();
   return (role: 'grad_school_head' | 'program_head' | 'administrative_secretary', scope: ResourceScope) => {
     const k = `${role}|${JSON.stringify(scope)}`;
     if (!cache.has(k)) {
-      cache.set(k, role === 'grad_school_head' ? gradSchoolHeadIds(scope, true) : role === 'program_head' ? programHeadIds(scope, true) : adminCoordinatorIds(scope, true));
+      cache.set(k, role === 'grad_school_head' ? gradSchoolHeadIds(scope, forAuth) : role === 'program_head' ? programHeadIds(scope, forAuth) : adminCoordinatorIds(scope, forAuth));
     }
     return cache.get(k)!;
   };
@@ -153,6 +153,11 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
       : [],
     proposedSlot: (rel.isGradHead || rel.isProgramHead || rel.isSupervisor || rel.isAdminCoordinator) ? proposed : null,
     slotSource: exam.slotSource ?? 'matched',
+    // In exam_date_coordinator: 'set_hours' = a common window was found and
+    // the coordinator sets the hours inside it (hoursWindow); else she sets
+    // date and hours.
+    coordinatorTask: exam.status === EXAM_DATE_COORDINATOR ? (exam.coordinatorTask ?? 'set_date') : null,
+    hoursWindow: exam.status === EXAM_DATE_COORDINATOR && exam.coordinatorTask === 'set_hours' && staff ? exam.commonSlots[exam.slotIndex] ?? null : null,
     // Everyone's picks — only for the coordinator who has to set the time
     // because they didn't overlap.
     availabilityPicks: rel.isAdminCoordinator && exam.status === EXAM_DATE_COORDINATOR
@@ -191,6 +196,7 @@ export const getMyThesisExams = async (req: AuthenticatedRequest, res: Response)
   try {
     const snap = await db.collection(THESIS_EXAMS).where('status', 'in', [...THESIS_EXAM_STATUSES]).get();
     const heads = scopeRoleCache();
+    const strict = scopeRoleCache(false);
     const cards = [];
     for (const doc of snap.docs) {
       const exam = doc.data() as ThesisExamDoc;
@@ -210,7 +216,14 @@ export const getMyThesisExams = async (req: AuthenticatedRequest, res: Response)
         isAdminCoordinator: (await heads('administrative_secretary', exam.scope)).includes(uid),
       };
       if (!Object.entries(rel).some(([k, v]) => k !== 'participantKey' && v) && !rel.participantKey) continue;
-      cards.push(await buildCard(exam, m, rel));
+      // The head/coordinator lists above include system_admin (authorization
+      // override). Whether the job is really THEIRS — for the alert strip
+      // and Urgent Actions — is the strict list, without that override.
+      const assigned = !!rel.participantKey || rel.isStudent || rel.isSupervisor || rel.isExaminer || rel.isCommittee
+        || (await strict('grad_school_head', exam.scope)).includes(uid)
+        || (await strict('program_head', exam.scope)).includes(uid)
+        || (await strict('administrative_secretary', exam.scope)).includes(uid);
+      cards.push({ ...(await buildCard(exam, m, rel)), viaSystemAdminOnly: !assigned });
     }
     // Things waiting on me first.
     cards.sort((a, b) => Number(b.actions.length > 0) - Number(a.actions.length > 0));
@@ -273,6 +286,8 @@ export const getThesisExamOverview = async (req: AuthenticatedRequest, res: Resp
         pickDeadline: picking ? exam.pickDeadline ?? null : null,
         lateEntryDeadline: picking && exam.lateEntry ? exam.lateEntry.deadline : null,
         excludedNames: exam.participants.filter((p) => (exam.excludedKeys ?? []).includes(p.key)).map((p) => p.name),
+        coordinatorTask: exam.status === EXAM_DATE_COORDINATOR ? (exam.coordinatorTask ?? 'set_date') : null,
+        hoursWindow: exam.status === EXAM_DATE_COORDINATOR && exam.coordinatorTask === 'set_hours' ? exam.commonSlots[exam.slotIndex] ?? null : null,
         participants: picking
           ? exam.participants.map((p) => ({ name: p.name, roles: p.roles, submitted: submittedKeys.includes(p.key) }))
           : [],

@@ -162,7 +162,11 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
       )}
 
       {exam.status === 'exam_date_coordinator' && !has('set_date') && (
-        <p className="mt-3 text-sm text-muted">{he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.'}</p>
+        <p className="mt-3 text-sm text-muted">
+          {exam.coordinatorTask === 'set_hours'
+            ? (he ? `נמצא מועד משותף${exam.hoursWindow ? `: ${formatExamSlot(exam.hoursWindow, lang)}` : ''} — הרכזת האדמיניסטרטיבית קובעת את שעות הבחינה.` : `A common time was found${exam.hoursWindow ? `: ${formatExamSlot(exam.hoursWindow, lang)}` : ''} — the administrative coordinator is setting the exam hours.`)
+            : (he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.')}
+        </p>
       )}
       {has('set_date') && <CoordinatorDateForm exam={exam} lang={lang} onDone={onChanged} />}
 
@@ -422,12 +426,16 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
   const he = lang === 'he';
   const today = new Date();
   const min = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const [date, setDate] = useState('');
+  // A common window was found: the date is fixed and the hours must sit
+  // inside it — she only narrows it down to the exam's actual hours.
+  const win = exam.coordinatorTask === 'set_hours' ? exam.hoursWindow : null;
+  const [date, setDate] = useState(win?.date ?? '');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const inWindow = (t: string) => !win || (t >= win.from && t <= win.to);
 
   // Same rules as the participants' picker (and the server): no Shabbat,
   // daytime hours only — the hour lists simply don't offer night times.
@@ -458,7 +466,11 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
 
   return (
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
-      <p className="text-sm font-semibold text-ink">{he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות לבחינה' : 'No common time — set the exam date and hours'}</p>
+      <p className="text-sm font-semibold text-ink">
+        {win
+          ? (he ? `נמצא מועד משותף: ${formatExamSlot(win, 'he')} — יש לקבוע את שעות הבחינה בתוך הטווח` : `Common time found: ${formatExamSlot(win, 'en')} — set the exam hours inside it`)
+          : (he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות לבחינה' : 'No common time — set the exam date and hours')}
+      </p>
       <p className="mt-1 text-xs text-muted">{he ? 'המועד יועבר לאישור ראש התוכנית ולאחר מכן ראש בית הספר ללימודים מתקדמים.' : 'The time goes to the program head and then the head of the graduate school for approval.'}</p>
       {exam.rejectedSlots.length > 0 && (
         <ul className="mt-2 grid gap-1 text-xs text-muted">
@@ -482,16 +494,20 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="text-xs text-muted" htmlFor={`coord-date-${exam.milestoneId}`}>{he ? 'תאריך' : 'Date'}</label>
-        <input id={`coord-date-${exam.milestoneId}`} type="date" min={min} value={date} onChange={(e) => { setDate(e.target.value); setError(''); }} aria-invalid={dateBad} className={fieldCls(dateBad)} />
+        {win ? (
+          <span id={`coord-date-${exam.milestoneId}`} className="rounded-md border border-line bg-paper px-2 py-1 text-sm font-medium text-ink">{formatExamDay(win.date, lang, { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}</span>
+        ) : (
+          <input id={`coord-date-${exam.milestoneId}`} type="date" min={min} value={date} onChange={(e) => { setDate(e.target.value); setError(''); }} aria-invalid={dateBad} className={fieldCls(dateBad)} />
+        )}
         <label className="text-xs text-muted" htmlFor={`coord-from-${exam.milestoneId}`}>{he ? 'משעה' : 'From'}</label>
         <select id={`coord-from-${exam.milestoneId}`} value={from} onChange={(e) => { setFrom(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
           <option value="">--:--</option>
-          {EXAM_TIMES.filter((t) => t <= shiftTime(latestEndFor(date), -EXAM_MIN_MINUTES)).map((t) => <option key={t} value={t}>{t}</option>)}
+          {EXAM_TIMES.filter((t) => t <= shiftTime(win ? win.to : latestEndFor(date), -EXAM_MIN_MINUTES) && inWindow(t)).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <label className="text-xs text-muted" htmlFor={`coord-to-${exam.milestoneId}`}>{he ? 'עד שעה' : 'To'}</label>
         <select id={`coord-to-${exam.milestoneId}`} value={to} onChange={(e) => { setTo(e.target.value); setError(''); }} aria-invalid={timesBad} className={fieldCls(timesBad)}>
           <option value="">--:--</option>
-          {EXAM_TIMES.filter((t) => t >= shiftTime(from && from > EXAM_DAY_START ? from : EXAM_DAY_START, EXAM_MIN_MINUTES) && t <= latestEndFor(date)).map((t) => <option key={t} value={t}>{t}</option>)}
+          {EXAM_TIMES.filter((t) => t >= shiftTime(from && from > EXAM_DAY_START ? from : EXAM_DAY_START, EXAM_MIN_MINUTES) && t <= latestEndFor(date) && inWindow(t)).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       {dateBad && <p className="mt-1 text-xs text-danger">⚠ {he ? 'יום שבת — לא ניתן לקבוע בו בחינה.' : 'Saturday (Shabbat) — no exams.'}</p>}
@@ -502,7 +518,7 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
       <textarea id={`coord-note-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
       {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
       <button type="button" onClick={submit} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
-        {busy ? '…' : he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'}
+        {busy ? '…' : win ? (he ? 'קביעת השעות ושליחה לאישור' : 'Set the hours and send for approval') : he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'}
       </button>
     </div>
   );

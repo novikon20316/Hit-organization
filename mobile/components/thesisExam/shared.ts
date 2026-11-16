@@ -10,6 +10,7 @@ export const THESIS_EXAM_STEPS: { status: ThesisExamStatus; he: string; en: stri
   { status: 'exam_nomination', he: 'מינוי בוחנים', en: 'Nomination' },
   { status: 'exam_nomination_review', he: 'אישור המינוי', en: 'Nomination approval' },
   { status: 'exam_availability', he: 'בחירת תאריכים', en: 'Date picking' },
+  { status: 'exam_date_coordinator', he: 'שעות ע״י הרכזת', en: 'Coordinator hours' },
   { status: 'exam_date_review', he: 'ראש התוכנית', en: 'Program head' },
   { status: 'exam_date_final_review', he: 'ראש בית הספר', en: 'Grad school head' },
   { status: 'exam_scheduled', he: 'הבחינה והטופס', en: 'Exam & form' },
@@ -20,18 +21,16 @@ export const THESIS_EXAM_STATUS_LABEL: Record<ThesisExamStatus, { he: string; en
   exam_nomination: { he: 'ממתין למינוי בוחנים', en: 'Awaiting examiner nomination' },
   exam_nomination_review: { he: 'מינוי הבוחנים ממתין לאישור', en: 'Nomination awaiting approval' },
   exam_availability: { he: 'בחירת תאריכים לבחינה', en: 'Picking exam dates' },
-  exam_date_coordinator: { he: 'הרכזת קובעת את המועד', en: 'Coordinator setting the time' },
+  exam_date_coordinator: { he: 'הרכזת קובעת את שעות הבחינה', en: 'Coordinator setting the exam hours' },
   exam_date_review: { he: 'מועד ממתין לאישור ראש התוכנית', en: 'Date awaiting program head' },
   exam_date_final_review: { he: 'מועד ממתין לאישור ראש בית הספר', en: 'Date awaiting grad school head' },
   exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam scheduled' },
   exam_committee_review: { he: 'ממתין לוועדה', en: 'Awaiting the committee' },
 };
 
-/** Which step a status belongs to — the coordinator setting the time is
- *  part of scheduling, not a step of its own. */
+/** Which step a status belongs to. */
 export function thesisExamStepIndex(status: ThesisExamStatus): number {
-  const s = status === 'exam_date_coordinator' ? 'exam_availability' : status;
-  return THESIS_EXAM_STEPS.findIndex((x) => x.status === s);
+  return THESIS_EXAM_STEPS.findIndex((x) => x.status === status);
 }
 
 export function formatExamDay(date: string, lang: Lang, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'numeric' }): string {

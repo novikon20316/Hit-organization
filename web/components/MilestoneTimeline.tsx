@@ -210,11 +210,9 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     step('exam_nomination_review', he ? 'אישור המינוי ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the nomination'),
     step('exam_availability', he ? 'בחירת 5 מועדים ע״י כל המשתתפים' : 'Every participant picks 5 dates'),
   ];
-  // Only reached when no common time was found (or the heads rejected every
-  // one) — shown just while it's actually happening.
-  if (m.status === 'exam_date_coordinator') {
-    steps.push(step('exam_date_coordinator', he ? 'קביעת מועד ע״י הרכזת האדמיניסטרטיבית (אין מועד משותף)' : 'Admin coordinator sets the time (no common slot)'));
-  }
+  // Always: after a match she sets the exam hours inside the common window;
+  // with no common time she sets the date and hours herself.
+  steps.push(step('exam_date_coordinator', he ? 'קביעת שעות הבחינה ע״י הרכזת האדמיניסטרטיבית' : 'Admin coordinator sets the exam hours'));
   steps.push(
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),

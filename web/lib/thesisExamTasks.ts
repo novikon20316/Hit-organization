@@ -10,7 +10,7 @@
 
 import type { ThesisExamCard } from '@/lib/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -26,6 +26,8 @@ export interface ThesisExamTask {
 export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
   const out: ThesisExamTask[] = [];
   for (const e of exams) {
+    // Reached only through the system_admin override — not their job.
+    if (e.viaSystemAdminOnly) continue;
     const base = { milestoneId: e.milestoneId, studentNames: e.studentNames, projectTitleHe: e.projectTitleHe, projectTitleEn: e.projectTitleEn };
     for (const a of e.actions) {
       if (a === 'view_forms') continue;
@@ -34,7 +36,8 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
       const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
         : a === 'late_entry' ? e.lateEntryDeadline
         : null;
-      out.push({ ...base, kind: a, deadline });
+      const kind: ThesisExamTaskKind = a === 'set_date' && e.coordinatorTask === 'set_hours' ? 'set_hours' : a;
+      out.push({ ...base, kind, deadline });
     }
   }
   return out;
@@ -46,6 +49,7 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   availability: { he: 'יש לבחור 5 מועדים לבחינה', en: 'Pick your 5 dates for the exam' },
   late_entry: { he: 'יש ליצור קשר עם מי שלא בחרו תאריכים ולהזין אותם', en: "Call whoever didn't pick dates and enter theirs" },
   set_date: { he: 'יש לקבוע את מועד הבחינה (אין מועד משותף)', en: 'Set the exam time (no common slot)' },
+  set_hours: { he: 'נמצא מועד משותף — יש לקבוע את שעות הבחינה', en: 'Common date found — set the exam hours' },
   review_date: { he: 'יש לאשר את מועד הבחינה', en: 'Approve the exam date' },
   form: { he: 'יש למלא את טופס מבחן התזה', en: 'Fill in the thesis exam form' },
 };

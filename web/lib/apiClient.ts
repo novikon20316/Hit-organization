@@ -4098,6 +4098,9 @@ export interface ThesisExamOverview {
   lateEntryDeadline: string | null;
   /** Left out of the match after the coordinator's 24h. */
   excludedNames: string[];
+  coordinatorTask: 'set_date' | 'set_hours' | null;
+  /** The common window the coordinator is setting hours in. */
+  hoursWindow: ThesisExamSlot | null;
   /** Only while dates are being picked (exam_availability). */
   participants: Array<{ name: string; roles: Array<'student' | 'supervisor' | 'committee' | 'examiner'>; submitted: boolean }>;
 }
@@ -4133,6 +4136,14 @@ export interface ThesisExamCard {
   proposedSlot: ThesisExamSlot | null;
   /** Where the proposed time came from — the system's match or the administrative coordinator. */
   slotSource: 'matched' | 'coordinator';
+  /** In exam_date_coordinator: 'set_hours' — a common window was found
+   *  (hoursWindow) and the coordinator sets the exam hours inside it;
+   *  'set_date' — no common time, she sets date and hours. */
+  coordinatorTask: 'set_date' | 'set_hours' | null;
+  hoursWindow: ThesisExamSlot | null;
+  /** True when the caller only reaches this exam through the system_admin
+   *  override — its steps aren't their job (no alert). */
+  viaSystemAdminOnly?: boolean;
   /** Everyone's picks — only for the administrative coordinator setting the time. */
   availabilityPicks: Array<{ name: string; roles: string[]; entries: ThesisExamAvailabilityEntry[] }>;
   remainingSlots: number | null;

@@ -19,8 +19,11 @@
 //                            answer. When the last one submits, every date ALL
 //                            of them picked is intersected by hours; each
 //                            overlap of at least MIN_EXAM_MINUTES is a
-//                            candidate slot, earliest first. None →
-//                            exam_date_coordinator.
+//                            candidate slot, earliest first. Found → the
+//                            administrative coordinator sets the exam's hours
+//                            inside that shared window (coordinatorTask
+//                            'set_hours'; people pick wide windows). None →
+//                            she sets the date and hours ('set_date').
 //                            Deadline missed: the administrative coordinator
 //                            gets LATE_ENTRY_HOURS (24h) to reach whoever is
 //                            missing and enter their dates for them (the late
@@ -269,6 +272,11 @@ export interface ThesisExamDoc {
   /** Where the slot under review came from: the system's match, or the
    *  administrative coordinator (who then gets it back on a rejection). */
   slotSource?: 'matched' | 'coordinator';
+  /** What the administrative coordinator has to do in exam_date_coordinator:
+   *  'set_hours' — a common window was found (commonSlots[slotIndex]); she
+   *  picks the exam's hours inside it. 'set_date' (or absent) — no common
+   *  time; she sets date and hours herself. */
+  coordinatorTask?: 'set_date' | 'set_hours' | null;
   /** Every time the coordinator set, newest last. */
   coordinatorSlots?: Array<ExamSlot & { note: string; setById: string; setByName: string; setAt: string }>;
   /** Set once the "the exam started — fill the form" reminder went out. */
@@ -892,12 +900,12 @@ export async function submitAvailability(
     }
     const slots = computeCommonSlots(fresh.participants.map((p) => availability[p.key]!.entries));
     if (slots.length === 0) {
-      tx.update(examRef(milestoneId), { availability, commonSlots: [], slotIndex: 0, lateEntry: null, status: EXAM_DATE_COORDINATOR, updatedAt: now });
+      tx.update(examRef(milestoneId), { availability, commonSlots: [], slotIndex: 0, lateEntry: null, coordinatorTask: 'set_date', status: EXAM_DATE_COORDINATOR, updatedAt: now });
       tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { kind: 'none' as const };
     }
-    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, slotSource: 'matched', lateEntry: null, status: EXAM_DATE_REVIEW, updatedAt: now });
-    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, slotSource: 'matched', lateEntry: null, coordinatorTask: 'set_hours', status: EXAM_DATE_COORDINATOR, updatedAt: now });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { kind: 'matched' as const, slot: slots[0]! };
   });
 
@@ -906,7 +914,7 @@ export async function submitAvailability(
     await handToCoordinator(milestoneId, 'no_common_slot');
     return { resolved: true };
   }
-  await notifyDateReviewer(milestoneId, 'program_head', outcome.slot);
+  await askCoordinatorForHours(milestoneId, outcome.slot);
   return { resolved: true };
 }
 
@@ -988,12 +996,12 @@ async function matchWithoutMissing(milestoneId: string): Promise<void> {
     const slots = picked.length > 0 ? computeCommonSlots(picked.map((p) => fresh.availability[p.key]!.entries)) : [];
     const base = { lateEntry: null, excludedKeys, commonSlots: slots, slotIndex: 0, updatedAt: now };
     if (slots.length === 0) {
-      tx.update(examRef(milestoneId), { ...base, status: EXAM_DATE_COORDINATOR });
+      tx.update(examRef(milestoneId), { ...base, coordinatorTask: 'set_date', status: EXAM_DATE_COORDINATOR });
       tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { kind: 'none' as const, excludedKeys };
     }
-    tx.update(examRef(milestoneId), { ...base, slotSource: 'matched', status: EXAM_DATE_REVIEW });
-    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    tx.update(examRef(milestoneId), { ...base, slotSource: 'matched', coordinatorTask: 'set_hours', status: EXAM_DATE_COORDINATOR });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { kind: 'matched' as const, slot: slots[0]!, excludedKeys };
   });
   if (!outcome) return;
@@ -1008,7 +1016,7 @@ async function matchWithoutMissing(milestoneId: string): Promise<void> {
     }, { onlyKeys: outcome.excludedKeys });
   }
   if (outcome.kind === 'none') await handToCoordinator(milestoneId, 'no_common_slot');
-  else await notifyDateReviewer(milestoneId, 'program_head', outcome.slot);
+  else await askCoordinatorForHours(milestoneId, outcome.slot);
 }
 
 /** The administrative coordinator enters a late participant's dates (after
@@ -1066,16 +1074,18 @@ export async function adminCoordinatorIds(scope: ResourceScope, forAuth = false)
 /** No common time, or the heads rejected every one: the administrative
  *  coordinator is asked to set the date and hours; the student and
  *  supervisor are told why it's taking longer. */
-async function handToCoordinator(milestoneId: string, why: 'no_common_slot' | 'slots_rejected'): Promise<void> {
+async function handToCoordinator(milestoneId: string, why: 'no_common_slot' | 'slots_rejected' | 'slots_passed'): Promise<void> {
   const now = new Date().toISOString();
-  await examRef(milestoneId).update({ status: EXAM_DATE_COORDINATOR, updatedAt: now });
+  await examRef(milestoneId).update({ status: EXAM_DATE_COORDINATOR, coordinatorTask: 'set_date', updatedAt: now });
   await db.collection('milestones').doc(milestoneId).update({ status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   const loaded = await loadExam(milestoneId);
   if (!loaded) return;
   const title = projectTitle(await projectOf(loaded.milestone.projectId));
   const reason = why === 'no_common_slot'
     ? { he: 'לא נמצא מועד ושעות המשותפים לכל המשתתפים', en: 'No date and hours were common to every participant' }
-    : { he: 'המועד שהוצע לא אושר', en: 'The proposed time was not approved' };
+    : why === 'slots_passed'
+      ? { he: 'המועדים המשותפים שנמצאו כבר עברו', en: 'The common times found have already passed' }
+      : { he: 'המועד שהוצע לא אושר', en: 'The proposed time was not approved' };
   await notifyUsers(await adminCoordinatorIds(loaded.exam.scope), loaded.exam, {
     titleHe: 'יש לקבוע מועד לבחינת תזה',
     titleEn: 'Set a thesis exam time',
@@ -1113,12 +1123,36 @@ export async function setCoordinatorDate(
   await db.runTransaction(async (tx) => {
     const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
     if (fresh?.status !== EXAM_DATE_COORDINATOR) throw new ThesisExamError('הבחינה אינה ממתינה כעת לקביעת מועד.', 'The exam is not waiting for a time right now.', 409);
+    const record = { ...slot, note, setById: actor.uid, setByName: actor.name, setAt: now };
+    if (fresh.coordinatorTask === 'set_hours') {
+      // A common window was found: the hours must sit inside it, on its day.
+      const win = fresh.commonSlots[fresh.slotIndex];
+      if (!win) throw new ThesisExamError('המועד המשותף לא נמצא.', 'The common time was not found.', 409);
+      if (date !== win.date || from < win.from || to > win.to) {
+        throw new ThesisExamError(
+          `יש לקבוע את שעות הבחינה בתוך המועד המשותף: ${formatSlot(win)}.`,
+          `Set the exam hours inside the common time: ${formatSlot(win)}.`,
+        );
+      }
+      const commonSlots = fresh.commonSlots.map((s, i) => (i === fresh.slotIndex ? slot : s));
+      tx.update(examRef(milestoneId), {
+        status: EXAM_DATE_REVIEW,
+        commonSlots,
+        slotSource: 'matched',
+        coordinatorTask: null,
+        coordinatorSlots: admin.firestore.FieldValue.arrayUnion({ ...record, window: win }),
+        updatedAt: now,
+      });
+      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return;
+    }
     tx.update(examRef(milestoneId), {
       status: EXAM_DATE_REVIEW,
       commonSlots: [slot],
       slotIndex: 0,
       slotSource: 'coordinator',
-      coordinatorSlots: admin.firestore.FieldValue.arrayUnion({ ...slot, note, setById: actor.uid, setByName: actor.name, setAt: now }),
+      coordinatorTask: null,
+      coordinatorSlots: admin.firestore.FieldValue.arrayUnion(record),
       updatedAt: now,
     });
     tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -1126,10 +1160,29 @@ export async function setCoordinatorDate(
   await notifyDateReviewer(milestoneId, 'program_head', slot);
 }
 
-/** The next still-future common slot after `fromIndex`, or -1. */
+/** Can an exam of MIN_EXAM_MINUTES still start inside this window? */
+function windowStillUsable(slot: ExamSlot): boolean {
+  return !slotHasStarted({ date: slot.date, from: clockOf(minutesOf(slot.to) - MIN_EXAM_MINUTES) });
+}
+
+/** The next common window after `fromIndex` an exam can still fit in, or -1. */
 function nextFutureSlotIndex(slots: ExamSlot[], fromIndex: number): number {
-  for (let i = fromIndex; i < slots.length; i++) if (!slotHasStarted(slots[i]!)) return i;
+  for (let i = fromIndex; i < slots.length; i++) if (windowStillUsable(slots[i]!)) return i;
   return -1;
+}
+
+/** A common window was found: the administrative coordinator sets the exam
+ *  hours inside it; then the program head and the grad school head approve. */
+async function askCoordinatorForHours(milestoneId: string, window: ExamSlot): Promise<void> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) return;
+  const title = projectTitle(await projectOf(loaded.milestone.projectId));
+  await notifyUsers(await adminCoordinatorIds(loaded.exam.scope), loaded.exam, {
+    titleHe: 'נמצא מועד משותף — יש לקבוע את שעות הבחינה',
+    titleEn: 'Common time found — set the exam hours',
+    bodyHe: `לבחינת התזה "${title.he}" נמצא מועד משותף: ${formatSlot(window)}. יש לקבוע את שעות הבחינה בתוך הטווח — הן יועברו לאישור ראש התוכנית וראש בית הספר.`,
+    bodyEn: `A common time was found for the thesis exam "${title.en}": ${formatSlot(window)}. Set the exam hours inside it — they go to the program head and the grad school head for approval.`,
+  }, { pending: true });
 }
 
 export async function decideDate(
@@ -1180,8 +1233,8 @@ export async function decideDate(
     const rejection: SlotRejection = { slot, by: who, byId: actor.uid, byName: actor.name, reason: trimmed, at: now };
     const next = nextFutureSlotIndex(fresh.commonSlots, fresh.slotIndex + 1);
     if (next >= 0) {
-      tx.update(examRef(milestoneId), { status: EXAM_DATE_REVIEW, slotIndex: next, rejectedSlots: admin.firestore.FieldValue.arrayUnion(rejection), updatedAt: now });
-      tx.update(msRef, { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(examRef(milestoneId), { status: EXAM_DATE_COORDINATOR, coordinatorTask: 'set_hours', slotIndex: next, rejectedSlots: admin.firestore.FieldValue.arrayUnion(rejection), updatedAt: now });
+      tx.update(msRef, { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { kind: 'next_slot' as const, slot: fresh.commonSlots[next]! };
     }
     tx.update(examRef(milestoneId), { rejectedSlots: admin.firestore.FieldValue.arrayUnion(rejection), updatedAt: now });
@@ -1189,7 +1242,7 @@ export async function decideDate(
   });
 
   if (result.kind === 'to_grad_head') return notifyDateReviewer(milestoneId, 'grad_school_head', slot);
-  if (result.kind === 'next_slot') return notifyDateReviewer(milestoneId, 'program_head', result.slot);
+  if (result.kind === 'next_slot') return askCoordinatorForHours(milestoneId, result.slot);
   if (result.kind === 'exhausted') return handToCoordinator(milestoneId, 'slots_rejected');
 
   const fresh = (await examRef(milestoneId).get()).data() as ThesisExamDoc;
@@ -1432,7 +1485,7 @@ export async function sweepThesisExams(): Promise<void> {
   const projectIds = new Set(pending.docs.map((d) => d.data().projectId as string));
   for (const pid of projectIds) await maybeOpenThesisExamForProject(pid).catch((err) => console.error('sweepThesisExams open:', err));
 
-  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED]).get();
+  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED]).get();
   const today = todayInIsrael();
   for (const doc of active.docs) {
     const exam = doc.data() as ThesisExamDoc;
@@ -1444,12 +1497,21 @@ export async function sweepThesisExams(): Promise<void> {
         await openAvailabilityRound(exam.milestoneId, { reason: 'window_expired' });
       } else if ((exam.status === EXAM_DATE_REVIEW || exam.status === EXAM_DATE_FINAL_REVIEW) && exam.commonSlots[exam.slotIndex] && slotHasStarted(exam.commonSlots[exam.slotIndex]!)) {
         const next = nextFutureSlotIndex(exam.commonSlots, exam.slotIndex + 1);
-        if (next >= 0) {
-          await doc.ref.update({ status: EXAM_DATE_REVIEW, slotIndex: next, updatedAt: new Date().toISOString() });
-          await db.collection('milestones').doc(exam.milestoneId).update({ status: EXAM_DATE_REVIEW });
-          await notifyDateReviewer(exam.milestoneId, 'program_head', exam.commonSlots[next]!);
+        if (next >= 0 && exam.slotSource !== 'coordinator') {
+          await doc.ref.update({ status: EXAM_DATE_COORDINATOR, coordinatorTask: 'set_hours', slotIndex: next, updatedAt: new Date().toISOString() });
+          await db.collection('milestones').doc(exam.milestoneId).update({ status: EXAM_DATE_COORDINATOR });
+          await askCoordinatorForHours(exam.milestoneId, exam.commonSlots[next]!);
         } else {
-          await handToCoordinator(exam.milestoneId, 'slots_rejected');
+          await handToCoordinator(exam.milestoneId, 'slots_passed');
+        }
+      } else if (exam.status === EXAM_DATE_COORDINATOR && exam.coordinatorTask === 'set_hours' && exam.commonSlots[exam.slotIndex] && !windowStillUsable(exam.commonSlots[exam.slotIndex]!)) {
+        // The common window passed before the coordinator set the hours.
+        const next = nextFutureSlotIndex(exam.commonSlots, exam.slotIndex + 1);
+        if (next >= 0) {
+          await doc.ref.update({ slotIndex: next, updatedAt: new Date().toISOString() });
+          await askCoordinatorForHours(exam.milestoneId, exam.commonSlots[next]!);
+        } else {
+          await handToCoordinator(exam.milestoneId, 'slots_passed');
         }
       } else if (exam.status === EXAM_SCHEDULED && exam.schedule && slotHasStarted(exam.schedule) && exam.opinionReminderSentFor !== exam.schedule.date) {
         await doc.ref.update({ opinionReminderSentFor: exam.schedule.date });

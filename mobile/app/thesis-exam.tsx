@@ -194,7 +194,9 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
       )}
       {exam.status === 'exam_date_coordinator' && !has('set_date') && (
         <Text style={{ marginTop: 8, fontSize: 13, color: C.muted, ...align }}>
-          {he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.'}
+          {exam.coordinatorTask === 'set_hours'
+            ? (he ? `נמצא מועד משותף${exam.hoursWindow ? `: ${formatExamSlot(exam.hoursWindow, lang)}` : ''} — הרכזת האדמיניסטרטיבית קובעת את שעות הבחינה.` : `A common time was found${exam.hoursWindow ? `: ${formatExamSlot(exam.hoursWindow, lang)}` : ''} — the administrative coordinator is setting the exam hours.`)
+            : (he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.')}
         </Text>
       )}
       {has('set_date') && <CoordinatorDateForm exam={exam} lang={lang} onDone={onChanged} />}
@@ -516,9 +518,12 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
     // No Saturdays (Shabbat) — same rule as the participants' picker.
     return daysBetween(start, end.toISOString().slice(0, 10)).filter((d) => !isShabbat(d));
   }, []);
-  const [date, setDate] = useState('');
-  const [from, setFrom] = useState('10:00');
-  const [to, setTo] = useState('11:00');
+  // A common window was found: the date is fixed and the hours must sit
+  // inside it — she only narrows it to the exam's actual hours.
+  const win = exam.coordinatorTask === 'set_hours' ? exam.hoursWindow : null;
+  const [date, setDate] = useState(win?.date ?? '');
+  const [from, setFrom] = useState(win?.from ?? '10:00');
+  const [to, setTo] = useState(win ? (shiftTime(win.from, 120) < win.to ? shiftTime(win.from, 120) : win.to) : '11:00');
   const [note, setNote] = useState('');
   const [showPicks, setShowPicks] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -526,6 +531,7 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
 
   const submit = async () => {
     if (!date) { setError(he ? 'יש לבחור תאריך.' : 'Choose a date.'); return; }
+    if (win && (from < win.from || to > win.to)) { setError(he ? `יש לבחור שעות בתוך המועד המשותף: ${win.from}–${win.to}.` : `Pick hours inside the common time: ${win.from}–${win.to}.`); return; }
     const fridayEnd = fridayLatestEnd(date);
     if (fridayEnd && (to > fridayEnd || from >= fridayEnd)) { setError(he ? `יום שישי — ניתן לבחור שעות עד ${fridayEnd} בלבד (כניסת שבת).` : `Friday — hours only until ${fridayEnd} (Shabbat begins).`); return; }
     if (to <= from) { setError(he ? 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' : 'The end time must be after the start time.'); return; }
@@ -544,7 +550,11 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
 
   return (
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
-      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>{he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות' : 'No common time — set the date and hours'}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>
+        {win
+          ? (he ? `נמצא מועד משותף: ${formatExamSlot(win, lang)} — יש לקבוע את שעות הבחינה בתוך הטווח` : `Common time found: ${formatExamSlot(win, lang)} — set the exam hours inside it`)
+          : (he ? 'לא נמצא מועד משותף — יש לקבוע תאריך ושעות' : 'No common time — set the date and hours')}
+      </Text>
       <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'המועד יועבר לאישור ראש התוכנית ולאחר מכן ראש בית הספר.' : 'The time goes to the program head, then the grad school head.'}</Text>
       {exam.rejectedSlots.map((r, i) => (
         <Text key={i} style={{ fontSize: 11, color: C.muted, marginTop: 3, ...align }}>✗ {formatExamDay(r.slot.date, lang)} {r.slot.from}–{r.slot.to} · {r.byName}: {r.reason}</Text>
@@ -562,8 +572,8 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
           ))}
         </View>
       )}
-      <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, ...align }}>{he ? 'תאריך' : 'Date'}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 6, flexDirection: isRtl ? 'row-reverse' : 'row' }}>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 10, ...align }}>{he ? 'תאריך' : 'Date'}{win ? `: ${formatExamDay(win.date, lang, { weekday: 'long', day: 'numeric', month: 'long' })}` : ''}</Text>
+      {!win && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 6, flexDirection: isRtl ? 'row-reverse' : 'row' }}>
         {days.map((d) => {
           const on = date === d;
           return (
@@ -579,10 +589,10 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
             </Pressable>
           );
         })}
-      </ScrollView>
+      </ScrollView>}
       <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
-        <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(date)} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
-        <Stepper lang={lang} min={EXAM_DAY_START} max={latestEndFor(date)} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
+        <Stepper lang={lang} min={win ? win.from : EXAM_DAY_START} max={win ? win.to : latestEndFor(date)} label={he ? 'משעה' : 'From'} value={from} onChange={setFrom} />
+        <Stepper lang={lang} min={win ? win.from : EXAM_DAY_START} max={win ? win.to : latestEndFor(date)} label={he ? 'עד' : 'To'} value={to} onChange={setTo} />
       </View>
       <TextInput
         accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
@@ -594,7 +604,7 @@ function CoordinatorDateForm({ exam, lang, onDone }: { exam: ThesisExamCard; lan
       />
       {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
       <View style={{ flexDirection: 'row', marginTop: 8 }}>
-        <PrimaryButton busy={busy} onPress={submit} label={he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'} />
+        <PrimaryButton busy={busy} onPress={submit} label={win ? (he ? 'קביעת השעות ושליחה לאישור' : 'Set the hours and send for approval') : he ? 'קביעת המועד ושליחה לאישור' : 'Set the time and send for approval'} />
       </View>
     </View>
   );

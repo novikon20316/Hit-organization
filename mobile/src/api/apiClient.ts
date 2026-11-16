@@ -763,6 +763,12 @@ export interface ThesisExamCard {
   lateParticipants: Array<{ index: number; name: string; roles: string[]; email: string | null; phone: string | null }>;
   /** Staff only — left out of the match after the coordinator's 24h. */
   excludedNames: string[];
+  /** In exam_date_coordinator: 'set_hours' — common window found (hoursWindow),
+   *  coordinator sets the hours inside it; 'set_date' — no common time. */
+  coordinatorTask: 'set_date' | 'set_hours' | null;
+  hoursWindow: ThesisExamSlot | null;
+  /** Reached only through the system_admin override — no alert. */
+  viaSystemAdminOnly?: boolean;
   proposedSlot: ThesisExamSlot | null;
   /** Where the proposed time came from — the system's match or the administrative coordinator. */
   slotSource: 'matched' | 'coordinator';
