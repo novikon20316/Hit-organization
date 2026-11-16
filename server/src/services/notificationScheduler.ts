@@ -82,6 +82,23 @@ async function notifyStudentOfOverdue(
   }
 }
 
+/**
+ * Fields to merge into a milestone update whenever its dueDate is moved, so
+ * the 7d/1d/overdue reminders fire again for the NEW date instead of staying
+ * "already sent" from the old one. sendMilestoneDeadlineReminders also
+ * detects a moved date on its own (via deadlineRemindersDueDateMs), but
+ * milestones reminded before that field existed only get reset through here.
+ */
+export function deadlineReminderResetFields(): Record<string, FirebaseFirestore.FieldValue> {
+  const del = admin.firestore.FieldValue.delete();
+  return {
+    deadlineReminder7dSentAt: del,
+    deadlineReminder1dSentAt: del,
+    lastOverdueReminderDate: del,
+    deadlineRemindersDueDateMs: del,
+  };
+}
+
 /** Run on a schedule (see index.ts). */
 export async function sendMilestoneDeadlineReminders(): Promise<void> {
   const now = Date.now();
@@ -96,24 +113,42 @@ export async function sendMilestoneDeadlineReminders(): Promise<void> {
     if (studentIds.length === 0) continue;
 
     const daysLeft = (dueDate.getTime() - now) / DAY_MS;
+    const dueMs = dueDate.getTime();
+
+    // The sent-flags belong to the due date they were sent for. If the date
+    // has moved since (extension, track change, template re-apply, ...),
+    // they're stale — treat them as unsent so the student is reminded again
+    // for the new date. Docs reminded before this field existed have no
+    // recorded date; those are reset by deadlineReminderResetFields() on an
+    // explicit override instead.
+    const recordedMs: number | undefined = data.deadlineRemindersDueDateMs;
+    const stale = typeof recordedMs === 'number' && recordedMs !== dueMs;
+    const sent7d = !stale && !!data.deadlineReminder7dSentAt;
+    const sent1d = !stale && !!data.deadlineReminder1dSentAt;
+    const lastOverdue = stale ? null : data.lastOverdueReminderDate;
+    const resetIfStale = stale ? deadlineReminderResetFields() : {};
 
     try {
-      if (daysLeft <= 7 && daysLeft > 1 && !data.deadlineReminder7dSentAt) {
+      if (daysLeft <= 7 && daysLeft > 1 && !sent7d) {
         await Promise.all(studentIds.map((sid) => notifyStudentOfDeadline(sid, data, doc.id, '7d')));
-        await doc.ref.update({ deadlineReminder7dSentAt: admin.firestore.FieldValue.serverTimestamp() });
-      } else if (daysLeft <= 1 && daysLeft > -1 && !data.deadlineReminder1dSentAt) {
+        await doc.ref.update({ ...resetIfStale, deadlineReminder7dSentAt: admin.firestore.FieldValue.serverTimestamp(), deadlineRemindersDueDateMs: dueMs });
+      } else if (daysLeft <= 1 && daysLeft > -1 && !sent1d) {
         await Promise.all(studentIds.map((sid) => notifyStudentOfDeadline(sid, data, doc.id, '1d')));
-        await doc.ref.update({ deadlineReminder1dSentAt: admin.firestore.FieldValue.serverTimestamp() });
+        await doc.ref.update({ ...resetIfStale, deadlineReminder1dSentAt: admin.firestore.FieldValue.serverTimestamp(), deadlineRemindersDueDateMs: dueMs });
       } else if (daysLeft <= -1) {
         // Overdue — fire once when it first crosses into "late", then once
         // per additional calendar day late (not once per hourly sweep),
         // gated by a UTC date-string compared against the last reminder.
         const today = new Date().toISOString().slice(0, 10);
-        if (data.lastOverdueReminderDate !== today) {
+        if (lastOverdue !== today) {
           const daysLate = Math.floor(-daysLeft);
           await Promise.all(studentIds.map((sid) => notifyStudentOfOverdue(sid, data, doc.id, daysLate)));
-          await doc.ref.update({ lastOverdueReminderDate: today });
+          await doc.ref.update({ ...resetIfStale, lastOverdueReminderDate: today, deadlineRemindersDueDateMs: dueMs });
         }
+      } else if (stale) {
+        // Moved further out than 7 days — nothing to send yet, just clear
+        // the old flags so the 7d/1d reminders are armed for the new date.
+        await doc.ref.update(resetIfStale);
       }
     } catch (err) {
       console.error(`sendMilestoneDeadlineReminders: failed for milestone ${doc.id}:`, err);

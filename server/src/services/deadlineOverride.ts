@@ -10,6 +10,7 @@
 import admin from 'firebase-admin';
 import { db } from '../config/firebase.js';
 import { logAuditEvent } from './auditLog.js';
+import { deadlineReminderResetFields } from './notificationScheduler.js';
 
 export async function applySingleDueDateOverride(
   milestoneId: string,
@@ -27,6 +28,8 @@ export async function applySingleDueDateOverride(
   await milestoneRef.update({
     dueDate: admin.firestore.Timestamp.fromDate(dueDate),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // New date → re-arm the 7d/1d/overdue reminders for it.
+    ...deadlineReminderResetFields(),
   });
 
   await logAuditEvent({
@@ -112,6 +115,7 @@ export async function applyBulkDueDateOverride(
     batch.update(m.ref, {
       dueDate: admin.firestore.Timestamp.fromDate(dueDate),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...deadlineReminderResetFields(),
     });
     opsInBatch++;
     if (opsInBatch >= BATCH_LIMIT) {
