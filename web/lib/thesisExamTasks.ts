@@ -10,7 +10,7 @@
 
 import type { ThesisExamCard } from '@/lib/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'set_date' | 'review_date' | 'form';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -18,7 +18,8 @@ export interface ThesisExamTask {
   studentNames: string[];
   projectTitleHe: string;
   projectTitleEn: string;
-  /** Last day to pick dates — only for 'availability'. */
+  /** When it's due: the 48h deadline (an ISO moment) or, on rounds from
+   *  before that rule, the window's last day ('YYYY-MM-DD'). */
   deadline: string | null;
 }
 
@@ -30,7 +31,10 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
       if (a === 'view_forms') continue;
       if (a === 'availability' && e.myAvailability) continue;
       if (a === 'form' && (e.myFormSubmitted || !e.formOpen)) continue;
-      out.push({ ...base, kind: a, deadline: a === 'availability' ? e.window?.end ?? null : null });
+      const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
+        : a === 'late_entry' ? e.lateEntryDeadline
+        : null;
+      out.push({ ...base, kind: a, deadline });
     }
   }
   return out;
@@ -40,6 +44,7 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   nominate: { he: 'יש למנות בוחנים', en: 'Nominate the examiners' },
   review_nomination: { he: 'יש לאשר את מינוי הבוחנים', en: 'Approve the examiner nomination' },
   availability: { he: 'יש לבחור 5 מועדים לבחינה', en: 'Pick your 5 dates for the exam' },
+  late_entry: { he: 'יש ליצור קשר עם מי שלא בחרו תאריכים ולהזין אותם', en: "Call whoever didn't pick dates and enter theirs" },
   set_date: { he: 'יש לקבוע את מועד הבחינה (אין מועד משותף)', en: 'Set the exam time (no common slot)' },
   review_date: { he: 'יש לאשר את מועד הבחינה', en: 'Approve the exam date' },
   form: { he: 'יש למלא את טופס מבחן התזה', en: 'Fill in the thesis exam form' },
@@ -50,6 +55,11 @@ export function thesisExamTaskLabel(kind: ThesisExamTaskKind, lang: 'he' | 'en')
 }
 
 export function formatTaskDeadline(iso: string, lang: 'he' | 'en'): string {
-  const d = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' });
+  const locale = lang === 'he' ? 'he-IL' : 'en-GB';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const d = new Date(`${iso}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  }
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale, { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }

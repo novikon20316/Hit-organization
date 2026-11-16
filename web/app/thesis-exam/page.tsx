@@ -17,7 +17,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
-import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
+import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
 import { AvailabilityPicker, EXAM_DAY_START, EXAM_MIN_MINUTES, EXAM_TIMES, fridayLatestEnd, isShabbat, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamFormPanel, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamFormPanel';
 
@@ -136,16 +136,29 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
           {exam.pendingParticipants.length > 0 && (
             <p className="mt-1 text-xs text-muted">{he ? 'טרם בחרו' : 'Still to pick'}: {exam.pendingParticipants.map((p) => p.name).join(', ')}</p>
           )}
+          {exam.lateEntryDeadline && !has('late_entry') && (
+            <p className="mt-1 text-xs font-medium text-accent">
+              {he
+                ? `המועד האחרון עבר — הרכזת האדמיניסטרטיבית משלימה את התאריכים החסרים עד ${formatExamDeadline(exam.lateEntryDeadline, 'he')}, ואז המערכת תקבע מועד לפי מי שבחרו.`
+                : `The deadline passed — the administrative coordinator is completing the missing dates until ${formatExamDeadline(exam.lateEntryDeadline, 'en')}; then the system sets the time from those who picked.`}
+            </p>
+          )}
+          {has('late_entry') && <LateEntryPanel exam={exam} lang={lang} onDone={onChanged} />}
           {has('availability') && exam.window && (
             <AvailabilityPicker
               lang={lang}
               window={exam.window}
               count={exam.rules.datesPerParticipant}
+              deadline={exam.lateEntryDeadline ?? exam.pickDeadline}
               initial={exam.myAvailability}
               onSubmit={async (entries) => { await apiClient.submitThesisExamAvailability(exam.milestoneId, entries); await onChanged(); }}
             />
           )}
         </div>
+      )}
+
+      {exam.excludedNames.length > 0 && exam.status !== 'exam_availability' && (
+        <p className="mt-2 text-xs text-muted">{he ? 'המועד נקבע ללא תאריכים של' : 'Time set without dates from'}: {exam.excludedNames.join(', ')}</p>
       )}
 
       {exam.status === 'exam_date_coordinator' && !has('set_date') && (
@@ -179,6 +192,57 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
         </div>
       )}
     </section>
+  );
+}
+
+/** The administrative coordinator, after the 48h deadline: who didn't pick,
+ *  how to reach them, and a picker to enter what they give her on the phone. */
+function LateEntryPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const [open, setOpen] = useState<number | null>(null);
+  const ROLE: Record<string, { he: string; en: string }> = {
+    student: { he: 'סטודנט/ית', en: 'Student' }, supervisor: { he: 'מנחה', en: 'Supervisor' },
+    committee: { he: 'חבר/ת ועדה', en: 'Committee' }, examiner: { he: 'בוחן/ת', en: 'Examiner' },
+  };
+  return (
+    <div className="mt-3 rounded-lg border border-accent/50 bg-accent/10 p-3">
+      <p className="text-sm font-semibold text-ink">
+        📞 {he ? 'משתתפים שלא בחרו תאריכים בזמן' : "Participants who didn't pick in time"}
+      </p>
+      <p className="mt-0.5 text-xs text-muted">
+        {he
+          ? `יש ליצור קשר ולהזין את התאריכים שלהם עד ${formatExamDeadline(exam.lateEntryDeadline!, 'he')}. לאחר מכן המערכת תקבע את המועד לפי מי שכן בחרו.`
+          : `Contact them and enter their dates by ${formatExamDeadline(exam.lateEntryDeadline!, 'en')}. After that the system sets the time from those who did pick.`}
+      </p>
+      <div className="mt-2 grid gap-2">
+        {exam.lateParticipants.map((p) => (
+          <div key={p.index} className="rounded-md bg-surface px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">{p.name} <span className="text-xs text-muted">({p.roles.map((r) => ROLE[r]?.[lang] ?? r).join(', ')})</span></p>
+                <p className="text-xs text-muted">
+                  {p.phone ? <a href={`tel:${p.phone}`} className="text-primary hover:underline" dir="ltr">{p.phone}</a> : (he ? 'אין טלפון במערכת' : 'No phone on file')}
+                  {p.email ? <> · <a href={`mailto:${p.email}`} className="text-primary hover:underline" dir="ltr">{p.email}</a></> : null}
+                </p>
+              </div>
+              <button type="button" onClick={() => setOpen(open === p.index ? null : p.index)} className="rounded-full border border-line px-3 py-1 text-xs font-medium text-ink hover:border-primary">
+                {open === p.index ? (he ? 'סגירה' : 'Close') : (he ? 'הזנת תאריכים' : 'Enter dates')}
+              </button>
+            </div>
+            {open === p.index && exam.window && (
+              <AvailabilityPicker
+                lang={lang}
+                window={exam.window}
+                count={exam.rules.datesPerParticipant}
+                initial={null}
+                allowFewer
+                onSubmit={async (entries) => { await apiClient.enterThesisExamLateDates(exam.milestoneId, p.index, entries); setOpen(null); await onDone(); }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

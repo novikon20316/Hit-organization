@@ -9,6 +9,7 @@ import {
   nominateExaminers,
   decideExaminerNomination,
   submitMyAvailability,
+  enterLateDates,
   decideExamDate,
   setExamDateByCoordinator,
   getExamForm,
@@ -23,6 +24,7 @@ router.get('/:milestoneId/examiner-candidates', verifyToken, getExaminerCandidat
 router.post('/:milestoneId/nominate', verifyToken, nominateExaminers);
 router.post('/:milestoneId/nomination-decision', verifyToken, decideExaminerNomination);
 router.post('/:milestoneId/availability', verifyToken, submitMyAvailability);
+router.post('/:milestoneId/late-entry', verifyToken, enterLateDates);
 router.post('/:milestoneId/date-decision', verifyToken, decideExamDate);
 router.post('/:milestoneId/coordinator-date', verifyToken, setExamDateByCoordinator);
 router.get('/:milestoneId/form', verifyToken, getExamForm);

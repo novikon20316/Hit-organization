@@ -9,13 +9,13 @@
 // forms. Each card shows only the viewer's actions; the server enforces them.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
+import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
 import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, EXAM_MIN_MINUTES, fridayLatestEnd, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
@@ -168,11 +168,20 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
           {exam.pendingParticipants.length > 0 && (
             <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'טרם בחרו' : 'Still to pick'}: {exam.pendingParticipants.map((p) => p.name).join(', ')}</Text>
           )}
+          {!!exam.lateEntryDeadline && !has('late_entry') && (
+            <Text style={{ fontSize: 12, color: C.accent, fontWeight: '600', marginTop: 4, ...align }}>
+              {he
+                ? `המועד האחרון עבר — הרכזת האדמיניסטרטיבית משלימה את התאריכים החסרים עד ${formatExamDeadline(exam.lateEntryDeadline, lang)}, ואז המערכת תקבע מועד לפי מי שבחרו.`
+                : `The deadline passed — the administrative coordinator is completing the missing dates until ${formatExamDeadline(exam.lateEntryDeadline, lang)}; then the system sets the time from those who picked.`}
+            </Text>
+          )}
+          {has('late_entry') && <LateEntryPanel exam={exam} lang={lang} onDone={onChanged} />}
           {has('availability') && exam.window && (
             <AvailabilityPicker
               lang={lang}
               window={exam.window}
               count={exam.rules.datesPerParticipant}
+              deadline={exam.lateEntryDeadline ?? exam.pickDeadline}
               initial={exam.myAvailability}
               onSubmit={async (entries) => { await apiClient.submitThesisExamAvailability(exam.milestoneId, entries); await onChanged(); }}
             />
@@ -180,6 +189,9 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
         </View>
       )}
 
+      {exam.excludedNames.length > 0 && exam.status !== 'exam_availability' && (
+        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'המועד נקבע ללא תאריכים של' : 'Time set without dates from'}: {exam.excludedNames.join(', ')}</Text>
+      )}
       {exam.status === 'exam_date_coordinator' && !has('set_date') && (
         <Text style={{ marginTop: 8, fontSize: 13, color: C.muted, ...align }}>
           {he ? 'לא נמצא מועד משותף — הרכזת האדמיניסטרטיבית תקבע את המועד.' : 'No common time was found — the administrative coordinator will set the time.'}
@@ -220,6 +232,65 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
 }
 
 type NomineeDraft = { type: 'internal'; uid: string } | { type: 'external'; name: string; email: string; institution: string };
+
+/** The administrative coordinator, after the 48h deadline: who didn't pick,
+ *  how to reach them, and a picker to enter what they give her by phone.
+ *  Mirrors web's LateEntryPanel (app/thesis-exam/page.tsx). */
+function LateEntryPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const align = { textAlign: he ? 'right' : 'left' } as const;
+  const [open, setOpen] = useState<number | null>(null);
+  const ROLE: Record<string, { he: string; en: string }> = {
+    student: { he: 'סטודנט/ית', en: 'Student' }, supervisor: { he: 'מנחה', en: 'Supervisor' },
+    committee: { he: 'חבר/ת ועדה', en: 'Committee' }, examiner: { he: 'בוחן/ת', en: 'Examiner' },
+  };
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.accent, borderRadius: 10, padding: 10, backgroundColor: C.accentBg }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>📞 {he ? 'משתתפים שלא בחרו תאריכים בזמן' : "Participants who didn't pick in time"}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
+        {he
+          ? `יש ליצור קשר ולהזין את התאריכים שלהם עד ${formatExamDeadline(exam.lateEntryDeadline!, lang)}. לאחר מכן המערכת תקבע את המועד לפי מי שכן בחרו.`
+          : `Contact them and enter their dates by ${formatExamDeadline(exam.lateEntryDeadline!, lang)}. After that the system sets the time from those who did pick.`}
+      </Text>
+      {exam.lateParticipants.map((p) => (
+        <View key={p.index} style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 8, padding: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: C.ink, ...align }}>
+            {p.name} <Text style={{ fontSize: 12, fontWeight: '400', color: C.muted }}>({p.roles.map((r) => ROLE[r]?.[lang] ?? r).join(', ')})</Text>
+          </Text>
+          {p.phone ? (
+            <Pressable onPress={() => { void Linking.openURL(`tel:${p.phone}`); }} accessibilityRole="link">
+              <Text style={{ fontSize: 13, color: C.primary, marginTop: 2, ...align }}>📞 {p.phone}</Text>
+            </Pressable>
+          ) : (
+            <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'אין טלפון במערכת' : 'No phone on file'}</Text>
+          )}
+          {!!p.email && (
+            <Pressable onPress={() => { void Linking.openURL(`mailto:${p.email}`); }} accessibilityRole="link">
+              <Text style={{ fontSize: 13, color: C.primary, marginTop: 2, ...align }}>✉️ {p.email}</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => setOpen(open === p.index ? null : p.index)}
+            accessibilityRole="button"
+            style={{ marginTop: 6, alignSelf: he ? 'flex-end' : 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5 }}
+          >
+            <Text style={{ fontSize: 12, color: C.ink, fontWeight: '600' }}>{open === p.index ? (he ? 'סגירה' : 'Close') : (he ? 'הזנת תאריכים' : 'Enter dates')}</Text>
+          </Pressable>
+          {open === p.index && exam.window && (
+            <AvailabilityPicker
+              lang={lang}
+              window={exam.window}
+              count={exam.rules.datesPerParticipant}
+              initial={null}
+              allowFewer
+              onSubmit={async (entries) => { await apiClient.enterThesisExamLateDates(exam.milestoneId, p.index, entries); setOpen(null); await onDone(); }}
+            />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function NominationEditor({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
   const he = lang === 'he';

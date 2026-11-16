@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import type { ThesisExamAvailabilityEntry } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
-import { C, formatExamDay } from './shared';
+import { C, formatExamDay, formatExamDeadline } from './shared';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h! * 60 + m!; };
@@ -115,12 +115,17 @@ export function Stepper({ label, value, onChange, lang, min = '00:00', max = '23
   );
 }
 
-export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
+export function AvailabilityPicker({ lang, window, count, initial, onSubmit, deadline = null, allowFewer = false }: {
   lang: Lang;
   window: { start: string; end: string };
   count: number;
   initial: ThesisExamAvailabilityEntry[] | null;
   onSubmit: (entries: ThesisExamAvailabilityEntry[]) => Promise<void>;
+  /** The round's submit deadline (48h rule), shown above the days. */
+  deadline?: string | null;
+  /** The administrative coordinator entering a late participant's dates
+   *  after a call: 1..count dates. */
+  allowFewer?: boolean;
 }) {
   const he = lang === 'he';
   const isRtl = he;
@@ -170,7 +175,10 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
   const badDays = chosen.filter((d) => dayIssue(d));
 
   const submit = async () => {
-    if (chosen.length !== count) { setError(he ? `יש לבחור בדיוק ${count} תאריכים.` : `Pick exactly ${count} dates.`); return; }
+    if (allowFewer ? chosen.length < 1 : chosen.length !== count) {
+      setError(allowFewer ? (he ? 'יש לבחור לפחות תאריך אחד.' : 'Pick at least one date.') : he ? `יש לבחור בדיוק ${count} תאריכים.` : `Pick exactly ${count} dates.`);
+      return;
+    }
     if (badDays.length > 0) { setError(he ? 'יש לתקן את התאריכים המסומנים באדום.' : 'Fix the dates marked in red.'); return; }
     setBusy(true);
     setError('');
@@ -186,6 +194,16 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
 
   return (
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      {!!deadline && (
+        <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent, marginBottom: 6, textAlign: isRtl ? 'right' : 'left' }}>
+          ⏰ {he ? `יש לשלוח עד ${formatExamDeadline(deadline, lang)}` : `Submit by ${formatExamDeadline(deadline, lang)}`}
+        </Text>
+      )}
+      {allowFewer && (
+        <Text style={{ fontSize: 12, color: C.ink, marginBottom: 6, textAlign: isRtl ? 'right' : 'left' }}>
+          {he ? `ניתן להזין בין 1 ל-${count} תאריכים — מה שהמשתתף/ת מסר/ה בשיחה.` : `Enter 1 to ${count} dates — whatever the participant gave you.`}
+        </Text>
+      )}
       <Text style={{ fontSize: 12, color: C.muted, textAlign: isRtl ? 'right' : 'left' }}>
         {he
           ? `בחר/י ${count} תאריכים (${chosen.length}/${count}), ובכל אחד את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, בשישי עד כניסת השבת, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
@@ -241,7 +259,7 @@ export function AvailabilityPicker({ lang, window, count, initial, onSubmit }: {
       >
         {busy ? <ActivityIndicator color="#fff" size="small" /> : (
           <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-            {initial ? (he ? 'עדכון התאריכים' : 'Update my dates') : (he ? 'שליחת התאריכים' : 'Submit my dates')}
+            {allowFewer ? (he ? 'שמירת התאריכים עבור המשתתף/ת' : 'Save their dates') : initial ? (he ? 'עדכון התאריכים' : 'Update my dates') : (he ? 'שליחת התאריכים' : 'Submit my dates')}
           </Text>
         )}
       </Pressable>

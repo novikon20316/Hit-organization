@@ -44,6 +44,8 @@ export function formatExamSlot(slot: ThesisExamSlot, lang: Lang): string {
 
 export const C = {
   primary: '#2E86FF',
+  accent: '#b8862e',
+  accentBg: 'rgba(184,134,46,0.12)',
   ink: '#1A1F36',
   muted: '#6B7280',
   faint: '#8899BB',
@@ -54,3 +56,19 @@ export const C = {
   success: '#0F7B4B',
   successBg: '#E6F6EE',
 };
+
+/** "18.11 14:00" — a deadline in Israel time (Hermes' Intl may lack the
+ *  zone; falls back to the device clock). */
+export function formatExamDeadline(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(d).map((x) => [x.type, x.value]),
+    );
+    if (p.day && p.month && p.hour && p.minute) return lang === 'he' ? `${p.day}.${p.month} בשעה ${p.hour}:${p.minute}` : `${p.day}/${p.month} at ${p.hour}:${p.minute}`;
+  } catch { /* fall through */ }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

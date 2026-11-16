@@ -11,12 +11,22 @@
 //   exam_availability        examiners are onboarded (outside ones get an
 //                            emailed access code + the approved thesis file).
 //                            The student(s), supervisor(s), committee members
-//                            and examiners each pick 5 dates within 14 days of
-//                            the round opening, with the hours they're free.
-//                            When the last one submits, every date ALL of them
-//                            picked is intersected by hours; each overlap of at
-//                            least MIN_EXAM_MINUTES is a candidate slot,
-//                            earliest first. None → exam_date_coordinator.
+//                            and examiners each pick 5 dates, with the hours
+//                            they're free, within PICK_HOURS (48h) of the
+//                            round opening — reminded at 24h. The dates
+//                            themselves are days 3–16 after the opening day,
+//                            so everyone sees the same days however late they
+//                            answer. When the last one submits, every date ALL
+//                            of them picked is intersected by hours; each
+//                            overlap of at least MIN_EXAM_MINUTES is a
+//                            candidate slot, earliest first. None →
+//                            exam_date_coordinator.
+//                            Deadline missed: the administrative coordinator
+//                            gets LATE_ENTRY_HOURS (24h) to reach whoever is
+//                            missing and enter their dates for them (the late
+//                            person may still submit too). After that the
+//                            system matches from everyone who DID pick, the
+//                            missing ones left out (excludedKeys).
 //   exam_date_coordinator    no common time (or the heads rejected every one):
 //                            the administrative coordinator sets the date and
 //                            hours herself, seeing everyone's picks
@@ -96,8 +106,20 @@ export function examinerCountFor(milestone: FirebaseFirestore.DocumentData | und
 }
 /** How many dates each participant picks. */
 export const DATES_PER_PARTICIPANT = 5;
-/** Days ahead of the round's opening day a date may be picked. */
+/** How many days the exam may fall on (the picking range's length). */
 export const AVAILABILITY_WINDOW_DAYS = 14;
+/** The range's first day, counted from the day the round opens — after the
+ *  48h deadline plus the coordinator's 24h, so no picked day has gone by
+ *  when the dates are matched. Days 3..16. */
+export const RANGE_START_OFFSET_DAYS = 3;
+/** Hours every participant has to submit their picks once a round opens. */
+export const PICK_HOURS = 48;
+/** Reminder to whoever hasn't picked, this long after the round opens. */
+export const PICK_REMINDER_HOURS = 24;
+/** After the deadline: how long the administrative coordinator has to
+ *  enter a late participant's dates (after a call) before the system
+ *  matches without them. */
+export const LATE_ENTRY_HOURS = 24;
 /** PROVISIONAL — shortest common overlap that counts as an exam slot. Not
  *  set by the faculty yet; the user's own example (a 14:00–15:00 overlap)
  *  is exactly this long. */
@@ -228,7 +250,18 @@ export interface ThesisExamDoc {
   committeeMemberIds: string[];
   availabilityRound: number;
   window: { start: string; end: string } | null;
-  availability: Record<string, { entries: AvailabilityEntry[]; submittedAt: string }>;
+  availability: Record<string, { entries: AvailabilityEntry[]; submittedAt: string; enteredById?: string; enteredByName?: string }>;
+  /** When this round opened, and its submit deadline. Rounds opened before
+   *  the 48h rule have neither — they keep the old "until the window's last
+   *  day" behavior. */
+  roundOpenedAt?: string;
+  pickDeadline?: string;
+  pickReminderSentAt?: string | null;
+  /** Set when the deadline passed with someone missing: the administrative
+   *  coordinator may enter their dates until `deadline`. */
+  lateEntry?: { startedAt: string; deadline: string; missingKeys: string[] } | null;
+  /** Left out of the match — nobody entered their dates in time. */
+  excludedKeys?: string[];
   commonSlots: ExamSlot[];
   slotIndex: number;
   rejectedSlots: SlotRejection[];
@@ -287,13 +320,25 @@ export function formatSlot(slot: ExamSlot): string {
 }
 
 export function windowFor(openDay: string): { start: string; end: string } {
-  return { start: openDay, end: dayjs(openDay).add(AVAILABILITY_WINDOW_DAYS, 'day').format('YYYY-MM-DD') };
+  const start = dayjs(openDay).add(RANGE_START_OFFSET_DAYS, 'day');
+  return { start: start.format('YYYY-MM-DD'), end: start.add(AVAILABILITY_WINDOW_DAYS - 1, 'day').format('YYYY-MM-DD') };
+}
+
+/** "18/11/2026 14:00" in Israel time. */
+export function formatMoment(iso: string): string {
+  return dayjs(iso).tz(TZ).format('DD/MM/YYYY HH:mm');
 }
 
 /** Validates one participant's 5 picks against the round's window. Returns
  *  the normalized entries (sorted by date) or throws. */
-export function validateAvailability(raw: unknown, window: { start: string; end: string }): AvailabilityEntry[] {
-  if (!Array.isArray(raw) || raw.length !== DATES_PER_PARTICIPANT) {
+export function validateAvailability(raw: unknown, window: { start: string; end: string }, opts: { allowFewer?: boolean } = {}): AvailabilityEntry[] {
+  if (opts.allowFewer) {
+    // The coordinator entering a late participant's dates after a call:
+    // whatever they could give, 1..N.
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > DATES_PER_PARTICIPANT) {
+      throw new ThesisExamError(`יש להזין בין 1 ל-${DATES_PER_PARTICIPANT} תאריכים.`, `Enter between 1 and ${DATES_PER_PARTICIPANT} dates.`);
+    }
+  } else if (!Array.isArray(raw) || raw.length !== DATES_PER_PARTICIPANT) {
     throw new ThesisExamError(`יש לבחור בדיוק ${DATES_PER_PARTICIPANT} תאריכים.`, `Pick exactly ${DATES_PER_PARTICIPANT} dates.`);
   }
   const today = todayInIsrael();
@@ -770,6 +815,7 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
   const window = windowFor(todayInIsrael());
   const round = (exam.availabilityRound ?? 0) + 1;
   const now = new Date().toISOString();
+  const pickDeadline = dayjs(now).add(PICK_HOURS, 'hour').toISOString();
   await db.runTransaction(async (tx) => {
     tx.update(examRef(milestoneId), {
       status: EXAM_AVAILABILITY,
@@ -779,6 +825,11 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
       availabilityRound: round,
       window,
       availability: {},
+      roundOpenedAt: now,
+      pickDeadline,
+      pickReminderSentAt: null,
+      lateEntry: null,
+      excludedKeys: [],
       commonSlots: [],
       slotIndex: 0,
       updatedAt: now,
@@ -800,12 +851,17 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
   await notifyParticipants(updated, {
     titleHe: 'יש לבחור תאריכים לבחינת התזה',
     titleEn: 'Pick your dates for the thesis exam',
-    bodyHe: `${lead.he}בחינת התזה "${title.he}": יש לבחור ${DATES_PER_PARTICIPANT} תאריכים בין ${formatDay(window.start)} ל-${formatDay(window.end)}, ובכל תאריך את השעות שבהן את/ה פנוי/ה. המערכת תקבע את המועד שמשותף לכולם.`,
-    bodyEn: `${lead.en}Thesis exam "${title.en}": pick ${DATES_PER_PARTICIPANT} dates between ${formatDay(window.start)} and ${formatDay(window.end)}, and the hours you're free on each. The system sets the time everyone shares.`,
+    bodyHe: `${lead.he}בחינת התזה "${title.he}": יש לבחור עד ${formatMoment(pickDeadline)} ${DATES_PER_PARTICIPANT} תאריכים בין ${formatDay(window.start)} ל-${formatDay(window.end)}, ובכל תאריך את השעות שבהן את/ה פנוי/ה. המערכת תקבע את המועד שמשותף לכולם.`,
+    bodyEn: `${lead.en}Thesis exam "${title.en}": by ${formatMoment(pickDeadline)}, pick ${DATES_PER_PARTICIPANT} dates between ${formatDay(window.start)} and ${formatDay(window.end)}, and the hours you're free on each. The system sets the time everyone shares.`,
   }, { pending: true });
 }
 
-export async function submitAvailability(milestoneId: string, participantKey: string, raw: unknown): Promise<{ resolved: boolean }> {
+export async function submitAvailability(
+  milestoneId: string,
+  participantKey: string,
+  raw: unknown,
+  opts: { enteredBy?: { uid: string; name: string } } = {},
+): Promise<{ resolved: boolean }> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
   if (loaded.exam.status !== EXAM_AVAILABILITY || !loaded.exam.window) {
@@ -814,8 +870,9 @@ export async function submitAvailability(milestoneId: string, participantKey: st
   if (!loaded.exam.participants.some((p) => p.key === participantKey)) {
     throw new ThesisExamError('אינך משתתף/ת בבחינה זו.', 'You are not a participant in this exam.', 403);
   }
-  const entries = validateAvailability(raw, loaded.exam.window);
+  const entries = validateAvailability(raw, loaded.exam.window, { allowFewer: !!opts.enteredBy });
   const round = loaded.exam.availabilityRound;
+  const stamp = opts.enteredBy ? { enteredById: opts.enteredBy.uid, enteredByName: opts.enteredBy.name } : {};
   const now = new Date().toISOString();
 
   // Write + "was that the last one?" in one transaction, so two last
@@ -825,7 +882,7 @@ export async function submitAvailability(milestoneId: string, participantKey: st
     if (!fresh || fresh.status !== EXAM_AVAILABILITY || fresh.availabilityRound !== round) {
       throw new ThesisExamError('סבב בחירת התאריכים השתנה — יש לרענן ולנסות שוב.', 'The date-picking round changed — refresh and try again.', 409);
     }
-    const availability = { ...fresh.availability, [participantKey]: { entries, submittedAt: now } };
+    const availability = { ...fresh.availability, [participantKey]: { entries, submittedAt: now, ...stamp } };
     const allIn = fresh.participants.every((p) => availability[p.key]);
     if (!allIn) {
       // The whole map, not a dotted field path: an outside examiner's key
@@ -835,11 +892,11 @@ export async function submitAvailability(milestoneId: string, participantKey: st
     }
     const slots = computeCommonSlots(fresh.participants.map((p) => availability[p.key]!.entries));
     if (slots.length === 0) {
-      tx.update(examRef(milestoneId), { availability, commonSlots: [], slotIndex: 0, status: EXAM_DATE_COORDINATOR, updatedAt: now });
+      tx.update(examRef(milestoneId), { availability, commonSlots: [], slotIndex: 0, lateEntry: null, status: EXAM_DATE_COORDINATOR, updatedAt: now });
       tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       return { kind: 'none' as const };
     }
-    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, slotSource: 'matched', status: EXAM_DATE_REVIEW, updatedAt: now });
+    tx.update(examRef(milestoneId), { availability, commonSlots: slots, slotIndex: 0, slotSource: 'matched', lateEntry: null, status: EXAM_DATE_REVIEW, updatedAt: now });
     tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { kind: 'matched' as const, slot: slots[0]! };
   });
@@ -851,6 +908,132 @@ export async function submitAvailability(milestoneId: string, participantKey: st
   }
   await notifyDateReviewer(milestoneId, 'program_head', outcome.slot);
   return { resolved: true };
+}
+
+
+// ── Step 2a: the 48h deadline ────────────────────────────────────────────────
+
+function missingParticipants(exam: ThesisExamDoc): Participant[] {
+  return exam.participants.filter((p) => !exam.availability?.[p.key]);
+}
+
+/** One sweep tick for a round under the 48h rule: the 24h reminder, the
+ *  hand-off to the administrative coordinator at the deadline, and — once
+ *  her 24h are up — the match from whoever did pick. */
+async function advancePickingRound(exam: ThesisExamDoc): Promise<void> {
+  const missing = missingParticipants(exam);
+  if (missing.length === 0 || !exam.pickDeadline) return; // resolved on the last submit
+  const now = dayjs();
+  if (exam.lateEntry) {
+    if (!now.isBefore(dayjs(exam.lateEntry.deadline))) await matchWithoutMissing(exam.milestoneId);
+    return;
+  }
+  if (!now.isBefore(dayjs(exam.pickDeadline))) {
+    await startLateEntry(exam.milestoneId);
+    return;
+  }
+  if (!exam.pickReminderSentAt && exam.roundOpenedAt && !now.isBefore(dayjs(exam.roundOpenedAt).add(PICK_REMINDER_HOURS, 'hour'))) {
+    await examRef(exam.milestoneId).update({ pickReminderSentAt: now.toISOString() });
+    const title = projectTitle(await projectOf(exam.projectId));
+    await notifyParticipants(exam, {
+      titleHe: 'תזכורת: יש לבחור תאריכים לבחינת התזה',
+      titleEn: 'Reminder: pick your thesis exam dates',
+      bodyHe: `טרם בחרת תאריכים לבחינת התזה "${title.he}". יש לבחור ${DATES_PER_PARTICIPANT} תאריכים עד ${formatMoment(exam.pickDeadline)}.`,
+      bodyEn: `You haven't picked dates for the thesis exam "${title.en}" yet. Pick ${DATES_PER_PARTICIPANT} dates by ${formatMoment(exam.pickDeadline)}.`,
+    }, { pending: true, onlyKeys: missing.map((p) => p.key) });
+  }
+}
+
+/** Deadline passed with someone missing: the administrative coordinator
+ *  gets LATE_ENTRY_HOURS to reach them and enter their dates. */
+async function startLateEntry(milestoneId: string): Promise<void> {
+  const startedAt = new Date().toISOString();
+  const deadline = dayjs(startedAt).add(LATE_ENTRY_HOURS, 'hour').toISOString();
+  const missingKeys = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_AVAILABILITY || fresh.lateEntry) return null;
+    const keys = missingParticipants(fresh).map((p) => p.key);
+    if (keys.length === 0) return null;
+    tx.update(examRef(milestoneId), { lateEntry: { startedAt, deadline, missingKeys: keys }, updatedAt: startedAt });
+    return keys;
+  });
+  if (!missingKeys) return;
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) return;
+  const title = projectTitle(await projectOf(loaded.exam.projectId));
+  const names = loaded.exam.participants.filter((p) => missingKeys.includes(p.key)).map((p) => p.name).join(', ');
+  await notifyUsers(await adminCoordinatorIds(loaded.exam.scope), loaded.exam, {
+    titleHe: 'משתתפים לא בחרו תאריכים לבחינת תזה',
+    titleEn: "Participants didn't pick thesis exam dates",
+    bodyHe: `בבחינת התזה "${title.he}" לא בחרו תאריכים בזמן: ${names}. יש ליצור איתם קשר ולהזין את התאריכים שלהם עד ${formatMoment(deadline)} — אחרת המערכת תקבע מועד לפי מי שכן בחרו.`,
+    bodyEn: `For the thesis exam "${title.en}", these participants didn't pick dates in time: ${names}. Contact them and enter their dates by ${formatMoment(deadline)} — otherwise the system sets the time from those who did pick.`,
+  }, { pending: true });
+  await notifyParticipants(loaded.exam, {
+    titleHe: 'המועד האחרון לבחירת תאריכים עבר',
+    titleEn: 'The date-picking deadline has passed',
+    bodyHe: `לא בחרת תאריכים לבחינת התזה "${title.he}". הרכזת האדמיניסטרטיבית תיצור איתך קשר. עדיין ניתן לבחור בעצמך עד ${formatMoment(deadline)}; לאחר מכן המועד ייקבע ללא התאריכים שלך.`,
+    bodyEn: `You didn't pick dates for the thesis exam "${title.en}". The administrative coordinator will contact you. You can still pick yourself until ${formatMoment(deadline)}; after that the time is set without your dates.`,
+  }, { pending: true, onlyKeys: missingKeys });
+}
+
+/** The coordinator's 24h are up: match from everyone who picked; the rest
+ *  are left out (excludedKeys). No overlap → the coordinator sets it. */
+async function matchWithoutMissing(milestoneId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const outcome = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_AVAILABILITY || !fresh.lateEntry || dayjs().isBefore(dayjs(fresh.lateEntry.deadline))) return null;
+    const picked = fresh.participants.filter((p) => fresh.availability?.[p.key]);
+    const excludedKeys = missingParticipants(fresh).map((p) => p.key);
+    const slots = picked.length > 0 ? computeCommonSlots(picked.map((p) => fresh.availability[p.key]!.entries)) : [];
+    const base = { lateEntry: null, excludedKeys, commonSlots: slots, slotIndex: 0, updatedAt: now };
+    if (slots.length === 0) {
+      tx.update(examRef(milestoneId), { ...base, status: EXAM_DATE_COORDINATOR });
+      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_COORDINATOR, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return { kind: 'none' as const, excludedKeys };
+    }
+    tx.update(examRef(milestoneId), { ...base, slotSource: 'matched', status: EXAM_DATE_REVIEW });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_DATE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return { kind: 'matched' as const, slot: slots[0]!, excludedKeys };
+  });
+  if (!outcome) return;
+  const loaded = await loadExam(milestoneId);
+  if (loaded) {
+    const title = projectTitle(await projectOf(loaded.exam.projectId));
+    await notifyParticipants(loaded.exam, {
+      titleHe: 'מועד הבחינה ייקבע ללא התאריכים שלך',
+      titleEn: 'The exam time is being set without your dates',
+      bodyHe: `לא התקבלו תאריכים ממך לבחינת התזה "${title.he}", ולכן המועד נקבע לפי שאר המשתתפים. תישלח הודעה כשהמועד יאושר.`,
+      bodyEn: `No dates came in from you for the thesis exam "${title.en}", so the time is set from the other participants. You'll be notified once it's approved.`,
+    }, { onlyKeys: outcome.excludedKeys });
+  }
+  if (outcome.kind === 'none') await handToCoordinator(milestoneId, 'no_common_slot');
+  else await notifyDateReviewer(milestoneId, 'program_head', outcome.slot);
+}
+
+/** The administrative coordinator enters a late participant's dates (after
+ *  talking to them) while the late-entry window is open. `participantIndex`
+ *  is the participant's position in the round's list — never the key, which
+ *  for an outside examiner embeds their access token. */
+export async function enterLateParticipantDates(
+  milestoneId: string,
+  actor: { uid: string; name: string },
+  participantIndex: unknown,
+  raw: unknown,
+): Promise<{ resolved: boolean }> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam } = loaded;
+  if (!(await adminCoordinatorIds(exam.scope, true)).includes(actor.uid)) {
+    throw new ThesisExamError('רק הרכזת האדמיניסטרטיבית רשאית להזין תאריכים עבור משתתף.', 'Only the administrative coordinator may enter dates for a participant.', 403);
+  }
+  if (exam.status !== EXAM_AVAILABILITY || !exam.lateEntry || !dayjs().isBefore(dayjs(exam.lateEntry.deadline))) {
+    throw new ThesisExamError('הזמן להזנת תאריכים עבור משתתפים שלא בחרו אינו פתוח כעת.', 'Entering dates for late participants is not open right now.', 409);
+  }
+  const p = typeof participantIndex === 'number' && Number.isInteger(participantIndex) ? exam.participants[participantIndex] : undefined;
+  if (!p) throw new ThesisExamError('המשתתף לא נמצא.', 'Participant not found.', 404);
+  if (exam.availability?.[p.key]) throw new ThesisExamError(`${p.name} כבר בחר/ה תאריכים.`, `${p.name} has already picked dates.`, 409);
+  return submitAvailability(milestoneId, p.key, raw, { enteredBy: actor });
 }
 
 // ── Step 3: date approvals ───────────────────────────────────────────────────
@@ -1254,7 +1437,10 @@ export async function sweepThesisExams(): Promise<void> {
   for (const doc of active.docs) {
     const exam = doc.data() as ThesisExamDoc;
     try {
-      if (exam.status === EXAM_AVAILABILITY && exam.window && today > exam.window.end) {
+      if (exam.status === EXAM_AVAILABILITY && exam.pickDeadline) {
+        await advancePickingRound(exam);
+      } else if (exam.status === EXAM_AVAILABILITY && exam.window && today > exam.window.end) {
+        // A round opened before the 48h rule: it runs until its last day.
         await openAvailabilityRound(exam.milestoneId, { reason: 'window_expired' });
       } else if ((exam.status === EXAM_DATE_REVIEW || exam.status === EXAM_DATE_FINAL_REVIEW) && exam.commonSlots[exam.slotIndex] && slotHasStarted(exam.commonSlots[exam.slotIndex]!)) {
         const next = nextFutureSlotIndex(exam.commonSlots, exam.slotIndex + 1);

@@ -606,6 +606,10 @@ class ApiClient {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/availability`, { entries });
     return response.data as { success: boolean; resolved: boolean };
   }
+  async enterThesisExamLateDates(milestoneId: string, participant: number, entries: ThesisExamAvailabilityEntry[]) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/late-entry`, { participant, entries });
+    return response.data as { success: boolean; resolved: boolean };
+  }
   async setThesisExamCoordinatorDate(milestoneId: string, body: { date: string; from: string; to: string; note?: string }) {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/coordinator-date`, body);
     return response.data as { success: boolean };
@@ -724,7 +728,7 @@ export interface DecisionRecipientCandidate {
 export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'set_date' | 'review_date' | 'form' | 'view_forms';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms';
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -751,6 +755,14 @@ export interface ThesisExamCard {
   participantCount: number;
   submittedCount: number;
   pendingParticipants: Array<{ name: string; roles: string[] }>;
+  /** Submit deadline of the current round (48h rule); null on older rounds. */
+  pickDeadline: string | null;
+  /** Set while the administrative coordinator may enter late participants' dates. */
+  lateEntryDeadline: string | null;
+  /** Administrative coordinator only, during late entry: who to call. */
+  lateParticipants: Array<{ index: number; name: string; roles: string[]; email: string | null; phone: string | null }>;
+  /** Staff only — left out of the match after the coordinator's 24h. */
+  excludedNames: string[];
   proposedSlot: ThesisExamSlot | null;
   /** Where the proposed time came from — the system's match or the administrative coordinator. */
   slotSource: 'matched' | 'coordinator';

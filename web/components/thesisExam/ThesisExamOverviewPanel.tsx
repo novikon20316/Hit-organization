@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, type ThesisExamOverview } from '@/lib/apiClient';
+import { formatExamDeadline } from '@/lib/thesisExam';
 
 const ROLE_LABEL: Record<string, { he: string; en: string }> = {
   student: { he: 'סטודנט/ית', en: 'Student' },
@@ -55,12 +56,22 @@ export function ThesisExamOverviewPanel({ milestoneId }: { milestoneId: string }
       ) : (
         <div className="mt-2 grid gap-1.5">
           {exam.examiners.map((e, i) => (
-            <div key={i} className="flex items-center justify-between rounded-md bg-surface px-3 py-1.5">
-              <span className="text-sm font-medium text-ink">{e.name}</span>
-              <span className="text-xs text-muted">
-                {e.type === 'external' ? (he ? 'בוחן/ת חיצוני/ת' : 'Outside examiner') : (he ? 'סגל המוסד' : 'Staff member')}
-                {e.institution ? ` · ${e.institution}` : ''}
-              </span>
+            <div key={i} className="rounded-md bg-surface px-3 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-ink">{e.name}</span>
+                <span className="text-xs text-muted">
+                  {e.type === 'external' ? (he ? 'בוחן/ת חיצוני/ת' : 'Outside examiner') : (he ? 'סגל המוסד' : 'Staff member')}
+                  {e.institution ? ` · ${e.institution}` : ''}
+                </span>
+              </div>
+              {(e.email || e.accessEmailSent !== null) && (
+                <p className="mt-0.5 text-xs text-muted">
+                  {e.email && <a href={`mailto:${e.email}`} className="text-primary hover:underline" dir="ltr">{e.email}</a>}
+                  {e.accessEmailSent !== null && (
+                    <span>{e.email ? ' · ' : ''}{e.accessEmailSent ? (he ? 'קוד גישה נשלח במייל' : 'Access code emailed') : (he ? '⚠ שליחת קוד הגישה נכשלה' : '⚠ Access code email failed')}</span>
+                  )}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -76,6 +87,14 @@ export function ThesisExamOverviewPanel({ milestoneId }: { milestoneId: string }
               </span>
             )}
           </p>
+          {exam.pickDeadline && !exam.lateEntryDeadline && (
+            <p className="mt-1 text-xs text-muted">⏰ {he ? 'מועד אחרון לבחירה' : 'Deadline'}: {formatExamDeadline(exam.pickDeadline, lang)}</p>
+          )}
+          {exam.lateEntryDeadline && (
+            <p className="mt-1 text-xs font-medium text-accent">
+              📞 {he ? `המועד עבר — הרכזת האדמיניסטרטיבית משלימה תאריכים עד ${formatExamDeadline(exam.lateEntryDeadline, 'he')}` : `Deadline passed — the administrative coordinator completes dates until ${formatExamDeadline(exam.lateEntryDeadline, 'en')}`}
+            </p>
+          )}
           {pending.length > 0 && (
             <div className="mt-1.5">
               <p className="text-xs font-medium text-accent">{he ? 'טרם בחרו:' : 'Still to pick:'}</p>
@@ -90,6 +109,9 @@ export function ThesisExamOverviewPanel({ milestoneId }: { milestoneId: string }
             <p className="mt-1.5 text-xs text-muted">✓ {he ? 'בחרו' : 'Picked'}: {done.map((p) => p.name).join(', ')}</p>
           )}
         </div>
+      )}
+      {exam.excludedNames.length > 0 && exam.status !== 'exam_availability' && (
+        <p className="mt-2 text-xs text-muted">{he ? 'המועד נקבע ללא תאריכים של' : 'Time set without dates from'}: {exam.excludedNames.join(', ')}</p>
       )}
     </div>
   );

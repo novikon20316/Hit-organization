@@ -44,3 +44,10 @@ export function formatExamDay(date: string, lang: 'he' | 'en', opts: Intl.DateTi
 export function formatExamSlot(slot: ThesisExamSlot, lang: 'he' | 'en'): string {
   return `${formatExamDay(slot.date, lang)} · ${slot.from}–${slot.to}`;
 }
+
+/** "יום ד׳, 18.11, 14:00" — a deadline in Israel time. */
+export function formatExamDeadline(iso: string, lang: 'he' | 'en'): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+}

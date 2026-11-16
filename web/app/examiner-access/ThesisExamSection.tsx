@@ -38,6 +38,7 @@ export function ThesisExamSection({ token, exam: initial, lang }: { token: strin
           lang={lang}
           window={exam.window}
           count={exam.rules.datesPerParticipant}
+          deadline={exam.lateEntryDeadline ?? exam.pickDeadline}
           initial={exam.myAvailability}
           onSubmit={async (entries) => { await apiClient.submitExternalThesisExamAvailability(token, entries); await reload(); }}
         />

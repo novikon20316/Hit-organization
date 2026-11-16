@@ -758,6 +758,7 @@ export default function ExaminerAccessScreen() {
                 lang={lang}
                 window={thesisExam.window}
                 count={thesisExam.rules.datesPerParticipant}
+                deadline={thesisExam.lateEntryDeadline ?? thesisExam.pickDeadline}
                 initial={thesisExam.myAvailability}
                 onSubmit={async (entries) => { await apiClient.submitExternalThesisExamAvailability(token, entries); await loadThesisExam(); }}
               />

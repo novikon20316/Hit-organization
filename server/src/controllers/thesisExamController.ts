@@ -46,7 +46,9 @@ import {
   submitExamForm,
   loadExamForms,
   examFormGate,
+  enterLateParticipantDates,
 } from '../services/thesisExam.js';
+import { getPrivateContact } from '../services/privateContact.js';
 import { withinCoordinatorScope, type ResourceScope } from '../services/scopeAuthorization.js';
 
 function sendError(req: Request, res: Response, err: unknown, en: string, he: string) {
@@ -96,6 +98,9 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (exam.status === EXAM_NOMINATION && rel.isSupervisor) actions.push('nominate');
   if (exam.status === EXAM_NOMINATION_REVIEW && rel.isGradHead) actions.push('review_nomination');
   if (exam.status === EXAM_AVAILABILITY && rel.participantKey) actions.push('availability');
+  const lateEntryOpen = exam.status === EXAM_AVAILABILITY && !!exam.lateEntry;
+  const stillMissing = lateEntryOpen ? exam.participants.map((p, index) => ({ p, index })).filter(({ p }) => !exam.availability?.[p.key]) : [];
+  if (lateEntryOpen && rel.isAdminCoordinator && stillMissing.length > 0) actions.push('late_entry');
   if (exam.status === EXAM_DATE_COORDINATOR && rel.isAdminCoordinator) actions.push('set_date');
   if (exam.status === EXAM_DATE_REVIEW && rel.isProgramHead) actions.push('review_date');
   if (exam.status === EXAM_DATE_FINAL_REVIEW && rel.isGradHead) actions.push('review_date');
@@ -153,6 +158,21 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     availabilityPicks: rel.isAdminCoordinator && exam.status === EXAM_DATE_COORDINATOR
       ? exam.participants.map((p) => ({ name: p.name, roles: p.roles, entries: exam.availability?.[p.key]?.entries ?? [] }))
       : [],
+    pickDeadline: exam.status === EXAM_AVAILABILITY ? exam.pickDeadline ?? null : null,
+    lateEntryDeadline: lateEntryOpen ? exam.lateEntry!.deadline : null,
+    // Who the administrative coordinator has to call, with how to reach
+    // them — only her, only while she can still enter their dates. `index`
+    // (not the key) identifies them: an outside examiner's key embeds their
+    // access token.
+    lateParticipants: lateEntryOpen && rel.isAdminCoordinator
+      ? await Promise.all(stillMissing.map(async ({ p, index }) => {
+        const profile = p.uid ? (await db.collection('users').doc(p.uid).get()).data() ?? {} : {};
+        const phone = p.uid ? (await getPrivateContact(p.uid, profile)).phoneNumber : null;
+        return { index, name: p.name, roles: p.roles, email: (p.email ?? profile.email ?? null) as string | null, phone };
+      }))
+      : [],
+    // Left out of the match after the coordinator's 24h — staff only.
+    excludedNames: staff ? exam.participants.filter((p) => (exam.excludedKeys ?? []).includes(p.key)).map((p) => p.name) : [],
     remainingSlots: (rel.isGradHead || rel.isProgramHead) && proposed ? exam.commonSlots.length - exam.slotIndex - 1 : null,
     rejectedSlots: (rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator) ? (exam.rejectedSlots ?? []).filter((r) => exam.commonSlots.some((s) => s.date === r.slot.date && s.from === r.slot.from && s.to === r.slot.to)) : [],
     schedule: exam.schedule ? { date: exam.schedule.date, from: exam.schedule.from, to: exam.schedule.to } : null,
@@ -233,14 +253,26 @@ export const getThesisExamOverview = async (req: AuthenticatedRequest, res: Resp
         status: exam.status,
         requiredExaminers: examinerCountFor(milestone),
         // Before approval only the nomination exists; after it, the onboarded list.
-        examiners: (exam.examiners?.length ? exam.examiners : exam.nomination?.examiners ?? []).map((e) => ({
-          name: e.name,
-          type: e.type,
-          institution: e.institution ?? null,
+        examiners: await Promise.all((exam.examiners?.length ? exam.examiners : exam.nomination?.examiners ?? []).map(async (e) => {
+          // Contact details for coordinator-tier oversight (system_admin
+          // included) — the outside examiner's email/institution live only
+          // in the server-only exam doc and their access token.
+          const seeContact = hasAnyRole(req.user, OVERVIEW_COORDINATOR_ROLES);
+          const internalEmail = seeContact && e.type === 'internal' && e.uid ? ((await db.collection('users').doc(e.uid).get()).data()?.email ?? null) : null;
+          return {
+            name: e.name,
+            type: e.type,
+            institution: e.institution || null,
+            email: seeContact ? (e.type === 'external' ? e.email ?? null : internalEmail) : null,
+            accessEmailSent: seeContact && e.type === 'external' && 'emailSent' in e ? !!(e as { emailSent?: boolean }).emailSent : null,
+          };
         })),
         examinersApproved: (exam.examiners?.length ?? 0) > 0,
         availabilityRound: exam.availabilityRound ?? 0,
         window: exam.window,
+        pickDeadline: picking ? exam.pickDeadline ?? null : null,
+        lateEntryDeadline: picking && exam.lateEntry ? exam.lateEntry.deadline : null,
+        excludedNames: exam.participants.filter((p) => (exam.excludedKeys ?? []).includes(p.key)).map((p) => p.name),
         participants: picking
           ? exam.participants.map((p) => ({ name: p.name, roles: p.roles, submitted: submittedKeys.includes(p.key) }))
           : [],
@@ -330,6 +362,24 @@ export const submitMyAvailability = async (req: AuthenticatedRequest, res: Respo
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     return sendError(req, res, err, 'Failed to save your dates.', 'שמירת התאריכים נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/late-entry ───────────────────────────
+// Body: { participant: <index from the card's lateParticipants>, entries: [1..5] }
+// The administrative coordinator enters a late participant's dates after a
+// call, during the 24h after the 48h deadline.
+export const enterLateDates = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    const actor = { uid, name: await nameOf(uid) };
+    const result = await enterLateParticipantDates(milestoneId, actor, req.body?.participant, req.body?.entries);
+    await audit(req, milestoneId, 'late_dates_entered', { participant: req.body?.participant, count: Array.isArray(req.body?.entries) ? req.body.entries.length : 0 });
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to save the dates.', 'שמירת התאריכים נכשלה.');
   }
 };
 

@@ -3437,6 +3437,9 @@ export const apiClient = {
   async submitThesisExamAvailability(milestoneId: string, entries: ThesisExamAvailabilityEntry[]) {
     return request<{ success: boolean; resolved: boolean }>(`/api/thesis-exam/${milestoneId}/availability`, { method: 'POST', body: { entries } });
   },
+  async enterThesisExamLateDates(milestoneId: string, participant: number, entries: ThesisExamAvailabilityEntry[]) {
+    return request<{ success: boolean; resolved: boolean }>(`/api/thesis-exam/${milestoneId}/late-entry`, { method: 'POST', body: { participant, entries } });
+  },
   async setThesisExamCoordinatorDate(milestoneId: string, body: { date: string; from: string; to: string; note?: string }) {
     return request<{ success: boolean }>(`/api/thesis-exam/${milestoneId}/coordinator-date`, { method: 'POST', body });
   },
@@ -4074,7 +4077,7 @@ export interface ThesisOpinionQueueItem {
 export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'set_date' | 'review_date' | 'form' | 'view_forms';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms';
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -4084,10 +4087,17 @@ export type ThesisExamNomineeInput =
 export interface ThesisExamOverview {
   status: ThesisExamStatus;
   requiredExaminers: number;
-  examiners: Array<{ name: string; type: 'internal' | 'external'; institution: string | null }>;
+  /** email / accessEmailSent only for coordinator-tier viewers (incl. system_admin). */
+  examiners: Array<{ name: string; type: 'internal' | 'external'; institution: string | null; email: string | null; accessEmailSent: boolean | null }>;
   examinersApproved: boolean;
   availabilityRound: number;
   window: { start: string; end: string } | null;
+  /** Submit deadline of the current round (48h rule); null on older rounds. */
+  pickDeadline: string | null;
+  /** While the administrative coordinator may enter late participants' dates. */
+  lateEntryDeadline: string | null;
+  /** Left out of the match after the coordinator's 24h. */
+  excludedNames: string[];
   /** Only while dates are being picked (exam_availability). */
   participants: Array<{ name: string; roles: Array<'student' | 'supervisor' | 'committee' | 'examiner'>; submitted: boolean }>;
 }
@@ -4112,6 +4122,14 @@ export interface ThesisExamCard {
   participantCount: number;
   submittedCount: number;
   pendingParticipants: Array<{ name: string; roles: string[] }>;
+  /** Submit deadline of the current round (48h rule); null on older rounds. */
+  pickDeadline: string | null;
+  /** Set while the administrative coordinator may enter late participants' dates. */
+  lateEntryDeadline: string | null;
+  /** Administrative coordinator only, during late entry: who to call. */
+  lateParticipants: Array<{ index: number; name: string; roles: string[]; email: string | null; phone: string | null }>;
+  /** Staff only — left out of the match after the coordinator's 24h. */
+  excludedNames: string[];
   proposedSlot: ThesisExamSlot | null;
   /** Where the proposed time came from — the system's match or the administrative coordinator. */
   slotSource: 'matched' | 'coordinator';

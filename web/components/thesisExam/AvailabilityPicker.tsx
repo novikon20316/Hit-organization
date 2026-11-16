@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import type { ThesisExamAvailabilityEntry } from '@/lib/apiClient';
-import { formatExamDay } from '@/lib/thesisExam';
+import { formatExamDay, formatExamDeadline } from '@/lib/thesisExam';
 
 // Israel's date/clock, not the browser's — the server's window and its
 // "already passed" check (services/thesisExam.ts validateAvailability) are
@@ -96,12 +96,19 @@ export function AvailabilityPicker({
   count,
   initial,
   onSubmit,
+  deadline = null,
+  allowFewer = false,
 }: {
   lang: 'he' | 'en';
   window: { start: string; end: string };
   count: number;
   initial: ThesisExamAvailabilityEntry[] | null;
   onSubmit: (entries: ThesisExamAvailabilityEntry[]) => Promise<void>;
+  /** The round's submit deadline (48h rule), shown above the rows. */
+  deadline?: string | null;
+  /** The administrative coordinator entering a late participant's dates
+   *  after a call: empty rows are skipped, at least one is needed. */
+  allowFewer?: boolean;
 }) {
   const he = lang === 'he';
   const now = israelNow();
@@ -170,26 +177,29 @@ export function AvailabilityPicker({
     if (r.date === now.date && r.to && r.to <= now.time) {
       return { date: false, from: true, to: true, message: he ? 'השעות שנבחרו להיום כבר עברו.' : 'The hours picked for today have already passed.' };
     }
+    if (allowFewer && !r.date && !r.from && !r.to && rows.some((o) => o.date || o.from || o.to)) return null;
     if (attempted && (missing.date || missing.from || missing.to)) {
       return { ...missing, message: he ? 'יש לבחור תאריך, שעת התחלה ושעת סיום.' : 'Choose a date, a start time and an end time.' };
     }
     return null;
   };
   const issues = rows.map(issueOf);
-  const incomplete = rows.some((r) => !r.date || !r.from || !r.to);
+  const isBlank = (r: ThesisExamAvailabilityEntry) => !r.date && !r.from && !r.to;
+  const filledRows = allowFewer ? rows.filter((r) => !isBlank(r)) : rows;
+  const incomplete = filledRows.length === 0 || filledRows.some((r) => !r.date || !r.from || !r.to);
   const badRows = issues.flatMap((x, i) => (x ? [i + 1] : []));
 
   const submit = async () => {
     setAttempted(true);
     if (incomplete || rows.some((r, i) => issueOf(r, i))) {
-      const nums = rows.flatMap((r, i) => (!r.date || !r.from || !r.to || issueOf(r, i) ? [i + 1] : [])).join(', ');
+      const nums = rows.flatMap((r, i) => ((allowFewer && isBlank(r) && filledRows.length > 0) ? [] : (!r.date || !r.from || !r.to || issueOf(r, i) ? [i + 1] : []))).join(', ');
       setError(he ? `יש לתקן את השורות המסומנות באדום (${nums}).` : `Fix the rows marked in red (${nums}).`);
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await onSubmit([...rows].sort((a, b) => a.date.localeCompare(b.date)));
+      await onSubmit([...filledRows].sort((a, b) => a.date.localeCompare(b.date)));
       setSaved(true);
       setAttempted(false);
     } catch (err) {
@@ -222,6 +232,16 @@ export function AvailabilityPicker({
 
   return (
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      {deadline && (
+        <p className="mb-1.5 text-sm font-semibold text-accent">
+          ⏰ {he ? `יש לשלוח עד ${formatExamDeadline(deadline, 'he')}` : `Submit by ${formatExamDeadline(deadline, 'en')}`}
+        </p>
+      )}
+      {allowFewer && (
+        <p className="mb-1.5 text-xs text-ink">
+          {he ? `ניתן להזין בין 1 ל-${count} תאריכים — מה שהמשתתף/ת מסר/ה בשיחה.` : `Enter 1 to ${count} dates — whatever the participant gave you.`}
+        </p>
+      )}
       <p className="text-xs text-muted">
         {he
           ? `בחר/י ${count} תאריכים בין ${formatExamDay(min, 'he', { day: 'numeric', month: 'numeric' })} ל-${formatExamDay(window.end, 'he', { day: 'numeric', month: 'numeric' })}, ובכל תאריך את השעות שבהן את/ה פנוי/ה (${EXAM_DAY_START}–${EXAM_DAY_END}, בשישי עד כניסת השבת, ללא שבת). המערכת תקבע את המועד המשותף לכולם.`
@@ -264,7 +284,7 @@ export function AvailabilityPicker({
       )}
       {saved && !error && <p className="mt-2 text-xs text-success" role="status">{he ? '✓ התאריכים נשמרו. ניתן לעדכן עד שכולם יבחרו.' : '✓ Dates saved. You can update them until everyone has picked.'}</p>}
       <button type="button" onClick={submit} disabled={busy} className="mt-3 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
-        {busy ? '…' : initial ? (he ? 'עדכון התאריכים' : 'Update my dates') : (he ? 'שליחת התאריכים' : 'Submit my dates')}
+        {busy ? '…' : allowFewer ? (he ? 'שמירת התאריכים עבור המשתתף/ת' : 'Save their dates') : initial ? (he ? 'עדכון התאריכים' : 'Update my dates') : (he ? 'שליחת התאריכים' : 'Submit my dates')}
       </button>
     </div>
   );
