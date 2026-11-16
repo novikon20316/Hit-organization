@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient } from '@/src/api/apiClient';
 import { facultyLabel, type FacultyId, type Lang } from '@/components/i18n';
+import { underADayLeftLabel } from '@/utils/timeLeft';
 
 type WaitingRole =
   | 'student' | 'supervisor' | 'examiner' | 'coordinator' | 'faculty_admin' | 'administrative_secretary'
@@ -47,7 +48,35 @@ const WAITING_ROLE_LABEL: Record<WaitingRole, { he: string; en: string }> = {
   committee: { he: 'ועדה', en: 'Committee' },
 };
 
+interface DueSoonMilestone {
+  milestoneId: string;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string | null;
+  studentNames: string[];
+  dueDate: string;
+  status: 'pending' | 'rejected';
+}
+
 const REMINDER_COOLDOWN_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "3 days and 5 hours left" — or hours + minutes once under a day. Same as web. */
+function dueLeftLabel(dueIso: string, lang: Lang, now: number): string {
+  const under = underADayLeftLabel(dueIso, lang, now);
+  if (under) return under;
+  const left = new Date(dueIso).getTime() - now;
+  const days = Math.floor(left / DAY_MS);
+  const hours = Math.floor((left % DAY_MS) / (60 * 60 * 1000));
+  if (lang === 'he') {
+    const d = days === 1 ? 'יום אחד' : `${days} ימים`;
+    return hours > 0 ? `נותרו ${d} ו-${hours === 1 ? 'שעה אחת' : `${hours} שעות`}` : `נותרו ${d}`;
+  }
+  const d = `${days} day${days === 1 ? '' : 's'}`;
+  return hours > 0 ? `${d} and ${hours} hour${hours === 1 ? '' : 's'} left` : `${d} left`;
+}
 
 export default function StuckMilestonesScreen() {
   const router = useRouter();
@@ -57,6 +86,7 @@ export default function StuckMilestonesScreen() {
   const L = (he: string, en: string) => (lang === 'he' ? he : en);
 
   const [rows, setRows] = useState<StuckMilestone[]>([]);
+  const [dueSoon, setDueSoon] = useState<DueSoonMilestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -66,6 +96,7 @@ export default function StuckMilestonesScreen() {
     try {
       const res = await apiClient.get('/api/stuck-milestones');
       setRows((res.data?.milestones ?? []) as StuckMilestone[]);
+      setDueSoon((res.data?.dueSoon ?? []) as DueSoonMilestone[]);
       setError('');
     } catch (err: any) {
       setError(err?.response?.data?.message ?? (lang === 'he' ? 'הטעינה נכשלה' : 'Failed to load'));
@@ -105,7 +136,7 @@ export default function StuckMilestonesScreen() {
         {L('אבני דרך תקועות', 'Stuck Milestones')}
       </Text>
       <Text style={{ fontSize: 13, color: '#6B7280', marginHorizontal: 16, marginTop: 2, textAlign: isRtl ? 'right' : 'left' }}>
-        {L('אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה', 'Milestones waiting on one step longer than their set limit')}
+        {L('אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה, ואבני דרך שמועד ההגשה שלהן בעוד 7 ימים או פחות', 'Milestones waiting on one step longer than their set limit, and milestones due within 7 days')}
       </Text>
       {!!error && (
         <Text style={{ color: '#EF4444', fontSize: 13, marginHorizontal: 16, marginTop: 8, textAlign: isRtl ? 'right' : 'left' }}>{error}</Text>
@@ -121,6 +152,52 @@ export default function StuckMilestonesScreen() {
           keyExtractor={(r) => r.milestoneId}
           contentContainerStyle={{ padding: 16, gap: 10 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+          ListHeaderComponent={
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#1A1F36', textAlign: isRtl ? 'right' : 'left' }}>
+              {L(`⏳ תקועות מעבר למגבלה (${rows.length})`, `⏳ Stuck past their limit (${rows.length})`)}
+            </Text>
+          }
+          ListFooterComponent={
+            <View style={{ marginTop: 18, gap: 10 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1A1F36', textAlign: isRtl ? 'right' : 'left' }}>
+                {L(`📅 מועד הגשה בעוד 7 ימים או פחות (${dueSoon.length})`, `📅 Due within 7 days (${dueSoon.length})`)}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#8899BB', textAlign: isRtl ? 'right' : 'left' }}>
+                {L('אבני דרך שהסטודנט/ית עדיין לא הגיש/ה (או שהוחזרו לתיקון). נשארות כאן עד הרגע האחרון של מועד ההגשה.', 'Milestones the student has not submitted yet (or that were sent back). They stay here until the very last minute of the deadline.')}
+              </Text>
+              {dueSoon.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: '#8899BB', marginTop: 8 }}>{L('✅ אין הגשות קרובות', '✅ Nothing due in the next 7 days')}</Text>
+              ) : dueSoon.map((item) => {
+                const now = Date.now();
+                const urgent = new Date(item.dueDate).getTime() - now < 2 * DAY_MS;
+                const align = { textAlign: isRtl ? 'right' as const : 'left' as const };
+                return (
+                  <View key={item.milestoneId} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                    <View style={{ flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#1A1F36', flexShrink: 1, ...align }}>
+                        {lang === 'he' ? item.milestoneNameHe : item.milestoneNameEn}
+                      </Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: urgent ? '#EF4444' : '#B45309' }}>
+                        {dueLeftLabel(item.dueDate, lang, now)}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 4, ...align }}>
+                      📁 {lang === 'he' ? item.projectTitleHe : item.projectTitleEn}
+                      {item.facultyId ? ` · ${facultyLabel(item.facultyId as FacultyId, lang)}` : ''}
+                    </Text>
+                    {item.studentNames.length > 0 && (
+                      <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2, ...align }}>🎓 {item.studentNames.join(', ')}</Text>
+                    )}
+                    <Text style={{ fontSize: 12, color: '#8899BB', marginTop: 6, ...align }}>
+                      {L('מועד הגשה: ', 'Due: ')}
+                      {new Date(item.dueDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', dateStyle: 'medium', timeStyle: 'short' })}
+                      {item.status === 'rejected' ? L(' · הוחזרה לתיקון', ' · Sent back for revision') : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          }
           ListEmptyComponent={
             <Text style={{ textAlign: 'center', color: '#8899BB', marginTop: 24 }}>
               {L('✅ אין אבני דרך תקועות', '✅ No stuck milestones')}

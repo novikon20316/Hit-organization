@@ -3401,7 +3401,7 @@ export const apiClient = {
 
   // ─── Stuck-milestone escalation — see server's services/stuckMilestones.ts ──
   async getStuckMilestones() {
-    return request<{ milestones: StuckMilestoneRow[] }>('/api/stuck-milestones', { method: 'GET' });
+    return request<{ milestones: StuckMilestoneRow[]; dueSoon?: DueSoonMilestoneRow[] }>('/api/stuck-milestones', { method: 'GET' });
   },
 
   async remindStuckMilestone(milestoneId: string) {
@@ -3697,6 +3697,20 @@ export interface StuckMilestoneRow {
   limitDays: number | null;
   since: string | null;
   lastManualReminderAt: string | null;
+}
+
+/** A milestone still on the student whose due date is within 7 days. */
+export interface DueSoonMilestoneRow {
+  milestoneId: string;
+  projectId: string | null;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string | null;
+  studentNames: string[];
+  dueDate: string;
+  status: 'pending' | 'rejected';
 }
 
 export interface StuckLimitsTemplate {

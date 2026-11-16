@@ -12,7 +12,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { apiClient, type StuckMilestoneRow, type StuckWaitingRole } from '@/lib/apiClient';
+import { apiClient, type DueSoonMilestoneRow, type StuckMilestoneRow, type StuckWaitingRole } from '@/lib/apiClient';
+import { underADayLeftLabel } from '@/lib/timeLeft';
 import { facultyLabel, type FacultyId } from '@/lib/i18n';
 import type { AppRole } from '@/lib/roles';
 
@@ -34,12 +35,29 @@ const WAITING_ROLE_LABEL: Record<StuckWaitingRole, { he: string; en: string }> =
 };
 
 const REMINDER_COOLDOWN_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "3 days and 5 hours left" — or hours + minutes once under a day. */
+function dueLeftLabel(dueIso: string, lang: string, now: number): string {
+  const under = underADayLeftLabel(dueIso, lang, now);
+  if (under) return under;
+  const left = new Date(dueIso).getTime() - now;
+  const days = Math.floor(left / DAY_MS);
+  const hours = Math.floor((left % DAY_MS) / (60 * 60 * 1000));
+  if (lang === 'he') {
+    const d = days === 1 ? 'יום אחד' : `${days} ימים`;
+    return hours > 0 ? `נותרו ${d} ו-${hours === 1 ? 'שעה אחת' : `${hours} שעות`}` : `נותרו ${d}`;
+  }
+  const d = `${days} day${days === 1 ? '' : 's'}`;
+  return hours > 0 ? `${d} and ${hours} hour${hours === 1 ? '' : 's'} left` : `${d} left`;
+}
 
 export default function StuckMilestonesPage() {
   const { loading: guardLoading, isAllowed } = useRequireRole(STUCK_VIEW_ROLES);
   const { lang } = useLanguage();
 
   const [rows, setRows] = useState<StuckMilestoneRow[]>([]);
+  const [dueSoon, setDueSoon] = useState<DueSoonMilestoneRow[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [remindingId, setRemindingId] = useState<string | null>(null);
@@ -52,6 +70,7 @@ export default function StuckMilestonesPage() {
     try {
       const res = await apiClient.getStuckMilestones();
       setRows(res.milestones);
+      setDueSoon(res.dueSoon ?? []);
       setLoadedAt(Date.now());
       setLoadError('');
     } catch (err) {
@@ -93,12 +112,17 @@ export default function StuckMilestonesPage() {
     <DashboardShell
       title={lang === 'he' ? 'אבני דרך תקועות' : 'Stuck Milestones'}
       subtitle={lang === 'he'
-        ? 'אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה — נדרשת התערבות'
-        : 'Milestones waiting on one step longer than their set limit — your action is needed'}
+        ? 'אבני דרך שממתינות בשלב אחד יותר מהמגבלה שנקבעה, ואבני דרך שמועד ההגשה שלהן בעוד 7 ימים או פחות'
+        : 'Milestones waiting on one step longer than their set limit, and milestones due within 7 days'}
     >
       {loadError && <p className="mb-4 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{loadError}</p>}
       {notice && <p className="mb-4 rounded-md bg-success/10 px-3 py-2 text-sm text-success" role="status">{notice}</p>}
 
+      {!loadingData && (
+        <h2 className="mb-2 text-sm font-semibold text-ink">
+          {lang === 'he' ? `⏳ תקועות מעבר למגבלה (${rows.length})` : `⏳ Stuck past their limit (${rows.length})`}
+        </h2>
+      )}
       {loadingData ? (
         <p className="text-sm text-muted">…</p>
       ) : rows.length === 0 ? (
@@ -156,6 +180,53 @@ export default function StuckMilestonesPage() {
             );
           })}
         </div>
+      )}
+
+      {!loadingData && (
+        <section className="mt-8">
+          <h2 className="mb-1 text-sm font-semibold text-ink">
+            {lang === 'he' ? `📅 מועד הגשה בעוד 7 ימים או פחות (${dueSoon.length})` : `📅 Due within 7 days (${dueSoon.length})`}
+          </h2>
+          <p className="mb-3 text-xs text-muted">
+            {lang === 'he'
+              ? 'אבני דרך שהסטודנט/ית עדיין לא הגיש/ה (או שהוחזרו לתיקון). נשארות כאן עד הרגע האחרון של מועד ההגשה.'
+              : 'Milestones the student has not submitted yet (or that were sent back). They stay here until the very last minute of the deadline.'}
+          </p>
+          {dueSoon.length === 0 ? (
+            <p className="text-sm text-muted">{lang === 'he' ? '✅ אין הגשות קרובות' : '✅ Nothing due in the next 7 days'}</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {dueSoon.map((r) => {
+                const leftMs = new Date(r.dueDate).getTime() - loadedAt;
+                const urgent = leftMs < 2 * DAY_MS;
+                return (
+                  <div key={r.milestoneId} className="rounded-[var(--radius)] border border-line bg-surface p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{lang === 'he' ? r.milestoneNameHe : r.milestoneNameEn}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          📁 {lang === 'he' ? r.projectTitleHe : r.projectTitleEn}
+                          {r.facultyId ? ` · ${facultyLabel(r.facultyId as FacultyId, lang)}` : ''}
+                        </p>
+                        {r.studentNames.length > 0 && (
+                          <p className="mt-0.5 text-xs text-muted">🎓 {r.studentNames.join(', ')}</p>
+                        )}
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${urgent ? 'bg-danger-bg text-danger' : 'bg-amber-100 text-amber-900'}`}>
+                        {dueLeftLabel(r.dueDate, lang, loadedAt)}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs text-muted">
+                      {lang === 'he' ? 'מועד הגשה: ' : 'Due: '}
+                      {new Date(r.dueDate).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', dateStyle: 'medium', timeStyle: 'short' })}
+                      {r.status === 'rejected' && (lang === 'he' ? ' · הוחזרה לתיקון' : ' · Sent back for revision')}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       )}
     </DashboardShell>
   );

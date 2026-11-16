@@ -6,7 +6,7 @@ import { L } from '../utils/localize.js';
 import { logAuditEvent } from '../services/auditLog.js';
 import type { ProcessType } from '../services/workflowTemplates.js';
 import {
-  daysOnLink, listTemplatesWithLimits, remindWaitingParty, sanitizeLimits, saveStuckLimits, type StuckWatch,
+  daysOnLink, listDueSoonMilestones, listTemplatesWithLimits, remindWaitingParty, sanitizeLimits, saveStuckLimits, type StuckWatch,
 } from '../services/stuckMilestones.js';
 
 // See services/stuckMilestones.ts for the whole feature.
@@ -71,7 +71,9 @@ export const getStuckMilestones = async (req: AuthenticatedRequest, res: Respons
       };
     }).sort((a, b) => (b.daysStuck - (b.limitDays ?? 0)) - (a.daysStuck - (a.limitDays ?? 0)));
 
-    return res.status(200).json({ milestones: rows });
+    const dueSoon = await listDueSoonMilestones(uid, isSystemAdmin(req));
+
+    return res.status(200).json({ milestones: rows, dueSoon });
   } catch (error) {
     console.error('getStuckMilestones error:', error);
     return res.status(500).json({ message: L(req, 'Failed to load stuck milestones.', 'טעינת אבני הדרך התקועות נכשלה.') });

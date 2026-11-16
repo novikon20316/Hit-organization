@@ -437,6 +437,99 @@ export async function sweepStuckMilestones(): Promise<void> {
   }
 }
 
+// ─── Due soon ─────────────────────────────────────────────────────────────────
+
+/** How far ahead the "due soon" list looks. */
+export const DUE_SOON_DAYS = 7;
+
+export interface DueSoonRow {
+  milestoneId: string;
+  projectId: string | null;
+  milestoneNameHe: string;
+  milestoneNameEn: string;
+  projectTitleHe: string;
+  projectTitleEn: string;
+  facultyId: string | null;
+  studentNames: string[];
+  dueDate: string;
+  /** 'rejected' = sent back, the student must resubmit. */
+  status: 'pending' | 'rejected';
+}
+
+/** Every milestone still on the student (not yet submitted, or sent back)
+ *  whose due date falls within the next DUE_SOON_DAYS days. It stays listed
+ *  until the deadline itself passes; after that it is overdue and the stuck
+ *  sweep takes over (it counts the student's link from the due date).
+ *  Scoped the same way as the stuck list: system_admin sees all, everyone
+ *  else only milestones whose stuck alerts would reach them. Computed live —
+ *  nothing is stored, so a moved due date shows up immediately. */
+export async function listDueSoonMilestones(uid: string, isAdmin: boolean, now = Date.now()): Promise<DueSoonRow[]> {
+  const snap = await db.collection('milestones')
+    .where('dueDate', '>=', admin.firestore.Timestamp.fromMillis(now))
+    .where('dueDate', '<=', admin.firestore.Timestamp.fromMillis(now + DUE_SOON_DAYS * DAY_MS))
+    .get();
+  const candidates = snap.docs.filter((d) => {
+    const m = d.data();
+    return (m.status === 'pending' || m.status === 'rejected') && !!m.projectId;
+  });
+  if (candidates.length === 0) return [];
+
+  const projectCache = new Map<string, FirebaseFirestore.DocumentData | null>();
+  const userCache = new Map<string, FirebaseFirestore.DocumentData | null>();
+  const getDoc = async (cache: Map<string, FirebaseFirestore.DocumentData | null>, col: string, id: string) => {
+    if (!cache.has(id)) {
+      const s = await db.collection(col).doc(id).get();
+      cache.set(id, s.exists ? s.data()! : null);
+    }
+    return cache.get(id)!;
+  };
+  const recipientCache = new Map<string, string[]>();
+
+  const rows: DueSoonRow[] = [];
+  for (const d of candidates) {
+    const m = d.data();
+    const project = await getDoc(projectCache, 'projects', m.projectId);
+    // Archived, or the clock is paused (leave etc.) — the deadline isn't live.
+    if (!project || project.isArchived || project.activeClockPause) continue;
+    const studentIds: string[] = m.studentIds ?? [];
+    const students = await Promise.all(studentIds.map((id) => getDoc(userCache, 'users', id)));
+    const student = students[0];
+    if (!student) continue;
+
+    if (!isAdmin) {
+      const track = resolveEnrolledTrack(project, student);
+      const degreeType = student.degreeType ?? project.degreeType;
+      const major: string | null = project.major ?? student.major ?? null;
+      const resource: ResourceScope = {
+        facultyId: project.facultyId ?? m.facultyId,
+        ...(major ? { major } : {}),
+        ...(degreeType ? { degreeLevel: degreeType } : {}),
+        processType: track,
+      };
+      const key = JSON.stringify(resource);
+      if (!recipientCache.has(key)) {
+        const lists = await Promise.all(STUCK_ALERT_ROLES.map((role) => resolveStaffForScope(role, resource, [], [], false)));
+        recipientCache.set(key, [...new Set(lists.flat())]);
+      }
+      if (!recipientCache.get(key)!.includes(uid)) continue;
+    }
+
+    rows.push({
+      milestoneId: d.id,
+      projectId: m.projectId ?? null,
+      milestoneNameHe: m.nameHe ?? m.type,
+      milestoneNameEn: m.nameEn ?? m.type,
+      projectTitleHe: project.titleHe || project.titleEn || '',
+      projectTitleEn: project.titleEn || project.titleHe || '',
+      facultyId: project.facultyId ?? m.facultyId ?? null,
+      studentNames: students.map((s) => (s?.displayName as string) ?? '').filter(Boolean),
+      dueDate: m.dueDate.toDate().toISOString(),
+      status: m.status,
+    });
+  }
+  return rows.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
 // ─── Manual reminder ──────────────────────────────────────────────────────────
 
 /** Nudges whoever a stuck milestone is waiting on. Returns how many people
