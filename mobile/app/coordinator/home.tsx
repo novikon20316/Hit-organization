@@ -27,6 +27,7 @@ import FloatingActionMenu from '@/components/FloatingActionMenu';
 import ChatbotFab from '@/components/ChatbotFab';
 import DefenseBuildingPicker from '@/components/DefenseBuildingPicker';
 import { milestoneDisplayName } from '@/utils/milestoneLabel';
+import { formatTaskDeadline, thesisExamTaskLabel } from '@/utils/thesisExamTasks';
 import { BulkDueDateModal } from '@/components/modals';
 import { ClockPauseControl } from '@/components/ClockPauseControl';
 import { TrackChangeControl } from '@/components/TrackChangeControl';
@@ -296,7 +297,7 @@ export default function CoordinatorHome() {
   // clears its notification badge, independent of any live queue-size count
   // (e.g. Pending Approval's count of everything currently pending) the tab
   // may also show.
-  const { unreadByTargetScreen, markTabSeen } = useNotifications();
+  const { unreadByTargetScreen, markTabSeen, thesisExamTasks } = useNotifications();
   const TAB_BADGE_TARGET_SCREENS: Partial<Record<CoordinatorTab, string>> = {
     pending: 'coordinator_pending',
     defense: 'coordinator_defense',
@@ -1470,10 +1471,22 @@ export default function CoordinatorHome() {
 
               <View style={apStyles.sectionCard}>
                 <Text style={apStyles.sectionTitle}>⚠️ {lang === 'he' ? 'פעולות דחופות' : 'Urgent Actions'}</Text>
-                {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 ? (
+                {defenseActionCards.length === 0 && pendingMilestones.length === 0 && lateMilestones.length === 0 && committeeTasks.length === 0 && thesisExamTasks.length === 0 ? (
                   <Text style={apStyles.emptyText}>✅ {lang === 'he' ? 'אין פעולות דחופות כרגע' : 'Nothing urgent right now'}</Text>
                 ) : (
                   <>
+                    {/* 0. Thesis exam steps waiting on this user personally
+                        (picking dates, approvals, the exam form) — first,
+                        since one person not acting holds up the whole exam.
+                        Mirrors web's coordinator/home. */}
+                    {thesisExamTasks.map((x) => (
+                      <Pressable key={`exam-${x.milestoneId}-${x.kind}`} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => router.push({ pathname: '/thesis-exam', params: { lang } } as any)} accessibilityRole="button">
+                        <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>{lang === 'he' ? 'בחינת תזה' : 'Thesis Exam'}</Text>
+                        <Text style={apStyles.feedTitle}>
+                          {`${thesisExamTaskLabel(x.kind, lang)}${x.deadline ? (lang === 'he' ? ` עד ${formatTaskDeadline(x.deadline, lang)}` : ` by ${formatTaskDeadline(x.deadline, lang)}`) : ''} — ${x.studentNames.join(', ') || (lang === 'he' ? x.projectTitleHe : x.projectTitleEn)}`}
+                        </Text>
+                      </Pressable>
+                    ))}
                     {/* 1. Defense exams needing coordinator attention
                         (examiners, date conflicts, logistics, overdue
                         grading). */}

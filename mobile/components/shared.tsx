@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import type { Lang } from './i18n';
 import { apiClient } from '../src/api/apiClient';
 import HeaderMenu, { type HeaderMenuItem } from './HeaderMenu';
+import { ThesisExamAlert } from './ThesisExamAlert';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { useActiveRole } from '../contexts/ActiveRoleContext';
 import { COMMITTEE_TAB_ROLES, isSupervisorWithoutHigherRole } from '../firebase/roles';
@@ -724,6 +725,9 @@ export function TopBar({
           />
         </View>
       </View>
+
+      {/* Thesis exam step waiting on this user — every screen with a TopBar. */}
+      <ThesisExamAlert lang={lang} isRtl={isRtl} />
 
       {/* 2FA Modal — rendered outside the bar so it overlays the whole screen */}
       <SecurityModal

@@ -6,6 +6,7 @@ import { auth, db } from '../firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { notifMatchesRole, badgeMatchesRole } from '../../firebase/notificationScreens';
 import { useActiveRole } from '../../contexts/ActiveRoleContext';
+import { thesisExamTasks as buildThesisExamTasks, type ThesisExamTask } from '../../utils/thesisExamTasks';
 
 /** One tab-badge contributor: the screen it lives on and the role it was
  *  sent for (null on older notifications that predate targetRole). */
@@ -57,6 +58,9 @@ interface NotificationsContextValue {
    *  server's services/thesisExam.ts) — gates the TopBar's "Thesis Exam"
    *  entry. Refetched whenever a new notification lands. Mirrors web. */
   hasThesisExams: boolean;
+  /** Thesis exam steps waiting on the signed-in user right now (see
+   *  utils/thesisExamTasks.ts) - drives the TopBar alert strip. Mirrors web. */
+  thesisExamTasks: ThesisExamTask[];
 }
 
 export interface LiveEvent {
@@ -81,6 +85,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   dismissLiveEvent: () => {},
   isCommitteeSubstitute: false,
   hasThesisExams: false,
+  thesisExamTasks: [],
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
@@ -116,6 +121,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const dismissLiveEvent = useCallback(() => setLiveEvent(null), []);
   const [isCommitteeSubstitute, setIsCommitteeSubstitute] = useState(false);
   const [hasThesisExams, setHasThesisExams] = useState(false);
+  const [thesisExamTasks, setThesisExamTasks] = useState<ThesisExamTask[]>([]);
 
    // Track auth state
   useEffect(() => {
@@ -264,10 +270,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // server-only), on sign-in and whenever a new notification lands.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the gate on sign-out
-    if (!isLoggedIn) { setHasThesisExams(false); return; }
+    if (!isLoggedIn) { setHasThesisExams(false); setThesisExamTasks([]); return; }
     let cancelled = false;
     apiClient.getMyThesisExams()
-      .then((res) => { if (!cancelled) setHasThesisExams(res.exams.length > 0); })
+      .then((res) => { if (!cancelled) { setHasThesisExams(res.exams.length > 0); setThesisExamTasks(buildThesisExamTasks(res.exams)); } })
       .catch(() => { /* leave the entry as it was */ });
     return () => { cancelled = true; };
   }, [isLoggedIn, liveEventTick]);
@@ -286,8 +292,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // every consumer (e.g. one only reading markTabSeen) on every unread-count
   // tick from the live listener above.
   const value = useMemo<NotificationsContextValue>(() => ({
-    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams,
-  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams]);
+    unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams, thesisExamTasks,
+  }), [unreadCount, unreadChats, unreadByTargetScreen, markTabSeen, refresh, liveEventTick, liveEvent, dismissLiveEvent, isCommitteeSubstitute, hasThesisExams, thesisExamTasks]);
 
   return (
     <NotificationsContext.Provider value={value}>
