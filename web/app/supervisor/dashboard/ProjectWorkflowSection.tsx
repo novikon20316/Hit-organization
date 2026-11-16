@@ -562,7 +562,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#c5c5d3]/60 pt-1.5 text-[11px] text-[#444651]">
                               {dueLabel && <span>📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'} {dueLabel}</span>}
                               {submittedLabel && <span>📤 {lang === 'he' ? 'הוגש:' : 'Submitted:'} {submittedLabel}</span>}
-                              {m.id && (
+                              {m.id && (m.status === 'pending' || m.status === 'rejected') && (
                                 <button
                                   type="button"
                                   onClick={() => {

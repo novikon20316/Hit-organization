@@ -417,7 +417,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                             📅 {lang === 'he' ? 'תאריך יעד:' : 'Due:'} {formatShortDate(m.dueDate, lang)}
                           </Text>
                         )}
-                        {m.id && (
+                        {m.id && (m.status === 'pending' || m.status === 'rejected') && (
                           <Pressable
                             onPress={() => {
                               setAdjustingMilestoneId((v) => (v === m.id ? null : m.id));

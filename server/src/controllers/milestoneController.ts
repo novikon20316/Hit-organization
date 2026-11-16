@@ -657,6 +657,15 @@ export const updateMilestoneByCoordinator = async (req: AuthenticatedRequest, re
     return res.status(400).json({ message: L(req, 'Invalid dueDate.', 'תאריך היעד אינו תקין.') });
   }
 
+  // The due date is only movable while the milestone still waits on the
+  // student. Once submitted (or a staff-run flow such as the thesis exam has
+  // taken over) it has no effect, so refuse rather than silently re-arm
+  // reminders for a submission that already happened.
+  const currentStatus = (await db.collection('milestones').doc(id).get()).data()?.status;
+  if (currentStatus !== 'pending' && currentStatus !== 'rejected') {
+    return res.status(409).json({ message: L(req, 'The student already submitted this milestone — its due date can no longer be changed.', 'הסטודנט/ית כבר הגיש/ה את אבן הדרך — לא ניתן עוד לשנות את תאריך ההגשה.') });
+  }
+
   try {
     if (EXCEPTIONAL_ACTION_GATED_ROLES.includes(actingRole)) {
       if (typeof reason !== 'string' || !reason.trim()) {

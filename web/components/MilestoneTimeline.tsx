@@ -132,6 +132,13 @@ export function isCompletedStatus(status: MilestoneStatus): boolean {
   return status === 'coordinator_approved' || status === 'completed';
 }
 
+/** Due date can be changed only while the milestone waits on the student
+ *  (not yet submitted, or sent back). Mirrors the server's guard in
+ *  milestoneController.updateMilestoneByCoordinator. */
+export function isDueDateAdjustable(status: MilestoneStatus | string): boolean {
+  return status === 'pending' || status === 'rejected';
+}
+
 // ─── Approval-chain detail (expanded card content) ─────────────────────────
 
 // Labels for a workflow-template routing stage's role — ChainRole
@@ -322,7 +329,10 @@ function MilestoneCard({
   const label = milestoneDisplayName(milestone, lang, MILESTONE_LABEL);
   const statusLabel = STATUS_LABEL[milestone.status]?.[lang] ?? milestone.status;
 
-  const canAdjustDate = COORDINATOR_ADJUST_ROLES.includes(viewerRole);
+  // The due date only means something while the student still owes a
+  // submission — once they submitted (or a staff-run flow like the thesis
+  // exam took over), there's nothing left to move.
+  const canAdjustDate = COORDINATOR_ADJUST_ROLES.includes(viewerRole) && isDueDateAdjustable(milestone.status);
   // A chain milestone parked on a 'committee' stage is decided only through
   // the committee vote flow — the server's generic approve endpoint refuses
   // it for every role, system_admin included (see milestoneRouting.ts's
