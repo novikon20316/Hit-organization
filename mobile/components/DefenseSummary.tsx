@@ -22,7 +22,9 @@ export function DefenseSummary({ m, lang, graded, gradingOpen, labels }: {
   const he = lang === 'he';
   const align = he ? 'right' : 'left';
   const mode = resolveDefenseMode(m);
-  const latestWithFiles = [...(m.milestoneHistory ?? [])].reverse().find((h) => (h.fileUrls ?? []).length > 0);
+  // Every earlier milestone's submitted files, in workflow order (server
+  // sorts) — the examiner needs all of them to prepare, not just the latest.
+  const withFiles = (m.milestoneHistory ?? []).filter((h) => (h.fileUrls ?? []).length > 0);
   const line = { fontSize: 12, color: '#1E293B', textAlign: align, marginTop: 3 } as const;
   return (
     <View style={{ marginTop: 10, backgroundColor: '#F1F5F9', borderRadius: 10, padding: 10 }}>
@@ -41,16 +43,26 @@ export function DefenseSummary({ m, lang, graded, gradingOpen, labels }: {
           <Text style={[line, { color: '#2563EB', fontWeight: '700' }]}>🎥 {he ? 'כניסה לפגישת Zoom' : 'Join the Zoom meeting'}</Text>
         </Pressable>
       ) : null}
-      {latestWithFiles ? (
-        <View style={{ flexDirection: he ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 3 }}>
-          <Text style={{ fontSize: 12, color: '#1E293B' }}>📄 {milestoneDisplayName(latestWithFiles, lang, labels)}:</Text>
-          {(latestWithFiles.fileUrls ?? []).map((url, i) => (
-            <Pressable key={url} onPress={() => Linking.openURL(url)} accessibilityRole="link" accessibilityLabel={`${he ? 'קובץ' : 'File'} ${i + 1}`}>
-              <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>{he ? `קובץ ${i + 1}` : `File ${i + 1}`}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
+      {withFiles.length > 0 ? (
+        <>
+          <Text style={[line, { fontWeight: '600' }]}>📚 {he ? 'מסמכים להכנה להגנה' : 'Documents to prepare for the defense'}</Text>
+          {withFiles.map((h) => {
+            const name = milestoneDisplayName(h, lang, labels);
+            return (
+              <View key={h.type} style={{ flexDirection: he ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 3, paddingHorizontal: 12 }}>
+                <Text style={{ fontSize: 12, color: '#1E293B' }}>📄 {name}:</Text>
+                {(h.fileUrls ?? []).map((url, i) => (
+                  <Pressable key={url} onPress={() => Linking.openURL(url)} accessibilityRole="link" accessibilityLabel={`${name} — ${he ? 'קובץ' : 'File'} ${i + 1}`}>
+                    <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '600' }}>{he ? `קובץ ${i + 1}` : `File ${i + 1}`}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            );
+          })}
+        </>
+      ) : (
+        <Text style={line}>📄 {he ? 'הסטודנט/ית טרם הגיש/ה מסמכים' : 'The student has not submitted any documents yet'}</Text>
+      )}
       <Text style={[line, { fontWeight: '600' }]}>
         {graded ? `✅ ${he ? 'הציון שלך הוגש' : 'You have submitted'}` : `⏳ ${he ? 'טרם הגשת' : 'You have not submitted yet'}`}
         {gradingOpen && m.panelProgress && m.panelProgress.total > 1

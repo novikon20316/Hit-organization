@@ -52,7 +52,10 @@ function toDateInputValue(d: Date | null): string | undefined {
 function DefenseSummary({ m, lang, graded, gradingOpen }: { m: AssignedMilestone; lang: 'he' | 'en'; graded: boolean; gradingOpen: boolean }) {
   const he = lang === 'he';
   const mode = resolveDefenseMode(m);
-  const latestWithFiles = [...m.milestoneHistory].reverse().find((h) => h.fileUrls.length > 0);
+  // Every earlier milestone's submitted files (proposal, interim report,
+  // project book, …) — the examiner needs all of them to prepare, not just
+  // the latest. Server sends milestoneHistory in workflow order.
+  const withFiles = m.milestoneHistory.filter((h) => h.fileUrls.length > 0);
   return (
     <div className="mt-3 grid gap-1.5 rounded-lg bg-examinor-surface-container-low p-3 text-xs text-examinor-on-surface">
       <p className="font-semibold">🎓 {he ? 'ההגנה במבט אחד' : 'Defense at a glance'}</p>
@@ -70,15 +73,22 @@ function DefenseSummary({ m, lang, graded, gradingOpen }: { m: AssignedMilestone
           🎥 {he ? 'כניסה לפגישת Zoom' : 'Join the Zoom meeting'}
         </a>
       )}
-      {latestWithFiles && (
-        <p className="flex flex-wrap gap-x-2">
-          <span>📄 {milestoneDisplayName(latestWithFiles, lang, MILESTONE_LABEL)}:</span>
-          {latestWithFiles.fileUrls.map((url, i) => (
-            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-examinor-primary hover:underline">
-              {he ? `קובץ ${i + 1}` : `File ${i + 1}`}
-            </a>
+      {withFiles.length > 0 ? (
+        <div className="grid gap-1">
+          <p className="font-medium">📚 {he ? 'מסמכים להכנה להגנה' : 'Documents to prepare for the defense'}</p>
+          {withFiles.map((h) => (
+            <p key={h.type} className="flex flex-wrap gap-x-2 ps-4">
+              <span>📄 {milestoneDisplayName(h, lang, MILESTONE_LABEL)}:</span>
+              {h.fileUrls.map((url, i) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="text-examinor-primary hover:underline">
+                  {he ? `קובץ ${i + 1}` : `File ${i + 1}`}
+                </a>
+              ))}
+            </p>
           ))}
-        </p>
+        </div>
+      ) : (
+        <p>📄 {he ? 'הסטודנט/ית טרם הגיש/ה מסמכים' : 'The student has not submitted any documents yet'}</p>
       )}
       <p className="font-medium">
         {graded ? `✅ ${he ? 'הציון שלך הוגש' : 'You have submitted'}` : `⏳ ${he ? 'טרם הגשת' : 'You have not submitted yet'}`}
@@ -246,6 +256,12 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
             {showsDefensePlace(m) && m.defenseRoom ? ` · ${m.defenseRoom}` : ''}
           </p>
         )}
+        <p className="mt-1.5 text-xs font-medium text-examinor-primary">
+          {expanded ? '▲ ' : '▼ '}
+          {lang === 'he'
+            ? expanded ? 'הסתר ציונים והערות לפי אבן דרך' : 'הצג ציונים והערות לפי אבן דרך'
+            : expanded ? 'Hide grades & comments by milestone' : 'Show grades & comments by milestone'}
+        </p>
       </button>
 
       {(m.type === 'defense' || isMyDefensePanel) && (

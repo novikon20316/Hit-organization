@@ -87,8 +87,13 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
           const siblingsSnap = await db.collection('milestones')
             .where('projectId', '==', milestoneData.projectId)
             .get();
+          // Sorted by the workflow's milestone order — Firestore returns them
+          // in doc-id order, which made the "latest document" on the
+          // examiner's defense summary effectively random (it showed the
+          // project proposal instead of the final project book).
           milestoneHistory = siblingsSnap.docs
             .filter((d) => d.id !== milestoneDoc.id)
+            .sort((a, b) => (a.data().order ?? 0) - (b.data().order ?? 0))
             .map((d) => {
               const sib = d.data();
               return {
