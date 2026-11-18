@@ -1258,12 +1258,18 @@ export async function decideDate(
 // ── Step 4: the examiner's form, after the exam ──────────────────────────────
 //
 // The faculty's "טופס מבחן תיזה" (Sciences, M.Sc.), digitized. The system fills
-// the header (student, ID, academic unit, supervisors, topic, exam date); each
-// examiner fills the rest on their own: five 1–10 ratings, general comments,
-// and a score for each of the three grade components (their weights give the
-// final grade). Stored per examiner in `thesisExamForms` (server-only, like
-// thesisExams) and digitally signed. The committee sees every form once all
-// examiners submitted.
+// the header (student, ID, academic unit, supervisors, topic, exam date).
+// Each examiner fills five 1–10 ratings and general comments. The three grade
+// components each have ONE owner (per the CS faculty, 2026-11-17):
+//   • research (40%) — the SUPERVISOR alone, based on their opinion. Examiners
+//     never see or fill it.
+//   • writing (40%)  — each examiner, on their own form; the average counts.
+//   • defense (20%)  — nobody types it: each examiner's average of ratings
+//     1–5 (×10), averaged over every examiner who submitted.
+// Stored in `thesisExamForms` (server-only, like thesisExams): one doc per
+// examiner plus one for the supervisor's grade, each digitally signed. The
+// committee sees every form and the combined grade once all examiners
+// submitted.
 
 export const THESIS_EXAM_FORMS = 'thesisExamForms';
 
@@ -1279,9 +1285,9 @@ export const CS_THESIS_EXAM_FORM = {
     { key: 'q5', labelHe: 'האם העבודה שנעשתה מהווה תרומה מדעית?', labelEn: 'Is the work a scientific contribution?' },
   ],
   gradeComponents: [
-    { key: 'research', labelHe: 'מחקר על סמך חוות דעת המנחה', labelEn: "Research, based on the supervisor's opinion", weight: 40 },
-    { key: 'writing', labelHe: 'כתיבת התזה', labelEn: 'Writing the thesis', weight: 40 },
-    { key: 'defense', labelHe: 'מבחן ההגנה על התזה', labelEn: 'The thesis defense exam', weight: 20 },
+    { key: 'research', labelHe: 'מחקר על סמך חוות דעת המנחה', labelEn: "Research, based on the supervisor's opinion", weight: 40, source: 'supervisor' },
+    { key: 'writing', labelHe: 'כתיבת התזה', labelEn: 'Writing the thesis', weight: 40, source: 'examiner' },
+    { key: 'defense', labelHe: 'מבחן ההגנה על התזה', labelEn: 'The thesis defense exam', weight: 20, source: 'computed' },
   ],
   /** The form's reference table — shown, not filled. */
   gradeKey: [
@@ -1301,17 +1307,72 @@ export interface StoredExamForm {
   external: boolean;
   ratings: Record<string, number>;
   comments: string;
+  /** Only the examiner-owned components (`writing`). Forms sent before the
+   *  2026-11-18 split also hold research/defense — ignored everywhere. */
   components: Record<string, number>;
-  finalGrade: number;
+  /** This examiner's share of the defense component: mean(q1..q5) × 10. */
+  defenseContribution?: number;
+  /** Legacy (pre-split) per-examiner total. Not used any more. */
+  finalGrade?: number;
+  submittedAt: string;
+  signature: EvaluationSignature;
+}
+
+/** The supervisor's research grade — one per exam, signed. */
+export interface StoredSupervisorExamGrade {
+  milestoneId: string;
+  supervisorUid: string;
+  supervisorName: string;
+  research: number;
   submittedAt: string;
   signature: EvaluationSignature;
 }
 
 const formDocId = (milestoneId: string, key: string) => `${milestoneId}__${key}`;
+const SUPERVISOR_GRADE_KEY = 'supervisor';
 
-export function computeExamFinalGrade(components: Record<string, number>): number {
-  const total = CS_THESIS_EXAM_FORM.gradeComponents.reduce((sum, c) => sum + (components[c.key] ?? 0) * c.weight, 0) / 100;
-  return Math.round(total * 10) / 10;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+/** mean(q1..q5) on the 1–10 scale, as a 0–100 score. */
+export function defenseContributionOf(ratings: Record<string, number>): number {
+  return round1(mean(CS_THESIS_EXAM_FORM.questions.map((q) => Number(ratings[q.key] ?? 0))) * 10);
+}
+
+export interface ExamGradeSummary {
+  research: number | null;
+  writing: number | null;
+  defense: number | null;
+  /** Weighted total — null until the supervisor's grade and every examiner's
+   *  form are in. */
+  finalGrade: number | null;
+}
+
+export function computeExamGradeSummary(exam: ThesisExamDoc, forms: Record<string, StoredExamForm>, supervisor: StoredSupervisorExamGrade | null): ExamGradeSummary {
+  const submitted = Object.values(forms);
+  const writing = submitted.map((f) => f.components?.writing).filter((v): v is number => typeof v === 'number');
+  const defense = submitted.map((f) => f.defenseContribution ?? defenseContributionOf(f.ratings));
+  const parts: Record<'research' | 'writing' | 'defense', number | null> = {
+    research: supervisor ? supervisor.research : null,
+    writing: writing.length ? round1(mean(writing)) : null,
+    defense: defense.length ? round1(mean(defense)) : null,
+  };
+  const allIn = exam.examiners.length > 0 && exam.examiners.every((e) => !!forms[e.key]);
+  const finalGrade = allIn && parts.research != null && parts.writing != null && parts.defense != null
+    ? round1(CS_THESIS_EXAM_FORM.gradeComponents.reduce((sum, c) => sum + (parts[c.key] ?? 0) * c.weight, 0) / 100)
+    : null;
+  return { research: parts.research, writing: parts.writing, defense: parts.defense, finalGrade };
+}
+
+export async function loadSupervisorExamGrade(milestoneId: string): Promise<StoredSupervisorExamGrade | null> {
+  const snap = await db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, SUPERVISOR_GRADE_KEY)).get();
+  return snap.exists ? (snap.data() as StoredSupervisorExamGrade) : null;
+}
+
+/** The supervisor may give the research grade once the exam is scheduled
+ *  (it does not depend on the exam itself) and while the committee reviews. */
+export function supervisorGradeOpen(exam: ThesisExamDoc): boolean {
+  return exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW;
 }
 
 function maskIdNumber(id: unknown): string | null {
@@ -1368,28 +1429,54 @@ export async function loadExamForms(exam: ThesisExamDoc): Promise<Record<string,
   return out;
 }
 
-export type ExamFormViewer = { kind: 'examiner'; key: string } | { kind: 'reviewer' };
+export type ExamFormViewer = { kind: 'examiner'; key: string } | { kind: 'reviewer' } | { kind: 'supervisor' };
 
-/** An examiner sees only their own form; a reviewer (committee member, grad
- *  school head, program head) sees every submitted form. */
+/** An examiner sees only their own form — never the supervisor's research
+ *  grade; the supervisor sees only their own grade (not the examiners'
+ *  forms); a reviewer (committee member, grad school head, program head) sees
+ *  every submitted form, the supervisor's grade and the combined result. */
 export async function buildExamFormView(milestoneId: string, viewer: ExamFormViewer) {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
   const { exam, milestone } = loaded;
-  const forms = await loadExamForms(exam);
+  const [forms, supervisorGrade] = await Promise.all([loadExamForms(exam), loadSupervisorExamGrade(milestoneId)]);
   const gate = examFormGate(exam);
-  const strip = (f: StoredExamForm) => ({ ...f, key: undefined, signature: { ...f.signature, signerUid: undefined, digest: undefined } });
+  const sig = (s: EvaluationSignature) => ({ ...s, signerUid: undefined, digest: undefined });
+  // Only the examiner-owned components leave the server — a pre-split form's
+  // research/defense numbers are dropped, never shown.
+  const examinerKeys = CS_THESIS_EXAM_FORM.gradeComponents.filter((c) => c.source === 'examiner').map((c) => c.key as string);
+  const strip = (f: StoredExamForm) => ({
+    ...f,
+    key: undefined,
+    finalGrade: undefined,
+    components: Object.fromEntries(examinerKeys.filter((k) => typeof f.components?.[k] === 'number').map((k) => [k, f.components[k]!])),
+    defenseContribution: f.defenseContribution ?? defenseContributionOf(f.ratings),
+    signature: sig(f.signature),
+  });
+  const supervisorOpen = supervisorGradeOpen(exam);
+  const supervisorView = supervisorGrade
+    ? { research: supervisorGrade.research, supervisorName: supervisorGrade.supervisorName, submittedAt: supervisorGrade.submittedAt, signature: sig(supervisorGrade.signature) }
+    : null;
+  const canEdit = viewer.kind === 'examiner' ? gate.open && !forms[viewer.key]
+    : viewer.kind === 'supervisor' ? supervisorOpen && !supervisorGrade
+    : false;
+  const locked = viewer.kind === 'supervisor'
+    ? (supervisorOpen ? null : { he: 'ציון המנחה ייפתח לאחר שייקבע מועד הבחינה.', en: "The supervisor's grade opens once the exam date is set." })
+    : (gate.open ? null : { he: gate.he, en: gate.en });
   return {
     milestoneId,
+    viewerKind: viewer.kind,
     form: CS_THESIS_EXAM_FORM,
     header: await examFormHeader(milestone, exam),
     status: exam.status,
-    canEdit: viewer.kind === 'examiner' && gate.open && !forms[viewer.key],
-    lockedReasonHe: gate.open ? null : gate.he,
-    lockedReasonEn: gate.open ? null : gate.en,
+    canEdit,
+    lockedReasonHe: locked?.he ?? null,
+    lockedReasonEn: locked?.en ?? null,
     submittedCount: Object.keys(forms).length,
     examinerCount: exam.examiners.length,
     mine: viewer.kind === 'examiner' && forms[viewer.key] ? strip(forms[viewer.key]!) : null,
+    supervisorGrade: viewer.kind === 'supervisor' || viewer.kind === 'reviewer' ? supervisorView : null,
+    summary: viewer.kind === 'reviewer' ? computeExamGradeSummary(exam, forms, supervisorGrade) : null,
     all: viewer.kind === 'reviewer'
       ? exam.examiners.map((e, index) => ({ index, name: e.name, submitted: !!forms[e.key], form: forms[e.key] ? strip(forms[e.key]!) : null }))
       : null,
@@ -1413,14 +1500,16 @@ export async function submitExamForm(milestoneId: string, examiner: { key: strin
     if (!Number.isInteger(v) || v < 1 || v > 10) throw new ThesisExamError('יש לדרג כל שאלה בין 1 ל-10.', 'Rate every question from 1 to 10.');
     ratings[q.key] = v;
   }
+  // The examiner fills only the components they own; anything else in the
+  // body (research = the supervisor's, defense = computed) is ignored.
   const components: Record<string, number> = {};
-  for (const c of CS_THESIS_EXAM_FORM.gradeComponents) {
+  for (const c of CS_THESIS_EXAM_FORM.gradeComponents.filter((g) => g.source === 'examiner')) {
     const v = Number(body.components?.[c.key]);
     if (!Number.isFinite(v) || v < 1 || v > 100) throw new ThesisExamError(`יש לתת ציון בין 1 ל-100 ל"${c.labelHe}".`, `Give "${c.labelEn}" a score from 1 to 100.`);
     components[c.key] = Math.round(v * 10) / 10;
   }
   const comments = typeof body.comments === 'string' ? body.comments.trim().slice(0, 20000) : '';
-  const finalGrade = computeExamFinalGrade(components);
+  const defenseContribution = defenseContributionOf(ratings);
   const signature = await signEvaluation({
     milestoneId,
     signerUid: examiner.key,
@@ -1429,9 +1518,9 @@ export async function submitExamForm(milestoneId: string, examiner: { key: strin
     positionHe: 'שופט/ת',
     positionEn: 'Judge',
     facultyId: exam.facultyId,
-    scores: { thesisExamForm: { ratings, comments, components, finalGrade } },
+    scores: { thesisExamForm: { ratings, comments, components, defenseContribution } },
   });
-  const stored: StoredExamForm = { milestoneId, key: examiner.key, examinerName: examiner.name, external: examiner.external, ratings, comments, components, finalGrade, submittedAt: new Date().toISOString(), signature };
+  const stored: StoredExamForm = { milestoneId, key: examiner.key, examinerName: examiner.name, external: examiner.external, ratings, comments, components, defenseContribution, submittedAt: new Date().toISOString(), signature };
 
   // One submission per examiner, and "was that the last one?" decided once.
   const allIn = await db.runTransaction(async (tx) => {
@@ -1451,6 +1540,37 @@ export async function submitExamForm(milestoneId: string, examiner: { key: strin
   });
   if (allIn) await onExamFormsComplete(milestoneId);
   return { allIn };
+}
+
+/** The supervisor's research grade (40%). Only the project's supervisor (or
+ *  additional supervisor); once, signed — like the examiners' forms. */
+export async function submitSupervisorExamGrade(milestoneId: string, supervisor: { uid: string; name: string }, raw: unknown): Promise<void> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam, milestone } = loaded;
+  if (![milestone.supervisorId, milestone.secondarySupervisorId].includes(supervisor.uid)) {
+    throw new ThesisExamError('רק מנחה הפרויקט רשאי/ת לתת את ציון המחקר.', "Only the project's supervisor may give the research grade.", 403);
+  }
+  if (!supervisorGradeOpen(exam)) throw new ThesisExamError('ציון המנחה ייפתח לאחר שייקבע מועד הבחינה.', "The supervisor's grade opens once the exam date is set.", 409);
+  const v = Number((raw as { research?: unknown } | null)?.research);
+  if (!Number.isFinite(v) || v < 1 || v > 100) throw new ThesisExamError('יש לתת ציון מחקר בין 1 ל-100.', 'Give the research grade a score from 1 to 100.');
+  const research = round1(v);
+  const signature = await signEvaluation({
+    milestoneId,
+    signerUid: supervisor.uid,
+    signerName: supervisor.name,
+    role: 'supervisor',
+    positionHe: 'מנחה',
+    positionEn: 'Supervisor',
+    facultyId: exam.facultyId,
+    scores: { thesisExamSupervisorGrade: { research } },
+  });
+  const stored: StoredSupervisorExamGrade = { milestoneId, supervisorUid: supervisor.uid, supervisorName: supervisor.name, research, submittedAt: new Date().toISOString(), signature };
+  const ref = db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, SUPERVISOR_GRADE_KEY));
+  await db.runTransaction(async (tx) => {
+    if ((await tx.get(ref)).exists) throw new ThesisExamError('ציון המנחה כבר ניתן.', "The supervisor's grade was already given.", 409);
+    tx.set(ref, stored);
+  });
 }
 
 /** Every examiner submitted → the committee reviews the forms. WHAT THE

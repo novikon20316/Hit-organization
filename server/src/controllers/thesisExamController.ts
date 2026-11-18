@@ -44,6 +44,9 @@ import {
   decideDate,
   buildExamFormView,
   submitExamForm,
+  submitSupervisorExamGrade,
+  loadSupervisorExamGrade,
+  supervisorGradeOpen,
   loadExamForms,
   examFormGate,
   enterLateParticipantDates,
@@ -106,6 +109,8 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (exam.status === EXAM_DATE_FINAL_REVIEW && rel.isGradHead) actions.push('review_date');
   if ((exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW) && rel.isExaminer) actions.push('form');
   if (exam.status === EXAM_COMMITTEE_REVIEW && (rel.isCommittee || rel.isGradHead || rel.isProgramHead)) actions.push('view_forms');
+  // The research component (40%) is the supervisor's alone — examiners never see it.
+  if (supervisorGradeOpen(exam) && rel.isSupervisor && !rel.isExaminer) actions.push('supervisor_grade');
 
   const showNomination = rel.isSupervisor || rel.isGradHead;
   const lastRejected = [...(exam.nominationHistory ?? [])].reverse().find((n) => n.decision === 'rejected') ?? null;
@@ -114,6 +119,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   const forms = exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW ? await loadExamForms(exam) : {};
   const formGate = examFormGate(exam);
   const myForm = rel.participantKey && rel.isExaminer ? forms[rel.participantKey] : undefined;
+  const supervisorGradeGiven = actions.includes('supervisor_grade') ? !!(await loadSupervisorExamGrade(exam.milestoneId)) : false;
 
   return {
     milestoneId: exam.milestoneId,
@@ -184,6 +190,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     formsSubmittedCount: Object.keys(forms).length,
     examinerCount: exam.examiners.length,
     myFormSubmitted: !!myForm,
+    supervisorGradeGiven,
     formOpen: formGate.open,
     rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES },
   };
@@ -444,12 +451,18 @@ export const getExamForm = async (req: AuthenticatedRequest, res: Response) => {
     if (!loaded) return res.status(404).json({ message: L(req, 'Thesis exam not found.', 'בחינת התזה לא נמצאה.') });
     const { exam } = loaded;
     const key = `u:${uid}`;
+    const isSupervisor = [loaded.milestone.supervisorId, loaded.milestone.secondarySupervisorId].includes(uid);
+    // A supervisor who also reviews (e.g. a committee member) opens their own
+    // research grade explicitly.
+    if (isSupervisor && req.query.as === 'supervisor') return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'supervisor' }));
     if (exam.examiners.some((e) => e.key === key)) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'examiner', key }));
     // The committee reads every form once all are in; the two heads may too.
     const reviewer = (exam.committeeMemberIds ?? []).includes(uid)
       || (await gradSchoolHeadIds(exam.scope, true)).includes(uid)
       || (await programHeadIds(exam.scope, true)).includes(uid);
     if (reviewer && exam.status === EXAM_COMMITTEE_REVIEW) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'reviewer' }));
+    // The supervisor sees only their own research grade, not the examiners' forms.
+    if (isSupervisor) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'supervisor' }));
     return res.status(403).json({ message: L(req, 'You do not have access to these forms.', 'אין לך גישה לטפסים אלה.') });
   } catch (err) {
     return sendError(req, res, err, 'Failed to load the form.', 'טעינת הטופס נכשלה.');
@@ -457,7 +470,8 @@ export const getExamForm = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 // ─── POST /api/thesis-exam/:milestoneId/form ─────────────────────────────────
-// Body: { ratings: { q1..q5: 1-10 }, comments, components: { research, writing, defense: 1-100 } }
+// Body: { ratings: { q1..q5: 1-10 }, comments, components: { writing: 1-100 } }
+// (research is the supervisor's, defense is computed — both ignored here.)
 export const submitMyExamForm = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
@@ -468,6 +482,21 @@ export const submitMyExamForm = async (req: AuthenticatedRequest, res: Response)
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     return sendError(req, res, err, 'Failed to submit the form.', 'שליחת הטופס נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/supervisor-grade ─────────────────────
+// Body: { research: 1-100 } — the supervisor's research grade (40%).
+export const submitMySupervisorExamGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    await submitSupervisorExamGrade(milestoneId, { uid, name: await nameOf(uid) }, req.body);
+    await audit(req, milestoneId, 'exam_supervisor_grade_submitted', {});
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return sendError(req, res, err, "Failed to save the supervisor's grade.", 'שמירת ציון המנחה נכשלה.');
   }
 };
 

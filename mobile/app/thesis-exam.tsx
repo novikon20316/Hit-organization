@@ -31,7 +31,7 @@ export default function ThesisExamScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [formFor, setFormFor] = useState<string | null>(null);
+  const [formFor, setFormFor] = useState<{ id: string; as?: 'supervisor' } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -51,8 +51,9 @@ export default function ThesisExamScreen() {
   useLiveRefresh(load);
 
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
-    load: () => apiClient.getThesisExamForm(formFor),
-    submit: (body) => apiClient.submitThesisExamForm(formFor, body),
+    load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
+    submit: (body) => apiClient.submitThesisExamForm(formFor.id, body),
+    submitSupervisor: (research) => apiClient.submitThesisExamSupervisorGrade(formFor.id, research),
   } : null, [formFor]);
 
   return (
@@ -84,7 +85,7 @@ export default function ThesisExamScreen() {
           {exams.length === 0 ? (
             <Text style={{ textAlign: 'center', color: C.faint, marginTop: 24 }}>{he ? 'אין בחינות תזה שבהן את/ה משתתף/ת כרגע.' : "You're not part of any thesis exam right now."}</Text>
           ) : exams.map((exam) => (
-            <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={load} onOpenForm={() => setFormFor(exam.milestoneId)} />
+            <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={load} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />
           ))}
         </ScrollView>
       )}
@@ -135,7 +136,7 @@ function PrimaryButton({ label, onPress, busy, danger }: { label: string; onPres
   );
 }
 
-function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: Lang; onChanged: () => Promise<void>; onOpenForm: () => void }) {
+function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: Lang; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
   const has = (a: ThesisExamCard['actions'][number]) => exam.actions.includes(a);
@@ -216,14 +217,27 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
       {has('form') && (
         <View style={{ flexDirection: 'row', marginTop: 8 }}>
           <PrimaryButton
-            onPress={onOpenForm}
+            onPress={() => onOpenForm()}
             label={exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : exam.formOpen ? (he ? 'מילוי טופס מבחן התזה' : 'Fill in the exam form') : (he ? 'טופס מבחן התזה' : 'Thesis exam form')}
           />
         </View>
       )}
+      {has('supervisor_grade') && (
+        <View style={{ marginTop: 8 }}>
+          <View style={{ flexDirection: 'row' }}>
+            <PrimaryButton
+              onPress={() => onOpenForm('supervisor')}
+              label={exam.supervisorGradeGiven ? (he ? 'צפייה בציון המחקר שנתתי' : 'View my research grade') : (he ? 'מתן ציון מחקר (מנחה)' : 'Give the research grade')}
+            />
+          </View>
+          <Text style={{ marginTop: 4, fontSize: 11, color: C.muted, ...align }}>
+            {he ? 'רכיב "מחקר על סמך חוות דעת המנחה" (40%) — נקבע על ידך בלבד ואינו גלוי לבוחנים.' : "The 'research, based on the supervisor's opinion' component (40%) — set by you only, not shown to the examiners."}
+          </Text>
+        </View>
+      )}
       {has('view_forms') && (
         <View style={{ marginTop: 8 }}>
-          <View style={{ flexDirection: 'row' }}><PrimaryButton onPress={onOpenForm} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} /></View>
+          <View style={{ flexDirection: 'row' }}><PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} /></View>
           {exam.myRoles.committee && (
             <Text style={{ marginTop: 4, fontSize: 11, color: C.muted, ...align }}>{he ? 'הפעולות של הוועדה בהתאם לטפסים יוגדרו בהמשך.' : "The committee's actions on the forms will be defined later."}</Text>
           )}

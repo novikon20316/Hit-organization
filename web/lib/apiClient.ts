@@ -3446,11 +3446,14 @@ export const apiClient = {
   async decideThesisExamDate(milestoneId: string, decision: 'approve' | 'reject', reason = '') {
     return request<{ success: boolean }>(`/api/thesis-exam/${milestoneId}/date-decision`, { method: 'POST', body: { decision, reason } });
   },
-  async getThesisExamForm(milestoneId: string) {
-    return request<ThesisExamFormView>(`/api/thesis-exam/${milestoneId}/form`, { method: 'GET' });
+  async getThesisExamForm(milestoneId: string, as?: 'supervisor') {
+    return request<ThesisExamFormView>(`/api/thesis-exam/${milestoneId}/form${as ? `?as=${as}` : ''}`, { method: 'GET' });
   },
   async submitThesisExamForm(milestoneId: string, body: ThesisExamFormInput) {
     return request<{ success: boolean; allIn: boolean }>(`/api/thesis-exam/${milestoneId}/form`, { method: 'POST', body });
+  },
+  async submitThesisExamSupervisorGrade(milestoneId: string, research: number) {
+    return request<{ success: boolean }>(`/api/thesis-exam/${milestoneId}/supervisor-grade`, { method: 'POST', body: { research } });
   },
   async getExternalThesisExam(token: string) {
     return request<{ exam: ThesisExamCard | null }>(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam`);
@@ -4091,7 +4094,7 @@ export interface ThesisOpinionQueueItem {
 export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade';
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -4166,6 +4169,7 @@ export interface ThesisExamCard {
   formsSubmittedCount: number;
   examinerCount: number;
   myFormSubmitted: boolean;
+  supervisorGradeGiven?: boolean;
   formOpen: boolean;
   rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number };
 }
@@ -4179,10 +4183,24 @@ export interface ThesisExamSubmittedForm {
   external: boolean;
   ratings: Record<string, number>;
   comments: string;
+  /** Only the examiner-owned components (writing). */
   components: Record<string, number>;
-  finalGrade: number;
+  /** This examiner's share of the defense component: mean(q1..q5) × 10. */
+  defenseContribution: number;
   submittedAt: string;
   signature: { code: string; signerName: string; signedAt: string; positionHe: string; positionEn: string };
+}
+export interface ThesisExamSupervisorGrade {
+  research: number;
+  supervisorName: string;
+  submittedAt: string;
+  signature: { code: string; signerName: string; signedAt: string; positionHe: string; positionEn: string };
+}
+export interface ThesisExamGradeSummary {
+  research: number | null;
+  writing: number | null;
+  defense: number | null;
+  finalGrade: number | null;
 }
 export interface ThesisExamFormView {
   milestoneId: string;
@@ -4191,7 +4209,8 @@ export interface ThesisExamFormView {
     titleEn: string;
     ratingScale: { min: number; max: number; minLabelHe: string; maxLabelHe: string; minLabelEn: string; maxLabelEn: string };
     questions: Array<{ key: string; labelHe: string; labelEn: string }>;
-    gradeComponents: Array<{ key: string; labelHe: string; labelEn: string; weight: number }>;
+    /** Who owns each component: 'supervisor' (research), 'examiner' (writing), 'computed' (defense). */
+    gradeComponents: Array<{ key: string; labelHe: string; labelEn: string; weight: number; source: 'supervisor' | 'examiner' | 'computed' }>;
     gradeKey: Array<{ range: string; statusHe: string; statusEn: string; publicationHe: string; publicationEn: string }>;
   };
   header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
@@ -4201,6 +4220,9 @@ export interface ThesisExamFormView {
   lockedReasonEn: string | null;
   submittedCount: number;
   examinerCount: number;
+  viewerKind: 'examiner' | 'supervisor' | 'reviewer';
   mine: ThesisExamSubmittedForm | null;
+  supervisorGrade: ThesisExamSupervisorGrade | null;
+  summary: ThesisExamGradeSummary | null;
   all: Array<{ index: number; name: string; submitted: boolean; form: ThesisExamSubmittedForm | null }> | null;
 }

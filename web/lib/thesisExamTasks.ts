@@ -10,7 +10,7 @@
 
 import type { ThesisExamCard } from '@/lib/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -33,6 +33,7 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
       if (a === 'view_forms') continue;
       if (a === 'availability' && e.myAvailability) continue;
       if (a === 'form' && (e.myFormSubmitted || !e.formOpen)) continue;
+      if (a === 'supervisor_grade' && e.supervisorGradeGiven) continue;
       const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
         : a === 'late_entry' ? e.lateEntryDeadline
         : null;
@@ -52,6 +53,7 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   set_hours: { he: 'נמצא מועד משותף — יש לקבוע את שעות הבחינה', en: 'Common date found — set the exam hours' },
   review_date: { he: 'יש לאשר את מועד הבחינה', en: 'Approve the exam date' },
   form: { he: 'יש למלא את טופס מבחן התזה', en: 'Fill in the thesis exam form' },
+  supervisor_grade: { he: 'יש לתת ציון מחקר (מנחה) לבחינת התזה', en: 'Give the research grade for the thesis exam' },
 };
 
 export function thesisExamTaskLabel(kind: ThesisExamTaskKind, lang: 'he' | 'en'): string {

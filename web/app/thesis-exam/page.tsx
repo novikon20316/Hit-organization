@@ -28,7 +28,7 @@ export default function ThesisExamPage() {
   const [exams, setExams] = useState<ThesisExamCard[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [formFor, setFormFor] = useState<string | null>(null);
+  const [formFor, setFormFor] = useState<{ id: string; as?: 'supervisor' } | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -49,8 +49,9 @@ export default function ThesisExamPage() {
   useLiveRefresh(fetchAll);
 
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
-    load: () => apiClient.getThesisExamForm(formFor),
-    submit: (body) => apiClient.submitThesisExamForm(formFor, body),
+    load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
+    submit: (body) => apiClient.submitThesisExamForm(formFor.id, body),
+    submitSupervisor: (research) => apiClient.submitThesisExamSupervisorGrade(formFor.id, research),
   } : null, [formFor]);
 
   if (guardLoading) {
@@ -69,7 +70,7 @@ export default function ThesisExamPage() {
         <p className="text-sm text-muted">{he ? 'אין בחינות תזה שבהן את/ה משתתף/ת כרגע.' : "You're not part of any thesis exam right now."}</p>
       ) : (
         <div className="grid gap-4">
-          {exams.map((exam) => <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={fetchAll} onOpenForm={() => setFormFor(exam.milestoneId)} />)}
+          {exams.map((exam) => <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={fetchAll} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />)}
         </div>
       )}
 
@@ -102,7 +103,7 @@ function Steps({ status, lang }: { status: ThesisExamCard['status']; lang: 'he' 
   );
 }
 
-function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: 'he' | 'en'; onChanged: () => Promise<void>; onOpenForm: () => void }) {
+function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: 'he' | 'en'; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
   const he = lang === 'he';
   const has = (a: ThesisExamCard['actions'][number]) => exam.actions.includes(a);
   return (
@@ -181,13 +182,21 @@ function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard;
         <p className="mt-3 text-xs text-muted">{he ? `${exam.formsSubmittedCount} מתוך ${exam.examinerCount} בוחנים מילאו את טופס הבחינה` : `${exam.formsSubmittedCount} of ${exam.examinerCount} examiners filled in the exam form`}</p>
       )}
       {has('form') && (
-        <button type="button" onClick={onOpenForm} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+        <button type="button" onClick={() => onOpenForm()} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
           {exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : exam.formOpen ? (he ? 'מילוי טופס מבחן התזה' : 'Fill in the thesis exam form') : (he ? 'טופס מבחן התזה' : 'Thesis exam form')}
         </button>
       )}
+      {has('supervisor_grade') && (
+        <div className="mt-2">
+          <button type="button" onClick={() => onOpenForm('supervisor')} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+            {exam.supervisorGradeGiven ? (he ? 'צפייה בציון המחקר שנתתי' : 'View my research grade') : (he ? 'מתן ציון מחקר (מנחה)' : 'Give the research grade (supervisor)')}
+          </button>
+          <p className="mt-1 text-xs text-muted">{he ? 'רכיב "מחקר על סמך חוות דעת המנחה" (40%) — נקבע על ידך בלבד ואינו גלוי לבוחנים.' : "The 'research, based on the supervisor's opinion' component (40%) — set by you only, not shown to the examiners."}</p>
+        </div>
+      )}
       {has('view_forms') && (
         <div className="mt-2">
-          <button type="button" onClick={onOpenForm} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+          <button type="button" onClick={() => onOpenForm()} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
             {he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"}
           </button>
           {exam.myRoles.committee && (
