@@ -35,6 +35,11 @@ export interface CommitteeConflict {
    *  (CS pilot — see onEnterCommitteeStage's committeeConflictHold), not just
    *  flagged at an administrative_secretary approve checkpoint. */
   blocking: boolean;
+  /** True for a CS thesis exam whose committee still includes the
+   *  supervisor (no stand-in was ever picked for this project). The exam
+   *  itself goes on; the pick is made for that milestone (milestoneId sent),
+   *  becomes the project-wide stand-in and joins the exam's committee. */
+  thesisExam: boolean;
   /** The stand-in last used for this same person elsewhere in this project
    *  (another milestone, or the project-level recusal) — pre-selected in the
    *  picker; she can still choose someone else for this milestone. */
@@ -100,6 +105,9 @@ export async function findCommitteeConflictsForScopes(
     const pendingMilestones = projectMilestones.filter((doc) => {
       const m = doc.data();
       if (m.committeeConflictHold) return true;
+      // A thesis exam in progress — its committee is built from the same
+      // committee, so a supervisor still on it needs a stand-in too.
+      if (m.thesisExamFlow === true && typeof m.status === 'string' && m.status.startsWith('exam_')) return true;
       const routing: ChainStage[] = m.routing ?? [];
       return isPendingOnAdministrativeSecretary(routing[m.currentStageIndex ?? 0]);
     });
@@ -130,6 +138,7 @@ export async function findCommitteeConflictsForScopes(
           conflictRole: conflict.conflictRole,
           supervisorRole: conflict.supervisorRole,
           blocking: !!m.committeeConflictHold,
+          thesisExam: m.thesisExamFlow === true && typeof m.status === 'string' && m.status.startsWith('exam_'),
           suggestedReplacementId: suggested,
           committeeMemberIds: committee.memberIds,
         });

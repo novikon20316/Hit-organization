@@ -66,7 +66,7 @@ import { notifyUser } from './notify.js';
 import { sendNotificationEmail } from './emailService.js';
 import { resolveProjectScope, resolveStaffForScope, type ResourceScope } from './scopeAuthorization.js';
 import { createExternalExaminerAccess } from './examinerAccess.js';
-import { resolveCommitteeForMilestone } from '../controllers/committeeController.js';
+import { resolveCommitteeForMilestone, findSupervisorConflicts } from '../controllers/committeeController.js';
 import { resolveMilestoneOrder } from './workflowTemplates.js';
 import { WEBSITE_URL } from '../config/links.js';
 import { signEvaluation, type EvaluationSignature } from './evaluationSignature.js';
@@ -570,6 +570,38 @@ async function openThesisExam(ref: FirebaseFirestore.DocumentReference, m: Fireb
     bodyHe: `המנחה ממנה כעת בוחנים לתזה "${title.he}". בהמשך תתבקש/י לבחור תאריכים ושעות שנוחים לך לבחינה.`,
     bodyEn: `Your supervisor is now nominating examiners for "${title.en}". Later you'll be asked to pick dates and hours that suit you for the exam.`,
   });
+  await alertExamCommitteeConflict(ref.id, m, project, doc).catch((err) => console.error(`thesisExam: committee conflict alert failed on ${ref.id}:`, err));
+}
+
+/** The supervisor still sits on the committee that will judge the exam (no
+ *  stand-in was picked for this project on an earlier milestone): the
+ *  administrative coordinator is asked to pick one in her "Replace
+ *  Committee Member" tab, which lists the exam (see committeeConflicts.ts).
+ *  The exam isn't held — her pick joins the committee whenever it's made
+ *  (refreshExamCommitteeForProject). */
+async function alertExamCommitteeConflict(
+  milestoneId: string,
+  milestone: FirebaseFirestore.DocumentData,
+  project: FirebaseFirestore.DocumentData,
+  exam: ThesisExamDoc,
+): Promise<void> {
+  const committee = await resolveCommitteeForMilestone(milestone, project);
+  if (!committee || findSupervisorConflicts(committee, project).length === 0) return;
+  const title = projectTitle(project);
+  const ids = await adminCoordinatorIds(exam.scope);
+  await Promise.all(ids.map((recipientId) => notifyUser({
+    recipientId,
+    type: 'general',
+    inAppType: 'committee_conflict_hold',
+    titleHe: 'ניגוד עניינים בוועדת בחינת התזה — יש לבחור מחליף/ה',
+    titleEn: 'Conflict of interest on a thesis exam committee — choose a replacement',
+    bodyHe: `המנחה של "${title.he}" חבר/ה בוועדה שתבחן את התזה. יש לבחור מחליף/ה בלשונית "החלפת חבר ועדה" — המחליף/ה יחליף/תחליף את המנחה בוועדה לאורך כל הפרויקט.`,
+    bodyEn: `The supervisor of "${title.en}" sits on the committee that will judge the thesis. Choose a replacement in the "Replace Committee Member" tab — they replace the supervisor on the committee for the whole project.`,
+    relatedProjectId: exam.projectId,
+    relatedMilestoneId: milestoneId,
+    channels: { email: true, sms: false },
+    targetScreen: 'admin_coordinator_committee_conflicts',
+  }).catch((err) => console.error(`thesisExam: conflict alert to ${recipientId} failed:`, err))));
 }
 
 // ── Step 1: nomination ───────────────────────────────────────────────────────

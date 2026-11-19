@@ -3608,6 +3608,9 @@ export interface CommitteeConflict {
   /** True when the milestone is actually held back from the committee until
    *  a replacement is chosen (CS pilot). */
   blocking: boolean;
+  /** A CS thesis exam whose committee still includes the supervisor — the
+   *  exam goes on; the pick joins its committee and covers the whole project. */
+  thesisExam?: boolean;
   /** Last stand-in used for this person elsewhere in the project — pre-selected. */
   suggestedReplacementId: string | null;
   /** Current members (chairman included) — left out of the picker. */

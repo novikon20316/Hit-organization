@@ -81,7 +81,7 @@ export function CommitteeConflictsTab() {
     try {
       // A held (CS pilot) milestone is swapped for that milestone only —
       // which also releases it to the committee; otherwise whole-project.
-      await apiClient.substituteCommitteeMember(c.projectId, c.conflictedUserId, selectedReplacement, c.blocking ? c.milestoneId : undefined);
+      await apiClient.substituteCommitteeMember(c.projectId, c.conflictedUserId, selectedReplacement, c.blocking || c.thesisExam ? c.milestoneId : undefined);
       setReplacingKey(null);
       setSelectedReplacement('');
       await fetchConflicts();
@@ -128,6 +128,11 @@ export function CommitteeConflictsTab() {
                 {c.blocking && (
                   <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">
                     ⏸ {lang === 'he' ? 'מעוכב — לא הועבר לוועדה' : 'On hold — not sent to the committee'}
+                  </span>
+                )}
+                {c.thesisExam && (
+                  <span className="shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-xs font-semibold text-danger">
+                    🎓 {lang === 'he' ? 'ועדת בחינת התזה' : 'Thesis exam committee'}
                   </span>
                 )}
               </div>

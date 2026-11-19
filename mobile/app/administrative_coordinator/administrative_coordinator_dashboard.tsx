@@ -243,6 +243,8 @@ interface CommitteeConflictRow {
   milestoneNameEn: string;
   /** Held back from the committee until a replacement is picked (CS pilot). */
   blocking: boolean;
+  /** A CS thesis exam whose committee still includes the supervisor. */
+  thesisExam?: boolean;
   /** Last stand-in used for this person elsewhere in the project — pre-selected. */
   suggestedReplacementId: string | null;
   /** Current members (chairman included) — left out of the picker. */
@@ -846,7 +848,9 @@ export default function ProjectCoordinatorDashboard() {
         replacementUserId: selectedReplacement,
         // A held (CS pilot) milestone is swapped for that milestone only —
         // which also releases it to the committee; otherwise whole-project.
-        ...(c.blocking ? { milestoneId: c.milestoneId } : {}),
+        // A thesis exam's pick is sent for that milestone too (it becomes
+        // the project-wide stand-in and joins the exam's committee).
+        ...(c.blocking || c.thesisExam ? { milestoneId: c.milestoneId } : {}),
       });
       setReplacingKey(null);
       setSelectedReplacement('');
@@ -1312,6 +1316,11 @@ export default function ProjectCoordinatorDashboard() {
                     {c.blocking && (
                       <Text style={[s.cardSub, { color: '#B91C1C', fontWeight: '700' }]}>
                         ⏸ {lang === 'he' ? 'מעוכב — לא הועבר לוועדה עד להחלפה' : 'On hold — not sent to the committee until replaced'}
+                      </Text>
+                    )}
+                    {c.thesisExam && (
+                      <Text style={[s.cardSub, { color: '#B91C1C', fontWeight: '700' }]}>
+                        🎓 {lang === 'he' ? 'ועדת בחינת התזה' : 'Thesis exam committee'}
                       </Text>
                     )}
                     <Text style={s.cardSub}>
