@@ -10,6 +10,11 @@ export interface MyProjectMilestoneInfo {
   dueDate: string | null;
   daysLeft: number | null;
   urgency: 'green' | 'orange' | 'red' | null;
+  /** Absent from responses served before the server started sending them. */
+  status?: string;
+  /** CS thesis exam milestone — once its status is exam_*, the work happens
+   *  on /thesis-exam rather than in the project card. */
+  thesisExamFlow?: boolean;
 }
 
 /** A Quick Tasks click asking a project card to expand and open the form for
@@ -20,6 +25,23 @@ export interface OpenMilestoneRequest {
   milestoneId: string | null;
   milestoneType: string;
   nonce: number;
+}
+
+/** What a Quick Tasks row asks the page to open in a project card — the
+ *  page adds the nonce. */
+export type OpenMilestoneTarget = Omit<OpenMilestoneRequest, 'nonce'>;
+
+/** A Quick Tasks "New Applicant" click: switch to the Applications tab,
+ *  clear its status filter, then scroll to and highlight this application. */
+export interface FocusApplicationRequest {
+  applicationId: string;
+  nonce: number;
+}
+
+/** CS thesis exam milestones in their exam_* steps are worked on at
+ *  /thesis-exam (nominations, dates, the exam form), not in the project card. */
+export function isThesisExamStep(m: { thesisExamFlow?: boolean; status?: string } | null | undefined): boolean {
+  return !!m?.thesisExamFlow && !!m.status?.startsWith('exam_');
 }
 
 export interface MyProjectEnrolledStudent {

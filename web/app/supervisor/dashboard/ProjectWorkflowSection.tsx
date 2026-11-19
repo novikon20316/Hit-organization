@@ -13,6 +13,7 @@
 
 import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
@@ -28,6 +29,7 @@ import { UpdateGradeModal } from './UpdateGradeModal';
 import { FinalGradeCertificateModal } from './FinalGradeCertificateModal';
 import { MilestoneFilePanel, FilePreviewFrame } from '@/components/MilestoneFilePanel';
 import type { MyProject, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
+import { isThesisExamStep } from './types';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 
 interface ProjectWorkflowSectionProps {
@@ -93,6 +95,9 @@ export interface StudentMilestoneRow {
   perStudentEvaluation?: boolean;
   /** Thesis examiner opinion form — see components/ExaminerOpinionForm.tsx. */
   hasExaminerOpinionForm?: boolean;
+  /** CS thesis exam milestone — in its exam_* steps the work happens on
+   *  /thesis-exam, not in this card. */
+  thesisExamFlow?: boolean;
   opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
@@ -372,19 +377,56 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
   // the row's own button below would (keep the two in sync). Matched by id,
   // or by type for a dashboard response that predates currentMilestone.id.
   // Handled once per request nonce, after the detail has loaded.
+  // Whatever the action, the milestone's own row is scrolled to and ringed
+  // for a few seconds — so even a milestone with nothing for the supervisor
+  // to fill in right now (e.g. awaiting the coordinator) visibly lands
+  // somewhere instead of looking like a dead click.
   const handledOpenNonceRef = useRef<number | null>(null);
+  const router = useRouter();
+  const [highlightMilestoneId, setHighlightMilestoneId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightMilestoneId) return;
+    document.getElementById(`milestone-row-${highlightMilestoneId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightMilestoneId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightMilestoneId]);
   useEffect(() => {
     if (!openRequest || loading || handledOpenNonceRef.current === openRequest.nonce) return;
     const all = students.flatMap((s) => s.milestones);
     const m =
       (openRequest.milestoneId ? all.find((x) => x.id === openRequest.milestoneId) : undefined) ??
       all.find((x) => x.type === openRequest.milestoneType && x.id && !isCompletedStatus(x.status));
-    if (!m?.id) return;
+    if (!m?.id) {
+      // Detail failed to load (or doesn't list it) — a pending grade can
+      // still be opened straight from the dashboard's own data.
+      const pendingOnly = openRequest.milestoneId ? pendingGrades.find((pg) => pg.id === openRequest.milestoneId) : undefined;
+      handledOpenNonceRef.current = openRequest.nonce;
+      if (pendingOnly) onGrade(pendingOnly);
+      return;
+    }
     handledOpenNonceRef.current = openRequest.nonce;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot per Quick Tasks click (nonce-guarded), waits on the async detail load
+    setHighlightMilestoneId(m.id);
+    if (isThesisExamStep(m)) {
+      router.push(`/thesis-exam?milestoneId=${encodeURIComponent(m.id)}`);
+      return;
+    }
     const spec = templateMilestones.find((t) => t.type === m.type);
     const pending = pendingGrades.find((pg) => pg.id === m.id);
+    const stage = m.routing?.[m.currentStageIndex ?? 0];
+    if (m.type === 'research_proposal') {
+      // Same condition as the row's own "Sign the research proposal" button.
+      const myUid = firebaseUser?.uid;
+      const dualSignRequired = !!(stage?.role === 'supervisor' && stage.requireAllAssignedSupervisors && secondarySupervisorId);
+      const iHaveSigned = !!(myUid && m.supervisorApprovals?.[myUid]);
+      if (m.finalGrade == null && m.status === 'submitted' && !(dualSignRequired && iHaveSigned)) {
+        setSigningId(m.id);
+        setConfirmedProposalRead(false);
+        setSignError('');
+      }
+      return;
+    }
     if (m.hasFinalGradeComponents && m.perStudentEvaluation) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot per Quick Tasks click (nonce-guarded), waits on the async detail load
       setEvaluationFormFor(m.id);
     } else if (m.hasFinalGradeComponents) {
       if (m.gradeApproved || m.gradeOverrideStatus === 'pending') return;
@@ -394,10 +436,11 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
       setOpinionFormFor(m.id);
     } else if (m.staffRecordMode === 'upload_or_form') {
       setStaffRecordFor({ milestoneId: m.id, fields: spec?.staffFormFields ?? [] });
-    } else if (pending && m.type !== 'research_proposal') {
+    } else if (pending && !(m.preGradeSignoffs?.committee && !m.committeeChairDecision) && !(m.preGradeSignoffs?.examinerOne && !m.examinerOneSignoff)) {
+      // Same gate as the row's own "Grade" button (pre-grade sign-offs).
       onGrade(pending);
     }
-  }, [openRequest, loading, students, templateMilestones, pendingGrades, onGrade]);
+  }, [openRequest, loading, students, templateMilestones, pendingGrades, onGrade, router, firebaseUser, secondarySupervisorId]);
   // Defense examiners / agreed date / logistics change outside this card —
   // see hooks/useDefenseScheduleLiveRefresh.ts.
   useDefenseScheduleLiveRefresh(refreshDetailSilently);
@@ -524,9 +567,12 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                       return (
                         <div
                           key={m.type}
+                          id={m.id ? `milestone-row-${m.id}` : undefined}
                           className={`role-rail relative rounded-lg border bg-white p-2.5 transition-opacity ${
                             isCurrent ? 'border-2' : 'border-[#c5c5d3]'
-                          } ${isFuture ? 'opacity-75 hover:opacity-100' : ''}`}
+                          } ${isFuture ? 'opacity-75 hover:opacity-100' : ''} ${
+                            m.id && m.id === highlightMilestoneId ? 'ring-2 ring-supervisor-primary ring-offset-2' : ''
+                          }`}
                           style={{ '--rail-color': color, borderColor: isCurrent ? '#00236f' : undefined } as React.CSSProperties}
                         >
                           <div className="flex items-start justify-between gap-2 text-xs">

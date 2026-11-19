@@ -35,7 +35,7 @@ import { RecommendExaminersModal, type RecommendExaminersTarget } from './Recomm
 import { QuickTasksPanel } from './QuickTasksPanel';
 import { GradingInboxModal } from './GradingInboxModal';
 import { CompareApplicantsModal, comparableProjects } from './CompareApplicantsModal';
-import type { MyProject, Application, SupervisorPendingMilestone, OpenMilestoneRequest } from './types';
+import type { MyProject, Application, SupervisorPendingMilestone, OpenMilestoneRequest, OpenMilestoneTarget, FocusApplicationRequest } from './types';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import {
   PROJECTS_TAB_FIELD_GUIDE, PROJECTS_TAB_GUIDE_KEY,
@@ -109,17 +109,33 @@ function SupervisorDashboardContent() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [openMilestoneRequest, setOpenMilestoneRequest] = useState<OpenMilestoneRequest | null>(null);
   const router = useRouter();
-  const openProjectMilestone = (project: MyProject) => {
-    if (!project.currentMilestone) return;
+  // Quick Tasks → expand that project's card, scroll to the milestone and
+  // open its form (ProjectCard / ProjectWorkflowSection handle the rest).
+  // scroll:false — the card scrolls itself into view; Next's default would
+  // keep the current scroll position anyway while the page is on screen.
+  const openProjectMilestone = (target: OpenMilestoneTarget) => {
     setProjectFilter('all');
-    setOpenMilestoneRequest({
-      projectId: project.id,
-      milestoneId: project.currentMilestone.id ?? null,
-      milestoneType: project.currentMilestone.type,
-      nonce: Date.now(),
-    });
-    if (tab !== 'projects') router.push('/supervisor/dashboard?tab=projects');
+    setOpenMilestoneRequest({ ...target, nonce: Date.now() });
+    if (tab !== 'projects') router.push('/supervisor/dashboard?tab=projects', { scroll: false });
   };
+  // Quick Tasks → a specific pending application. A bare link to the tab did
+  // nothing visible when the tab was already open, when a status filter hid
+  // the application, or below lg (this panel renders under the tab content,
+  // so the tab switch happened off-screen).
+  const [focusApplication, setFocusApplication] = useState<FocusApplicationRequest | null>(null);
+  const openApplication = (app: Application) => {
+    setApplicationFilter('all');
+    setFocusApplication({ applicationId: app.id, nonce: Date.now() });
+    if (tab !== 'applications') router.push('/supervisor/dashboard?tab=applications', { scroll: false });
+  };
+  const handledFocusNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!focusApplication || tab !== 'applications' || handledFocusNonceRef.current === focusApplication.nonce) return;
+    const el = document.getElementById(`application-${focusApplication.applicationId}`);
+    if (!el) return;
+    handledFocusNonceRef.current = focusApplication.nonce;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
   // Opens GradeMilestoneModal automatically for deepLinkMilestoneId once
   // it shows up in pendingGrades — lands the supervisor straight on the
   // specific submission a notification was about, instead of a bare "here's
@@ -371,11 +387,13 @@ function SupervisorDashboardContent() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {filteredApplications.map((app) => (
                   <ApplicationCard
-                    key={app.id}
+                    // Remounted on each Quick Tasks click on it, so it opens
+                    // expanded (its `expanded` state starts from `highlighted`).
+                    key={focusApplication?.applicationId === app.id ? `${app.id}-${focusApplication.nonce}` : app.id}
                     application={app}
                     onDecided={fetchDashboard}
                     onProposeMeeting={() => setProposingMeetingFor(app)}
-                    highlighted={deepLinkApplicationIds.includes(app.id)}
+                    highlighted={deepLinkApplicationIds.includes(app.id) || focusApplication?.applicationId === app.id}
                   />
                 ))}
                 {filteredApplications.length === 0 && (
@@ -453,7 +471,7 @@ function SupervisorDashboardContent() {
       </div>
 
       <div className="w-full shrink-0 lg:w-80">
-        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onGrade={setGradingTarget} onOpenMilestone={openProjectMilestone} onOpenInbox={() => setInboxOpen(true)} />
+        <QuickTasksPanel myProjects={myProjects} applications={applications} pendingGrades={pendingGrades} onOpenMilestone={openProjectMilestone} onOpenApplication={openApplication} onOpenInbox={() => setInboxOpen(true)} />
       </div>
       </div>
 

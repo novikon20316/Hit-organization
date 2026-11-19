@@ -183,6 +183,7 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
         id: string; nameHe: string; nameEn: string; type: string;
         dueDate: string | null; daysLeft: number | null;
         urgency: 'green' | 'orange' | 'red' | null;
+        status: string; thesisExamFlow: boolean;
       } | null = null;
 
       if (current) {
@@ -203,6 +204,11 @@ export const getSupervisorDashboard = async (req: AuthenticatedRequest, res: Res
           dueDate: dueDate ? dueDate.toISOString() : null,
           daysLeft,
           urgency,
+          // Lets Quick Tasks send a CS thesis exam milestone that's already
+          // in its exam_* steps to /thesis-exam (where that work happens)
+          // instead of the project card, which has no action for it.
+          status: current.status ?? '',
+          thesisExamFlow: !!current.thesisExamFlow,
         };
       }
 
@@ -423,6 +429,9 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // data_science final-grade certificate.
             defenseDate: isDefenseDateConfirmed(m?.status) ? m?.dueDate?.toDate?.()?.toISOString() ?? null : null,
             seminarScheduling: m?.seminarScheduling ?? false,
+            // CS thesis exam (services/thesisExam.ts) — once in its exam_*
+            // steps the work happens on /thesis-exam, not in this card.
+            thesisExamFlow: !!m?.thesisExamFlow,
             seminarSchedule: m?.seminarSchedule ?? null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the

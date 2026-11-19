@@ -8,8 +8,8 @@
 // examiners fill the exam form after the exam, and the committee reads the
 // forms. Each card shows only the viewer's actions; the server enforces them.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/src/api/apiClient';
@@ -23,7 +23,7 @@ const errText = (err: any, fallback: string) => err?.response?.data?.message ?? 
 
 export default function ThesisExamScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ lang?: string }>();
+  const params = useLocalSearchParams<{ lang?: string; milestoneId?: string }>();
   const [lang, setLang] = useState<Lang>(params.lang === 'en' ? 'en' : 'he');
   const he = lang === 'he';
   const isRtl = he;
@@ -49,6 +49,24 @@ export default function ThesisExamScreen() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount
   useEffect(() => { void load(); }, [load]);
   useLiveRefresh(load);
+
+  // ?milestoneId=… (the supervisor dashboard's Quick Tasks) scrolls to and
+  // rings that exam's card once it has laid out. Ring clears after a while.
+  const scrollRef = useRef<ScrollView>(null);
+  const focusId = typeof params.milestoneId === 'string' ? params.milestoneId : null;
+  const [ringId, setRingId] = useState<string | null>(focusId);
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!ringId) return;
+    const t = setTimeout(() => setRingId(null), 5000);
+    return () => clearTimeout(t);
+  }, [ringId]);
+  const onExamLayout = (id: string) => (e: LayoutChangeEvent) => {
+    if (id !== focusId || scrolledRef.current) return;
+    scrolledRef.current = true;
+    const y = e.nativeEvent.layout.y;
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true }), 0);
+  };
 
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
     load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
@@ -77,6 +95,7 @@ export default function ThesisExamScreen() {
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={C.primary} /></View>
       ) : (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ padding: 16, gap: 12 }}
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
@@ -85,7 +104,7 @@ export default function ThesisExamScreen() {
           {exams.length === 0 ? (
             <Text style={{ textAlign: 'center', color: C.faint, marginTop: 24 }}>{he ? 'אין בחינות תזה שבהן את/ה משתתף/ת כרגע.' : "You're not part of any thesis exam right now."}</Text>
           ) : exams.map((exam) => (
-            <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={load} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />
+            <ExamCard key={exam.milestoneId} exam={exam} lang={lang} highlighted={exam.milestoneId === ringId} onLayout={onExamLayout(exam.milestoneId)} onChanged={load} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />
           ))}
         </ScrollView>
       )}
@@ -136,12 +155,12 @@ function PrimaryButton({ label, onPress, busy, danger }: { label: string; onPres
   );
 }
 
-function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: Lang; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
+function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: Lang; highlighted?: boolean; onLayout?: (e: LayoutChangeEvent) => void; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
   const has = (a: ThesisExamCard['actions'][number]) => exam.actions.includes(a);
   return (
-    <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.line }}>
+    <View onLayout={onLayout} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: highlighted ? 2 : 1, borderColor: highlighted ? C.primary : C.line }}>
       <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink, ...align }} numberOfLines={2}>{he ? exam.projectTitleHe : exam.projectTitleEn}</Text>
       <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
         {exam.studentNames.join(', ')}{exam.supervisorName ? ` · ${he ? 'מנחה' : 'Supervisor'}: ${exam.supervisorName}` : ''}

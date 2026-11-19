@@ -11,7 +11,7 @@
 // server/src/controllers/supervisorController.ts's getSupervisorProjectDetail.
 // Ports web/app/supervisor/dashboard/ProjectWorkflowSection.tsx.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { apiClient } from '../src/api/apiClient';
 import { auth } from '../src/firebase/firebase';
@@ -25,6 +25,7 @@ import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 import UpdateGradeModal from './modals/UpdateGradeModal';
 import { ProjectRemindersPanel, type ReminderMilestoneOption } from './ProjectRemindersPanel';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
+import type { OpenMilestoneRequest } from '@/types';
 
 // Attachment URLs carry no separate filename field — derive a human-readable
 // one from the URL itself, same approach as app/student/milestones.tsx's own
@@ -149,6 +150,10 @@ interface Props {
    *  fetched by this component, which only loads per-milestone workflow
    *  data. Optional: omitting it simply hides the certificate button. */
   project?: CertificateProject;
+  /** Set when a Quick Tasks row targets this project — once the detail has
+   *  loaded, the milestone's row is highlighted and the same form its own
+   *  button would open is opened. Mirrors web's ProjectWorkflowSection. */
+  openRequest?: OpenMilestoneRequest | null;
 }
 
 function statusColor(status: string): string {
@@ -176,7 +181,7 @@ function formatShortDate(iso: string | null | undefined, lang: Lang): string | n
   return d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function ProjectWorkflowSection({ lang, projectId, project }: Props) {
+export default function ProjectWorkflowSection({ lang, projectId, project, openRequest }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [templateMilestones, setTemplateMilestones] = useState<TemplateMilestone[]>([]);
@@ -317,6 +322,50 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
+  // Quick Tasks → open the requested milestone's form, picking the same one
+  // the row's own button below would (keep the two in sync), and ring the
+  // row for a few seconds so even a milestone with nothing to fill in right
+  // now visibly lands somewhere. Handled once per nonce, after load.
+  const [highlightMilestoneId, setHighlightMilestoneId] = useState<string | null>(null);
+  const handledOpenNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!highlightMilestoneId) return;
+    const t = setTimeout(() => setHighlightMilestoneId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightMilestoneId]);
+  useEffect(() => {
+    if (!openRequest || loading || handledOpenNonceRef.current === openRequest.nonce) return;
+    const all = students.flatMap((s) => s.milestones);
+    const m =
+      (openRequest.milestoneId ? all.find((x) => x.id === openRequest.milestoneId) : undefined) ??
+      all.find((x) => x.type === openRequest.milestoneType && x.id && !isCompletedStatus(x.status));
+    handledOpenNonceRef.current = openRequest.nonce;
+    if (!m?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot per Quick Tasks tap (nonce-guarded), waits on the async detail load
+    setHighlightMilestoneId(m.id);
+    const spec = templateMilestones.find((t) => t.type === m.type);
+    if (m.type === 'research_proposal') {
+      const stage = m.routing?.[m.currentStageIndex ?? 0];
+      const myUid = auth.currentUser?.uid;
+      const dualSignRequired = !!(stage?.role === 'supervisor' && stage.requireAllAssignedSupervisors && secondarySupervisorId);
+      const iHaveSigned = !!(myUid && m.supervisorApprovals?.[myUid]);
+      if (m.finalGrade == null && m.status === 'submitted' && !(dualSignRequired && iHaveSigned)) {
+        setSigningId(m.id);
+        setConfirmedProposalRead(false);
+      }
+    } else if (m.hasFinalGradeComponents && m.perStudentEvaluation) {
+      setEvaluationFormFor(m.id);
+    } else if (m.hasFinalGradeComponents) {
+      if (m.gradeApproved || m.gradeOverrideStatus === 'pending') return;
+      if (m.autoCalculatedFinalGrade != null) setFinalGradeDecisionFor({ milestoneId: m.id, autoGrade: m.autoCalculatedFinalGrade });
+      else if (!m.supervisorEvaluationSubmitted) setSupervisorEvalFor({ milestoneId: m.id, components: spec?.finalGradeComponents?.supervisorEvaluation.components ?? [] });
+    } else if (m.hasExaminerOpinionForm) {
+      setOpinionFormFor(m.id);
+    } else if (m.staffRecordMode === 'upload_or_form') {
+      setStaffRecordFor({ milestoneId: m.id, fields: spec?.staffFormFields ?? [] });
+    }
+  }, [openRequest, loading, students, templateMilestones, secondarySupervisorId]);
+
   return (
     <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
@@ -399,7 +448,10 @@ export default function ProjectWorkflowSection({ lang, projectId, project }: Pro
                 return (
                   <View
                     key={m.type}
-                    style={{ paddingVertical: 6, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F1F5F9' }}
+                    style={[
+                      { paddingVertical: 6, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F1F5F9' },
+                      m.id && m.id === highlightMilestoneId ? { borderWidth: 2, borderColor: '#00236f', borderRadius: 8, paddingHorizontal: 6 } : null,
+                    ]}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E293B' }}>

@@ -6,24 +6,32 @@
 // submissions awaiting grading first (they're blocking a student right
 // now), then the soonest project deadlines, then the oldest pending
 // applications — capped at 3 items total. Every item is a jump straight to
-// where the supervisor can act on it: a grade-pending row opens the grading
-// form directly (same modal ProjectWorkflowSection's own "Grade" button
-// opens), a deadline row expands that project's card and opens its current
-// milestone's form (see OpenMilestoneRequest), and an application row
-// switches to the Applications tab.
+// where the supervisor can act on it — never a bare tab switch, which looked
+// like a dead click whenever the tab was already open, filtered, or (below
+// the lg breakpoint, where this panel sits under the tab content) off-screen:
+//  - grade-pending and deadline rows expand that project's card, scroll to
+//    the milestone and open the same form its own button would (grade modal,
+//    research-proposal sign-off, evaluation, opinion form…) — see
+//    OpenMilestoneRequest / ProjectWorkflowSection;
+//  - a deadline row for a CS thesis exam already in its exam_* steps goes to
+//    that exam's card on /thesis-exam, where that work happens;
+//  - an application row opens the Applications tab with the filter cleared
+//    and scrolls to/highlights that application;
+//  - a committee row opens that review on /committees.
 // One exception to "no new API calls": committee reviews, fetched here only
 // for a supervisor with no higher role who's been substituted onto a
 // committee (see lib/roles.ts's isSupervisorWithoutHigherRole).
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { apiClient, type CommitteePendingReview } from '@/lib/apiClient';
 import { isSupervisorWithoutHigherRole } from '@/lib/roles';
-import type { MyProject, Application, SupervisorPendingMilestone } from './types';
-import { MILESTONE_LABEL } from './types';
+import type { MyProject, Application, SupervisorPendingMilestone, OpenMilestoneTarget } from './types';
+import { MILESTONE_LABEL, isThesisExamStep } from './types';
 import { milestoneDisplayName } from '@/lib/milestoneLabel';
 import { underADayLeftLabel } from '@/lib/timeLeft';
 
@@ -43,23 +51,24 @@ interface QuickTasksPanelProps {
    *  student), so these are listed first, ahead of upcoming-deadline
    *  projects and pending applications. */
   pendingGrades: SupervisorPendingMilestone[];
-  /** Opens GradeMilestoneModal for a given pending milestone — same handler
-   *  the Projects tab's own "Grade" button uses (page.tsx's setGradingTarget) —
-   *  so a "Grade pending review" row jumps straight into the grading form
-   *  instead of just pointing at the Projects tab and leaving the supervisor
-   *  to find the right row themselves. */
-  onGrade: (milestone: SupervisorPendingMilestone) => void;
-  /** Expands the project's card on the Projects tab and opens the form for
-   *  its current milestone (e.g. the defense evaluation form) — a bare link
-   *  to the tab left every card collapsed, so nothing actually opened. */
-  onOpenMilestone: (project: MyProject) => void;
+  /** Expands the project's card on the Projects tab, scrolls to the
+   *  milestone and opens whatever its own row's action button would (grade
+   *  modal, research-proposal sign-off, defense evaluation, opinion form…).
+   *  Used for both grade-pending and deadline rows, so a milestone whose
+   *  supervisor action isn't the plain grade modal still lands on the right
+   *  form. */
+  onOpenMilestone: (target: OpenMilestoneTarget) => void;
+  /** Switches to the Applications tab with the status filter cleared, then
+   *  scrolls to and highlights this application. */
+  onOpenApplication: (application: Application) => void;
   /** Opens the full grading inbox (GradingInboxModal) — every pending
    *  grade, oldest first, with file preview. */
   onOpenInbox: () => void;
 }
 
-export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGrade, onOpenMilestone, onOpenInbox }: QuickTasksPanelProps) {
+export function QuickTasksPanel({ myProjects, applications, pendingGrades, onOpenMilestone, onOpenApplication, onOpenInbox }: QuickTasksPanelProps) {
   const { lang } = useLanguage();
+  const router = useRouter();
   const { userData } = useAuth();
   const { isCommitteeSubstitute } = useNotifications();
   const showCommittee = isCommitteeSubstitute && isSupervisorWithoutHigherRole(userData);
@@ -95,7 +104,8 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
       label: lang === 'he' ? 'בדיקת ועדה ממתינה' : 'Committee review pending',
       title: lang === 'he' ? r.projectTitleHe : r.projectTitleEn,
       sub: lang === 'he' ? `${r.voteCount}/${r.memberCount} הצביעו` : `${r.voteCount}/${r.memberCount} voted`,
-      href: '/committees',
+      // app/committees/page.tsx opens this milestone's review form.
+      href: `/committees?milestoneId=${encodeURIComponent(r.milestoneId)}`,
     })),
     ...gradesAwaitingReview.map((m) => ({
       key: `g-${m.id}`,
@@ -104,11 +114,12 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
       label: lang === 'he' ? 'ציון ממתין לבדיקה' : 'Grade pending review',
       title: milestoneDisplayName(m, lang, MILESTONE_LABEL),
       sub: lang === 'he' ? m.projectTitleHe : m.projectTitleEn,
-      onClick: () => onGrade(m),
+      onClick: () => onOpenMilestone({ projectId: m.projectId, milestoneId: m.id, milestoneType: m.type }),
     })),
     ...urgentProjects.map((p) => {
-      const urgency = p.currentMilestone!.urgency as 'red' | 'orange';
-      const daysLeft = p.currentMilestone!.daysLeft;
+      const cm = p.currentMilestone!;
+      const urgency = cm.urgency as 'red' | 'orange';
+      const daysLeft = cm.daysLeft;
       return {
         key: `p-${p.id}`,
         icon: URGENCY_ICON[urgency],
@@ -125,7 +136,11 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
               : (p.currentMilestone!.type !== 'defense' && underADayLeftLabel(p.currentMilestone!.dueDate, lang)) || (lang === 'he'
                 ? `${daysLeft} ימים נותרו`
                 : `${daysLeft} days left`),
-        onClick: () => onOpenMilestone(p),
+        // A CS thesis exam in its exam_* steps has nothing to act on in the
+        // project card — its nominations/dates/exam form live on /thesis-exam.
+        onClick: isThesisExamStep(cm) && cm.id
+          ? () => router.push(`/thesis-exam?milestoneId=${encodeURIComponent(cm.id!)}`)
+          : () => onOpenMilestone({ projectId: p.id, milestoneId: cm.id ?? null, milestoneType: cm.type }),
       };
     }),
     ...pendingApps.map((a) => ({
@@ -135,7 +150,7 @@ export function QuickTasksPanel({ myProjects, applications, pendingGrades, onGra
       label: lang === 'he' ? 'מועמדות ממתינה' : 'New Applicant',
       title: a.studentName || (lang === 'he' ? 'שם לא זמין' : 'Name unavailable'),
       sub: lang === 'he' ? a.projectTitleHe : a.projectTitleEn,
-      href: '/supervisor/dashboard?tab=applications',
+      onClick: () => onOpenApplication(a),
     })),
   ].slice(0, 3);
 

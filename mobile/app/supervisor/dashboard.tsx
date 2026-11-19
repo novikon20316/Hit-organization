@@ -4,6 +4,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert, Linking,
+  type LayoutChangeEvent,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { apiClient } from '@/src/api/apiClient';
@@ -17,7 +18,7 @@ import ProjectWorkflowSection from '@/components/ProjectWorkflowSection';
 import { QuickTasksPanel } from '@/components/QuickTasksPanel';
 import CompareApplicantsModal, { comparableProjects } from '@/components/modals/CompareApplicantsModal';
 import type { PrerequisiteSpec } from '@/components/Prerequisites';
-import { AppUser, MyProject, Application } from '@/types'
+import { AppUser, MyProject, Application, isThesisExamStep, type OpenMilestoneRequest } from '@/types'
 import { getProgramByKey } from '../../constants/faculties';
 import { PendingSignoffsWidget } from '@/components/PendingSignoffsWidget';
 import { milestonePalette } from '@/constants/milestoneTheme';
@@ -149,6 +150,10 @@ const DEFAULT_GRADING_FIELDS: ActiveGradingField[] = [
   { key: 'innovation',  max: 15, weight: 15, he: 'חדשנות (0–15)',       en: 'Innovation (0–15)'       },
   { key: 'writing',     max: 20, weight: 20, he: 'כתיבה (0–20)',        en: 'Writing Quality (0–20)'  },
 ];
+
+/** A fresh value per Quick Tasks tap, so tapping the same row again re-opens
+ *  its form (see OpenMilestoneRequest). */
+const nextNonce = () => Date.now();
 
 function activeGradingFields(m: PendingMilestone | null): ActiveGradingField[] {
   if (m?.gradingComponents?.length) {
@@ -311,6 +316,45 @@ export default function SupervisorHome() {
   const toggleCardExpansion = (milestoneId: string) => {
     setExpandedCards((prev) => ({ ...prev, [milestoneId]: !prev[milestoneId] }));
   };
+
+  // ── Quick Tasks landing ───────────────────────────────────────────────────
+  // A Quick Tasks row must land on its item, not just switch tabs (that was
+  // a dead tap whenever the tab was already open — e.g. a deadline row on
+  // the default Projects tab). Each target card reports its y offset inside
+  // the content ScrollView (onLayout); a request scrolls there right away if
+  // the card is already laid out on the current tab, or as soon as it lays
+  // out after the tab/filter switch. The card is ringed for a few seconds.
+  const contentScrollRef = useRef<ScrollView>(null);
+  const itemYRef = useRef<Record<string, number>>({});
+  const pendingScrollKeyRef = useRef<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [openMilestoneRequest, setOpenMilestoneRequest] = useState<(OpenMilestoneRequest & { projectId: string }) | null>(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    const t = setTimeout(() => setFocusKey(null), 4000);
+    return () => clearTimeout(t);
+  }, [focusKey]);
+  const scrollContentTo = (y: number) => contentScrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+  const focusItem = (tab: SupervisorTab, key: string, layoutWillChange: boolean) => {
+    setFocusKey(key);
+    const y = itemYRef.current[key];
+    if (activeTab === tab && !layoutWillChange && y != null) {
+      pendingScrollKeyRef.current = null;
+      scrollContentTo(y);
+    } else {
+      pendingScrollKeyRef.current = key;
+    }
+    setActiveTab(tab);
+  };
+  const onItemLayout = (key: string) => (e: LayoutChangeEvent) => {
+    const y = e.nativeEvent.layout.y;
+    itemYRef.current[key] = y;
+    if (pendingScrollKeyRef.current === key) {
+      pendingScrollKeyRef.current = null;
+      setTimeout(() => scrollContentTo(y), 0);
+    }
+  };
+  const focusRing = (key: string) => (focusKey === key ? { borderWidth: 2, borderColor: ap.primary } : null);
 
   const activeFields = activeGradingFields(gradeMilestone);
   const totalScore = Math.round(
@@ -1090,15 +1134,37 @@ export default function SupervisorHome() {
         pendingGrades={pendingGrades}
         milestoneLabel={(m) => milestoneDisplayName(m, lang, MILESTONE_LABEL)}
         onOpenGrade={(m) => {
-          setActiveTab('grading');
           setExpandedCards((prev) => ({ ...prev, [m.id]: true }));
+          focusItem('grading', `grade-${m.id}`, false);
         }}
-        onOpenProject={() => {
+        onOpenProject={(p) => {
+          const cm = p.currentMilestone;
+          // A CS thesis exam in its exam_* steps is worked on in the thesis
+          // exam screen — nothing to do for it in the project card.
+          if (cm?.id && isThesisExamStep(cm)) {
+            router.push(`/thesis-exam?milestoneId=${encodeURIComponent(cm.id)}` as any);
+            return;
+          }
+          // Already submitted and waiting on this supervisor — graded on the
+          // Grading tab, not in the project card.
+          const pending = cm?.id ? pendingGrades.find((g) => g.id === cm.id) : undefined;
+          if (pending) {
+            setExpandedCards((prev) => ({ ...prev, [pending.id]: true }));
+            focusItem('grading', `grade-${pending.id}`, false);
+            return;
+          }
+          const filterChanges = projectFilter !== 'all';
           setProjectFilter('all');
-          setActiveTab('projects');
+          if (cm) setOpenMilestoneRequest({ projectId: p.id, milestoneId: cm.id ?? null, milestoneType: cm.type, nonce: nextNonce() });
+          focusItem('projects', `proj-${p.id}`, filterChanges);
         }}
-        onOpenApplications={() => setActiveTab('applications')}
-        onOpenCommittees={() => router.push('/committees' as any)}
+        onOpenApplication={(a) => {
+          const filterChanges = applicationFilter !== 'all';
+          setApplicationFilter('all');
+          setExpandedCards((prev) => ({ ...prev, [a.id]: true }));
+          focusItem('applications', `app-${a.id}`, filterChanges);
+        }}
+        onOpenCommitteeReview={(milestoneId) => router.push(`/committees?milestoneId=${encodeURIComponent(milestoneId)}` as any)}
       />
 
       {/* Tabs */}
@@ -1159,7 +1225,7 @@ export default function SupervisorHome() {
         </TourTarget>
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={contentScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ════ PROJECTS TAB ════ */}
         {activeTab === 'projects' && (
@@ -1199,7 +1265,11 @@ export default function SupervisorHome() {
                 const fc = getFacultyColor(p.facultyId);
                 const urgencyColor = p.currentMilestone?.urgency ? URGENCY_COLOR[p.currentMilestone.urgency] : 'transparent';
                 return (
-                  <View key={p.id} style={{ borderWidth: 3, borderColor: urgencyColor, borderRadius: 22, padding: 3, marginBottom: 14 }}>
+                  <View
+                    key={p.id}
+                    onLayout={onItemLayout(`proj-${p.id}`)}
+                    style={{ borderWidth: 3, borderColor: focusKey === `proj-${p.id}` ? ap.primary : urgencyColor, borderRadius: 22, padding: 3, marginBottom: 14 }}
+                  >
                   <View style={[styles.projectCard, { marginBottom: 0 }, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}>
                     <View style={[styles.row, isRtl && styles.rowReverse, { marginBottom: 8 }]}>
                       <FacultyBadge facultyId={p.facultyId} lang={lang} />
@@ -1272,7 +1342,12 @@ export default function SupervisorHome() {
                       </Pressable>
                     </View>
 
-                    <ProjectWorkflowSection lang={lang} projectId={p.id} project={p} />
+                    <ProjectWorkflowSection
+                      lang={lang}
+                      projectId={p.id}
+                      project={p}
+                      openRequest={openMilestoneRequest?.projectId === p.id ? openMilestoneRequest : null}
+                    />
                   </View>
                   </View>
                 );
@@ -1367,7 +1442,8 @@ export default function SupervisorHome() {
                 return (
                   <Pressable
                     key={app.id}
-                    style={styles.appCard}
+                    onLayout={onItemLayout(`app-${app.id}`)}
+                    style={[styles.appCard, focusRing(`app-${app.id}`)]}
                     onPress={() => toggleCardExpansion(app.id)}
                     accessibilityRole="button"
                   >
@@ -1620,7 +1696,8 @@ export default function SupervisorHome() {
                 return (
                   <Pressable
                     key={m.id}
-                    style={[styles.gradeCard, isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}
+                    onLayout={onItemLayout(`grade-${m.id}`)}
+                    style={[styles.gradeCard, focusRing(`grade-${m.id}`), isRtl ? { borderRightColor: fc.primary, borderRightWidth: 4 } : { borderLeftColor: fc.primary, borderLeftWidth: 4 }]}
                     onPress={() => toggleCardExpansion(m.id)}
                     accessibilityRole="button"
                   >

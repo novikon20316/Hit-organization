@@ -10,7 +10,7 @@
 // the forms. Each card shows only the actions open to the viewer; the server
 // enforces every one of them.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -48,6 +48,22 @@ export default function ThesisExamPage() {
   }, [isAllowed, fetchAll]);
   useLiveRefresh(fetchAll);
 
+  // ?milestoneId=… (Quick Tasks on the supervisor dashboard) scrolls to and
+  // rings that exam's card once the list has loaded. Read from
+  // window.location rather than useSearchParams so this static page needs
+  // no Suspense boundary just for a one-shot deep link.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (loadingData || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    const id = new URLSearchParams(window.location.search).get('milestoneId');
+    if (!id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
+    setFocusId(id);
+    requestAnimationFrame(() => document.getElementById(`thesis-exam-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [loadingData]);
+
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
     load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
     submit: (body) => apiClient.submitThesisExamForm(formFor.id, body),
@@ -70,7 +86,7 @@ export default function ThesisExamPage() {
         <p className="text-sm text-muted">{he ? 'אין בחינות תזה שבהן את/ה משתתף/ת כרגע.' : "You're not part of any thesis exam right now."}</p>
       ) : (
         <div className="grid gap-4">
-          {exams.map((exam) => <ExamCard key={exam.milestoneId} exam={exam} lang={lang} onChanged={fetchAll} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />)}
+          {exams.map((exam) => <ExamCard key={exam.milestoneId} exam={exam} lang={lang} highlighted={exam.milestoneId === focusId} onChanged={fetchAll} onOpenForm={(as) => setFormFor({ id: exam.milestoneId, as })} />)}
         </div>
       )}
 
@@ -103,11 +119,11 @@ function Steps({ status, lang }: { status: ThesisExamCard['status']; lang: 'he' 
   );
 }
 
-function ExamCard({ exam, lang, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: 'he' | 'en'; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
+function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { exam: ThesisExamCard; lang: 'he' | 'en'; highlighted?: boolean; onChanged: () => Promise<void>; onOpenForm: (as?: 'supervisor') => void }) {
   const he = lang === 'he';
   const has = (a: ThesisExamCard['actions'][number]) => exam.actions.includes(a);
   return (
-    <section className="rounded-xl border border-line bg-surface p-4">
+    <section id={`thesis-exam-${exam.milestoneId}`} className={`scroll-mt-4 rounded-xl border bg-surface p-4 ${highlighted ? 'border-primary ring-2 ring-primary' : 'border-line'}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="truncate text-base font-bold text-ink">{he ? exam.projectTitleHe : exam.projectTitleEn}</h2>

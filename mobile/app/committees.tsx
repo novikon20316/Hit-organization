@@ -8,12 +8,12 @@
 // TARGET_SCREEN_ROUTE). Committee setup/editing (system_admin) stays
 // web-only.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, Modal, TextInput, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   apiClient,
   type CommitteeRecord, type CommitteePendingReview, type ChairDecisionPendingReview,
@@ -80,6 +80,19 @@ export default function CommitteesScreen() {
 
   useEffect(() => { load(); }, [load]);
   useLiveRefresh(load);
+
+  // ?milestoneId=… (the supervisor dashboard's Quick Tasks committee row)
+  // opens that review directly, once, after the list has loaded.
+  const { milestoneId: deepLinkMilestoneId } = useLocalSearchParams<{ milestoneId?: string }>();
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (loading || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    if (typeof deepLinkMilestoneId === 'string' && pendingReviews.some((r) => r.milestoneId === deepLinkMilestoneId && !r.alreadyVoted)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
+      setReviewingId(deepLinkMilestoneId);
+    }
+  }, [loading, pendingReviews, deepLinkMilestoneId]);
 
   // Votes already cast stay visible (separately) until the chair decides —
   // otherwise a member's item just vanishes after voting.

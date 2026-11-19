@@ -1111,9 +1111,30 @@ export interface AppNotification {
 
 
 export interface MyProjectMilestoneInfo {
+  /** Absent from responses served before the server started sending these. */
+  id?: string;
   nameHe: string; nameEn: string; type: string;
   dueDate: string | null; daysLeft: number | null;
   urgency: 'green' | 'orange' | 'red' | null;
+  status?: string;
+  /** CS thesis exam milestone — in its exam_* steps the work happens on the
+   *  thesis-exam screen, not in the project card. */
+  thesisExamFlow?: boolean;
+}
+
+/** CS thesis exam milestones in their exam_* steps are worked on at
+ *  /thesis-exam, not in the supervisor's project card. Mirrors web's
+ *  app/supervisor/dashboard/types.ts. */
+export function isThesisExamStep(m: { thesisExamFlow?: boolean; status?: string } | null | undefined): boolean {
+  return !!m?.thesisExamFlow && !!m.status?.startsWith('exam_');
+}
+
+/** A Quick Tasks click asking a project card's workflow section to open the
+ *  form for one of its milestones. `nonce` changes on every click. */
+export interface OpenMilestoneRequest {
+  milestoneId: string | null;
+  milestoneType: string;
+  nonce: number;
 }
 
 export interface MyProjectEnrolledStudent {

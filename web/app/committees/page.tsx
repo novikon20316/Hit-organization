@@ -7,7 +7,7 @@
 // on why chairman isn't derived from the program_head role), so this can't
 // live under one specific role's dashboard tree.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -65,6 +65,24 @@ export default function CommitteesPage() {
 
   // New notification → reload in place (see hooks/useLiveRefresh.ts).
   useLiveRefresh(() => { if (isAllowed) fetchAll(); });
+
+  // ?milestoneId=… (the supervisor dashboard's Quick Tasks committee row)
+  // opens that review's form directly, once, after the list has loaded.
+  // Read from window.location rather than useSearchParams so this static
+  // page needs no Suspense boundary just for a one-shot deep link.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (loadingData || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    const id = new URLSearchParams(window.location.search).get('milestoneId');
+    if (!id) return;
+    if (pendingReviews.some((r) => r.milestoneId === id && !r.alreadyVoted)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
+      setReviewingMilestoneId(id);
+    } else {
+      document.getElementById(`committee-review-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [loadingData, pendingReviews]);
 
   if (guardLoading) {
     return (
@@ -211,7 +229,7 @@ export default function CommitteesPage() {
               <p className="mb-2 text-sm font-semibold text-ink">{lang === 'he' ? 'הצבעת — ממתין להחלטת היו"ר' : 'You voted — awaiting the chair'}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {votedAwaitingChair.map((r) => (
-                  <div key={r.milestoneId} className="rounded-lg border border-line bg-paper p-3">
+                  <div key={r.milestoneId} id={`committee-review-${r.milestoneId}`} className="rounded-lg border border-line bg-paper p-3">
                     <p className="truncate text-sm font-medium text-ink">{lang === 'he' ? r.projectTitleHe : r.projectTitleEn}</p>
                     <p className="mt-1 text-xs text-muted">
                       {r.myVote === 'reject'

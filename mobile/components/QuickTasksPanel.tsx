@@ -4,9 +4,11 @@
 // dashboard already loaded (no new API calls), in the same order as web:
 // committee reviews (substitute members only), submissions awaiting grading
 // (oldest first), projects with a red/orange deadline (soonest first), then
-// the oldest pending applications — capped at 3 items. Each row only
-// navigates (switches tab / expands the card); every action it leads to is
-// the dashboard's existing one with its existing checks.
+// the oldest pending applications — capped at 3 items. Each row lands on
+// the specific item (the dashboard switches tab, clears filters, expands,
+// scrolls to and highlights it — a bare tab switch did nothing visible when
+// that tab was already open); every action it leads to is the dashboard's
+// existing one with its existing checks.
 // One exception to "no new API calls": committee reviews, fetched only for a
 // supervisor with no higher role who's been substituted onto a committee
 // (same gate as web — see firebase/roles.ts's isSupervisorWithoutHigherRole).
@@ -61,11 +63,11 @@ interface Props<T extends PendingGradeLike> {
   milestoneLabel: (m: T) => string;
   onOpenGrade: (m: T) => void;
   onOpenProject: (p: MyProject) => void;
-  onOpenApplications: () => void;
-  onOpenCommittees: () => void;
+  onOpenApplication: (a: Application) => void;
+  onOpenCommitteeReview: (milestoneId: string) => void;
 }
 
-export function QuickTasksPanel<T extends PendingGradeLike>({ lang, myProjects, applications, pendingGrades, milestoneLabel, onOpenGrade, onOpenProject, onOpenApplications, onOpenCommittees }: Props<T>) {
+export function QuickTasksPanel<T extends PendingGradeLike>({ lang, myProjects, applications, pendingGrades, milestoneLabel, onOpenGrade, onOpenProject, onOpenApplication, onOpenCommitteeReview }: Props<T>) {
   const he = lang === 'he';
   const { roles } = useActiveRole();
   const { isCommitteeSubstitute } = useNotifications();
@@ -97,7 +99,7 @@ export function QuickTasksPanel<T extends PendingGradeLike>({ lang, myProjects, 
       label: he ? 'בדיקת ועדה ממתינה' : 'Committee review pending',
       title: he ? r.projectTitleHe : r.projectTitleEn,
       sub: he ? `${r.voteCount}/${r.memberCount} הצביעו` : `${r.voteCount}/${r.memberCount} voted`,
-      onPress: onOpenCommittees,
+      onPress: () => onOpenCommitteeReview(r.milestoneId),
     })),
     ...gradesAwaitingReview.map((m) => ({
       key: `g-${m.id}`,
@@ -133,7 +135,7 @@ export function QuickTasksPanel<T extends PendingGradeLike>({ lang, myProjects, 
       label: he ? 'מועמדות ממתינה' : 'New Applicant',
       title: a.studentName || (he ? 'שם לא זמין' : 'Name unavailable'),
       sub: he ? a.projectTitleHe : a.projectTitleEn,
-      onPress: onOpenApplications,
+      onPress: () => onOpenApplication(a),
     })),
   ].slice(0, 3);
 
