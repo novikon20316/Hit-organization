@@ -197,6 +197,7 @@ function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he'
 const EXAM_STATUS_ORDER = [
   'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
   'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
+  'exam_failed',
 ] as const;
 
 function isThesisExamMilestone(m: MilestoneData): boolean {
@@ -225,8 +226,9 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang, { day: 'numeric', month: 'short', year: 'numeric' })} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_committee_review', he ? 'בדיקת הוועדה' : 'Committee review'),
+    step('exam_committee_review', he ? 'חוות דעת חברי הוועדה והחלטת היו״ר' : "Members' opinions + chairman's decision"),
   );
+  if (m.status === 'exam_failed') steps.push(step('exam_failed', he ? 'הבחינה לא עברה — ההמשך לפי הנחיות הפקולטה' : "Exam not passed — next step per the faculty's rules"));
   return steps;
 }
 

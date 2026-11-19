@@ -105,6 +105,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   exam_date_final_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
   exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🏛️', he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
+  exam_failed: { color: '#b54141', bg: '#fdecec', icon: '⚠️', he: 'הבחינה לא עברה', en: 'Exam Not Passed' },
   completed: { color: p.success, bg: p.successContainer, icon: '🏁', he: 'הושלם', en: 'Completed' },
 };
 
@@ -171,6 +172,7 @@ type ChainStep = { label: string; done: boolean; current?: boolean };
 const EXAM_STATUS_ORDER = [
   'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
   'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
+  'exam_failed',
 ] as const;
 
 function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
@@ -195,8 +197,9 @@ function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang)} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_committee_review', he ? 'בדיקת הוועדה' : 'Committee review'),
+    step('exam_committee_review', he ? 'חוות דעת חברי הוועדה והחלטת היו״ר' : "Members' opinions + chairman's decision"),
   );
+  if (m.status === 'exam_failed') steps.push(step('exam_failed', he ? 'הבחינה לא עברה — ההמשך לפי הנחיות הפקולטה' : "Exam not passed — next step per the faculty's rules"));
   return steps;
 }
 

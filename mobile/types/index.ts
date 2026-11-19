@@ -66,6 +66,7 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
+  | 'exam_failed'
   | 'completed';
 
 // A defense milestone's `dueDate` is dual-purpose: it's set at creation to a

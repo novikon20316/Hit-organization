@@ -6,16 +6,17 @@
 // approves the nomination, every participant picks 5 dates with free hours,
 // the program head then the grad school head approve the matched time, the
 // examiners fill the exam form after the exam, and the committee reads the
-// forms. Each card shows only the viewer's actions; the server enforces them.
+// forms: every member gives an opinion, then the chairman decides (approve /
+// fix / fail — CommitteePanel). Each card shows only the viewer's actions; the server enforces them.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { apiClient, type ThesisExamCard, type ThesisExamNomineeInput } from '@/src/api/apiClient';
+import { apiClient, type ThesisExamCard, type ThesisExamDecisionResult, type ThesisExamNomineeInput } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
+import { C, EXAM_DECISION_LABEL, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
 import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, EXAM_MIN_MINUTES, fridayLatestEnd, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
@@ -255,13 +256,201 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
         </View>
       )}
       {has('view_forms') && (
-        <View style={{ marginTop: 8 }}>
-          <View style={{ flexDirection: 'row' }}><PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} /></View>
-          {exam.myRoles.committee && (
-            <Text style={{ marginTop: 4, fontSize: 11, color: C.muted, ...align }}>{he ? 'הפעולות של הוועדה בהתאם לטפסים יוגדרו בהמשך.' : "The committee's actions on the forms will be defined later."}</Text>
-          )}
+        <View style={{ marginTop: 8, flexDirection: 'row' }}>
+          <PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} />
         </View>
       )}
+      {exam.committee && exam.status === 'exam_committee_review' && <CommitteePanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.decision && <DecisionBanner decision={exam.decision} lang={lang} />}
+    </View>
+  );
+}
+
+const RESULT_TONE: Record<ThesisExamDecisionResult, { fg: string; bg: string }> = {
+  approve: { fg: C.success, bg: C.successBg },
+  fix: { fg: C.ink, bg: C.accentBg },
+  fail: { fg: C.danger, bg: C.dangerBg },
+};
+
+/** The chairman's decision, for everyone on the exam (students included). */
+function DecisionBanner({ decision, lang }: { decision: NonNullable<ThesisExamCard['decision']>; lang: Lang }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const label = EXAM_DECISION_LABEL[decision.result];
+  const tone = RESULT_TONE[decision.result];
+  return (
+    <View style={{ marginTop: 10, borderRadius: 10, padding: 10, backgroundColor: tone.bg }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: tone.fg, ...align }}>
+        {he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}: {he ? label.he : label.en}
+        {decision.result === 'approve' && decision.finalGrade != null ? ` · ${he ? 'ציון סופי' : 'Final grade'} ${decision.finalGrade}` : ''}
+      </Text>
+      <Text style={{ fontSize: 12, color: tone.fg, marginTop: 2, ...align }}>{he ? label.hintHe : label.hintEn}</Text>
+      {!!decision.note && <Text style={{ fontSize: 12, color: tone.fg, marginTop: 4, ...align }}>{decision.note}</Text>}
+      <Text style={{ fontSize: 11, color: C.muted, marginTop: 4, ...align }}>{decision.byName} · {formatExamDeadline(decision.at, lang)}</Text>
+    </View>
+  );
+}
+
+/** The committee's deliberation — mirrors web's CommitteePanel
+ *  (app/thesis-exam/page.tsx). */
+function CommitteePanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const c = exam.committee!;
+  const mine = c.members.find((m) => m.isMe)?.opinion ?? null;
+  const canOpine = exam.actions.includes('committee_opinion');
+  const canDecide = exam.actions.includes('committee_decide');
+  const g = c.gradeSummary;
+  const cell = (v: number | null) => (v == null ? '—' : String(v));
+  const rows: [string, string][] = [
+    [he ? 'מחקר (מנחה) 40%' : 'Research (supervisor) 40%', cell(g.research)],
+    [he ? 'כתיבה 40%' : 'Writing 40%', cell(g.writing)],
+    [he ? 'הגנה 20%' : 'Defense 20%', cell(g.defense)],
+    [he ? 'ציון משוקלל' : 'Weighted grade', g.finalGrade == null ? '—' : `${g.finalGrade} → ${Math.round(g.finalGrade)}`],
+  ];
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>🏛️ {he ? 'החלטת הוועדה' : "The committee's decision"}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
+        {he
+          ? `כל חבר/ת ועדה נותן/ת חוות דעת; יו"ר הוועדה${c.chairmanName ? ` (${c.chairmanName})` : ''} מחליט/ה לאחר שכולם נתנו.`
+          : `Every committee member gives an opinion; the chairman${c.chairmanName ? ` (${c.chairmanName})` : ''} decides once all have.`}
+      </Text>
+      {!c.chairmanName && (
+        <Text style={{ marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: C.dangerBg, color: C.danger, fontSize: 12, ...align }} accessibilityRole="alert">
+          {he ? 'לוועדה אין יו"ר שיכול להחליט (היו"ר הוא מנחה הפרויקט ולא נבחר מחליף) — יש לפנות לרכזת האדמיניסטרטיבית.' : "The committee has no chairman who can decide (the chairman is the project's supervisor and no stand-in was chosen) — contact the administrative coordinator."}
+        </Text>
+      )}
+      <View style={{ marginTop: 8, flexDirection: he ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8 }}>
+        {rows.map(([k, v]) => (
+          <View key={k} style={{ minWidth: '45%' }}>
+            <Text style={{ fontSize: 11, color: C.muted, ...align }}>{k}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{v}</Text>
+          </View>
+        ))}
+      </View>
+      {g.research == null && (
+        <Text style={{ marginTop: 4, fontSize: 12, color: C.danger, ...align }}>{he ? 'המנחה עדיין לא נתן/ה ציון מחקר — לא ניתן לאשר עד אז.' : "The supervisor hasn't given the research grade yet — approval waits for it."}</Text>
+      )}
+      {c.members.map((m, i) => (
+        <View key={i} style={{ marginTop: 6, backgroundColor: '#fff', borderRadius: 8, padding: 8 }}>
+          <Text style={{ fontSize: 12, color: C.ink, ...align }}>
+            <Text style={{ fontWeight: '700' }}>{m.name}{m.isMe ? (he ? ' (את/ה)' : ' (you)') : ''}</Text>
+            {m.opinion
+              ? <Text style={{ color: RESULT_TONE[m.opinion.result].fg, fontWeight: '700' }}> · {EXAM_DECISION_LABEL[m.opinion.result][lang]}</Text>
+              : <Text style={{ color: C.muted }}> · {he ? 'טרם נתן/ה חוות דעת' : 'No opinion yet'}</Text>}
+          </Text>
+          {!!m.opinion?.note && <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{m.opinion.note}</Text>}
+        </View>
+      ))}
+      {canOpine && (
+        <OutcomeForm
+          key={mine ? `${mine.result}-${mine.at}` : 'new'}
+          lang={lang}
+          title={mine ? (he ? 'עדכון חוות הדעת שלי' : 'Update my opinion') : (he ? 'חוות הדעת שלי' : 'My opinion')}
+          hint={he ? 'ניתן לשנות עד שהיו"ר מחליט/ה.' : 'You can change it until the chairman decides.'}
+          initial={mine}
+          submitLabel={he ? 'שמירת חוות הדעת' : 'Save my opinion'}
+          onSubmit={async (result, note) => { await apiClient.giveThesisExamOpinion(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+      {c.isChairman && !canDecide && c.missingNames.length > 0 && (
+        <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '600', color: C.accent, ...align }}>
+          {he ? `ניתן יהיה להחליט לאחר שכל חברי הוועדה יתנו חוות דעת. חסרים: ${c.missingNames.join(', ')}.` : `You can decide once every member gave an opinion. Missing: ${c.missingNames.join(', ')}.`}
+        </Text>
+      )}
+      {!c.isChairman && !canOpine && c.missingNames.length === 0 && !!c.chairmanName && (
+        <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>{he ? `כל חוות הדעת התקבלו — ממתין להחלטת היו"ר (${c.chairmanName}).` : `Every opinion is in — waiting for the chairman (${c.chairmanName}).`}</Text>
+      )}
+      {canDecide && (
+        <OutcomeForm
+          lang={lang}
+          title={he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}
+          hint={he ? 'ההחלטה סופית ונשלחת לסטודנט/ית, למנחה ולוועדה.' : 'The decision is final and goes to the student, the supervisor and the committee.'}
+          initial={null}
+          confirm
+          submitLabel={he ? 'אישור ההחלטה' : 'Confirm the decision'}
+          onSubmit={async (result, note) => { await apiClient.decideThesisExam(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+    </View>
+  );
+}
+
+function OutcomeForm({ lang, title, hint, initial, submitLabel, confirm = false, onSubmit }: {
+  lang: Lang;
+  title: string;
+  hint: string;
+  initial: { result: ThesisExamDecisionResult; note: string } | null;
+  submitLabel: string;
+  confirm?: boolean;
+  onSubmit: (result: ThesisExamDecisionResult, note: string) => Promise<void>;
+}) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const [result, setResult] = useState<ThesisExamDecisionResult | null>(initial?.result ?? null);
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const send = async (r: ThesisExamDecisionResult) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onSubmit(r, note.trim());
+    } catch (err) {
+      setError(errText(err, he ? 'הפעולה נכשלה' : 'Action failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = () => {
+    if (!result) { setError(he ? 'יש לבחור אישור, תיקון או כישלון.' : 'Choose approve, fix or fail.'); return; }
+    if (result !== 'approve' && !note.trim()) { setError(he ? 'יש לנמק — מה צריך לתקן, או למה הבחינה לא עברה.' : 'Write the reason — what must be fixed, or why the exam failed.'); return; }
+    if (!confirm) { void send(result); return; }
+    Alert.alert(
+      he ? 'אישור ההחלטה' : 'Confirm the decision',
+      he ? `לאשר את ההחלטה "${EXAM_DECISION_LABEL[result].he}"? לא ניתן לבטל.` : `Confirm the decision "${EXAM_DECISION_LABEL[result].en}"? This can't be undone.`,
+      [
+        { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
+        { text: he ? 'אישור' : 'Confirm', style: result === 'approve' ? 'default' : 'destructive', onPress: () => { void send(result); } },
+      ],
+    );
+  };
+
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: '#fff' }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{title}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{hint}</Text>
+      <View accessibilityRole="radiogroup" style={{ marginTop: 6, gap: 6 }}>
+        {(['approve', 'fix', 'fail'] as const).map((r) => {
+          const on = result === r;
+          return (
+            <Pressable
+              key={r}
+              onPress={() => setResult(r)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              style={{ borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, borderRadius: 8, padding: 8 }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{on ? '◉ ' : '○ '}{EXAM_DECISION_LABEL[r][lang]}</Text>
+              <Text style={{ fontSize: 11, color: C.muted, marginTop: 2, ...align }}>{he ? EXAM_DECISION_LABEL[r].hintHe : EXAM_DECISION_LABEL[r].hintEn}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <TextInput
+        accessibilityLabel={result === 'approve' ? (he ? 'הערה (לא חובה)' : 'Note (optional)') : (he ? 'נימוק (חובה בתיקון או כישלון)' : 'Reason (required for fix or fail)')}
+        placeholder={result === 'approve' ? (he ? 'הערה (לא חובה)' : 'Note (optional)') : (he ? 'נימוק (חובה בתיקון או כישלון)' : 'Reason (required for fix or fail)')}
+        value={note}
+        onChangeText={setNote}
+        multiline
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 64, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
+      />
+      {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
+      <View style={{ flexDirection: 'row', marginTop: 8 }}>
+        <PrimaryButton busy={busy} onPress={submit} label={submitLabel} />
+      </View>
     </View>
   );
 }

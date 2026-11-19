@@ -25,9 +25,12 @@ export async function recordProjectCompletion(params: {
   milestone: FirebaseFirestore.DocumentData;
   actorId: string;
   actorRole: string;
+  /** The milestone ends the project even though it isn't a 'defense' one
+   *  (the CS thesis exam — services/thesisExam.ts). */
+  final?: boolean;
 }): Promise<Record<string, number>> {
   const { milestoneId, milestone, actorId, actorRole } = params;
-  if (milestone.type !== 'defense' || !milestone.projectId) return {};
+  if ((milestone.type !== 'defense' && !params.final) || !milestone.projectId) return {};
   try {
     const projectRef = db.collection('projects').doc(milestone.projectId);
     const [projectSnap, siblingsSnap, actorSnap] = await Promise.all([

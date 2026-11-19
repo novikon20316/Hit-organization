@@ -32,6 +32,7 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
+  | 'exam_failed'
   | 'completed';
 
 export interface ProjectProposal {
@@ -361,6 +362,7 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   exam_date_final_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
   exam_committee_review: { color: '#736B8C', bg: '#EDEBF2', icon: '🏛️' },
+  exam_failed: { color: '#B54141', bg: 'var(--danger-bg)', icon: '⚠️' },
   completed: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🏁' },
 };
 
@@ -387,6 +389,7 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   exam_date_final_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
   exam_committee_review: { he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
+  exam_failed: { he: 'הבחינה לא עברה', en: 'Exam Not Passed' },
   coordinator_approved: { he: 'אושר ע"י רכז', en: 'Coordinator Approved' },
   completed: { he: 'הושלם', en: 'Completed' },
 };

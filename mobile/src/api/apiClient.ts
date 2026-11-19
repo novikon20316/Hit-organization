@@ -622,6 +622,16 @@ class ApiClient {
     const response = await this.api.get(`/api/thesis-exam/${milestoneId}/form${as ? `?as=${as}` : ''}`);
     return response.data as ThesisExamFormView;
   }
+  /** A committee member's opinion (not the chairman's) — changeable until the decision. */
+  async giveThesisExamOpinion(milestoneId: string, result: ThesisExamDecisionResult, note: string) {
+    const { data } = await this.api.post(`/api/thesis-exam/${milestoneId}/committee-opinion`, { result, note });
+    return data as { success: boolean; allIn: boolean };
+  }
+  /** The committee chairman's decision, once every member gave an opinion. */
+  async decideThesisExam(milestoneId: string, result: ThesisExamDecisionResult, note: string) {
+    const { data } = await this.api.post(`/api/thesis-exam/${milestoneId}/committee-decision`, { result, note });
+    return data as { success: boolean; result: ThesisExamDecisionResult; finalGrade?: number };
+  }
   async submitThesisExamSupervisorGrade(milestoneId: string, research: number) {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/supervisor-grade`, { research });
     return response.data as { success: boolean };
@@ -731,8 +741,12 @@ export interface DecisionRecipientCandidate {
 // ── CS M.Sc. thesis exam — see server's services/thesisExam.ts ─────────────
 export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
-  | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade';
+  | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review'
+  | 'exam_approved' | 'exam_failed';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'committee_opinion' | 'committee_decide';
+/** approve = the thesis is done; fix = back to אישור תיזה, the whole exam
+ *  restarts after it; fail = recorded, the faculty's rule is still open. */
+export type ThesisExamDecisionResult = 'approve' | 'fix' | 'fail';
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -786,6 +800,16 @@ export interface ThesisExamCard {
   myFormSubmitted: boolean;
   supervisorGradeGiven?: boolean;
   formOpen: boolean;
+  /** Committee members and the two heads only, once every form is in. */
+  committee: {
+    chairmanName: string | null;
+    isChairman: boolean;
+    members: { name: string; isMe: boolean; opinion: { result: ThesisExamDecisionResult; note: string; at: string } | null }[];
+    missingNames: string[];
+    gradeSummary: { research: number | null; writing: number | null; defense: number | null; finalGrade: number | null };
+  } | null;
+  /** The chairman's decision, once made. */
+  decision: { result: ThesisExamDecisionResult; note: string; byName: string; at: string; finalGrade: number | null } | null;
   rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number };
 }
 export interface ThesisExamFormInput {

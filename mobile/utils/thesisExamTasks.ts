@@ -4,13 +4,13 @@
 // (components/ThesisExamAlert.tsx under the TopBar) and the coordinator's Urgent
 // Actions show. A card's `actions` alone over-reports: 'availability' stays
 // listed after the person already picked, and 'form' before the exam starts.
-// 'view_forms' is left out on purpose — the committee step has no defined
-// outcome yet (server's services/thesisExam.ts header), so it would nag
-// forever with nothing to finish.
+// 'view_forms' is left out on purpose — reading is not a task; the
+// committee's real tasks are 'committee_opinion' (until given) and
+// 'committee_decide' (the chairman, once every opinion is in).
 
 import type { ThesisExamCard } from '@/src/api/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade' | 'committee_opinion' | 'committee_decide';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -34,6 +34,7 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
       if (a === 'availability' && e.myAvailability) continue;
       if (a === 'form' && (e.myFormSubmitted || !e.formOpen)) continue;
       if (a === 'supervisor_grade' && e.supervisorGradeGiven) continue;
+      if (a === 'committee_opinion' && e.committee?.members.some((m) => m.isMe && m.opinion)) continue;
       const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
         : a === 'late_entry' ? e.lateEntryDeadline
         : null;
@@ -54,6 +55,8 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   review_date: { he: 'יש לאשר את מועד הבחינה', en: 'Approve the exam date' },
   form: { he: 'יש למלא את טופס מבחן התזה', en: 'Fill in the thesis exam form' },
   supervisor_grade: { he: 'יש לתת ציון מחקר (מנחה) לבחינת התזה', en: 'Give the research grade for the thesis exam' },
+  committee_opinion: { he: 'יש לתת חוות דעת על בחינת התזה', en: 'Give your opinion on the thesis exam' },
+  committee_decide: { he: 'יש להחליט על בחינת התזה (יו"ר הוועדה)', en: 'Decide the thesis exam (committee chairman)' },
 };
 
 export function thesisExamTaskLabel(kind: ThesisExamTaskKind, lang: 'he' | 'en'): string {

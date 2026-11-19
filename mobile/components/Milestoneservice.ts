@@ -66,6 +66,7 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
+  | 'exam_failed'
   | 'examiner_graded'       // at least one examiner graded
   | 'both_examiners_graded' // both examiners submitted grades
   | 'completed';
