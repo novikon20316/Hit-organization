@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ThesisExamFormInput, ThesisExamFormView, ThesisExamSubmittedForm } from '@/lib/apiClient';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export interface ThesisExamFormSource {
   load: () => Promise<ThesisExamFormView>;
@@ -45,6 +46,8 @@ export function ThesisExamFormPanel({ source, lang, onSubmitted }: { source: The
   const [research, setResearch] = useState<number | ''>('');
   const [comments, setComments] = useState('');
   const [busy, setBusy] = useState(false);
+  /** Which send is waiting on the in-app confirm dialog. */
+  const [confirming, setConfirming] = useState<null | 'form' | 'research'>(null);
 
   const load = useCallback(async () => {
     try {
@@ -84,7 +87,11 @@ export function ThesisExamFormPanel({ source, lang, onSubmitted }: { source: The
     if (form.questions.some((q) => ratings[q.key] === '' || ratings[q.key] == null)) { setError(he ? 'יש לדרג את כל השאלות.' : 'Rate every question.'); return; }
     if (examinerComponents.some((c) => components[c.key] === '' || components[c.key] == null)) { setError(he ? 'יש למלא ציון לכל מרכיב.' : 'Fill in a score for every component.'); return; }
     if (examinerComponents.some((c) => Number(components[c.key]) < 1 || Number(components[c.key]) > 100)) { setError(he ? 'ציון כל מרכיב בין 1 ל-100.' : 'Each component score is 1–100.'); return; }
-    if (!window.confirm(he ? 'לאחר השליחה הטופס ייחתם דיגיטלית ולא ניתן יהיה לשנותו. לשלוח?' : 'Once sent, the form is digitally signed and cannot be changed. Send?')) return;
+    setError('');
+    setConfirming('form');
+  };
+
+  const sendForm = async () => {
     await run(() => source.submit({
       ratings: Object.fromEntries(form.questions.map((q) => [q.key, Number(ratings[q.key])])),
       components: Object.fromEntries(examinerComponents.map((c) => [c.key, Number(components[c.key])])),
@@ -95,8 +102,15 @@ export function ThesisExamFormPanel({ source, lang, onSubmitted }: { source: The
   const submitResearch = async () => {
     if (!source.submitSupervisor) return;
     if (research === '' || research < 1 || research > 100) { setError(he ? 'ציון המחקר בין 1 ל-100.' : 'The research score is 1–100.'); return; }
-    if (!window.confirm(he ? 'לאחר השליחה הציון ייחתם דיגיטלית ולא ניתן יהיה לשנותו. לשלוח?' : 'Once sent, the grade is digitally signed and cannot be changed. Send?')) return;
-    await run(() => source.submitSupervisor!(Number(research)));
+    setError('');
+    setConfirming('research');
+  };
+
+  const confirmSend = async () => {
+    const which = confirming;
+    if (which === 'form') await sendForm();
+    else if (which === 'research' && source.submitSupervisor) await run(() => source.submitSupervisor!(Number(research)));
+    setConfirming(null);
   };
 
   return (
@@ -179,6 +193,19 @@ export function ThesisExamFormPanel({ source, lang, onSubmitted }: { source: The
       ) : (
         <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm text-muted" role="status">{he ? view.lockedReasonHe : view.lockedReasonEn}</p>
       )}
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={he ? 'חתימה ושליחה' : 'Sign and send'}
+        message={confirming === 'research'
+          ? (he ? 'לאחר השליחה הציון ייחתם דיגיטלית ולא ניתן יהיה לשנותו. לשלוח?' : 'Once sent, the grade is digitally signed and cannot be changed. Send?')
+          : (he ? 'לאחר השליחה הטופס ייחתם דיגיטלית ולא ניתן יהיה לשנותו. לשלוח?' : 'Once sent, the form is digitally signed and cannot be changed. Send?')}
+        confirmLabel={he ? 'שליחה' : 'Send'}
+        cancelLabel={he ? 'ביטול' : 'Cancel'}
+        busy={busy}
+        onConfirm={() => { void confirmSend(); }}
+        onCancel={() => setConfirming(null)}
+      />
     </div>
   );
 }
