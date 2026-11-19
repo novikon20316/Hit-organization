@@ -104,8 +104,12 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   exam_date_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_date_final_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
-  exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🏛️', he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
-  exam_failed: { color: '#b54141', bg: '#fdecec', icon: '⚠️', he: 'הבחינה לא עברה', en: 'Exam Not Passed' },
+  exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
+  exam_grades_pending: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
+  exam_grade_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'הציון ממתין לאישור ראש בית הספר', en: 'Grade Awaiting the Grad School Head' },
+  exam_grade_denied: { color: '#b54141', bg: '#fdecec', icon: '⚠️', he: 'הציון נדחה ע"י ראש בית הספר', en: 'Grade Denied by the Grad School Head' },
+  exam_returned_to_supervisor: { color: '#b54141', bg: '#fdecec', icon: '↩️', he: 'הוחזר למנחה להמשך עבודה', en: 'Returned to the Supervisor' },
+  exam_coordinator_approval: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'ממתין לאישור סופי של הרכזת', en: "Awaiting the Coordinator's Final Approval" },
   completed: { color: p.success, bg: p.successContainer, icon: '🏁', he: 'הושלם', en: 'Completed' },
 };
 
@@ -171,17 +175,24 @@ type ChainStep = { label: string; done: boolean; current?: boolean };
 // machine, never its template routing.
 const EXAM_STATUS_ORDER = [
   'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
-  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
-  'exam_failed',
+  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_grades_pending',
+  'exam_grade_review', 'exam_coordinator_approval',
 ] as const;
+// Statuses drawn at another step's place (retired / parked ones).
+const EXAM_STATUS_AS: Record<string, (typeof EXAM_STATUS_ORDER)[number]> = {
+  exam_committee_review: 'exam_grades_pending',
+  exam_grade_denied: 'exam_grade_review',
+  exam_returned_to_supervisor: 'exam_grade_review',
+};
 
 function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
   const he = lang === 'he';
   const allDone = isCompletedStatus(m.status);
-  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(m.status);
-  const step = (status: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
-    const at = EXAM_STATUS_ORDER.indexOf(status);
-    return { label, done: allDone || (pos >= 0 && pos > at), current: m.status === status };
+  const status = EXAM_STATUS_AS[m.status] ?? m.status;
+  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(status);
+  const step = (s: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
+    const at = EXAM_STATUS_ORDER.indexOf(s);
+    return { label, done: allDone || (pos >= 0 && pos > at), current: status === s };
   };
   const sched = m.examSchedule;
   const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י הבוחנים' : 'Exam held + examiners fill the thesis exam form';
@@ -197,14 +208,19 @@ function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang)} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_committee_review', he ? 'חוות דעת חברי הוועדה והחלטת היו״ר' : "Members' opinions + chairman's decision"),
+    step('exam_grades_pending', he ? 'ציון המחקר של המנחה וחישוב הציון הסופי לפי משקלות אבני הדרך' : "Supervisor's research grade + final grade by the milestone weights"),
+    step('exam_grade_review', m.status === 'exam_grade_denied'
+      ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
+      : m.status === 'exam_returned_to_supervisor'
+        ? (he ? 'הוחזר למנחה להמשך עבודה' : 'Returned to the supervisor for more work')
+        : (he ? 'אישור הציון ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the grade')),
+    step('exam_coordinator_approval', he ? 'אישור סופי ע״י הרכזת האדמיניסטרטיבית והעברה למכלול' : 'Admin coordinator final approval + Michlol'),
   );
-  if (m.status === 'exam_failed') steps.push(step('exam_failed', he ? 'הבחינה לא עברה — ההמשך לפי הנחיות הפקולטה' : "Exam not passed — next step per the faculty's rules"));
   return steps;
 }
 
 function buildApprovalChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep[] {
-  if (m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status)) return buildThesisExamChain(m, lang);
+  if (m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status) || m.status in EXAM_STATUS_AS) return buildThesisExamChain(m, lang);
   const routing = (m.routing ?? []).filter((st) => st && typeof st.role === 'string');
   // A defense with no pre-check (e.g. Electrical M.Sc.) still has its
   // examiner steps — the admin coordinator starts it from the Defenses tab.

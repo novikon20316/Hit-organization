@@ -15,8 +15,8 @@ import {
   getExamForm,
   submitMyExamForm,
   submitMySupervisorExamGrade,
-  giveCommitteeOpinion,
-  decideCommitteeOutcome,
+  reviewFinalGrade,
+  giveFinalApproval,
 } from '../controllers/thesisExamController.js';
 
 const router = Router();
@@ -33,7 +33,7 @@ router.post('/:milestoneId/coordinator-date', verifyToken, setExamDateByCoordina
 router.get('/:milestoneId/form', verifyToken, getExamForm);
 router.post('/:milestoneId/form', verifyToken, submitMyExamForm);
 router.post('/:milestoneId/supervisor-grade', verifyToken, submitMySupervisorExamGrade);
-router.post('/:milestoneId/committee-opinion', verifyToken, giveCommitteeOpinion);
-router.post('/:milestoneId/committee-decision', verifyToken, decideCommitteeOutcome);
+router.post('/:milestoneId/final-grade-review', verifyToken, reviewFinalGrade);
+router.post('/:milestoneId/final-approval', verifyToken, giveFinalApproval);
 
 export default router;

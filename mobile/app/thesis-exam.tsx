@@ -5,18 +5,19 @@
 // notification — the supervisor nominates 2 examiners, the grad school head
 // approves the nomination, every participant picks 5 dates with free hours,
 // the program head then the grad school head approve the matched time, the
-// examiners fill the exam form after the exam, and the committee reads the
-// forms: every member gives an opinion, then the chairman decides (approve /
-// fix / fail — CommitteePanel). Each card shows only the viewer's actions; the server enforces them.
+// examiners fill the exam form after the exam and the supervisor gives the
+// research grade; the final grade (by the template's milestone weights, with
+// its breakdown) goes to the grad school head, then to the administrative
+// coordinator's final approval before Michlol. Each card shows only the viewer's actions; the server enforces them.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { apiClient, type ThesisExamCard, type ThesisExamDecisionResult, type ThesisExamNomineeInput } from '@/src/api/apiClient';
+import { apiClient, type ThesisExamCard, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { C, EXAM_DECISION_LABEL, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
+import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
 import { AvailabilityPicker, Stepper, daysBetween, todayIso, isShabbat, EXAM_DAY_START, EXAM_MIN_MINUTES, fridayLatestEnd, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamForm, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamForm';
 
@@ -229,7 +230,7 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
 
-      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review') && (
+      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review' || exam.status === 'exam_grades_pending') && (
         <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>
           {he ? `${exam.formsSubmittedCount} מתוך ${exam.examinerCount} בוחנים מילאו את טופס הבחינה` : `${exam.formsSubmittedCount} of ${exam.examinerCount} examiners filled in the exam form`}
         </Text>
@@ -260,196 +261,148 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
           <PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} />
         </View>
       )}
-      {exam.committee && exam.status === 'exam_committee_review' && <CommitteePanel exam={exam} lang={lang} onDone={onChanged} />}
-      {exam.decision && <DecisionBanner decision={exam.decision} lang={lang} />}
+
+      {exam.gradeBreakdown && <GradeBreakdownTable breakdown={exam.gradeBreakdown} lang={lang} />}
+      {exam.gradeReview && exam.status !== 'exam_grade_review' && (
+        <Text style={{ marginTop: 8, padding: 8, borderRadius: 8, fontSize: 12, backgroundColor: exam.gradeReview.decision === 'approve' ? C.successBg : C.dangerBg, color: exam.gradeReview.decision === 'approve' ? C.success : C.danger, ...align }}>
+          {exam.gradeReview.decision === 'approve'
+            ? (he ? `✓ אושר ע״י ראש בית הספר ללימודים מתקדמים (${exam.gradeReview.byName}, ${formatExamDeadline(exam.gradeReview.at, lang)})` : `✓ Approved by the grad school head (${exam.gradeReview.byName}, ${formatExamDeadline(exam.gradeReview.at, lang)})`)
+            : (he ? `✗ נדחה ע״י ראש בית הספר ללימודים מתקדמים (${exam.gradeReview.byName}): ${exam.gradeReview.reason}` : `✗ Denied by the grad school head (${exam.gradeReview.byName}): ${exam.gradeReview.reason}`)}
+        </Text>
+      )}
+      {exam.status === 'exam_grade_denied' && (
+        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'ההמשך לאחר דחייה ייקבע בהמשך לפי הנחיות הפקולטה.' : "What follows a denial will be set by the faculty's rules."}</Text>
+      )}
+      {exam.status === 'exam_returned_to_supervisor' && (
+        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'הציון נמוך מהנדרש — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.' : 'The grade is below what is required — the thesis returns to the supervisor for more work with the student.'}</Text>
+      )}
+      {has('review_final_grade') && <GradeReviewPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_coordinator_approval' && !has('final_approval') && (
+        <Text style={{ marginTop: 8, fontSize: 13, color: C.muted, ...align }}>{he ? 'ממתין לאישור הסופי של הרכזת האדמיניסטרטיבית לפני העברת הציון למכלול.' : "Awaiting the administrative coordinator's final approval before the grade goes to Michlol."}</Text>
+      )}
+      {has('final_approval') && <FinalApprovalPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_completed' && (
+        <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: C.successBg }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: C.success, ...align }}>
+            🎓 {he ? 'התזה הושלמה — הציון הסופי אושר סופית' : 'Thesis completed — the final grade received final approval'}
+            {exam.myFinalGrade != null ? ` · ${he ? 'הציון הסופי שלך' : 'Your final grade'}: ${exam.myFinalGrade}` : ''}
+          </Text>
+          {exam.finalApproval && (
+            <Text style={{ fontSize: 11, color: C.success, marginTop: 2, ...align }}>{exam.finalApproval.byName} · {formatExamDeadline(exam.finalApproval.at, lang)}{exam.finalApproval.note ? ` · ${exam.finalApproval.note}` : ''}</Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-const RESULT_TONE: Record<ThesisExamDecisionResult, { fg: string; bg: string }> = {
-  approve: { fg: C.success, bg: C.successBg },
-  fix: { fg: C.ink, bg: C.accentBg },
-  fail: { fg: C.danger, bg: C.dangerBg },
-};
-
-/** The chairman's decision, for everyone on the exam (students included). */
-function DecisionBanner({ decision, lang }: { decision: NonNullable<ThesisExamCard['decision']>; lang: Lang }) {
+/** How the final grade is made — mirrors web's GradeBreakdownTable
+ *  (app/thesis-exam/page.tsx), one row per milestone. */
+function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBreakdown; lang: Lang }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
-  const label = EXAM_DECISION_LABEL[decision.result];
-  const tone = RESULT_TONE[decision.result];
-  return (
-    <View style={{ marginTop: 10, borderRadius: 10, padding: 10, backgroundColor: tone.bg }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: tone.fg, ...align }}>
-        {he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}: {he ? label.he : label.en}
-        {decision.result === 'approve' && decision.finalGrade != null ? ` · ${he ? 'ציון סופי' : 'Final grade'} ${decision.finalGrade}` : ''}
-      </Text>
-      <Text style={{ fontSize: 12, color: tone.fg, marginTop: 2, ...align }}>{he ? label.hintHe : label.hintEn}</Text>
-      {!!decision.note && <Text style={{ fontSize: 12, color: tone.fg, marginTop: 4, ...align }}>{decision.note}</Text>}
-      <Text style={{ fontSize: 11, color: C.muted, marginTop: 4, ...align }}>{decision.byName} · {formatExamDeadline(decision.at, lang)}</Text>
-    </View>
-  );
-}
-
-/** The committee's deliberation — mirrors web's CommitteePanel
- *  (app/thesis-exam/page.tsx). */
-function CommitteePanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
-  const he = lang === 'he';
-  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
-  const c = exam.committee!;
-  const mine = c.members.find((m) => m.isMe)?.opinion ?? null;
-  const canOpine = exam.actions.includes('committee_opinion');
-  const canDecide = exam.actions.includes('committee_decide');
-  const g = c.gradeSummary;
-  const cell = (v: number | null) => (v == null ? '—' : String(v));
-  const rows: [string, string][] = [
-    [he ? 'מחקר (מנחה) 40%' : 'Research (supervisor) 40%', cell(g.research)],
-    [he ? 'כתיבה 40%' : 'Writing 40%', cell(g.writing)],
-    [he ? 'הגנה 20%' : 'Defense 20%', cell(g.defense)],
-    [he ? 'ציון משוקלל' : 'Weighted grade', g.finalGrade == null ? '—' : `${g.finalGrade} → ${Math.round(g.finalGrade)}`],
-  ];
+  const row = { flexDirection: (he ? 'row-reverse' : 'row') as 'row-reverse' | 'row', alignItems: 'flex-start' as const, gap: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.line };
+  const cell = (v: number | null | undefined) => (v == null ? '—' : String(v));
+  const many = breakdown.students.length > 1;
+  const grades = (g: Record<string, number | null>) => breakdown.students.map((s) => (many ? `${s.name}: ${cell(g[s.id])}` : cell(g[s.id]))).join(' · ');
   return (
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
-      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>🏛️ {he ? 'החלטת הוועדה' : "The committee's decision"}</Text>
-      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
-        {he
-          ? `כל חבר/ת ועדה נותן/ת חוות דעת; יו"ר הוועדה${c.chairmanName ? ` (${c.chairmanName})` : ''} מחליט/ה לאחר שכולם נתנו.`
-          : `Every committee member gives an opinion; the chairman${c.chairmanName ? ` (${c.chairmanName})` : ''} decides once all have.`}
-      </Text>
-      {!c.chairmanName && (
-        <Text style={{ marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: C.dangerBg, color: C.danger, fontSize: 12, ...align }} accessibilityRole="alert">
-          {he ? 'לוועדה אין יו"ר שיכול להחליט (היו"ר הוא מנחה הפרויקט ולא נבחר מחליף) — יש לפנות לרכזת האדמיניסטרטיבית.' : "The committee has no chairman who can decide (the chairman is the project's supervisor and no stand-in was chosen) — contact the administrative coordinator."}
-        </Text>
-      )}
-      <View style={{ marginTop: 8, flexDirection: he ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8 }}>
-        {rows.map(([k, v]) => (
-          <View key={k} style={{ minWidth: '45%' }}>
-            <Text style={{ fontSize: 11, color: C.muted, ...align }}>{k}</Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{v}</Text>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>🧮 {he ? 'חישוב הציון הסופי' : 'How the final grade is computed'}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'ציון כל אבן דרך × המשקל שלה בתבנית התהליך המאושרת.' : "Each milestone's grade × its weight in the approved workflow template."}</Text>
+      {breakdown.rows.map((r) => (
+        <View key={r.type} style={row}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: r.percent === 0 ? C.muted : C.ink, ...align }}>{he ? r.nameHe : r.nameEn} · {r.percent}%</Text>
+            {r.isExam && (
+              <Text style={{ fontSize: 11, color: C.muted, marginTop: 2, ...align }}>
+                {he ? 'מחקר (מנחה) 40%' : 'Research (supervisor) 40%'}: {cell(breakdown.exam.research)} · {he ? 'כתיבה 40%' : 'Writing 40%'}: {cell(breakdown.exam.writing)} · {he ? 'הגנה 20%' : 'Defense 20%'}: {cell(breakdown.exam.defense)}
+              </Text>
+            )}
           </View>
-        ))}
-      </View>
-      {g.research == null && (
-        <Text style={{ marginTop: 4, fontSize: 12, color: C.danger, ...align }}>{he ? 'המנחה עדיין לא נתן/ה ציון מחקר — לא ניתן לאשר עד אז.' : "The supervisor hasn't given the research grade yet — approval waits for it."}</Text>
-      )}
-      {c.members.map((m, i) => (
-        <View key={i} style={{ marginTop: 6, backgroundColor: '#fff', borderRadius: 8, padding: 8 }}>
-          <Text style={{ fontSize: 12, color: C.ink, ...align }}>
-            <Text style={{ fontWeight: '700' }}>{m.name}{m.isMe ? (he ? ' (את/ה)' : ' (you)') : ''}</Text>
-            {m.opinion
-              ? <Text style={{ color: RESULT_TONE[m.opinion.result].fg, fontWeight: '700' }}> · {EXAM_DECISION_LABEL[m.opinion.result][lang]}</Text>
-              : <Text style={{ color: C.muted }}> · {he ? 'טרם נתן/ה חוות דעת' : 'No opinion yet'}</Text>}
-          </Text>
-          {!!m.opinion?.note && <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{m.opinion.note}</Text>}
+          <Text style={{ fontSize: 13, fontWeight: '700', color: r.percent === 0 ? C.muted : C.ink }}>{grades(r.grades)}</Text>
         </View>
       ))}
-      {canOpine && (
-        <OutcomeForm
-          key={mine ? `${mine.result}-${mine.at}` : 'new'}
-          lang={lang}
-          title={mine ? (he ? 'עדכון חוות הדעת שלי' : 'Update my opinion') : (he ? 'חוות הדעת שלי' : 'My opinion')}
-          hint={he ? 'ניתן לשנות עד שהיו"ר מחליט/ה.' : 'You can change it until the chairman decides.'}
-          initial={mine}
-          submitLabel={he ? 'שמירת חוות הדעת' : 'Save my opinion'}
-          onSubmit={async (result, note) => { await apiClient.giveThesisExamOpinion(exam.milestoneId, result, note); await onDone(); }}
-        />
-      )}
-      {c.isChairman && !canDecide && c.missingNames.length > 0 && (
-        <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '600', color: C.accent, ...align }}>
-          {he ? `ניתן יהיה להחליט לאחר שכל חברי הוועדה יתנו חוות דעת. חסרים: ${c.missingNames.join(', ')}.` : `You can decide once every member gave an opinion. Missing: ${c.missingNames.join(', ')}.`}
-        </Text>
-      )}
-      {!c.isChairman && !canOpine && c.missingNames.length === 0 && !!c.chairmanName && (
-        <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>{he ? `כל חוות הדעת התקבלו — ממתין להחלטת היו"ר (${c.chairmanName}).` : `Every opinion is in — waiting for the chairman (${c.chairmanName}).`}</Text>
-      )}
-      {canDecide && (
-        <OutcomeForm
-          lang={lang}
-          title={he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}
-          hint={he ? 'ההחלטה סופית ונשלחת לסטודנט/ית, למנחה ולוועדה.' : 'The decision is final and goes to the student, the supervisor and the committee.'}
-          initial={null}
-          confirm
-          submitLabel={he ? 'אישור ההחלטה' : 'Confirm the decision'}
-          onSubmit={async (result, note) => { await apiClient.decideThesisExam(exam.milestoneId, result, note); await onDone(); }}
-        />
+      <View style={[row, { borderBottomWidth: 0 }]}>
+        <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>{he ? 'ציון סופי' : 'Final grade'}</Text>
+        <Text style={{ fontSize: 15, fontWeight: '800', color: C.primary }}>{grades(breakdown.finalGradeByStudent)}</Text>
+      </View>
+      {breakdown.missing.length > 0 && (
+        <Text style={{ marginTop: 4, fontSize: 12, color: C.danger, ...align }}>{he ? 'חסר עדיין' : 'Still missing'}: {breakdown.missing.map((m) => m[lang]).join(' · ')}</Text>
       )}
     </View>
   );
 }
 
-function OutcomeForm({ lang, title, hint, initial, submitLabel, confirm = false, onSubmit }: {
-  lang: Lang;
-  title: string;
-  hint: string;
-  initial: { result: ThesisExamDecisionResult; note: string } | null;
-  submitLabel: string;
-  confirm?: boolean;
-  onSubmit: (result: ThesisExamDecisionResult, note: string) => Promise<void>;
-}) {
+function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
-  const [result, setResult] = useState<ThesisExamDecisionResult | null>(initial?.result ?? null);
-  const [note, setNote] = useState(initial?.note ?? '');
+  return (
+    <ReasonedDecision
+      lang={lang}
+      approveLabel={he ? '✓ אישור הציון' : '✓ Approve the grade'}
+      onDecide={async (decision, reason) => {
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            decision === 'approve' ? (he ? 'אישור הציון הסופי' : 'Approve the final grade') : (he ? 'דחיית הציון הסופי' : 'Deny the final grade'),
+            decision === 'approve' ? (he ? 'הציון יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית.' : "It goes on to the administrative coordinator's final approval.") : (he ? 'לדחות את הציון הסופי?' : 'Deny the final grade?'),
+            [
+              { text: he ? 'ביטול' : 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: he ? 'אישור' : 'Confirm', style: decision === 'approve' ? 'default' : 'destructive', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!confirmed) return;
+        await apiClient.reviewThesisExamFinalGrade(exam.milestoneId, decision === 'approve' ? 'approve' : 'deny', reason);
+        await onDone();
+      }}
+    >
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? 'אישור הציון הסופי' : 'Approve the final grade'}</Text>
+    </ReasonedDecision>
+  );
+}
+
+function FinalApprovalPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  const send = async (r: ThesisExamDecisionResult) => {
+  const send = async () => {
     setBusy(true);
     setError('');
     try {
-      await onSubmit(r, note.trim());
+      await apiClient.approveThesisExamFinalGrade(exam.milestoneId, note.trim());
+      await onDone();
     } catch (err) {
       setError(errText(err, he ? 'הפעולה נכשלה' : 'Action failed'));
     } finally {
       setBusy(false);
     }
   };
-  const submit = () => {
-    if (!result) { setError(he ? 'יש לבחור אישור, תיקון או כישלון.' : 'Choose approve, fix or fail.'); return; }
-    if (result !== 'approve' && !note.trim()) { setError(he ? 'יש לנמק — מה צריך לתקן, או למה הבחינה לא עברה.' : 'Write the reason — what must be fixed, or why the exam failed.'); return; }
-    if (!confirm) { void send(result); return; }
-    Alert.alert(
-      he ? 'אישור ההחלטה' : 'Confirm the decision',
-      he ? `לאשר את ההחלטה "${EXAM_DECISION_LABEL[result].he}"? לא ניתן לבטל.` : `Confirm the decision "${EXAM_DECISION_LABEL[result].en}"? This can't be undone.`,
-      [
-        { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
-        { text: he ? 'אישור' : 'Confirm', style: result === 'approve' ? 'default' : 'destructive', onPress: () => { void send(result); } },
-      ],
-    );
-  };
-
+  const approve = () => Alert.alert(
+    he ? 'אישור סופי' : 'Final approval',
+    he ? 'הסטודנט/ית יסיים/תסיים את התזה והציון יועבר למכלול.' : 'The student completes the thesis and the grade goes to Michlol.',
+    [
+      { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
+      { text: he ? 'אישור' : 'Confirm', onPress: () => { void send(); } },
+    ],
+  );
   return (
-    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: '#fff' }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{title}</Text>
-      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{hint}</Text>
-      <View accessibilityRole="radiogroup" style={{ marginTop: 6, gap: 6 }}>
-        {(['approve', 'fix', 'fail'] as const).map((r) => {
-          const on = result === r;
-          return (
-            <Pressable
-              key={r}
-              onPress={() => setResult(r)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              style={{ borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, borderRadius: 8, padding: 8 }}
-            >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{on ? '◉ ' : '○ '}{EXAM_DECISION_LABEL[r][lang]}</Text>
-              <Text style={{ fontSize: 11, color: C.muted, marginTop: 2, ...align }}>{he ? EXAM_DECISION_LABEL[r].hintHe : EXAM_DECISION_LABEL[r].hintEn}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? 'אישור סופי לפני העברה למכלול' : 'Final approval before Michlol'}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'ראש בית הספר ללימודים מתקדמים אישר את הציון. האישור שלך מסיים את התזה ומעביר את הציון למכלול (החיבור למכלול עדיין לא פעיל).' : 'The grad school head approved the grade. Your approval completes the thesis and sends the grade to Michlol (the Michlol connection is not live yet).'}</Text>
       <TextInput
-        accessibilityLabel={result === 'approve' ? (he ? 'הערה (לא חובה)' : 'Note (optional)') : (he ? 'נימוק (חובה בתיקון או כישלון)' : 'Reason (required for fix or fail)')}
-        placeholder={result === 'approve' ? (he ? 'הערה (לא חובה)' : 'Note (optional)') : (he ? 'נימוק (חובה בתיקון או כישלון)' : 'Reason (required for fix or fail)')}
+        accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
+        placeholder={he ? 'הערה (לא חובה)' : 'Note (optional)'}
         value={note}
         onChangeText={setNote}
         multiline
-        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 64, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 56, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
       />
       {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
       <View style={{ flexDirection: 'row', marginTop: 8 }}>
-        <PrimaryButton busy={busy} onPress={submit} label={submitLabel} />
+        <PrimaryButton busy={busy} onPress={approve} label={he ? '✓ אישור סופי' : '✓ Final approval'} />
       </View>
     </View>
   );

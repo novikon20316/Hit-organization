@@ -622,15 +622,15 @@ class ApiClient {
     const response = await this.api.get(`/api/thesis-exam/${milestoneId}/form${as ? `?as=${as}` : ''}`);
     return response.data as ThesisExamFormView;
   }
-  /** A committee member's opinion (not the chairman's) — changeable until the decision. */
-  async giveThesisExamOpinion(milestoneId: string, result: ThesisExamDecisionResult, note: string) {
-    const { data } = await this.api.post(`/api/thesis-exam/${milestoneId}/committee-opinion`, { result, note });
-    return data as { success: boolean; allIn: boolean };
+  /** The grad school head approves or denies the computed final grade. */
+  async reviewThesisExamFinalGrade(milestoneId: string, decision: 'approve' | 'deny', reason: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/final-grade-review`, { decision, reason });
+    return response.data as { success: boolean; status: ThesisExamStatus };
   }
-  /** The committee chairman's decision, once every member gave an opinion. */
-  async decideThesisExam(milestoneId: string, result: ThesisExamDecisionResult, note: string) {
-    const { data } = await this.api.post(`/api/thesis-exam/${milestoneId}/committee-decision`, { result, note });
-    return data as { success: boolean; result: ThesisExamDecisionResult; finalGrade?: number };
+  /** The administrative coordinator's final approval — closes the thesis. */
+  async approveThesisExamFinalGrade(milestoneId: string, note: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/final-approval`, { note });
+    return response.data as { success: boolean; finalGradeByStudent: Record<string, number> };
   }
   async submitThesisExamSupervisorGrade(milestoneId: string, research: number) {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/supervisor-grade`, { research });
@@ -742,11 +742,18 @@ export interface DecisionRecipientCandidate {
 export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review'
-  | 'exam_approved' | 'exam_failed';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'committee_opinion' | 'committee_decide';
-/** approve = the thesis is done; fix = back to אישור תיזה, the whole exam
- *  restarts after it; fail = recorded, the faculty's rule is still open. */
-export type ThesisExamDecisionResult = 'approve' | 'fix' | 'fail';
+  | 'exam_grades_pending' | 'exam_grade_review' | 'exam_grade_denied' | 'exam_returned_to_supervisor'
+  | 'exam_coordinator_approval' | 'exam_completed';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'review_final_grade' | 'final_approval';
+/** How the final grade is made — see web's lib/apiClient.ts. */
+export interface ThesisExamGradeBreakdown {
+  computedAt: string;
+  students: { id: string; name: string }[];
+  rows: { type: string; nameHe: string; nameEn: string; percent: number; isExam: boolean; grades: Record<string, number | null> }[];
+  exam: { research: number | null; writing: number | null; defense: number | null; examGrade: number | null };
+  finalGradeByStudent: Record<string, number | null>;
+  missing: { he: string; en: string }[];
+}
 export interface ThesisExamAvailabilityEntry { date: string; from: string; to: string }
 export interface ThesisExamSlot { date: string; from: string; to: string }
 export type ThesisExamNomineeInput =
@@ -800,16 +807,12 @@ export interface ThesisExamCard {
   myFormSubmitted: boolean;
   supervisorGradeGiven?: boolean;
   formOpen: boolean;
-  /** Committee members and the two heads only, once every form is in. */
-  committee: {
-    chairmanName: string | null;
-    isChairman: boolean;
-    members: { name: string; isMe: boolean; opinion: { result: ThesisExamDecisionResult; note: string; at: string } | null }[];
-    missingNames: string[];
-    gradeSummary: { research: number | null; writing: number | null; defense: number | null; finalGrade: number | null };
-  } | null;
-  /** The chairman's decision, once made. */
-  decision: { result: ThesisExamDecisionResult; note: string; byName: string; at: string; finalGrade: number | null } | null;
+  /** Supervisor, grad school head, program head, administrative coordinator only. */
+  gradeBreakdown: ThesisExamGradeBreakdown | null;
+  gradeReview: { decision: 'approve' | 'deny'; reason: string; byName: string; at: string } | null;
+  finalApproval: { byName: string; at: string; note: string } | null;
+  /** A student's own final grade, once finally approved. */
+  myFinalGrade: number | null;
   rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number };
 }
 export interface ThesisExamFormInput {

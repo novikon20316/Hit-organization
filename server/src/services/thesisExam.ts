@@ -41,27 +41,21 @@
 //   exam_scheduled           the exam takes place; from its start time the
 //                            examiners fill the faculty's "טופס מבחן תיזה"
 //                            (CS_THESIS_EXAM_FORM below)
-//   exam_committee_review    every examiner submitted — the committee reads
-//                            the forms. Every member other than the chairman
-//                            gives an opinion (approve / fix / fail + note,
-//                            changeable until the decision); once all are in,
-//                            the chairman decides (submitCommitteeOpinion /
-//                            decideExamOutcome):
-//                            · approve → the student finished the thesis: the
-//                              weighted grade (research 40 + writing 40 +
-//                              defense 20, rounded) is the final grade,
-//                              milestone 'completed', project closed
-//                            · fix → the student writes a better thesis from
-//                              the אישור תיזה milestone all over again: that
-//                              milestone goes back to the student ('rejected'),
-//                              this exam is archived (thesisExamHistory) and the
-//                              milestone returns to 'pending' — the whole exam
-//                              flow reopens once אישור תיזה is approved again
-//                            · fail → recorded only (exam_failed). What a
-//                              failed exam leads to is still to be set by the
-//                              faculty (2026-11-19).
-//   exam_approved            done (terminal)
-//   exam_failed              waiting for the faculty's rule
+//   exam_grades_pending      every examiner submitted; waiting for the
+//                            supervisor's research grade (or another weighted
+//                            milestone's grade) — advanceExamGrading
+//   exam_grade_review        the final grade — every milestone's grade by the
+//                            template's percentages, frozen with its breakdown
+//                            (gradeBreakdown) — awaits the grad school head:
+//                            approve → exam_coordinator_approval (or, below
+//                            MIN_PASSING_FINAL_GRADE — not set yet —
+//                            exam_returned_to_supervisor); deny →
+//                            exam_grade_denied (what follows: not defined yet)
+//   exam_coordinator_approval  the administrative coordinator's final
+//                            approval → exam_completed: milestone completed,
+//                            project closed, grade sent to Michlol (stub)
+//   exam_committee_review    RETIRED 2026-11-19 (no committee decision after
+//                            the forms) — the sweep moves leftovers on
 //
 // STORAGE: the working state (nominations with outside examiners' emails,
 // every participant's availability, the candidate slots, rejections) lives in
@@ -84,13 +78,12 @@ import { sendNotificationEmail } from './emailService.js';
 import { resolveProjectScope, resolveStaffForScope, type ResourceScope } from './scopeAuthorization.js';
 import { createExternalExaminerAccess } from './examinerAccess.js';
 import { resolveCommitteeForMilestone, findSupervisorConflicts } from '../controllers/committeeController.js';
-import { resolveMilestoneOrder } from './workflowTemplates.js';
+import { resolveMilestoneOrder, getMilestonesForTemplateId, resolveProjectTemplateMilestones, type WorkflowMilestoneSpec } from './workflowTemplates.js';
 import { WEBSITE_URL } from '../config/links.js';
 import { signEvaluation, type EvaluationSignature } from './evaluationSignature.js';
 import { facultyName } from './studentProgress.js';
 import { logProjectRecordEntry } from './projectRecords.js';
-import { transferGradeToMichlol } from './gradeEngine.js';
-import { nextRejectionCount, milestoneNames } from './milestoneRevisions.js';
+import { transferGradeToMichlol, computeProjectFinalGrade } from './gradeEngine.js';
 import { recordProjectCompletion } from './projectCompletion.js';
 
 dayjs.extend(utc);
@@ -106,17 +99,27 @@ export const EXAM_DATE_COORDINATOR = 'exam_date_coordinator';
 export const EXAM_DATE_REVIEW = 'exam_date_review';
 export const EXAM_DATE_FINAL_REVIEW = 'exam_date_final_review';
 export const EXAM_SCHEDULED = 'exam_scheduled';
+/** Retired — see the header. */
 export const EXAM_COMMITTEE_REVIEW = 'exam_committee_review';
-export const EXAM_APPROVED = 'exam_approved';
-export const EXAM_FAILED = 'exam_failed';
-export const THESIS_EXAM_HISTORY = 'thesisExamHistory';
-export const THESIS_EXAM_FORM_HISTORY = 'thesisExamFormHistory';
+export const EXAM_GRADES_PENDING = 'exam_grades_pending';
+export const EXAM_GRADE_REVIEW = 'exam_grade_review';
+export const EXAM_GRADE_DENIED = 'exam_grade_denied';
+export const EXAM_RETURNED_TO_SUPERVISOR = 'exam_returned_to_supervisor';
+export const EXAM_COORDINATOR_APPROVAL = 'exam_coordinator_approval';
+export const EXAM_COMPLETED = 'exam_completed';
 
 export const THESIS_EXAM_STATUSES = [
   EXAM_NOMINATION, EXAM_NOMINATION_REVIEW, EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR,
   EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW,
-  EXAM_APPROVED, EXAM_FAILED,
+  EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED, EXAM_RETURNED_TO_SUPERVISOR,
+  EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED,
 ] as const;
+
+/** Every examiner already submitted — the forms are locked and readable. */
+export const EXAM_FORMS_DONE_STATUSES: readonly string[] = [
+  EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED,
+  EXAM_RETURNED_TO_SUPERVISOR, EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED,
+];
 
 export function isThesisExamStatus(status: string | null | undefined): boolean {
   return !!status && (THESIS_EXAM_STATUSES as readonly string[]).includes(status);
@@ -307,42 +310,50 @@ export interface ThesisExamDoc {
   coordinatorSlots?: Array<ExamSlot & { note: string; setById: string; setByName: string; setAt: string }>;
   /** Set once the "the exam started — fill the form" reminder went out. */
   opinionReminderSentFor?: string | null;
-  /** The committee's chairman (after stand-ins; null when the chairman is
-   *  the project's supervisor and no stand-in was chosen). Absent on exams
-   *  opened before 2026-11-19 — resolved on read (examChairmanId). */
-  committeeChairmanId?: string | null;
-  /** Each member's opinion (uid → opinion) — every member but the chairman. */
-  committeeOpinions?: Record<string, CommitteeOpinion>;
-  /** The chairman's decision. */
-  decision?: ExamDecision | null;
-  /** How many times this exam was sent back to אישור תיזה ("fix"). */
-  sitting?: number;
-  /** The approved final grade (exam_approved). */
-  finalGrade?: number | null;
+  /** How the final grade was made — frozen when it went to the grad school head. */
+  gradeBreakdown?: ExamGradeBreakdown | null;
+  /** The grad school head's decision on the final grade. */
+  gradeReview?: ExamGradeReview | null;
+  /** The administrative coordinator's final approval. */
+  finalApproval?: ExamFinalApproval | null;
   updatedAt: string;
 }
 
-export type ExamDecisionResult = 'approve' | 'fix' | 'fail';
-export const EXAM_DECISION_RESULTS: readonly ExamDecisionResult[] = ['approve', 'fix', 'fail'];
-
-export interface CommitteeOpinion {
-  result: ExamDecisionResult;
-  note: string;
-  name: string;
-  at: string;
+export interface ExamGradeBreakdownRow {
+  type: string;
+  nameHe: string;
+  nameEn: string;
+  /** The milestone's share of the final grade (template percentOfFinalGrade). */
+  percent: number;
+  /** The thesis exam itself — its grade is research 40 + writing 40 + defense 20. */
+  isExam: boolean;
+  grades: Record<string, number | null>;
 }
 
-export interface ExamDecision {
-  result: ExamDecisionResult;
-  note: string;
+export interface ExamGradeBreakdown {
+  computedAt: string;
+  students: Array<{ id: string; name: string }>;
+  rows: ExamGradeBreakdownRow[];
+  exam: { research: number | null; writing: number | null; defense: number | null; examGrade: number | null };
+  finalGradeByStudent: Record<string, number | null>;
+  missing: Array<{ he: string; en: string }>;
+}
+
+export interface ExamGradeReview {
+  decision: 'approve' | 'deny';
+  reason: string;
   byUid: string;
   byName: string;
   at: string;
-  /** The members' opinions the chairman decided on. */
-  opinions: Record<string, CommitteeOpinion>;
-  /** approve only. */
-  finalGrade?: number;
   signature?: EvaluationSignature;
+}
+
+export interface ExamFinalApproval {
+  byUid: string;
+  byName: string;
+  at: string;
+  note: string;
+  signature: EvaluationSignature;
 }
 
 export class ThesisExamError extends Error {
@@ -877,7 +888,7 @@ export async function decideNomination(
 
 // ── Step 2: availability ─────────────────────────────────────────────────────
 
-async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<{ participants: Participant[]; committeeId: string | null; committeeMemberIds: string[]; committeeChairmanId: string | null }> {
+async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<{ participants: Participant[]; committeeId: string | null; committeeMemberIds: string[] }> {
   const project = await projectOf(milestone.projectId);
   const committee = await resolveCommitteeForMilestone(milestone, project).catch(() => null);
   // The project's own supervisor can't sit on the committee that judges
@@ -904,16 +915,7 @@ async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFiresto
     if (e.type === 'internal') await addUser(e.uid!, 'examiner');
     else byKey.set(e.key, { key: e.key, ...(e.token ? { token: e.token } : {}), ...(e.email ? { email: e.email } : {}), name: e.name, roles: ['examiner'] });
   }
-  const committeeChairmanId = committee?.chairmanId && committeeMemberIds.includes(committee.chairmanId) ? committee.chairmanId : null;
-  return { participants: [...byKey.values()], committeeId: committee?.id ?? null, committeeMemberIds, committeeChairmanId };
-}
-
-/** The chairman who decides the exam. Exams opened before the chairman was
- *  stored resolve it from the committee now. */
-export async function examChairmanId(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<string | null> {
-  if (exam.committeeChairmanId !== undefined) return exam.committeeChairmanId;
-  if (!exam.participants?.length) return null;
-  return (await buildParticipants(exam, milestone)).committeeChairmanId;
+  return { participants: [...byKey.values()], committeeId: committee?.id ?? null, committeeMemberIds };
 }
 
 /** Rebuilds the committee of the project's open exam(s) after a stand-in
@@ -929,21 +931,12 @@ export async function refreshExamCommitteeForProject(projectId: string): Promise
     if (!exam.participants?.length) continue;
     const msSnap = await db.collection('milestones').doc(exam.milestoneId).get();
     if (!msSnap.exists) continue;
-    const { participants, committeeId, committeeMemberIds, committeeChairmanId } = await buildParticipants(exam, msSnap.data()!);
+    const { participants, committeeId, committeeMemberIds } = await buildParticipants(exam, msSnap.data()!);
     const before = exam.committeeMemberIds ?? [];
     const added = committeeMemberIds.filter((id) => !before.includes(id));
     const removed = before.filter((id) => !committeeMemberIds.includes(id));
-    if (added.length === 0 && removed.length === 0 && committeeId === exam.committeeId && committeeChairmanId === exam.committeeChairmanId) continue;
-    await doc.ref.update({ participants, committeeId, committeeMemberIds, committeeChairmanId, updatedAt: new Date().toISOString() });
-    if (exam.status === EXAM_COMMITTEE_REVIEW && added.length > 0) {
-      const title = projectTitle(await projectOf(exam.projectId));
-      await notifyUsers(added, exam, {
-        titleHe: 'טופסי הבוחנים התקבלו',
-        titleEn: "The examiners' forms are in",
-        bodyHe: `כל הבוחנים מילאו את טופס מבחן התזה "${title.he}". הטפסים זמינים לוועדה.`,
-        bodyEn: `Every examiner filled in the thesis exam form for "${title.en}". The forms are available to the committee.`,
-      }, { pending: true });
-    }
+    if (added.length === 0 && removed.length === 0 && committeeId === exam.committeeId) continue;
+    await doc.ref.update({ participants, committeeId, committeeMemberIds, updatedAt: new Date().toISOString() });
   }
 }
 
@@ -953,7 +946,7 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
   const loaded = await loadExam(milestoneId);
   if (!loaded) return;
   const { exam, milestone } = loaded;
-  const { participants, committeeId, committeeMemberIds, committeeChairmanId } = await buildParticipants(exam, milestone);
+  const { participants, committeeId, committeeMemberIds } = await buildParticipants(exam, milestone);
   const window = windowFor(todayInIsrael());
   const round = (exam.availabilityRound ?? 0) + 1;
   const now = new Date().toISOString();
@@ -964,7 +957,6 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
       participants,
       committeeId,
       committeeMemberIds,
-      committeeChairmanId,
       availabilityRound: round,
       window,
       availability: {},
@@ -1507,12 +1499,7 @@ export async function loadSupervisorExamGrade(milestoneId: string): Promise<Stor
 /** The supervisor may give the research grade once the exam is scheduled
  *  (it does not depend on the exam itself) and while the committee reviews. */
 export function supervisorGradeOpen(exam: ThesisExamDoc): boolean {
-  return exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW;
-}
-
-/** The committee may read the forms from the moment they are all in. */
-export function examFormsReviewable(exam: ThesisExamDoc): boolean {
-  return exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_APPROVED || exam.status === EXAM_FAILED;
+  return exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING;
 }
 
 function maskIdNumber(id: unknown): string | null {
@@ -1552,7 +1539,7 @@ export async function examFormHeader(milestone: FirebaseFirestore.DocumentData, 
 /** The form opens once the scheduled exam has started, and locks once every
  *  examiner submitted. */
 export function examFormGate(exam: ThesisExamDoc): { open: true } | { open: false; he: string; en: string } {
-  if (examFormsReviewable(exam)) return { open: false, he: 'כל הבוחנים הגישו את הטופס — הטופס נעול.', en: 'Every examiner has submitted — the form is locked.' };
+  if (EXAM_FORMS_DONE_STATUSES.includes(exam.status)) return { open: false, he: 'כל הבוחנים הגישו את הטופס — הטופס נעול.', en: 'Every examiner has submitted — the form is locked.' };
   if (exam.status !== EXAM_SCHEDULED || !exam.schedule) return { open: false, he: 'הטופס ייפתח לאחר שייקבע ויתקיים מועד הבחינה.', en: 'The form opens once the exam date is set and the exam takes place.' };
   if (!slotHasStarted(exam.schedule)) {
     return { open: false, he: `הטופס ייפתח בתחילת הבחינה (${formatSlot(exam.schedule)}).`, en: `The form opens when the exam starts (${formatSlot(exam.schedule)}).` };
@@ -1673,12 +1660,12 @@ export async function submitExamForm(milestoneId: string, examiner: { key: strin
     tx.set(ref, stored);
     const done = others.every((o) => o.exists);
     if (done) {
-      tx.update(examRef(milestoneId), { status: EXAM_COMMITTEE_REVIEW, updatedAt: new Date().toISOString() });
-      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_COMMITTEE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(examRef(milestoneId), { status: EXAM_GRADES_PENDING, updatedAt: new Date().toISOString() });
+      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_GRADES_PENDING, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     }
     return done;
   });
-  if (allIn) await onExamFormsComplete(milestoneId);
+  if (allIn) await advanceExamGrading(milestoneId);
   return { allIn };
 }
 
@@ -1711,292 +1698,285 @@ export async function submitSupervisorExamGrade(milestoneId: string, supervisor:
     if ((await tx.get(ref)).exists) throw new ThesisExamError('ציון המנחה כבר ניתן.', "The supervisor's grade was already given.", 409);
     tx.set(ref, stored);
   });
+  await advanceExamGrading(milestoneId);
 }
 
-/** Every examiner submitted → the committee reviews the forms: the members
- *  give their opinions, then the chairman decides. */
-async function onExamFormsComplete(milestoneId: string): Promise<void> {
+// ── Final grade: breakdown → grad school head → administrative coordinator ──
+
+/** Below this final grade, the grad school head's approval sends the thesis
+ *  back to the supervisor for more work with the student. NOT SET YET — the
+ *  faculty will give the number (and which milestone it returns to); until
+ *  then every approved grade goes on to the administrative coordinator. */
+export const MIN_PASSING_FINAL_GRADE: number | null = null;
+
+/** The template the exam milestone was enrolled from: the project ref whose
+ *  template has this exam milestone. A project's projectType can disagree
+ *  with its milestones (thesis "111" is stored as 'project'), so the plain
+ *  degree/projectType lookup would read the wrong template's percentages. */
+async function templateMilestonesForExam(project: FirebaseFirestore.DocumentData, milestone: FirebaseFirestore.DocumentData): Promise<WorkflowMilestoneSpec[]> {
+  const refs = (project.workflowTemplateRefs ?? []) as Array<{ templateId: string }>;
+  for (const ref of refs) {
+    const resolved = await getMilestonesForTemplateId(ref.templateId).catch(() => null);
+    if (resolved?.milestones.some((m) => m.type === milestone.type && m.thesisExamFlow)) return resolved.milestones;
+  }
+  return resolveProjectTemplateMilestones(project as never);
+}
+
+/** Builds how the final grade is made: every template milestone with its
+ *  weight and each student's grade on it (the exam's own grade = research 40
+ *  + writing 40 + defense 20), and each student's weighted final grade.
+ *  `missing` says what still has no grade. */
+export async function buildExamGradeBreakdown(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<ExamGradeBreakdown> {
+  const project = await projectOf(milestone.projectId);
+  const [forms, supervisorGrade, template, siblingsSnap] = await Promise.all([
+    loadExamForms(exam),
+    loadSupervisorExamGrade(exam.milestoneId),
+    templateMilestonesForExam(project, milestone),
+    db.collection('milestones').where('projectId', '==', milestone.projectId).get(),
+  ]);
+  const summary = computeExamGradeSummary(exam, forms, supervisorGrade);
+  const studentIds: string[] = milestone.studentIds ?? [];
+  const students = await Promise.all(studentIds.map(async (id) => ({ id, name: await userName(id) })));
+  const siblings = siblingsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as FirebaseFirestore.DocumentData & { id: string });
+  const missing: Array<{ he: string; en: string }> = [];
+  if (summary.research == null) missing.push({ he: 'ציון המחקר של המנחה (40%)', en: "The supervisor's research grade (40%)" });
+  if (!exam.examiners.every((e) => !!forms[e.key])) missing.push({ he: 'טופס של כל הבוחנים', en: "Every examiner's form" });
+
+  const rows: ExamGradeBreakdownRow[] = [...template]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((t) => {
+      const isExam = t.type === milestone.type;
+      const actual = siblings.find((m) => m.type === t.type && studentIds.some((s) => (m.studentIds ?? []).includes(s)));
+      const percent = t.percentOfFinalGrade ?? (t.type === 'defense' ? 100 : 0);
+      const grades = Object.fromEntries(studentIds.map((sid) => {
+        if (isExam) return [sid, summary.finalGrade];
+        const g = actual?.finalGradeByStudent?.[sid] ?? actual?.finalGrade;
+        return [sid, typeof g === 'number' ? g : null];
+      })) as Record<string, number | null>;
+      if (percent > 0 && !isExam && studentIds.some((sid) => grades[sid] == null)) {
+        missing.push({ he: `ציון אבן הדרך "${t.nameHe}"`, en: `The grade of the "${t.nameEn || t.nameHe}" milestone` });
+      }
+      return { type: t.type, nameHe: t.nameHe, nameEn: t.nameEn || t.nameHe, percent, isExam, grades };
+    });
+
+  // Without weights the engine would return 0, not "unknown".
+  if (!rows.some((r) => r.isExam)) missing.push({ he: 'אבן הדרך של הבחינה אינה מופיעה בתבנית התהליך', en: "The exam milestone isn't in the workflow template" });
+  if (rows.reduce((sum, r) => sum + r.percent, 0) <= 0) missing.push({ he: 'בתבנית התהליך אין משקלות לאבני הדרך', en: 'The workflow template gives no milestone a weight' });
+
+  const finalGradeByStudent = Object.fromEntries(studentIds.map((sid) => [sid, computeProjectFinalGrade(
+    rows.map((r) => ({ type: r.type, percentOfFinalGrade: r.percent })),
+    rows.map((r) => ({ type: r.type, finalGrade: r.grades[sid] ?? null })),
+  )])) as Record<string, number | null>;
+
+  return {
+    computedAt: new Date().toISOString(),
+    students,
+    rows,
+    exam: { research: summary.research, writing: summary.writing, defense: summary.defense, examGrade: summary.finalGrade },
+    finalGradeByStudent,
+    missing,
+  };
+}
+
+const WAITING_FOR_GRADES = [EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING];
+
+/** Moves an exam whose examiners all submitted towards the grad school
+ *  head: computes the breakdown and, once nothing is missing, hands it over
+ *  (frozen as `gradeBreakdown`). Idempotent — called after the last form,
+ *  after the supervisor's grade, and by the hourly sweep (which also moves
+ *  exams left at the retired exam_committee_review step). */
+export async function advanceExamGrading(milestoneId: string): Promise<void> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) return;
   const { exam, milestone } = loaded;
+  if (!WAITING_FOR_GRADES.includes(exam.status)) return;
+  const breakdown = await buildExamGradeBreakdown(exam, milestone);
+  const complete = breakdown.missing.length === 0 && Object.values(breakdown.finalGradeByStudent).every((g) => g != null);
+  const next = complete ? EXAM_GRADE_REVIEW : EXAM_GRADES_PENDING;
+  const moved = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== exam.status) return false;
+    if (fresh.status === next) return false;
+    tx.update(examRef(milestoneId), { status: next, ...(complete ? { gradeBreakdown: breakdown } : {}), updatedAt: new Date().toISOString() });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!moved) return;
   const title = projectTitle(await projectOf(milestone.projectId));
-  const chairman = await examChairmanId(exam, milestone);
-  const members = opinionMemberIds(exam, chairman);
-  await notifyUsers(members, exam, {
-    titleHe: 'טופסי הבוחנים התקבלו — יש לתת חוות דעת',
-    titleEn: "The examiners' forms are in — give your opinion",
-    bodyHe: `כל הבוחנים מילאו את טופס מבחן התזה "${title.he}". יש לעיין בטפסים ולתת את חוות דעתך (אישור / תיקון / כישלון) כדי שיו"ר הוועדה יוכל להחליט.`,
-    bodyEn: `Every examiner filled in the thesis exam form for "${title.en}". Read the forms and give your opinion (approve / fix / fail) so the committee chairman can decide.`,
-  }, { pending: true });
-  if (chairman) {
-    await notifyUsers([chairman], exam, {
-      titleHe: 'טופסי הבוחנים התקבלו',
-      titleEn: "The examiners' forms are in",
-      bodyHe: members.length
-        ? `כל הבוחנים מילאו את טופס מבחן התזה "${title.he}". לאחר שכל חברי הוועדה יתנו חוות דעת תוכל/י להחליט.`
-        : `כל הבוחנים מילאו את טופס מבחן התזה "${title.he}". ניתן להחליט.`,
-      bodyEn: members.length
-        ? `Every examiner filled in the thesis exam form for "${title.en}". Once every committee member gives an opinion, you can decide.`
-        : `Every examiner filled in the thesis exam form for "${title.en}". You can decide now.`,
-    }, { pending: members.length === 0 });
-  }
   const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
-  if (!(await loadSupervisorExamGrade(milestoneId))) {
-    await notifyUsers(supervisors, exam, {
-      titleHe: 'יש לתת את ציון המחקר',
-      titleEn: 'Give the research grade',
-      bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הוועדה לא תוכל לאשר את הבחינה עד שתיתן/י את ציון המחקר (40%).`,
-      bodyEn: `The examiners submitted their forms on "${title.en}". The committee can't approve the exam until you give the research grade (40%).`,
-    }, { pending: true });
+  if (!complete) {
+    if (breakdown.exam.research == null) {
+      await notifyUsers(supervisors, exam, {
+        titleHe: 'יש לתת את ציון המחקר',
+        titleEn: 'Give the research grade',
+        bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הציון הסופי יחושב ויעבור לאישור ראש בית הספר ללימודים מתקדמים לאחר שתיתן/י את ציון המחקר (40%).`,
+        bodyEn: `The examiners submitted their forms on "${title.en}". The final grade is computed and sent to the grad school head once you give the research grade (40%).`,
+      }, { pending: true });
+    }
+    await notifyUsers([...supervisors, ...(milestone.studentIds ?? [])], exam, {
+      titleHe: 'הבחינה הסתיימה — הציון הסופי בחישוב',
+      titleEn: 'Exam finished — the final grade is being completed',
+      bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הציון הסופי יחושב ויעבור לאישור.`,
+      bodyEn: `The examiners submitted their forms on "${title.en}". The final grade will be computed and sent for approval.`,
+    });
+    return;
   }
+  await notifyUsers(await gradSchoolHeadIds(exam.scope), exam, {
+    titleHe: 'ציון סופי של תזה ממתין לאישורך',
+    titleEn: 'A thesis final grade awaits your approval',
+    bodyHe: `הציון הסופי של התזה "${title.he}" חושב לפי משקלות אבני הדרך. יש לעיין בפירוט ולאשר או לדחות.`,
+    bodyEn: `The final grade of the thesis "${title.en}" was computed from the milestone weights. Review the breakdown and approve or deny it.`,
+  }, { pending: true });
   await notifyUsers([...supervisors, ...(milestone.studentIds ?? [])], exam, {
-    titleHe: 'הבחינה הסתיימה — ממתין לוועדה',
-    titleEn: 'Exam finished — awaiting the committee',
-    bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הוועדה תדון בהם.`,
-    bodyEn: `The examiners submitted their forms on "${title.en}". The committee will review them.`,
+    titleHe: 'הציון הסופי הועבר לאישור',
+    titleEn: 'The final grade was sent for approval',
+    bodyHe: `הציון הסופי של התזה "${title.he}" הועבר לאישור ראש בית הספר ללימודים מתקדמים.`,
+    bodyEn: `The final grade of the thesis "${title.en}" was sent to the grad school head for approval.`,
   });
 }
 
-// ── The committee's decision ─────────────────────────────────────────────────
-
-function parseResult(raw: unknown): ExamDecisionResult {
-  if (typeof raw === 'string' && (EXAM_DECISION_RESULTS as readonly string[]).includes(raw)) return raw as ExamDecisionResult;
-  throw new ThesisExamError('החלטה לא תקינה.', 'Invalid decision.');
-}
-
-function parseNote(raw: unknown, result: ExamDecisionResult): string {
-  const note = typeof raw === 'string' ? raw.trim().slice(0, 5000) : '';
-  if (!note && result !== 'approve') throw new ThesisExamError('יש לנמק — מה צריך לתקן, או למה הבחינה לא עברה.', 'Write the reason — what must be fixed, or why the exam failed.');
-  return note;
-}
-
-/** The members whose opinion the chairman waits for — the current
- *  committee, minus the chairman. */
-export function opinionMemberIds(exam: ThesisExamDoc, chairmanId: string | null): string[] {
-  return (exam.committeeMemberIds ?? []).filter((id) => id !== chairmanId);
-}
-
-export function missingOpinionIds(exam: ThesisExamDoc, chairmanId: string | null): string[] {
-  return opinionMemberIds(exam, chairmanId).filter((id) => !exam.committeeOpinions?.[id]);
-}
-
-/** A committee member (not the chairman) gives — or changes — their opinion,
- *  until the chairman decides. */
-export async function submitCommitteeOpinion(milestoneId: string, actor: { uid: string; name: string }, raw: unknown): Promise<{ allIn: boolean }> {
+/** The grad school head approves or denies the computed final grade. */
+export async function reviewExamFinalGrade(
+  milestoneId: string,
+  actor: { uid: string; name: string },
+  decision: 'approve' | 'deny',
+  reasonRaw: unknown,
+): Promise<{ status: string }> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
   const { exam, milestone } = loaded;
-  const chairman = await examChairmanId(exam, milestone);
-  if (!opinionMemberIds(exam, chairman).includes(actor.uid)) {
-    throw new ThesisExamError('רק חבר/ת ועדה (שאינו/ה היו"ר) נותן/ת חוות דעת.', 'Only a committee member (not the chairman) gives an opinion.', 403);
-  }
-  const body = (raw ?? {}) as { result?: unknown; note?: unknown };
-  const result = parseResult(body.result);
-  const note = parseNote(body.note, result);
-  const opinion: CommitteeOpinion = { result, note, name: actor.name, at: new Date().toISOString() };
-  const allIn = await db.runTransaction(async (tx) => {
+  if (exam.status !== EXAM_GRADE_REVIEW || !exam.gradeBreakdown) throw new ThesisExamError('הציון אינו ממתין לאישורך.', "The grade isn't awaiting your approval.", 409);
+  const reason = typeof reasonRaw === 'string' ? reasonRaw.trim().slice(0, 5000) : '';
+  if (decision === 'deny' && !reason) throw new ThesisExamError('יש לכתוב את סיבת הדחייה.', 'Write the reason for denying.');
+  const grades = Object.values(exam.gradeBreakdown.finalGradeByStudent).filter((g): g is number => g != null);
+  const tooLow = decision === 'approve' && MIN_PASSING_FINAL_GRADE != null && grades.some((g) => g < MIN_PASSING_FINAL_GRADE!);
+  const next = decision === 'deny' ? EXAM_GRADE_DENIED : tooLow ? EXAM_RETURNED_TO_SUPERVISOR : EXAM_COORDINATOR_APPROVAL;
+  const signature = decision === 'approve' ? await signEvaluation({
+    milestoneId,
+    signerUid: actor.uid,
+    signerName: actor.name,
+    role: 'grad_school_head',
+    positionHe: 'ראש בית הספר ללימודים מתקדמים — אישור הציון הסופי',
+    positionEn: 'Grad school head — final grade approval',
+    facultyId: exam.facultyId,
+    scores: { thesisExamFinalGrade: exam.gradeBreakdown.finalGradeByStudent },
+  }) : null;
+  const gradeReview: ExamGradeReview = { decision, reason, byUid: actor.uid, byName: actor.name, at: new Date().toISOString(), ...(signature ? { signature } : {}) };
+  await db.runTransaction(async (tx) => {
     const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
-    if (!fresh || fresh.status !== EXAM_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה — לא ניתן לשנות חוות דעת.', 'The committee already decided — opinions are closed.', 409);
-    const opinions = { ...(fresh.committeeOpinions ?? {}), [actor.uid]: opinion };
-    tx.update(examRef(milestoneId), { committeeOpinions: opinions, committeeChairmanId: chairman, updatedAt: new Date().toISOString() });
-    const wasComplete = missingOpinionIds(fresh, chairman).length === 0;
-    return !wasComplete && missingOpinionIds({ ...fresh, committeeOpinions: opinions }, chairman).length === 0;
+    if (!fresh || fresh.status !== EXAM_GRADE_REVIEW) throw new ThesisExamError('הציון כבר טופל.', 'The grade was already handled.', 409);
+    tx.update(examRef(milestoneId), { status: next, gradeReview, updatedAt: gradeReview.at });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   });
-  if (allIn && chairman) {
-    const title = projectTitle(await projectOf(exam.projectId));
-    await notifyUsers([chairman], exam, {
-      titleHe: 'כל חברי הוועדה נתנו חוות דעת — יש להחליט',
-      titleEn: 'Every committee member gave an opinion — decide',
-      bodyHe: `בחינת התזה "${title.he}": כל חברי הוועדה נתנו חוות דעת. כיו"ר הוועדה, יש לקבל את ההחלטה (אישור / תיקון / כישלון).`,
-      bodyEn: `Thesis exam "${title.en}": every committee member gave an opinion. As chairman, make the decision (approve / fix / fail).`,
+  const title = projectTitle(await projectOf(milestone.projectId));
+  const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
+  const students: string[] = milestone.studentIds ?? [];
+  if (next === EXAM_COORDINATOR_APPROVAL) {
+    await notifyUsers(await adminCoordinatorIds(exam.scope), exam, {
+      titleHe: 'ציון סופי של תזה ממתין לאישור סופי',
+      titleEn: 'A thesis final grade awaits final approval',
+      bodyHe: `ראש בית הספר ללימודים מתקדמים אישר/ה את הציון הסופי של התזה "${title.he}". יש לאשר סופית לפני העברת הציון למכלול.`,
+      bodyEn: `The grad school head approved the final grade of the thesis "${title.en}". Give the final approval before the grade goes to Michlol.`,
     }, { pending: true });
+    await notifyUsers([...supervisors, ...students], exam, {
+      titleHe: 'הציון הסופי אושר ע"י ראש בית הספר',
+      titleEn: 'The grad school head approved the final grade',
+      bodyHe: `הציון הסופי של התזה "${title.he}" אושר וממתין לאישור הסופי של הרכזת האדמיניסטרטיבית.`,
+      bodyEn: `The final grade of the thesis "${title.en}" was approved and awaits the administrative coordinator's final approval.`,
+    });
+  } else if (next === EXAM_RETURNED_TO_SUPERVISOR) {
+    await notifyUsers(supervisors, exam, {
+      titleHe: 'התזה חוזרת אליך להמשך עבודה',
+      titleEn: 'The thesis returns to you for more work',
+      bodyHe: `הציון הסופי של התזה "${title.he}" נמוך מהנדרש. יש להמשיך לעבוד עם הסטודנט/ית.${reason ? ` ${reason}` : ''}`,
+      bodyEn: `The final grade of the thesis "${title.en}" is below what is required. Continue working with the student.${reason ? ` ${reason}` : ''}`,
+    }, { pending: true });
+  } else {
+    await notifyUsers([...supervisors, ...(await adminCoordinatorIds(exam.scope))], exam, {
+      titleHe: 'הציון הסופי נדחה ע"י ראש בית הספר',
+      titleEn: 'The grad school head denied the final grade',
+      bodyHe: `ראש בית הספר ללימודים מתקדמים דחה/תה את הציון הסופי של התזה "${title.he}": ${reason}`,
+      bodyEn: `The grad school head denied the final grade of the thesis "${title.en}": ${reason}`,
+    });
   }
-  return { allIn };
+  return { status: next };
 }
 
-/** The chairman's decision — only once every other member gave an opinion. */
-export async function decideExamOutcome(milestoneId: string, actor: { uid: string; name: string }, raw: unknown): Promise<{ result: ExamDecisionResult; finalGrade?: number }> {
+/** The administrative coordinator's final approval: the student finished
+ *  every milestone — the exam milestone is completed with its grade, the
+ *  project is closed and the final grade is sent to Michlol (a stub until
+ *  the integration exists). */
+export async function approveExamFinalGrade(milestoneId: string, actor: { uid: string; name: string }, noteRaw: unknown): Promise<{ finalGradeByStudent: Record<string, number> }> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
   const { exam, milestone } = loaded;
-  const chairman = await examChairmanId(exam, milestone);
-  if (!chairman || chairman !== actor.uid) throw new ThesisExamError('רק יו"ר הוועדה רשאי/ת להחליט.', 'Only the committee chairman may decide.', 403);
-  if (exam.status !== EXAM_COMMITTEE_REVIEW) throw new ThesisExamError('הבחינה אינה ממתינה להחלטת הוועדה.', "The exam isn't awaiting the committee's decision.", 409);
-  const missing = missingOpinionIds(exam, chairman);
-  if (missing.length) {
-    const names = await Promise.all(missing.map(userName));
-    throw new ThesisExamError(`עדיין חסרה חוות דעת של: ${names.join(', ')}.`, `Still waiting for an opinion from: ${names.join(', ')}.`, 409);
-  }
-  const body = (raw ?? {}) as { result?: unknown; note?: unknown };
-  const result = parseResult(body.result);
-  const note = parseNote(body.note, result);
-  const now = new Date().toISOString();
-  const decision: ExamDecision = { result, note, byUid: actor.uid, byName: actor.name, at: now, opinions: exam.committeeOpinions ?? {} };
-
-  if (result === 'approve') {
-    const [forms, supervisorGrade] = await Promise.all([loadExamForms(exam), loadSupervisorExamGrade(milestoneId)]);
-    const summary = computeExamGradeSummary(exam, forms, supervisorGrade);
-    if (summary.research == null) throw new ThesisExamError('המנחה עדיין לא נתן/ה את ציון המחקר (40%) — לא ניתן לאשר לפני כן.', "The supervisor hasn't given the research grade (40%) yet — it can't be approved before that.", 409);
-    if (summary.finalGrade == null) throw new ThesisExamError('הציון הסופי עדיין לא מחושב — חסר טופס בוחן.', "The final grade can't be computed yet — an examiner's form is missing.", 409);
-    const finalGrade = Math.round(summary.finalGrade);
-    const studentIds: string[] = milestone.studentIds ?? [];
-    const finalGradeByStudent = Object.fromEntries(studentIds.map((id) => [id, finalGrade]));
-    decision.finalGrade = finalGrade;
-    decision.signature = await signEvaluation({
-      milestoneId,
-      signerUid: actor.uid,
-      signerName: actor.name,
-      role: 'committee_chairman',
-      positionHe: 'יו"ר הוועדה — אישור מבחן התזה',
-      positionEn: 'Committee chairman — thesis exam approval',
-      facultyId: exam.facultyId,
-      scores: { thesisExamDecision: { result, finalGrade, research: summary.research, writing: summary.writing, defense: summary.defense } },
-    });
-    await db.runTransaction(async (tx) => {
-      const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
-      if (!fresh || fresh.status !== EXAM_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה.', 'The committee already decided.', 409);
-      tx.update(examRef(milestoneId), { status: EXAM_APPROVED, decision, finalGrade, updatedAt: now });
-      tx.update(db.collection('milestones').doc(milestoneId), {
-        status: 'completed',
-        finalGrade,
-        finalGradeByStudent,
-        gradeApproved: true,
-        gradeApprovedBy: actor.uid,
-        gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
-        gradedAt: admin.firestore.FieldValue.serverTimestamp(),
-        gradeApprovalSignature: decision.signature,
-        statusBeforeGradeApproval: EXAM_COMMITTEE_REVIEW,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    });
-    await logProjectRecordEntry({
-      projectId: exam.projectId, type: 'final_grade_approved', actorId: actor.uid, actorRole: 'committee_chairman',
-      data: { milestoneId, finalGrade, finalGradeByStudent },
-    }).catch((err) => console.error('thesisExam: record entry failed:', err));
-    await recordProjectCompletion({ milestoneId, milestone: { ...milestone, finalGrade, finalGradeByStudent }, actorId: actor.uid, actorRole: 'committee_chairman', final: true });
-    const transfer = await transferGradeToMichlol({ milestoneId, projectId: exam.projectId, studentIds, finalGrade }).catch((err) => { console.error('thesisExam: Michlol transfer failed:', err); return null; });
-    await db.collection('milestones').doc(milestoneId).update({
-      michlolTransferStatus: transfer?.transferred ? 'transferred' : 'failed',
-      michlolTransferredAt: transfer?.transferredAt ?? now,
-    }).catch(() => undefined);
-    await notifyDecision(exam, milestone, decision);
-    return { result, finalGrade };
-  }
-
-  if (result === 'fix') {
-    await sendBackToThesisApproval(exam, milestone, decision);
-    await notifyDecision(exam, milestone, decision);
-    return { result };
-  }
-
-  // fail — recorded; the faculty will say what follows.
-  await db.runTransaction(async (tx) => {
-    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
-    if (!fresh || fresh.status !== EXAM_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה.', 'The committee already decided.', 409);
-    tx.update(examRef(milestoneId), { status: EXAM_FAILED, decision, updatedAt: now });
-    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_FAILED, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  const breakdown = exam.gradeBreakdown;
+  if (exam.status !== EXAM_COORDINATOR_APPROVAL || !breakdown) throw new ThesisExamError('הציון אינו ממתין לאישור הסופי.', "The grade isn't awaiting the final approval.", 409);
+  const note = typeof noteRaw === 'string' ? noteRaw.trim().slice(0, 5000) : '';
+  const finalGradeByStudent = Object.fromEntries(Object.entries(breakdown.finalGradeByStudent).filter((e): e is [string, number] => e[1] != null));
+  const examGrade = breakdown.exam.examGrade;
+  const signature = await signEvaluation({
+    milestoneId,
+    signerUid: actor.uid,
+    signerName: actor.name,
+    role: 'coordinator',
+    positionHe: 'רכז/ת מנהלי/ת — אישור סופי של הציון',
+    positionEn: 'Administrative coordinator — final grade approval',
+    facultyId: exam.facultyId,
+    scores: { thesisExamFinalGrade: finalGradeByStudent },
   });
-  await notifyDecision(exam, milestone, decision);
-  return { result };
-}
-
-/** The milestone right before the exam — אישור תיזה on the CS template. */
-async function thesisApprovalMilestone(milestone: FirebaseFirestore.DocumentData): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
-  const order = resolveMilestoneOrder(milestone as never);
-  const siblings = await db.collection('milestones').where('projectId', '==', milestone.projectId).get();
-  const earlier = siblings.docs
-    .filter((d) => !d.data().thesisExamFlow && resolveMilestoneOrder(d.data() as never) < order)
-    .sort((a, b) => resolveMilestoneOrder(b.data() as never) - resolveMilestoneOrder(a.data() as never));
-  return earlier[0] ?? null;
-}
-
-/** "Fix": the student writes the thesis again from אישור תיזה. That milestone
- *  goes back to the student (they resubmit it as after any rejection, which
- *  restarts its approval chain); this exam — forms, supervisor grade and all
- *  — is archived and the milestone returns to 'pending', so the whole exam
- *  flow opens again once אישור תיזה is approved. */
-async function sendBackToThesisApproval(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData, decision: ExamDecision): Promise<void> {
-  const milestoneId = exam.milestoneId;
-  const approval = await thesisApprovalMilestone(milestone);
-  if (!approval) throw new ThesisExamError('לא נמצאה אבן הדרך "אישור תיזה" להחזרה.', 'The thesis approval milestone to send back to was not found.', 409);
-  const sitting = (exam.sitting ?? 0) + 1;
-  const formKeys = [...exam.examiners.map((e) => e.key), SUPERVISOR_GRADE_KEY];
-  const formRefs = formKeys.map((k) => db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, k)));
+  const finalApproval: ExamFinalApproval = { byUid: actor.uid, byName: actor.name, at: new Date().toISOString(), note, signature };
   await db.runTransaction(async (tx) => {
     const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
-    if (!fresh || fresh.status !== EXAM_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה.', 'The committee already decided.', 409);
-    const approvalFresh = (await tx.get(approval.ref)).data() ?? {};
-    const forms = await tx.getAll(...formRefs);
-    tx.set(db.collection(THESIS_EXAM_HISTORY).doc(`${milestoneId}__s${sitting}`), { ...fresh, decision, sitting, archivedAt: decision.at });
-    forms.forEach((f, i) => {
-      if (!f.exists) return;
-      tx.set(db.collection(THESIS_EXAM_FORM_HISTORY).doc(`${formDocId(milestoneId, formKeys[i]!)}__s${sitting}`), { ...f.data(), sitting });
-      tx.delete(formRefs[i]!);
-    });
-    tx.delete(examRef(milestoneId));
+    if (!fresh || fresh.status !== EXAM_COORDINATOR_APPROVAL) throw new ThesisExamError('הציון כבר אושר.', 'The grade was already approved.', 409);
+    tx.update(examRef(milestoneId), { status: EXAM_COMPLETED, finalApproval, updatedAt: finalApproval.at });
     tx.update(db.collection('milestones').doc(milestoneId), {
-      status: 'pending',
-      examSchedule: admin.firestore.FieldValue.delete(),
-      examinerIds: admin.firestore.FieldValue.delete(),
-      examinerNames: admin.firestore.FieldValue.delete(),
-      thesisExamSittings: sitting,
-      lastThesisExamDecision: { result: 'fix', note: decision.note, at: decision.at, byName: decision.byName },
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    tx.update(approval.ref, {
-      status: 'rejected',
-      rejectionReason: decision.note,
-      rejectionCount: nextRejectionCount(approvalFresh),
-      returnedByThesisExamAt: decision.at,
+      status: 'completed',
+      // The exam milestone's own grade; the project's final grade (by the
+      // milestone weights) goes in the record and to Michlol.
+      finalGrade: examGrade,
+      finalGradeByStudent: Object.fromEntries((milestone.studentIds ?? []).map((sid: string) => [sid, examGrade])),
+      gradeApproved: true,
+      gradeApprovedBy: actor.uid,
+      gradeApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+      gradedAt: admin.firestore.FieldValue.serverTimestamp(),
+      gradeApprovalSignature: signature,
+      statusBeforeGradeApproval: EXAM_COORDINATOR_APPROVAL,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
   await logProjectRecordEntry({
-    projectId: exam.projectId, type: 'milestone_rejected', actorId: decision.byUid, actorRole: 'committee_chairman',
-    data: { milestoneId: approval.id, reason: decision.note, ...milestoneNames(approval.data()), fromThesisExam: milestoneId },
+    projectId: exam.projectId, type: 'final_grade_approved', actorId: actor.uid, actorRole: 'administrative_secretary',
+    data: { milestoneId, finalGradeByStudent, examGrade },
   }).catch((err) => console.error('thesisExam: record entry failed:', err));
-}
+  await recordProjectCompletion({ milestoneId, milestone, actorId: actor.uid, actorRole: 'administrative_secretary', final: true });
 
-async function notifyDecision(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData, decision: ExamDecision): Promise<void> {
-  const title = projectTitle(await projectOf(exam.projectId));
-  const students: string[] = milestone.studentIds ?? [];
+  // Michlol (stub until the integration exists) — one transfer per grade.
+  const byGrade = new Map<number, string[]>();
+  Object.entries(finalGradeByStudent).forEach(([sid, g]) => byGrade.set(g, [...(byGrade.get(g) ?? []), sid]));
+  const transfers = await Promise.all([...byGrade.entries()].map(([grade, ids]) =>
+    transferGradeToMichlol({ milestoneId, projectId: exam.projectId, studentIds: ids, finalGrade: grade })
+      .catch((err) => { console.error('thesisExam: Michlol transfer failed:', err); return { transferred: false, transferredAt: new Date().toISOString() }; })));
+  await db.collection('milestones').doc(milestoneId).update({
+    michlolTransferStatus: transfers.length && transfers.every((t) => t.transferred) ? 'transferred' : 'failed',
+    michlolTransferredAt: transfers[0]?.transferredAt ?? new Date().toISOString(),
+  }).catch((err) => console.error('thesisExam: Michlol status update failed:', err));
+
+  const title = projectTitle(await projectOf(milestone.projectId));
+  await Promise.all(Object.entries(finalGradeByStudent).map(([sid, g]) => notifyUser({
+    recipientId: sid, type: 'general', inAppType: 'final_grade_approved',
+    titleHe: '🎓 סיימת את התזה', titleEn: '🎓 You completed your thesis',
+    bodyHe: `הציון הסופי שלך בתזה "${title.he}" (${g}) אושר סופית. סיימת את כל אבני הדרך.`,
+    bodyEn: `Your final grade on the thesis "${title.en}" (${g}) received final approval. You completed every milestone.`,
+    relatedProjectId: exam.projectId, relatedMilestoneId: milestoneId, targetScreen: 'student_grades',
+  }).catch((err) => console.error('thesisExam: notify failed:', err))));
   const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
-  const staff = [...supervisors, ...(exam.committeeMemberIds ?? []), ...exam.examiners.filter((e) => e.uid).map((e) => e.uid!)].filter((id) => id !== decision.byUid);
-  const noteHe = decision.note ? ` הערת הוועדה: ${decision.note}` : '';
-  const noteEn = decision.note ? ` The committee's note: ${decision.note}` : '';
-  if (decision.result === 'approve') {
-    await Promise.all(students.map((sid) => notifyUser({
-      recipientId: sid, type: 'general', inAppType: 'final_grade_approved',
-      titleHe: '🎓 סיימת בהצלחה את התזה', titleEn: '🎓 You completed your thesis',
-      bodyHe: `הוועדה אישרה את בחינת התזה "${title.he}". הציון הסופי: ${decision.finalGrade}.${noteHe}`,
-      bodyEn: `The committee approved the thesis exam "${title.en}". Final grade: ${decision.finalGrade}.${noteEn}`,
-      relatedProjectId: exam.projectId, relatedMilestoneId: exam.milestoneId, targetScreen: 'student_grades',
-    }).catch((err) => console.error('thesisExam: notify failed:', err))));
-    await notifyUsers(staff, exam, {
-      titleHe: `🎓 בחינת התזה אושרה — ${title.he}`, titleEn: `🎓 Thesis exam approved — ${title.en}`,
-      bodyHe: `יו"ר הוועדה אישר/ה את בחינת התזה. הציון הסופי: ${decision.finalGrade}.`,
-      bodyEn: `The committee chairman approved the thesis exam. Final grade: ${decision.finalGrade}.`,
-    });
-    return;
-  }
-  if (decision.result === 'fix') {
-    await notifyUsers(students, exam, {
-      titleHe: '📄 יש להגיש את התזה מחדש', titleEn: '📄 Resubmit your thesis',
-      bodyHe: `ועדת בחינת התזה "${title.he}" החליטה שיש לתקן את העבודה. יש להגיש תזה מתוקנת באבן הדרך "אישור תיזה", ומשם התהליך יתחיל מחדש.${noteHe}`,
-      bodyEn: `The thesis exam committee for "${title.en}" decided the work must be fixed. Submit a corrected thesis in the "thesis approval" milestone; the process restarts from there.${noteEn}`,
-    }, { pending: true });
-    await notifyUsers(staff, exam, {
-      titleHe: `התזה הוחזרה לתיקון — ${title.he}`, titleEn: `Thesis sent back to be fixed — ${title.en}`,
-      bodyHe: `יו"ר הוועדה החליט/ה שהסטודנט/ית יגיש/ו תזה מתוקנת מאבן הדרך "אישור תיזה". הבחינה תיפתח מחדש לאחר אישורה.${noteHe}`,
-      bodyEn: `The committee chairman decided the student resubmits from the "thesis approval" milestone. The exam reopens once it is approved.${noteEn}`,
-    });
-    return;
-  }
-  await notifyUsers([...students, ...staff], exam, {
-    titleHe: `בחינת התזה — ${title.he}`, titleEn: `Thesis exam — ${title.en}`,
-    bodyHe: `יו"ר הוועדה קבע/ה שהבחינה לא עברה. ההמשך ייקבע לפי הנחיות הפקולטה.${noteHe}`,
-    bodyEn: `The committee chairman decided the exam was not passed. What follows will be set by the faculty's rules.${noteEn}`,
+  await notifyUsers(supervisors, exam, {
+    titleHe: `🎓 התזה הושלמה — ${title.he}`, titleEn: `🎓 Thesis completed — ${title.en}`,
+    bodyHe: 'הרכזת האדמיניסטרטיבית אישרה סופית את הציון הסופי, והוא הועבר למכלול.',
+    bodyEn: 'The administrative coordinator gave the final grade its final approval and it was sent to Michlol.',
   });
+  return { finalGradeByStudent };
 }
 
 // ── Hourly sweep ─────────────────────────────────────────────────────────────
@@ -2010,12 +1990,16 @@ export async function sweepThesisExams(): Promise<void> {
   const projectIds = new Set(pending.docs.map((d) => d.data().projectId as string));
   for (const pid of projectIds) await maybeOpenThesisExamForProject(pid).catch((err) => console.error('sweepThesisExams open:', err));
 
-  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED]).get();
+  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING]).get();
   const today = todayInIsrael();
   for (const doc of active.docs) {
     const exam = doc.data() as ThesisExamDoc;
     try {
-      if (exam.status === EXAM_AVAILABILITY && exam.pickDeadline) {
+      if (exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING) {
+        // Backstop for a missed hook, a grade given elsewhere, and exams
+        // left at the retired committee step.
+        await advanceExamGrading(exam.milestoneId);
+      } else if (exam.status === EXAM_AVAILABILITY && exam.pickDeadline) {
         await advancePickingRound(exam);
       } else if (exam.status === EXAM_AVAILABILITY && exam.window && today > exam.window.end) {
         // A round opened before the 48h rule: it runs until its last day.

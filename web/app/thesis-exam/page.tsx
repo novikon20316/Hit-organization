@@ -6,9 +6,11 @@
 // approves the nomination, every participant (student, supervisor, committee
 // members, examiners) picks 5 dates with their free hours, the system matches
 // a common slot, the program head and then the grad school head approve it,
-// the examiners fill the exam form after the exam, and the committee reads
-// the forms: every member gives an opinion, then the chairman decides
-// (approve / fix / fail — CommitteePanel). Each card shows only the actions open to the viewer; the server
+// the examiners fill the exam form after the exam and the supervisor gives
+// the research grade; the final grade — every milestone's grade by the
+// template's weights (GradeBreakdownTable) — goes to the grad school head
+// (GradeReviewPanel), then to the administrative coordinator's final
+// approval (FinalApprovalPanel) before Michlol. Each card shows only the actions open to the viewer; the server
 // enforces every one of them.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,9 +18,9 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { apiClient, type ThesisExamCard, type ThesisExamDecisionResult, type ThesisExamNomineeInput } from '@/lib/apiClient';
+import { apiClient, type ThesisExamCard, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
-import { EXAM_DECISION_LABEL, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
+import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
 import { AvailabilityPicker, EXAM_DAY_START, EXAM_MIN_MINUTES, EXAM_TIMES, fridayLatestEnd, isShabbat, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
 import { ThesisExamFormPanel, type ThesisExamFormSource } from '@/components/thesisExam/ThesisExamFormPanel';
 
@@ -195,7 +197,7 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
 
-      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review') && (
+      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review' || exam.status === 'exam_grades_pending') && (
         <p className="mt-3 text-xs text-muted">{he ? `${exam.formsSubmittedCount} מתוך ${exam.examinerCount} בוחנים מילאו את טופס הבחינה` : `${exam.formsSubmittedCount} of ${exam.examinerCount} examiners filled in the exam form`}</p>
       )}
       {has('form') && (
@@ -218,177 +220,154 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
           </button>
         </div>
       )}
-      {exam.committee && exam.status === 'exam_committee_review' && <CommitteePanel exam={exam} lang={lang} onDone={onChanged} />}
-      {exam.decision && <DecisionBanner decision={exam.decision} lang={lang} />}
+
+      {exam.gradeBreakdown && <GradeBreakdownTable breakdown={exam.gradeBreakdown} lang={lang} />}
+      {exam.gradeReview && exam.status !== 'exam_grade_review' && (
+        <p className={`mt-3 rounded-md px-3 py-2 text-xs ${exam.gradeReview.decision === 'approve' ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}>
+          {exam.gradeReview.decision === 'approve'
+            ? (he ? `✓ אושר ע״י ראש בית הספר ללימודים מתקדמים (${exam.gradeReview.byName}, ${formatExamDeadline(exam.gradeReview.at, lang)})` : `✓ Approved by the grad school head (${exam.gradeReview.byName}, ${formatExamDeadline(exam.gradeReview.at, lang)})`)
+            : (he ? `✗ נדחה ע״י ראש בית הספר ללימודים מתקדמים (${exam.gradeReview.byName}): ${exam.gradeReview.reason}` : `✗ Denied by the grad school head (${exam.gradeReview.byName}): ${exam.gradeReview.reason}`)}
+        </p>
+      )}
+      {exam.status === 'exam_grade_denied' && (
+        <p className="mt-2 text-xs text-muted">{he ? 'ההמשך לאחר דחייה ייקבע בהמשך לפי הנחיות הפקולטה.' : "What follows a denial will be set by the faculty's rules."}</p>
+      )}
+      {exam.status === 'exam_returned_to_supervisor' && (
+        <p className="mt-2 text-xs text-muted">{he ? 'הציון נמוך מהנדרש — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.' : 'The grade is below what is required — the thesis returns to the supervisor for more work with the student.'}</p>
+      )}
+      {has('review_final_grade') && <GradeReviewPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_coordinator_approval' && !has('final_approval') && (
+        <p className="mt-3 text-sm text-muted">{he ? 'ממתין לאישור הסופי של הרכזת האדמיניסטרטיבית לפני העברת הציון למכלול.' : "Awaiting the administrative coordinator's final approval before the grade goes to Michlol."}</p>
+      )}
+      {has('final_approval') && <FinalApprovalPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_completed' && (
+        <p className="mt-3 rounded-md bg-success-bg px-3 py-2 text-sm font-semibold text-success">
+          🎓 {he ? 'התזה הושלמה — הציון הסופי אושר סופית' : 'Thesis completed — the final grade received final approval'}
+          {exam.myFinalGrade != null ? ` · ${he ? 'הציון הסופי שלך' : 'Your final grade'}: ${exam.myFinalGrade}` : ''}
+          {exam.finalApproval ? <span className="block text-xs font-normal">{exam.finalApproval.byName} · {formatExamDeadline(exam.finalApproval.at, lang)}{exam.finalApproval.note ? ` · ${exam.finalApproval.note}` : ''}</span> : null}
+        </p>
+      )}
     </section>
   );
 }
 
-const RESULT_TONE: Record<ThesisExamDecisionResult, string> = {
-  approve: 'bg-success-bg text-success',
-  fix: 'bg-accent/15 text-ink',
-  fail: 'bg-danger-bg text-danger',
-};
-
-/** The chairman's decision, for everyone on the exam (students included). */
-function DecisionBanner({ decision, lang }: { decision: NonNullable<ThesisExamCard['decision']>; lang: 'he' | 'en' }) {
+/** How the final grade is made: every milestone of the template with its
+ *  weight and each student's grade on it, the exam's own three components,
+ *  and the weighted final grade. */
+function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBreakdown; lang: 'he' | 'en' }) {
   const he = lang === 'he';
-  const label = EXAM_DECISION_LABEL[decision.result];
-  return (
-    <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${RESULT_TONE[decision.result]}`}>
-      <p className="font-semibold">
-        {he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}: {he ? label.he : label.en}
-        {decision.result === 'approve' && decision.finalGrade != null ? ` · ${he ? 'ציון סופי' : 'Final grade'} ${decision.finalGrade}` : ''}
-      </p>
-      <p className="mt-0.5 text-xs">{he ? label.hintHe : label.hintEn}</p>
-      {decision.note && <p className="mt-1 whitespace-pre-wrap text-xs">{decision.note}</p>}
-      <p className="mt-1 text-[11px] opacity-80">{decision.byName} · {formatExamDeadline(decision.at, lang)}</p>
-    </div>
-  );
-}
-
-/** The committee's deliberation: the computed grade, every member's
- *  opinion, my own opinion (a member), and — once all are in — the
- *  chairman's decision. */
-function CommitteePanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
-  const he = lang === 'he';
-  const c = exam.committee!;
-  const mine = c.members.find((m) => m.isMe)?.opinion ?? null;
-  const canOpine = exam.actions.includes('committee_opinion');
-  const canDecide = exam.actions.includes('committee_decide');
-  const g = c.gradeSummary;
-  const cell = (v: number | null) => (v == null ? '—' : String(v));
+  const cell = (v: number | null | undefined) => (v == null ? '—' : String(v));
+  const many = breakdown.students.length > 1;
   return (
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
-      <p className="text-sm font-semibold text-ink">🏛️ {he ? 'החלטת הוועדה' : "The committee's decision"}</p>
-      <p className="mt-0.5 text-xs text-muted">
-        {he
-          ? `כל חבר/ת ועדה נותן/ת חוות דעת; יו"ר הוועדה${c.chairmanName ? ` (${c.chairmanName})` : ''} מחליט/ה לאחר שכולם נתנו.`
-          : `Every committee member gives an opinion; the chairman${c.chairmanName ? ` (${c.chairmanName})` : ''} decides once all have.`}
-      </p>
-      {!c.chairmanName && (
-        <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">
-          {he ? 'לוועדה אין יו"ר שיכול להחליט (היו"ר הוא מנחה הפרויקט ולא נבחר מחליף) — יש לפנות לרכזת האדמיניסטרטיבית.' : "The committee has no chairman who can decide (the chairman is the project's supervisor and no stand-in was chosen) — contact the administrative coordinator."}
-        </p>
-      )}
-      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-        <div><dt className="text-muted">{he ? 'מחקר (מנחה) 40%' : 'Research (supervisor) 40%'}</dt><dd className="font-semibold text-ink">{cell(g.research)}</dd></div>
-        <div><dt className="text-muted">{he ? 'כתיבה 40%' : 'Writing 40%'}</dt><dd className="font-semibold text-ink">{cell(g.writing)}</dd></div>
-        <div><dt className="text-muted">{he ? 'הגנה 20%' : 'Defense 20%'}</dt><dd className="font-semibold text-ink">{cell(g.defense)}</dd></div>
-        <div><dt className="text-muted">{he ? 'ציון משוקלל' : 'Weighted grade'}</dt><dd className="font-semibold text-ink">{g.finalGrade == null ? '—' : `${g.finalGrade} → ${Math.round(g.finalGrade)}`}</dd></div>
-      </dl>
-      {g.research == null && (
-        <p className="mt-1 text-xs text-danger">{he ? 'המנחה עדיין לא נתן/ה ציון מחקר — לא ניתן לאשר עד אז.' : "The supervisor hasn't given the research grade yet — approval waits for it."}</p>
-      )}
-      {c.members.length > 0 && (
-        <ul className="mt-3 grid gap-1.5">
-          {c.members.map((m, i) => (
-            <li key={i} className="rounded-md bg-surface px-3 py-2 text-xs">
-              <span className="font-medium text-ink">{m.name}{m.isMe ? (he ? ' (את/ה)' : ' (you)') : ''}</span>
-              {m.opinion ? (
-                <>
-                  {' · '}<span className={`rounded-full px-2 py-0.5 font-semibold ${RESULT_TONE[m.opinion.result]}`}>{EXAM_DECISION_LABEL[m.opinion.result][lang]}</span>
-                  {m.opinion.note && <span className="mt-1 block whitespace-pre-wrap text-muted">{m.opinion.note}</span>}
-                </>
-              ) : (
-                <span className="text-muted"> · {he ? 'טרם נתן/ה חוות דעת' : 'No opinion yet'}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {canOpine && (
-        <OutcomeForm
-          key={mine ? `${mine.result}-${mine.at}` : 'new'}
-          exam={exam}
-          lang={lang}
-          title={mine ? (he ? 'עדכון חוות הדעת שלי' : 'Update my opinion') : (he ? 'חוות הדעת שלי' : 'My opinion')}
-          hint={he ? 'ניתן לשנות עד שהיו"ר מחליט/ה.' : 'You can change it until the chairman decides.'}
-          initial={mine}
-          submitLabel={he ? 'שמירת חוות הדעת' : 'Save my opinion'}
-          onSubmit={async (result, note) => { await apiClient.giveThesisExamOpinion(exam.milestoneId, result, note); await onDone(); }}
-        />
-      )}
-      {c.isChairman && !canDecide && c.missingNames.length > 0 && (
-        <p className="mt-3 text-xs font-medium text-accent">
-          {he ? `ניתן יהיה להחליט לאחר שכל חברי הוועדה יתנו חוות דעת. חסרים: ${c.missingNames.join(', ')}.` : `You can decide once every member gave an opinion. Missing: ${c.missingNames.join(', ')}.`}
-        </p>
-      )}
-      {!c.isChairman && !canOpine && c.missingNames.length === 0 && c.chairmanName && (
-        <p className="mt-3 text-xs text-muted">{he ? `כל חוות הדעת התקבלו — ממתין להחלטת היו"ר (${c.chairmanName}).` : `Every opinion is in — waiting for the chairman (${c.chairmanName}).`}</p>
-      )}
-      {canDecide && (
-        <OutcomeForm
-          exam={exam}
-          lang={lang}
-          title={he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}
-          hint={he ? 'ההחלטה סופית ונשלחת לסטודנט/ית, למנחה ולוועדה.' : 'The decision is final and goes to the student, the supervisor and the committee.'}
-          initial={null}
-          confirm
-          submitLabel={he ? 'אישור ההחלטה' : 'Confirm the decision'}
-          onSubmit={async (result, note) => { await apiClient.decideThesisExam(exam.milestoneId, result, note); await onDone(); }}
-        />
+      <p className="text-sm font-semibold text-ink">🧮 {he ? 'חישוב הציון הסופי' : 'How the final grade is computed'}</p>
+      <p className="mt-0.5 text-xs text-muted">{he ? 'ציון כל אבן דרך × המשקל שלה בתבנית התהליך המאושרת.' : "Each milestone's grade × its weight in the approved workflow template."}</p>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[22rem] text-xs">
+          <thead>
+            <tr className="border-b border-line text-muted">
+              <th scope="col" className="py-1 text-start font-medium">{he ? 'אבן דרך' : 'Milestone'}</th>
+              <th scope="col" className="py-1 text-start font-medium">{he ? 'משקל' : 'Weight'}</th>
+              {breakdown.students.map((s) => (
+                <th key={s.id} scope="col" className="py-1 text-start font-medium">{many ? s.name : (he ? 'ציון' : 'Grade')}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {breakdown.rows.map((r) => (
+              <tr key={r.type} className={`border-b border-line/60 ${r.percent === 0 ? 'text-muted' : 'text-ink'}`}>
+                <th scope="row" className="py-1.5 text-start font-medium">
+                  {he ? r.nameHe : r.nameEn}
+                  {r.isExam && (
+                    <span className="block text-[11px] font-normal text-muted">
+                      {he ? 'מחקר (מנחה) 40%' : 'Research (supervisor) 40%'}: {cell(breakdown.exam.research)} · {he ? 'כתיבה 40%' : 'Writing 40%'}: {cell(breakdown.exam.writing)} · {he ? 'הגנה 20%' : 'Defense 20%'}: {cell(breakdown.exam.defense)}
+                    </span>
+                  )}
+                </th>
+                <td className="py-1.5">{r.percent}%</td>
+                {breakdown.students.map((s) => <td key={s.id} className="py-1.5 font-semibold">{cell(r.grades[s.id])}</td>)}
+              </tr>
+            ))}
+            <tr className="text-ink">
+              <th scope="row" className="pt-2 text-start font-bold">{he ? 'ציון סופי' : 'Final grade'}</th>
+              <td className="pt-2">{breakdown.rows.reduce((sum, r) => sum + r.percent, 0)}%</td>
+              {breakdown.students.map((s) => <td key={s.id} className="pt-2 text-sm font-bold text-primary">{cell(breakdown.finalGradeByStudent[s.id])}</td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {breakdown.missing.length > 0 && (
+        <p className="mt-2 text-xs text-danger">{he ? 'חסר עדיין' : 'Still missing'}: {breakdown.missing.map((m) => m[lang]).join(' · ')}</p>
       )}
     </div>
   );
 }
 
-function OutcomeForm({ exam, lang, title, hint, initial, submitLabel, confirm = false, onSubmit }: {
-  exam: ThesisExamCard;
-  lang: 'he' | 'en';
-  title: string;
-  hint: string;
-  initial: { result: ThesisExamDecisionResult; note: string } | null;
-  submitLabel: string;
-  confirm?: boolean;
-  onSubmit: (result: ThesisExamDecisionResult, note: string) => Promise<void>;
-}) {
+function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
   const he = lang === 'he';
-  const [result, setResult] = useState<ThesisExamDecisionResult | null>(initial?.result ?? null);
-  const [note, setNote] = useState(initial?.note ?? '');
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const noteId = `outcome-note-${exam.milestoneId}-${confirm ? 'decide' : 'opinion'}`;
-
-  const submit = async () => {
-    if (!result) { setError(he ? 'יש לבחור אישור, תיקון או כישלון.' : 'Choose approve, fix or fail.'); return; }
-    if (result !== 'approve' && !note.trim()) { setError(he ? 'יש לנמק — מה צריך לתקן, או למה הבחינה לא עברה.' : 'Write the reason — what must be fixed, or why the exam failed.'); return; }
-    if (confirm && !window.confirm(he ? `לאשר את ההחלטה "${EXAM_DECISION_LABEL[result].he}"? לא ניתן לבטל.` : `Confirm the decision "${EXAM_DECISION_LABEL[result].en}"? This can't be undone.`)) return;
+  const decide = async (decision: 'approve' | 'deny') => {
+    if (decision === 'deny' && !reason.trim()) { setError(he ? 'יש לכתוב את סיבת הדחייה.' : 'Write the reason for denying.'); return; }
+    if (!window.confirm(decision === 'approve'
+      ? (he ? 'לאשר את הציון הסופי? הוא יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית.' : "Approve the final grade? It goes on to the administrative coordinator's final approval.")
+      : (he ? 'לדחות את הציון הסופי?' : 'Deny the final grade?'))) return;
     setBusy(true);
     setError('');
     try {
-      await onSubmit(result, note.trim());
+      await apiClient.reviewThesisExamFinalGrade(exam.milestoneId, decision, reason.trim());
+      setReason('');
+      await onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : he ? 'הפעולה נכשלה' : 'Action failed');
     } finally {
       setBusy(false);
     }
   };
-
   return (
-    <fieldset className="mt-3 rounded-lg border border-line bg-surface p-3">
-      <legend className="px-1 text-sm font-semibold text-ink">{title}</legend>
-      <p className="text-xs text-muted">{hint}</p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={title}>
-        {(['approve', 'fix', 'fail'] as const).map((r) => (
-          <label key={r} className={`cursor-pointer rounded-lg border p-2 text-xs ${result === r ? 'border-primary ring-1 ring-primary' : 'border-line'}`}>
-            <span className="flex items-center gap-1.5">
-              <input type="radio" name={`${noteId}-result`} checked={result === r} onChange={() => setResult(r)} />
-              <span className="font-semibold text-ink">{EXAM_DECISION_LABEL[r][lang]}</span>
-            </span>
-            <span className="mt-1 block text-muted">{he ? EXAM_DECISION_LABEL[r].hintHe : EXAM_DECISION_LABEL[r].hintEn}</span>
-          </label>
-        ))}
-      </div>
-      <label htmlFor={noteId} className="mt-3 block text-xs text-muted">
-        {result === 'approve' ? (he ? 'הערה (לא חובה)' : 'Note (optional)') : (he ? 'נימוק (חובה בתיקון או כישלון)' : 'Reason (required for fix or fail)')}
-      </label>
-      <textarea id={noteId} rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm" />
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <p className="text-sm font-semibold text-ink">{he ? 'אישור הציון הסופי' : 'Approve the final grade'}</p>
+      <label htmlFor={`grade-review-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה / סיבת דחייה (חובה בדחייה)' : 'Note / reason (required to deny)'}</label>
+      <textarea id={`grade-review-${exam.milestoneId}`} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
       {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
-      <button type="button" onClick={submit} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
-        {busy ? '…' : submitLabel}
+      <div className="mt-2 flex gap-2">
+        <button type="button" onClick={() => decide('approve')} disabled={busy} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">{he ? '✓ אישור הציון' : '✓ Approve the grade'}</button>
+        <button type="button" onClick={() => decide('deny')} disabled={busy} className="rounded-full border border-line px-4 py-1.5 text-xs font-semibold text-danger hover:bg-danger-bg disabled:opacity-60">{he ? '✗ דחייה' : '✗ Deny'}</button>
+      </div>
+    </div>
+  );
+}
+
+function FinalApprovalPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const approve = async () => {
+    if (!window.confirm(he ? 'לאשר סופית? הסטודנט/ית יסיים/תסיים את התזה והציון יועבר למכלול.' : 'Give the final approval? The student completes the thesis and the grade goes to Michlol.')) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.approveThesisExamFinalGrade(exam.milestoneId, note.trim());
+      await onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'הפעולה נכשלה' : 'Action failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <p className="text-sm font-semibold text-ink">{he ? 'אישור סופי לפני העברה למכלול' : 'Final approval before Michlol'}</p>
+      <p className="mt-0.5 text-xs text-muted">{he ? 'ראש בית הספר ללימודים מתקדמים אישר את הציון. האישור שלך מסיים את התזה ומעביר את הציון למכלול (החיבור למכלול עדיין לא פעיל).' : 'The grad school head approved the grade. Your approval completes the thesis and sends the grade to Michlol (the Michlol connection is not live yet).'}</p>
+      <label htmlFor={`final-approval-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה (לא חובה)' : 'Note (optional)'}</label>
+      <textarea id={`final-approval-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+      <button type="button" onClick={approve} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+        {busy ? '…' : (he ? '✓ אישור סופי' : '✓ Final approval')}
       </button>
-    </fieldset>
+    </div>
   );
 }
 

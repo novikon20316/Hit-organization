@@ -4,8 +4,10 @@
 // One role-agnostic page (/thesis-exam) lists every exam the caller takes part
 // in, with the actions open to them: the supervisor nominates, the grad school
 // head approves the nomination and the date, the program head approves the
-// date, every participant picks dates, examiners fill the form, the committee
-// reads the forms — its members give opinions and the chairman decides. Outside examiners reach the same steps through their access
+// date, every participant picks dates, examiners fill the form, the
+// supervisor gives the research grade; the final grade (by the template's
+// milestone weights) then goes to the grad school head and, once approved,
+// to the administrative coordinator's final approval. Outside examiners reach the same steps through their access
 // token (the public handlers at the bottom, mounted on /api/examiner-access).
 
 import type { Request, Response } from 'express';
@@ -50,13 +52,14 @@ import {
   loadExamForms,
   examFormGate,
   enterLateParticipantDates,
-  examFormsReviewable,
-  examChairmanId,
-  opinionMemberIds,
-  missingOpinionIds,
-  submitCommitteeOpinion,
-  decideExamOutcome,
-  computeExamGradeSummary,
+  EXAM_FORMS_DONE_STATUSES,
+  EXAM_GRADES_PENDING,
+  EXAM_GRADE_REVIEW,
+  EXAM_COORDINATOR_APPROVAL,
+  EXAM_COMPLETED,
+  buildExamGradeBreakdown,
+  reviewExamFinalGrade,
+  approveExamFinalGrade,
 } from '../services/thesisExam.js';
 import { getPrivateContact } from '../services/privateContact.js';
 import { withinCoordinatorScope, type ResourceScope } from '../services/scopeAuthorization.js';
@@ -104,6 +107,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   const studentNames = await Promise.all(((milestone.studentIds ?? []) as string[]).map(nameOf));
   const supervisorName = milestone.supervisorId ? await nameOf(milestone.supervisorId) : '';
 
+  const myUid = rel.participantKey?.startsWith('u:') ? rel.participantKey.slice(2) : null;
   const actions: string[] = [];
   if (exam.status === EXAM_NOMINATION && rel.isSupervisor) actions.push('nominate');
   if (exam.status === EXAM_NOMINATION_REVIEW && rel.isGradHead) actions.push('review_nomination');
@@ -114,20 +118,11 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (exam.status === EXAM_DATE_COORDINATOR && rel.isAdminCoordinator) actions.push('set_date');
   if (exam.status === EXAM_DATE_REVIEW && rel.isProgramHead) actions.push('review_date');
   if (exam.status === EXAM_DATE_FINAL_REVIEW && rel.isGradHead) actions.push('review_date');
-  if ((exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW) && rel.isExaminer) actions.push('form');
-  const reviewer = rel.isCommittee || rel.isGradHead || rel.isProgramHead;
-  if (examFormsReviewable(exam) && reviewer) actions.push('view_forms');
-  // The committee's decision: every member but the chairman gives an
-  // opinion (and may change it until the decision); the chairman decides
-  // once all are in.
-  const chairmanId = rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isStudent || rel.isSupervisor
-    ? await examChairmanId(exam, milestone) : null;
-  const myUid = rel.participantKey?.startsWith('u:') ? rel.participantKey.slice(2) : null;
-  const isChairman = !!chairmanId && chairmanId === myUid;
-  const opinionIds = opinionMemberIds(exam, chairmanId);
-  const missingIds = missingOpinionIds(exam, chairmanId);
-  if (exam.status === EXAM_COMMITTEE_REVIEW && myUid && opinionIds.includes(myUid)) actions.push('committee_opinion');
-  if (exam.status === EXAM_COMMITTEE_REVIEW && isChairman && missingIds.length === 0) actions.push('committee_decide');
+  const formsDone = EXAM_FORMS_DONE_STATUSES.includes(exam.status);
+  if ((exam.status === EXAM_SCHEDULED || formsDone) && rel.isExaminer) actions.push('form');
+  if (formsDone && (rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator)) actions.push('view_forms');
+  if (exam.status === EXAM_GRADE_REVIEW && rel.isGradHead) actions.push('review_final_grade');
+  if (exam.status === EXAM_COORDINATOR_APPROVAL && rel.isAdminCoordinator) actions.push('final_approval');
   // The research component (40%) is the supervisor's alone — examiners never see it.
   if (supervisorGradeOpen(exam) && rel.isSupervisor && !rel.isExaminer) actions.push('supervisor_grade');
 
@@ -135,27 +130,17 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   const lastRejected = [...(exam.nominationHistory ?? [])].reverse().find((n) => n.decision === 'rejected') ?? null;
   const proposed = (exam.status === EXAM_DATE_REVIEW || exam.status === EXAM_DATE_FINAL_REVIEW) ? exam.commonSlots[exam.slotIndex] ?? null : null;
   const submittedKeys = Object.keys(exam.availability ?? {});
-  const forms = exam.status === EXAM_SCHEDULED || examFormsReviewable(exam) ? await loadExamForms(exam) : {};
+  const forms = exam.status === EXAM_SCHEDULED || formsDone ? await loadExamForms(exam) : {};
   const formGate = examFormGate(exam);
   const myForm = rel.participantKey && rel.isExaminer ? forms[rel.participantKey] : undefined;
   const supervisorGradeGiven = actions.includes('supervisor_grade') ? !!(await loadSupervisorExamGrade(exam.milestoneId)) : false;
-  // The deliberation (members' opinions, the computed grade) is the
-  // committee's and the heads' only; the decision itself is everyone's.
-  const seesCommittee = reviewer && examFormsReviewable(exam);
-  const committeeView = seesCommittee
-    ? {
-      chairmanName: chairmanId ? await nameOf(chairmanId) : null,
-      isChairman,
-      members: await Promise.all(opinionIds.map(async (id) => {
-        const o = exam.committeeOpinions?.[id];
-        return { name: o?.name || await nameOf(id), isMe: id === myUid, opinion: o ? { result: o.result, note: o.note, at: o.at } : null };
-      })),
-      missingNames: await Promise.all(missingIds.map(nameOf)),
-      gradeSummary: computeExamGradeSummary(exam, forms, await loadSupervisorExamGrade(exam.milestoneId)),
-    }
-    : null;
-  const decision = exam.decision && (staff || rel.isStudent)
-    ? { result: exam.decision.result, note: exam.decision.note, byName: exam.decision.byName, at: exam.decision.at, finalGrade: exam.decision.finalGrade ?? null }
+  // How the final grade is made — for the people who sign it and the
+  // supervisor; never examiners (it shows the supervisor's research grade)
+  // nor, before the final approval, students. While grades are still
+  // missing it's computed live so they can see what is missing.
+  const seesGrade = rel.isSupervisor || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator;
+  const gradeBreakdown = seesGrade && formsDone
+    ? exam.gradeBreakdown ?? (exam.status === EXAM_GRADES_PENDING || exam.status === EXAM_COMMITTEE_REVIEW ? await buildExamGradeBreakdown(exam, milestone) : null)
     : null;
 
   return {
@@ -229,8 +214,15 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     myFormSubmitted: !!myForm,
     supervisorGradeGiven,
     formOpen: formGate.open,
-    committee: committeeView,
-    decision,
+    gradeBreakdown,
+    gradeReview: seesGrade && exam.gradeReview
+      ? { decision: exam.gradeReview.decision, reason: exam.gradeReview.reason, byName: exam.gradeReview.byName, at: exam.gradeReview.at }
+      : null,
+    finalApproval: (seesGrade || rel.isStudent) && exam.finalApproval
+      ? { byName: exam.finalApproval.byName, at: exam.finalApproval.at, note: seesGrade ? exam.finalApproval.note : '' }
+      : null,
+    // A student sees their own final grade once it's finally approved.
+    myFinalGrade: rel.isStudent && exam.status === EXAM_COMPLETED && myUid ? exam.gradeBreakdown?.finalGradeByStudent?.[myUid] ?? null : null,
     rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES },
   };
 }
@@ -495,11 +487,13 @@ export const getExamForm = async (req: AuthenticatedRequest, res: Response) => {
     // research grade explicitly.
     if (isSupervisor && req.query.as === 'supervisor') return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'supervisor' }));
     if (exam.examiners.some((e) => e.key === key)) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'examiner', key }));
-    // The committee reads every form once all are in; the two heads may too.
+    // Once every form is in: the committee, the two heads and the
+    // administrative coordinator may read them.
     const reviewer = (exam.committeeMemberIds ?? []).includes(uid)
       || (await gradSchoolHeadIds(exam.scope, true)).includes(uid)
-      || (await programHeadIds(exam.scope, true)).includes(uid);
-    if (reviewer && examFormsReviewable(exam)) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'reviewer' }));
+      || (await programHeadIds(exam.scope, true)).includes(uid)
+      || (await adminCoordinatorIds(exam.scope, true)).includes(uid);
+    if (reviewer && EXAM_FORMS_DONE_STATUSES.includes(exam.status)) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'reviewer' }));
     // The supervisor sees only their own research grade, not the examiners' forms.
     if (isSupervisor) return res.status(200).json(await buildExamFormView(milestoneId, { kind: 'supervisor' }));
     return res.status(403).json({ message: L(req, 'You do not have access to these forms.', 'אין לך גישה לטפסים אלה.') });
@@ -539,46 +533,47 @@ export const submitMySupervisorExamGrade = async (req: AuthenticatedRequest, res
   }
 };
 
-// ─── POST /api/thesis-exam/:milestoneId/committee-opinion ────────────────────
-// Body: { result: 'approve' | 'fix' | 'fail', note } — a committee member
-// (not the chairman); may be changed until the chairman decides.
-export const giveCommitteeOpinion = async (req: AuthenticatedRequest, res: Response) => {
+// ─── POST /api/thesis-exam/:milestoneId/final-grade-review ───────────────────
+// Body: { decision: 'approve' | 'deny', reason? } — the grad school head, on
+// the computed final grade and its breakdown.
+export const reviewFinalGrade = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const decision = req.body?.decision;
+  if (decision !== 'approve' && decision !== 'deny') return res.status(400).json({ message: L(req, 'Invalid decision.', 'החלטה לא תקינה.') });
   const milestoneId = String(req.params.milestoneId);
   try {
-    const result = await submitCommitteeOpinion(milestoneId, { uid, name: await nameOf(uid) }, req.body);
-    await audit(req, milestoneId, 'committee_opinion', { result: req.body?.result });
-    return res.status(200).json({ success: true, ...result });
-  } catch (err) {
-    return sendError(req, res, err, 'Failed to save your opinion.', 'שמירת חוות הדעת נכשלה.');
-  }
-};
-
-// ─── POST /api/thesis-exam/:milestoneId/committee-decision ───────────────────
-// Body: { result: 'approve' | 'fix' | 'fail', note } — the committee
-// chairman, once every other member gave an opinion.
-export const decideCommitteeOutcome = async (req: AuthenticatedRequest, res: Response) => {
-  const uid = req.user?.uid;
-  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
-  const milestoneId = String(req.params.milestoneId);
-  try {
-    // Audit first-hand: "fix" deletes the exam doc that audit() reads.
     const loaded = await loadExam(milestoneId);
-    const result = await decideExamOutcome(milestoneId, { uid, name: await nameOf(uid) }, req.body);
-    await logAuditEvent({
-      userId: uid, userRole: req.user!.role, action: 'thesis_exam_step', entityType: 'milestone', entityId: milestoneId,
-      newValue: { step: 'committee_decision', ...result },
-    }).catch((err) => console.error('thesisExam audit failed:', err));
-    if (loaded) {
-      await logProjectRecordEntry({
-        projectId: loaded.exam.projectId, type: 'thesis_exam_step', actorId: uid, actorRole: req.user!.role,
-        data: { milestoneId, step: 'committee_decision', ...result },
-      }).catch((err) => console.error('thesisExam record entry failed:', err));
+    if (!loaded) return res.status(404).json({ message: L(req, 'Thesis exam not found.', 'בחינת התזה לא נמצאה.') });
+    if (!(await gradSchoolHeadIds(loaded.exam.scope, true)).includes(uid)) {
+      return res.status(403).json({ message: L(req, 'Only the grad school head may approve the final grade.', 'רק ראש בית הספר ללימודים מתקדמים רשאי/ת לאשר את הציון הסופי.') });
     }
+    const result = await reviewExamFinalGrade(milestoneId, { uid, name: await nameOf(uid) }, decision, req.body?.reason);
+    await audit(req, milestoneId, decision === 'approve' ? 'final_grade_approved_by_grad_head' : 'final_grade_denied_by_grad_head', { status: result.status });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     return sendError(req, res, err, 'Failed to record the decision.', 'שמירת ההחלטה נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/final-approval ───────────────────────
+// Body: { note? } — the administrative coordinator's final approval; closes
+// the thesis and sends the grade to Michlol.
+export const giveFinalApproval = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    const loaded = await loadExam(milestoneId);
+    if (!loaded) return res.status(404).json({ message: L(req, 'Thesis exam not found.', 'בחינת התזה לא נמצאה.') });
+    if (!(await adminCoordinatorIds(loaded.exam.scope, true)).includes(uid)) {
+      return res.status(403).json({ message: L(req, 'Only the administrative coordinator may give the final approval.', 'רק הרכז/ת המנהלי/ת רשאי/ת לתת את האישור הסופי.') });
+    }
+    const result = await approveExamFinalGrade(milestoneId, { uid, name: await nameOf(uid) }, req.body?.note);
+    await audit(req, milestoneId, 'final_grade_final_approval', { finalGradeByStudent: result.finalGradeByStudent });
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to approve the grade.', 'אישור הציון נכשל.');
   }
 };
 

@@ -32,7 +32,11 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
-  | 'exam_failed'
+  | 'exam_grades_pending'
+  | 'exam_grade_review'
+  | 'exam_grade_denied'
+  | 'exam_returned_to_supervisor'
+  | 'exam_coordinator_approval'
   | 'completed';
 
 export interface ProjectProposal {
@@ -361,8 +365,12 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   exam_date_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_date_final_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
-  exam_committee_review: { color: '#736B8C', bg: '#EDEBF2', icon: '🏛️' },
-  exam_failed: { color: '#B54141', bg: 'var(--danger-bg)', icon: '⚠️' },
+  exam_committee_review: { color: '#736B8C', bg: '#EDEBF2', icon: '🧮' },
+  exam_grades_pending: { color: '#736B8C', bg: '#EDEBF2', icon: '🧮' },
+  exam_grade_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
+  exam_grade_denied: { color: '#B54141', bg: 'var(--danger-bg)', icon: '⚠️' },
+  exam_returned_to_supervisor: { color: '#B54141', bg: 'var(--danger-bg)', icon: '↩️' },
+  exam_coordinator_approval: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   completed: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🏁' },
 };
 
@@ -388,8 +396,12 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   exam_date_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_date_final_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
-  exam_committee_review: { he: 'ממתין לוועדה', en: 'Awaiting the Committee' },
-  exam_failed: { he: 'הבחינה לא עברה', en: 'Exam Not Passed' },
+  exam_committee_review: { he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
+  exam_grades_pending: { he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
+  exam_grade_review: { he: 'הציון ממתין לאישור ראש בית הספר', en: 'Grade Awaiting the Grad School Head' },
+  exam_grade_denied: { he: 'הציון נדחה ע"י ראש בית הספר', en: 'Grade Denied by the Grad School Head' },
+  exam_returned_to_supervisor: { he: 'הוחזר למנחה להמשך עבודה', en: 'Returned to the Supervisor' },
+  exam_coordinator_approval: { he: 'ממתין לאישור סופי של הרכזת', en: "Awaiting the Coordinator's Final Approval" },
   coordinator_approved: { he: 'אושר ע"י רכז', en: 'Coordinator Approved' },
   completed: { he: 'הושלם', en: 'Completed' },
 };

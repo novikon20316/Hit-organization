@@ -196,21 +196,28 @@ function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he'
 // supervisor approval…) that never happen. Order matches that file's header.
 const EXAM_STATUS_ORDER = [
   'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
-  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_committee_review',
-  'exam_failed',
+  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_grades_pending',
+  'exam_grade_review', 'exam_coordinator_approval',
 ] as const;
+// Statuses drawn at another step's place (retired / parked ones).
+const EXAM_STATUS_AS: Record<string, (typeof EXAM_STATUS_ORDER)[number]> = {
+  exam_committee_review: 'exam_grades_pending',
+  exam_grade_denied: 'exam_grade_review',
+  exam_returned_to_supervisor: 'exam_grade_review',
+};
 
 function isThesisExamMilestone(m: MilestoneData): boolean {
-  return !!m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status);
+  return !!m.thesisExamFlow || (EXAM_STATUS_ORDER as readonly string[]).includes(m.status) || m.status in EXAM_STATUS_AS;
 }
 
 function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] {
   const he = lang === 'he';
   const allDone = isCompletedStatus(m.status);
-  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(m.status);
-  const step = (status: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
-    const at = EXAM_STATUS_ORDER.indexOf(status);
-    return { label, done: allDone || (pos >= 0 && pos > at), current: m.status === status };
+  const status = EXAM_STATUS_AS[m.status] ?? m.status;
+  const pos = (EXAM_STATUS_ORDER as readonly string[]).indexOf(status);
+  const step = (s: (typeof EXAM_STATUS_ORDER)[number], label: string): ChainStep => {
+    const at = EXAM_STATUS_ORDER.indexOf(s);
+    return { label, done: allDone || (pos >= 0 && pos > at), current: status === s };
   };
   const sched = m.examSchedule;
   const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י הבוחנים' : 'Exam held + examiners fill the thesis exam form';
@@ -226,9 +233,14 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang, { day: 'numeric', month: 'short', year: 'numeric' })} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_committee_review', he ? 'חוות דעת חברי הוועדה והחלטת היו״ר' : "Members' opinions + chairman's decision"),
+    step('exam_grades_pending', he ? 'ציון המחקר של המנחה וחישוב הציון הסופי לפי משקלות אבני הדרך' : "Supervisor's research grade + final grade by the milestone weights"),
+    step('exam_grade_review', m.status === 'exam_grade_denied'
+      ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
+      : m.status === 'exam_returned_to_supervisor'
+        ? (he ? 'הוחזר למנחה להמשך עבודה' : 'Returned to the supervisor for more work')
+        : (he ? 'אישור הציון ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the grade')),
+    step('exam_coordinator_approval', he ? 'אישור סופי ע״י הרכזת האדמיניסטרטיבית והעברה למכלול' : 'Admin coordinator final approval + Michlol'),
   );
-  if (m.status === 'exam_failed') steps.push(step('exam_failed', he ? 'הבחינה לא עברה — ההמשך לפי הנחיות הפקולטה' : "Exam not passed — next step per the faculty's rules"));
   return steps;
 }
 
