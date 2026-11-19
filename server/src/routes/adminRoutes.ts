@@ -38,7 +38,7 @@ import {
 import { authenticateUser } from '../middleware/auth.js';
 import {verifyToken } from '../middleware/auth.js';
 import { assignDefense, getDefenseZoomStartUrl, getDefenseConfig } from '../controllers/coordinatorController.js';
-import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile } from '../controllers/infoFilesController.js';
+import { uploadInfoFile, uploadInfoFileMiddleware, updateInfoFile, deleteInfoFile, getInfoFileMilestoneTypes } from '../controllers/infoFilesController.js';
 import { createFacultyContent, deleteFacultyContent } from '../controllers/facultyContentController.js';
 import {
   exportUsersAdmin,
@@ -117,6 +117,8 @@ router.post('/defense-access-grants/:grantCode/extend', verifyToken, extendDefen
 router.post('/projects/:projectId/assign-defense', verifyToken, assignDefense);
 router.get('/milestones/:milestoneId/zoom-start-url', verifyToken, getDefenseZoomStartUrl);
 router.get('/defense-config', verifyToken, getDefenseConfig);
+// system_admin or coordinator (own faculty) — gated inside the controller.
+router.get('/info-files/milestone-types', verifyToken, getInfoFileMilestoneTypes);
 router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile);
 router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);

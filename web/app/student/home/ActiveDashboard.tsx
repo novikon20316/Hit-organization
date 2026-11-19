@@ -80,7 +80,14 @@ export function ActiveDashboard({ project, milestones, progress, onChanged, tab 
     apiClient.getInfoFiles()
       .then((res) => {
         if (cancelled) return;
-        setProjectFiles((res.files ?? []).filter((f) => f.projectIds?.includes(project.id)));
+        // This project's own files, plus faculty-wide files tagged to a
+        // milestone — the server only returns one of those once one of this
+        // student's projects reached that milestone, and it belongs under
+        // that milestone here (untagged faculty-wide files stay on the Info
+        // screen only).
+        setProjectFiles((res.files ?? []).filter((f) =>
+          f.projectIds?.includes(project.id) || ((f.projectIds?.length ?? 0) === 0 && !!f.milestoneType)
+        ));
       })
       .catch(() => {});
     return () => {

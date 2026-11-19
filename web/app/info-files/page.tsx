@@ -66,6 +66,8 @@ interface InfoFile {
   trackTypes: string[];
   projectIds: string[];
   milestoneType: string | null;
+  milestoneNameHe?: string | null;
+  milestoneNameEn?: string | null;
   isVisible: boolean;
   /** Server-computed: may this viewer replace / hide / delete it. */
   canManage?: boolean;
@@ -118,16 +120,19 @@ function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: 
 // (the two modes are mutually exclusive server-side) — this branches first
 // so such a file never misleadingly reads as "🌐 Everyone".
 function fileScopeSummary(f: InfoFile, lang: 'he' | 'en'): string {
+  // The saved display name when there is one — template milestone keys can
+  // be opaque (custom_xxxx); older files fall back to the key.
+  const milestoneLabel = f.milestoneType
+    ? `${lang === 'he' ? 'מ־' : 'from '}${(lang === 'he' ? f.milestoneNameHe || f.milestoneNameEn : f.milestoneNameEn || f.milestoneNameHe) || f.milestoneType}`
+    : '';
   if (f.projectIds.length > 0) {
     const count = f.projectIds.length;
     const projectsLabel = lang === 'he'
       ? `📁 ${count} ${count === 1 ? 'פרויקט' : 'פרויקטים'}`
       : `📁 ${count} project${count === 1 ? '' : 's'}`;
-    return f.milestoneType
-      ? `${projectsLabel} · ${lang === 'he' ? 'מ־' : 'from '}${f.milestoneType}`
-      : projectsLabel;
+    return milestoneLabel ? `${projectsLabel} · ${milestoneLabel}` : projectsLabel;
   }
-  return scopeSummary(f, lang);
+  return milestoneLabel ? `${scopeSummary(f, lang)} · ${milestoneLabel}` : scopeSummary(f, lang);
 }
 
 export default function InfoFilesPage() {
@@ -307,6 +312,33 @@ export default function InfoFilesPage() {
   const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
   const [scopeTrackTypes, setScopeTrackTypes] = useState<string[]>([]);
   const [selectAllFiles, setSelectAllFiles] = useState(false);
+  // Faculty-wide mode can also hold a file back until the student reaches a
+  // milestone — options come from the approved templates matching the
+  // audience chosen above (see getInfoFileMilestoneTypes on the server).
+  const [facultyMilestoneOptions, setFacultyMilestoneOptions] = useState<MilestoneTypeOption[]>([]);
+  const [scopeFacultyMilestoneType, setScopeFacultyMilestoneType] = useState('');
+
+  useEffect(() => {
+    if (!isAllowed || isProjectOnlyRole || scopeMode !== 'faculty') return;
+    let cancelled = false;
+    const scope = selectAllFiles
+      ? { facultyIds: [], majors: [], degreeTypes: [], trackTypes: [] }
+      : { facultyIds: scopeFacultyIds, majors: scopeMajors, degreeTypes: scopeDegreeTypes, trackTypes: scopeTrackTypes };
+    apiClient.getInfoFileMilestoneTypes(scope)
+      .then((res) => {
+        if (cancelled) return;
+        const options = (res.milestoneTypes ?? []).map((m) => ({ type: m.type, labelHe: m.nameHe, labelEn: m.nameEn }));
+        setFacultyMilestoneOptions(options);
+        // A narrower audience can drop the chosen milestone — clear it then.
+        setScopeFacultyMilestoneType((prev) => (prev && !options.some((o) => o.type === prev) ? '' : prev));
+      })
+      .catch(() => {
+        if (!cancelled) setFacultyMilestoneOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAllowed, isProjectOnlyRole, scopeMode, selectAllFiles, scopeFacultyIds, scopeMajors, scopeDegreeTypes, scopeTrackTypes]);
 
   // Cascades to just the selected faculties' majors once any are picked —
   // otherwise the full cross-faculty list, since a major on its own is a
@@ -490,13 +522,22 @@ export default function InfoFilesPage() {
       formData.append('titleEn', titleEn.trim());
       if (scopeMode === 'projects') {
         formData.append('projectIds', JSON.stringify(scopeProjectIds));
-        if (scopeMilestoneType) formData.append('milestoneType', scopeMilestoneType);
+        if (scopeMilestoneType) {
+          const opt = milestoneOptions.find((o) => o.type === scopeMilestoneType);
+          formData.append('milestoneType', scopeMilestoneType);
+          if (opt) { formData.append('milestoneNameHe', opt.labelHe); formData.append('milestoneNameEn', opt.labelEn); }
+        }
         formData.append('isVisible', String(scopeIsVisible));
       } else {
         formData.append('facultyIds', JSON.stringify(selectAllFiles ? [] : scopeFacultyIds));
         formData.append('majors', JSON.stringify(selectAllFiles ? [] : scopeMajors));
         formData.append('degreeTypes', JSON.stringify(selectAllFiles ? [] : scopeDegreeTypes));
         formData.append('trackTypes', JSON.stringify(selectAllFiles ? [] : scopeTrackTypes));
+        if (scopeFacultyMilestoneType) {
+          const opt = facultyMilestoneOptions.find((o) => o.type === scopeFacultyMilestoneType);
+          formData.append('milestoneType', scopeFacultyMilestoneType);
+          if (opt) { formData.append('milestoneNameHe', opt.labelHe); formData.append('milestoneNameEn', opt.labelEn); }
+        }
       }
       await apiClient.uploadInfoFile(formData);
       setTitleHe('');
@@ -507,6 +548,7 @@ export default function InfoFilesPage() {
       setScopeDegreeTypes([]);
       setScopeTrackTypes([]);
       setSelectAllFiles(false);
+      setScopeFacultyMilestoneType('');
       setScopeProjectIds([]);
       setScopeMilestoneType('');
       setScopeIsVisible(true);
@@ -718,6 +760,42 @@ export default function InfoFilesPage() {
                 ))}
               </div>
             </div>
+
+            {facultyMilestoneOptions.length > 0 && (
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-ink">
+                  {lang === 'he' ? 'זמין החל מאבן דרך' : 'Available from milestone'}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setScopeFacultyMilestoneType('')}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      scopeFacultyMilestoneType === '' ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                    }`}
+                  >
+                    {lang === 'he' ? 'ללא (זמין מיד)' : 'None (available immediately)'}
+                  </button>
+                  {facultyMilestoneOptions.map((o) => (
+                    <button
+                      key={o.type}
+                      type="button"
+                      onClick={() => setScopeFacultyMilestoneType(o.type)}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                        scopeFacultyMilestoneType === o.type ? 'border-primary bg-primary text-primary-ink' : 'border-line bg-surface text-ink hover:border-primary'
+                      }`}
+                    >
+                      {lang === 'he' ? o.labelHe : o.labelEn}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {lang === 'he'
+                    ? 'הקובץ יוצג לסטודנט רק כשהפרויקט שלו מגיע לאבן הדרך הזו, ויופיע תחתיה בלוח הבקרה.'
+                    : "Students see the file only once their project reaches this milestone, listed under it on their dashboard."}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

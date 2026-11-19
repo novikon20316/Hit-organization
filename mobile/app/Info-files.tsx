@@ -124,6 +124,35 @@ export default function InfoFilesAdmin() {
   const [scopeMajors, setScopeMajors] = useState<string[]>([]);
   const [scopeDegreeTypes, setScopeDegreeTypes] = useState<string[]>([]);
   const [scopeTrackTypes, setScopeTrackTypes] = useState<string[]>([]);
+  // Optional: hold the file back until the student's project reaches this
+  // milestone (shown under it on the student's dashboard). Options come from
+  // the approved templates matching the audience above — see the server's
+  // getInfoFileMilestoneTypes. Empty list (e.g. a role the server doesn't
+  // allow there) just hides the picker.
+  const [milestoneOptions, setMilestoneOptions] = useState<{ type: string; nameHe: string; nameEn: string }[]>([]);
+  const [scopeMilestoneType, setScopeMilestoneType] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.get('/api/admin/info-files/milestone-types', {
+      params: {
+        facultyIds: JSON.stringify(scopeFacultyIds),
+        majors: JSON.stringify(scopeMajors),
+        degreeTypes: JSON.stringify(scopeDegreeTypes),
+        trackTypes: JSON.stringify(scopeTrackTypes),
+      },
+    })
+      .then((res) => {
+        if (cancelled) return;
+        const options: { type: string; nameHe: string; nameEn: string }[] = res.data?.milestoneTypes ?? [];
+        setMilestoneOptions(options);
+        setScopeMilestoneType((prev) => (prev && !options.some((o) => o.type === prev) ? '' : prev));
+      })
+      .catch(() => {
+        if (!cancelled) setMilestoneOptions([]);
+      });
+    return () => { cancelled = true; };
+  }, [scopeFacultyIds, scopeMajors, scopeDegreeTypes, scopeTrackTypes]);
 
   // Cascades to just the selected faculties' majors once any are picked —
   // otherwise the full cross-faculty list, since a major on its own is a
@@ -340,6 +369,11 @@ export default function InfoFilesAdmin() {
       formData.append('majors', JSON.stringify(scopeMajors));
       formData.append('degreeTypes', JSON.stringify(scopeDegreeTypes));
       formData.append('trackTypes', JSON.stringify(scopeTrackTypes));
+      if (scopeMilestoneType) {
+        const opt = milestoneOptions.find((o) => o.type === scopeMilestoneType);
+        formData.append('milestoneType', scopeMilestoneType);
+        if (opt) { formData.append('milestoneNameHe', opt.nameHe); formData.append('milestoneNameEn', opt.nameEn); }
+      }
 
       await apiClient.post('/api/admin/info-files', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -353,6 +387,7 @@ export default function InfoFilesAdmin() {
       setScopeMajors([]);
       setScopeDegreeTypes([]);
       setScopeTrackTypes([]);
+      setScopeMilestoneType('');
       fetchFiles();
     } catch (e) {
       Alert.alert(
@@ -529,6 +564,32 @@ export default function InfoFilesAdmin() {
                 );
               })}
             </View>
+
+            {milestoneOptions.length > 0 && (
+              <>
+                <Text style={[styles.scopeGroupLabel, isRtl && styles.textRight]}>
+                  {lang === 'he' ? 'זמין החל מאבן דרך' : 'Available from milestone'}
+                </Text>
+                <View style={styles.chipRow}>
+                  {[{ type: '', nameHe: 'ללא (זמין מיד)', nameEn: 'None (available immediately)' }, ...milestoneOptions].map((o) => {
+                    const active = scopeMilestoneType === o.type;
+                    return (
+                      <Pressable
+                        key={o.type || 'none'}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => setScopeMilestoneType(o.type)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {lang === 'he' ? o.nameHe : o.nameEn}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
           </View>
 
           <Pressable

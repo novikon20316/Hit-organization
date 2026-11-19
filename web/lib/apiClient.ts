@@ -1584,6 +1584,9 @@ export const apiClient = {
          *  this file becomes visible from onward; null means visible as soon
          *  as the student is enrolled in one of projectIds. */
         milestoneType: string | null;
+        /** Display label for milestoneType, saved at upload (absent on older files). */
+        milestoneNameHe?: string | null;
+        milestoneNameEn?: string | null;
         /** Manual staff on/off switch, independent of the milestone gate —
          *  both must pass for a student to see the file. */
         isVisible: boolean;
@@ -1611,6 +1614,22 @@ export const apiClient = {
    *  `isVisible` ('true'/'false'). Same role/ownership rules as delete. */
   async updateInfoFile(id: string, formData: FormData) {
     return request<{ success: boolean; message: string }>(`/api/admin/info-files/${id}`, { method: 'PATCH', body: formData, raw: true });
+  },
+
+  /** GET /api/admin/info-files/milestone-types — milestone options for a
+   *  faculty-wide file's "available from milestone" picker, from the approved
+   *  templates matching this audience (each empty array = unrestricted).
+   *  system_admin or coordinator (own faculty only). */
+  async getInfoFileMilestoneTypes(scope: { facultyIds: string[]; majors: string[]; degreeTypes: string[]; trackTypes: string[] }) {
+    return request<{ milestoneTypes: Array<{ type: string; nameHe: string; nameEn: string; order: number }> }>('/api/admin/info-files/milestone-types', {
+      method: 'GET',
+      params: {
+        facultyIds: JSON.stringify(scope.facultyIds),
+        majors: JSON.stringify(scope.majors),
+        degreeTypes: JSON.stringify(scope.degreeTypes),
+        trackTypes: JSON.stringify(scope.trackTypes),
+      },
+    });
   },
 
   async deleteInfoFile(id: string) {

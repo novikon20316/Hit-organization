@@ -6,7 +6,10 @@ import multer from 'multer';
 import { RequestHandler } from 'express';
 import { v2 as cloudinary } from 'cloudinary';
 import { VALID_MAJORS } from '../config/majors.js';
-import { resolveMilestoneOrder } from '../services/workflowTemplates.js';
+import {
+  resolveMilestoneOrder, deriveProcessType, listWorkflowTemplates, DEFAULT_MILESTONES,
+  type ProcessType, type WorkflowMilestoneSpec,
+} from '../services/workflowTemplates.js';
 import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { L } from '../utils/localize.js';
@@ -167,12 +170,20 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
     } catch (e: any) {
       return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
-    // A milestone type key matching one of the target project(s)' own
-    // milestone docs — not validated against a fixed set here since custom
-    // template milestone types are arbitrary strings (see workflowTemplates.ts).
-    // Omitted/empty means "visible as soon as the student is enrolled."
+    // A milestone type key — in project mode, one of the target project(s)'
+    // own milestone docs; in faculty-wide mode, one from the targeted
+    // faculties' templates (see getInfoFileMilestoneTypes). Not validated
+    // against a fixed set here since custom template milestone types are
+    // arbitrary strings (see workflowTemplates.ts). Omitted/empty means
+    // "visible as soon as the student is enrolled" (project mode) or "visible
+    // to every matching student" (faculty-wide mode).
     const milestoneType: string | null =
       typeof req.body?.milestoneType === 'string' && req.body.milestoneType.trim() ? req.body.milestoneType.trim() : null;
+    // Display-only label for the staff list — template milestone keys can be
+    // opaque (custom_xxxx). Stored as sent, capped; never used for gating.
+    const nameField = (v: unknown) => (milestoneType && typeof v === 'string' ? v.trim().slice(0, 200) : '');
+    const milestoneNameHe = nameField(req.body?.milestoneNameHe);
+    const milestoneNameEn = nameField(req.body?.milestoneNameEn);
     // multipart fields always arrive as strings — 'false' must not become
     // truthy. Omitted defaults to visible.
     const isVisible = req.body?.isVisible === undefined ? true : req.body.isVisible === 'true' || req.body.isVisible === true;
@@ -242,6 +253,8 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       trackTypes,
       projectIds,
       milestoneType,
+      ...(milestoneNameHe ? { milestoneNameHe } : {}),
+      ...(milestoneNameEn ? { milestoneNameEn } : {}),
       isVisible,
       createdAt:   admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -337,6 +350,8 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
         trackTypes:    data.trackTypes    ?? [],
         projectIds:    data.projectIds    ?? [],
         milestoneType: data.milestoneType ?? null,
+        milestoneNameHe: data.milestoneNameHe ?? null,
+        milestoneNameEn: data.milestoneNameEn ?? null,
         isVisible:     data.isVisible     ?? true,
         createdAt:     data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
@@ -357,24 +372,9 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       // the hide toggle on every file, but this filter used to check it only
       // for project-scoped ones, so a hidden faculty-wide file stayed
       // visible (and downloadable) to students.
-      const facultyMajorMatched = files.filter((f) =>
-        f.projectIds.length === 0 &&
-        f.isVisible !== false &&
-        (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
-        (f.majors.length === 0      || f.majors.includes(student.major)) &&
-        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
-        (f.trackTypes.length === 0  || f.trackTypes.includes(effectiveTrack))
-      );
-
-      const projectScopedCandidates = files.filter((f) =>
-        f.projectIds.length > 0 &&
-        f.isVisible !== false &&
-        f.projectIds.some((pid: string) => activeProjectIds.includes(pid))
-      );
-
       // Memoized per project — several files can be tagged to the same
       // project, and each check needs that project's full milestone list to
-      // compare orders against (see the loop below).
+      // compare orders against (see reachedMilestone below).
       const milestonesByProject: Record<string, FirebaseFirestore.DocumentData[]> = {};
       const getProjectMilestones = async (projectId: string) => {
         if (!(projectId in milestonesByProject)) {
@@ -384,6 +384,53 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
         return milestonesByProject[projectId]!;
       };
 
+      // Has this project reached (or passed) a milestone of `type`? False if
+      // the project has no milestone of that type at all.
+      const reachedMilestone = async (projectId: string, type: string): Promise<boolean> => {
+        const ms = await getProjectMilestones(projectId);
+        const tagged = ms.find((m) => m.type === type);
+        if (!tagged) return false;
+        const current = ms
+          .filter((m) => !DONE_MILESTONE_STATUSES.has(m.status))
+          .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b))[0];
+        // No not-done milestone left means everything is done — "reached
+        // everything," not "reached nothing."
+        const currentOrder = current ? resolveMilestoneOrder(current) : Number.MAX_SAFE_INTEGER;
+        return resolveMilestoneOrder(tagged) <= currentOrder;
+      };
+
+      const facultyMajorCandidates = files.filter((f) =>
+        f.projectIds.length === 0 &&
+        f.isVisible !== false &&
+        (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
+        (f.majors.length === 0      || f.majors.includes(student.major)) &&
+        (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
+        (f.trackTypes.length === 0  || f.trackTypes.includes(effectiveTrack))
+      );
+
+      // A faculty-wide file can also be tagged to a milestone type — then it
+      // shows only once one of the student's active projects has reached that
+      // milestone (a student with no active project hasn't reached any).
+      const facultyMajorMatched: typeof files = [];
+      for (const f of facultyMajorCandidates) {
+        if (!f.milestoneType) {
+          facultyMajorMatched.push(f);
+          continue;
+        }
+        for (const pid of activeProjectIds) {
+          if (await reachedMilestone(pid, f.milestoneType)) {
+            facultyMajorMatched.push(f);
+            break;
+          }
+        }
+      }
+
+      const projectScopedCandidates = files.filter((f) =>
+        f.projectIds.length > 0 &&
+        f.isVisible !== false &&
+        f.projectIds.some((pid: string) => activeProjectIds.includes(pid))
+      );
+
       const projectScopedMatched: typeof files = [];
       for (const f of projectScopedCandidates) {
         if (!f.milestoneType) {
@@ -391,16 +438,7 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
           continue;
         }
         const matchingProjectId = f.projectIds.find((pid: string) => activeProjectIds.includes(pid))!;
-        const ms = await getProjectMilestones(matchingProjectId);
-        const tagged = ms.find((m) => m.type === f.milestoneType);
-        if (!tagged) continue; // this project doesn't even have that milestone type
-        const current = ms
-          .filter((m) => !DONE_MILESTONE_STATUSES.has(m.status))
-          .sort((a, b) => resolveMilestoneOrder(a) - resolveMilestoneOrder(b))[0];
-        // No not-done milestone left means everything is done — "reached
-        // everything," not "reached nothing."
-        const currentOrder = current ? resolveMilestoneOrder(current) : Number.MAX_SAFE_INTEGER;
-        if (resolveMilestoneOrder(tagged) <= currentOrder) projectScopedMatched.push(f);
+        if (await reachedMilestone(matchingProjectId, f.milestoneType)) projectScopedMatched.push(f);
       }
 
       files = [...facultyMajorMatched, ...projectScopedMatched];
@@ -453,6 +491,69 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
   } catch (error: any) {
     console.error('getInfoFiles error:', error);
     return res.status(500).json({ message: L(req, 'Failed to load info files.', 'טעינת קבצי המידע נכשלה.') });
+  }
+};
+
+// ─── GET /api/admin/info-files/milestone-types ────────────────────────────────
+// The milestone options for a FACULTY-WIDE file's "available from milestone"
+// picker: every milestone type in the approved workflow templates matching
+// the chosen audience (facultyIds/majors/degreeTypes/trackTypes as JSON
+// arrays, each empty = unrestricted — same convention as uploadInfoFile).
+// A faculty + process type with no approved template contributes
+// DEFAULT_MILESTONES, the same fallback enrollment uses. A coordinator is
+// limited to their own faculty; a supervisor has no faculty-wide mode (their
+// project-mode picker reads the chosen projects' own milestones instead).
+export const getInfoFileMilestoneTypes = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
+  const role = infoFileRole(req.user);
+  if (role !== 'system_admin' && role !== 'coordinator') {
+    return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
+  }
+
+  let facultyIds: string[], majors: string[], degreeTypes: string[], trackTypes: string[];
+  try {
+    facultyIds  = parseScopeArray(req.query.facultyIds, VALID_FACULTY_IDS, 'facultyIds');
+    majors      = parseScopeArray(req.query.majors, VALID_MAJORS, 'majors');
+    degreeTypes = parseScopeArray(req.query.degreeTypes, VALID_DEGREE_TYPES, 'degreeTypes');
+    trackTypes  = parseScopeArray(req.query.trackTypes, VALID_TRACK_TYPES, 'trackTypes');
+  } catch (e: any) {
+    return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
+  }
+
+  if (role === 'coordinator') {
+    const own = req.user.facultyId;
+    if (!own || own === 'all') return res.status(200).json({ milestoneTypes: [] });
+    facultyIds = [own];
+  } else if (facultyIds.length === 0) {
+    facultyIds = [...VALID_FACULTY_IDS];
+  }
+
+  const degrees = degreeTypes.length > 0 ? degreeTypes : ['bachelors', 'masters'];
+  const tracks = trackTypes.length > 0 ? trackTypes : ['project', 'thesis'];
+  const processTypes = new Set<ProcessType>();
+  for (const d of degrees) for (const t of tracks) processTypes.add(deriveProcessType(d, t));
+
+  try {
+    const byType = new Map<string, { type: string; nameHe: string; nameEn: string; order: number }>();
+    const add = (m: WorkflowMilestoneSpec) => {
+      if (!byType.has(m.type)) byType.set(m.type, { type: m.type, nameHe: m.nameHe, nameEn: m.nameEn, order: m.order });
+    };
+    const templatesByFaculty = await Promise.all(facultyIds.map((f) => listWorkflowTemplates(f)));
+    templatesByFaculty.forEach((templates) => {
+      for (const pt of processTypes) {
+        const matching = templates.filter((t) =>
+          t.status === 'approved' && t.processType === pt &&
+          (majors.length === 0 || t.major === null || majors.includes(t.major))
+        );
+        if (matching.length === 0) DEFAULT_MILESTONES.forEach(add);
+        else matching.forEach((t) => (t.milestones ?? []).forEach(add));
+      }
+    });
+    const milestoneTypes = [...byType.values()].sort((a, b) => a.order - b.order);
+    return res.status(200).json({ milestoneTypes });
+  } catch (error: any) {
+    console.error('getInfoFileMilestoneTypes error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to load milestones.', 'טעינת אבני הדרך נכשלה.') });
   }
 };
 
