@@ -45,7 +45,7 @@ import {
 // linked into it (see that route's layout.tsx).
 import { StudentsReportTab } from '@/app/administrative_coordinator/dashboard/StudentsReportTab';
 import { STUDENTS_REPORT_TAB_FIELD_GUIDE, STUDENTS_REPORT_TAB_GUIDE_KEY } from '@/app/administrative_coordinator/dashboard/fieldGuide';
-import { DeadlinesTab } from './DeadlinesTab';
+import { DeadlinesTab, deadlineDomId } from './DeadlinesTab';
 import { BulkImportModal } from '@/components/BulkImportModal';
 import { PendingSignoffsWidget } from '@/components/dashboard/PendingSignoffsWidget';
 import { CoordinatorStatisticsTab } from '@/components/dashboard/CoordinatorStatisticsTab';
@@ -94,6 +94,10 @@ function CoordinatorHomeContent() {
   // used to make locally when building the now-removed tab-bar array.
   const paramTab = searchParams.get('tab');
   const tab: Tab = isTab(paramTab) && !(paramTab === 'archived' && activeRole === 'administrative_secretary') ? paramTab : 'overview';
+  // ?focus=<dom id> — set by the Overview's Urgent Actions rows so the click
+  // lands on the specific card (scrolled to + ringed) rather than just its
+  // tab, where the coordinator would have to hunt for it among the rest.
+  const focusDomId = searchParams.get('focus');
   const [allMilestones, setAllMilestones] = useState<CoordinatorPendingMilestone[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   // Kept in sync below purely so the milestones listener's "a milestone
@@ -374,6 +378,25 @@ function CoordinatorHomeContent() {
     [deadlines]
   );
 
+  // Urgent Actions deep link (see focusDomId above): once the target tab has
+  // rendered its data, scroll the card into view and ring it for a few
+  // seconds. Once per focus value, so live refreshes don't yank the page.
+  const handledFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusDomId || loadingData || handledFocusRef.current === focusDomId) return;
+    const el = document.getElementById(focusDomId);
+    if (!el) return;
+    handledFocusRef.current = focusDomId;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const ring = ['ring-2', 'ring-coordinator-primary', 'ring-offset-2', 'rounded-[var(--radius)]'];
+    el.classList.add(...ring);
+    // Not cleared on re-render: this effect has no deps (it waits on the
+    // target tab's data), so a cleanup would cancel the un-ring on the very
+    // next render. Removing classes from a detached node is harmless.
+    setTimeout(() => el.classList.remove(...ring), 4000);
+  });
+  const focusHref = (tabKey: Tab, domId: string) => `/coordinator/home?tab=${tabKey}&focus=${encodeURIComponent(domId)}`;
+
   // Quick-jump-to-fix-screen links on Urgent Actions cards are a coordinator
   // convenience only — administrative_secretary shares this page but not the
   // rest of its screen (no Pending/Defense/Deadlines tabs in its own sidebar,
@@ -474,7 +497,7 @@ function CoordinatorHomeContent() {
                 {thesisExamTasks.map((x) => (
                   <UrgentActionRow
                     key={`exam-${x.milestoneId}-${x.kind}`}
-                    href="/thesis-exam"
+                    href={`/thesis-exam?milestoneId=${encodeURIComponent(x.milestoneId)}`}
                     clickable
                     accent="error"
                     badgeClassName="bg-coordinator-error-container text-coordinator-error"
@@ -487,7 +510,7 @@ function CoordinatorHomeContent() {
                 {defenseActionCards.slice(0, 3).map((c) => (
                   <UrgentActionRow
                     key={c.key}
-                    href="/coordinator/home?tab=defense"
+                    href={focusHref('defense', `defense-${c.key}`)}
                     clickable={canQuickNavigate}
                     accent="error"
                     badgeClassName="bg-coordinator-error-container text-coordinator-error"
@@ -502,7 +525,7 @@ function CoordinatorHomeContent() {
                 {pendingMilestones.slice(0, 3).map((m) => (
                   <UrgentActionRow
                     key={m.id}
-                    href="/coordinator/home?tab=pending"
+                    href={focusHref('pending', `pending-${m.id}`)}
                     clickable={canQuickNavigate}
                     accent="default"
                     badgeClassName="bg-coordinator-secondary-container text-coordinator-on-secondary-container"
@@ -514,7 +537,7 @@ function CoordinatorHomeContent() {
                 {lateMilestones.slice(0, 3).map((d) => (
                   <UrgentActionRow
                     key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`}
-                    href="/coordinator/home?tab=deadlines"
+                    href={focusHref('deadlines', deadlineDomId(d))}
                     clickable={canQuickNavigate}
                     accent="error"
                     badgeClassName="bg-coordinator-error-container text-coordinator-error"
@@ -528,7 +551,9 @@ function CoordinatorHomeContent() {
                 {committeeTasks.slice(0, 3).map((c) => (
                   <UrgentActionRow
                     key={c.id}
-                    href="/committees"
+                    // Opens that review's form / the chair's decision form
+                    // directly (app/committees/page.tsx's deep link).
+                    href={c.id.startsWith('chair-') ? `/committees?chairMilestoneId=${encodeURIComponent(c.id.slice('chair-'.length))}` : `/committees?milestoneId=${encodeURIComponent(c.id)}`}
                     clickable
                     accent="default"
                     badgeClassName="bg-[#EDE9FE] text-primary"
@@ -544,7 +569,14 @@ function CoordinatorHomeContent() {
         <div data-field-guide-id="submissionList" className="grid gap-3 sm:grid-cols-2">
           <FieldGuideOverlay guideKey={PENDING_TAB_GUIDE_KEY} steps={PENDING_TAB_FIELD_GUIDE} />
           {pendingMilestones.map((m) => (
-            <PendingMilestoneCard key={m.id} milestone={m} onChanged={fetchAll} onApproveFinalReport={setAssigningMilestone} />
+            <PendingMilestoneCard
+              key={m.id}
+              milestone={m}
+              onChanged={fetchAll}
+              onApproveFinalReport={setAssigningMilestone}
+              domId={`pending-${m.id}`}
+              defaultExpanded={focusDomId === `pending-${m.id}`}
+            />
           ))}
           {pendingMilestones.length === 0 && (
             <p className="text-sm text-muted">{lang === 'he' ? '✅ אין אבני דרך הממתינות לאישור' : '✅ No milestones awaiting approval'}</p>

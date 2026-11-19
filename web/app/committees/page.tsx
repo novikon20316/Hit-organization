@@ -74,15 +74,24 @@ export default function CommitteesPage() {
   useEffect(() => {
     if (loadingData || deepLinkHandledRef.current) return;
     deepLinkHandledRef.current = true;
-    const id = new URLSearchParams(window.location.search).get('milestoneId');
+    const params = new URLSearchParams(window.location.search);
+    // ?chairMilestoneId=… (coordinator home's "Committee Chair Decision"
+    // Urgent Actions row) opens the chair's decision form instead.
+    const chairId = params.get('chairMilestoneId');
+    const chairReview = chairId ? pendingChairDecisions.find((r) => r.milestoneId === chairId) : undefined;
+    if (chairReview) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
+      setDecidingReview(chairReview);
+      return;
+    }
+    const id = params.get('milestoneId');
     if (!id) return;
     if (pendingReviews.some((r) => r.milestoneId === id && !r.alreadyVoted)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
       setReviewingMilestoneId(id);
     } else {
       document.getElementById(`committee-review-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [loadingData, pendingReviews]);
+  }, [loadingData, pendingReviews, pendingChairDecisions]);
 
   if (guardLoading) {
     return (

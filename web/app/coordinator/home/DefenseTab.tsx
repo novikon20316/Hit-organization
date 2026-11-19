@@ -489,7 +489,11 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
         <p className="text-sm text-muted">🎓 {lang === 'he' ? 'אין הגנות לתיאום' : 'No defenses to schedule'}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {sortedCards.map((card) => {
+          {/* Each card sits in an id'd wrapper so the coordinator home's
+              Urgent Actions rows can deep-link to it (?focus=defense-…).
+              The wrapper is a 1-cell grid so the card still stretches to
+              its row's height like before. */}
+          {sortedCards.map((card) => <div key={card.key} id={`defense-${card.key}`} className="grid">{(() => {
             if (card.kind === 'setup' && card.setup) {
               return <PendingMilestoneCard key={card.key} milestone={card.setup} onChanged={onChanged} onApproveFinalReport={onApproveFinalReport} />;
             }
@@ -652,7 +656,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
                 </p>
               </div>
             );
-          })}
+          })()}</div>)}
         </div>
       )}
 

@@ -18,11 +18,15 @@ interface PendingMilestoneCardProps {
   milestone: CoordinatorPendingMilestone;
   onChanged: () => void;
   onApproveFinalReport: (milestone: CoordinatorPendingMilestone) => void;
+  /** DOM id for deep links (Urgent Actions → ?focus=…) to scroll to. */
+  domId?: string;
+  /** Start expanded — set when an Urgent Actions row pointed at this card. */
+  defaultExpanded?: boolean;
 }
 
-export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalReport }: PendingMilestoneCardProps) {
+export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalReport, domId, defaultExpanded = false }: PendingMilestoneCardProps) {
   const { lang } = useLanguage();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [showApprove, setShowApprove] = useState(false);
@@ -99,7 +103,7 @@ export function PendingMilestoneCard({ milestone: m, onChanged, onApproveFinalRe
   };
 
   return (
-    <div className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
+    <div id={domId} className="role-rail rounded-[var(--radius)] border border-line bg-surface p-4" style={{ '--rail-color': facultyColor } as React.CSSProperties}>
       <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full text-start">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-muted">{milestoneDisplayName(m, lang, MILESTONE_LABEL)}</span>

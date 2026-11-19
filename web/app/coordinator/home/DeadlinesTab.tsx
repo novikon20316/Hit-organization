@@ -37,6 +37,12 @@ interface DeadlinesTabProps {
   onSaved: () => void;
 }
 
+/** DOM id of a deadline card — what the coordinator home's Urgent Actions
+ *  "Late Submission" row deep-links to (?tab=deadlines&focus=…). */
+export function deadlineDomId(d: { milestoneId?: string | null; id?: string | null; studentId?: string | null }): string {
+  return `deadline-${d.milestoneId ?? d.id ?? ''}-${d.studentId ?? ''}`;
+}
+
 export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps) {
   const { lang } = useLanguage();
   const [showBulk, setShowBulk] = useState(false);
@@ -57,7 +63,7 @@ export function DeadlinesTab({ deadlines, projects, onSaved }: DeadlinesTabProps
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {deadlines.map((d) => (
-            <div key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: '#F59E0B' }}>
+            <div key={`${d.milestoneId ?? d.id}-${d.studentId ?? ''}`} id={deadlineDomId(d)} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: '#F59E0B' }}>
               <p className="mb-2 text-sm font-semibold text-ink">👤 {d.studentName}</p>
               <div className="grid gap-1.5 text-xs">
                 <p className="text-muted">

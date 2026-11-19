@@ -83,16 +83,21 @@ export default function CommitteesScreen() {
 
   // ?milestoneId=… (the supervisor dashboard's Quick Tasks committee row)
   // opens that review directly, once, after the list has loaded.
-  const { milestoneId: deepLinkMilestoneId } = useLocalSearchParams<{ milestoneId?: string }>();
+  // ?chairMilestoneId=… (coordinator home's "Committee Chair Decision"
+  // Urgent Actions row) opens the chair's decision form instead.
+  const { milestoneId: deepLinkMilestoneId, chairMilestoneId: deepLinkChairId } = useLocalSearchParams<{ milestoneId?: string; chairMilestoneId?: string }>();
   const deepLinkHandledRef = useRef(false);
   useEffect(() => {
     if (loading || deepLinkHandledRef.current) return;
     deepLinkHandledRef.current = true;
-    if (typeof deepLinkMilestoneId === 'string' && pendingReviews.some((r) => r.milestoneId === deepLinkMilestoneId && !r.alreadyVoted)) {
+    const chair = typeof deepLinkChairId === 'string' ? chairDecisions.find((r) => r.milestoneId === deepLinkChairId) : undefined;
+    if (chair) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot deep link, waits on the async list load
+      setDeciding(chair);
+    } else if (typeof deepLinkMilestoneId === 'string' && pendingReviews.some((r) => r.milestoneId === deepLinkMilestoneId && !r.alreadyVoted)) {
       setReviewingId(deepLinkMilestoneId);
     }
-  }, [loading, pendingReviews, deepLinkMilestoneId]);
+  }, [loading, pendingReviews, chairDecisions, deepLinkMilestoneId, deepLinkChairId]);
 
   // Votes already cast stay visible (separately) until the chair decides —
   // otherwise a member's item just vanishes after voting.

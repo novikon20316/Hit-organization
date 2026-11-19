@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
 import ReserveDefenseDateModal from '@/components/modals/ReserveDefenseDateModal';
 import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert,
-  StyleSheet,
+  StyleSheet, type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -613,6 +613,34 @@ export default function CoordinatorHome() {
       [milestoneId]: !prev[milestoneId],
     }));
   };
+
+  // ── Urgent Actions landing ────────────────────────────────────────────────
+  // An Urgent Actions row lands on its specific card, not just the tab
+  // (mirrors web's ?focus= deep link): each target card reports its y offset
+  // inside the content ScrollView (onLayout), the tap switches tab and
+  // scrolls there once the card has laid out, and rings it for a few seconds.
+  const contentScrollRef = useRef<ScrollView>(null);
+  const [pendingScrollKey, setPendingScrollKey] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    const t = setTimeout(() => setFocusKey(null), 4000);
+    return () => clearTimeout(t);
+  }, [focusKey]);
+  const focusItem = (tab: CoordinatorTab, key: string) => {
+    setPendingScrollKey(key);
+    setFocusKey(key);
+    setActiveTab(tab);
+  };
+  const onItemLayout = (key: string) => (e: LayoutChangeEvent) => {
+    if (pendingScrollKey !== key) return;
+    setPendingScrollKey(null);
+    const y = e.nativeEvent.layout.y;
+    setTimeout(() => contentScrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true }), 0);
+  };
+  const focusRing = (key: string) => (focusKey === key ? { borderWidth: 2, borderColor: '#00236f', borderRadius: 16 } : null);
+  const deadlineKey = (d: { milestoneId?: string | null; id?: string | null; studentId?: string | null }) =>
+    `deadline-${d.milestoneId ?? d.id ?? ''}-${d.studentId ?? ''}`;
 
 
   // ── 1. Unified Fetch Loop ───────────────────────────────────────────
@@ -1415,7 +1443,7 @@ export default function CoordinatorHome() {
         </TourTarget>
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={contentScrollRef} contentContainerStyle={styles.content}>
 
         {activeTab === 'overview' && (() => {
           const alertCards = sortedDefenseCards.filter((c) => c.kind === 'conflict' || c.kind === 'expiredUngraded');
@@ -1480,7 +1508,7 @@ export default function CoordinatorHome() {
                         since one person not acting holds up the whole exam.
                         Mirrors web's coordinator/home. */}
                     {thesisExamTasks.map((x) => (
-                      <Pressable key={`exam-${x.milestoneId}-${x.kind}`} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => router.push({ pathname: '/thesis-exam', params: { lang } } as any)} accessibilityRole="button">
+                      <Pressable key={`exam-${x.milestoneId}-${x.kind}`} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => router.push({ pathname: '/thesis-exam', params: { lang, milestoneId: x.milestoneId } } as any)} accessibilityRole="button">
                         <Text style={[apStyles.feedBadge, apStyles.feedBadgeAlert]}>{lang === 'he' ? 'בחינת תזה' : 'Thesis Exam'}</Text>
                         <Text style={apStyles.feedTitle}>
                           {`${thesisExamTaskLabel(x.kind, lang)}${x.deadline ? (lang === 'he' ? ` עד ${formatTaskDeadline(x.deadline, lang)}` : ` by ${formatTaskDeadline(x.deadline, lang)}`) : ''} — ${x.studentNames.join(', ') || (lang === 'he' ? x.projectTitleHe : x.projectTitleEn)}`}
@@ -1498,7 +1526,7 @@ export default function CoordinatorHome() {
                         </>
                       );
                       return canQuickNavigate ? (
-                        <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
+                        <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => focusItem('defense', `defense-${c.key}`)} accessibilityRole="button">
                           {row}
                         </Pressable>
                       ) : (
@@ -1517,7 +1545,15 @@ export default function CoordinatorHome() {
                         </>
                       );
                       return canQuickNavigate ? (
-                        <Pressable key={m.id} style={apStyles.feedItem} onPress={() => setActiveTab('pending')} accessibilityRole="button">
+                        <Pressable
+                          key={m.id}
+                          style={apStyles.feedItem}
+                          onPress={() => {
+                            setExpandedCards((prev) => ({ ...prev, [m.id]: true }));
+                            focusItem('pending', `pending-${m.id}`);
+                          }}
+                          accessibilityRole="button"
+                        >
                           {row}
                         </Pressable>
                       ) : (
@@ -1534,7 +1570,7 @@ export default function CoordinatorHome() {
                         </>
                       );
                       return canQuickNavigate ? (
-                        <Pressable key={key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => setActiveTab('deadlines')} accessibilityRole="button">
+                        <Pressable key={key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => focusItem('deadlines', deadlineKey(d))} accessibilityRole="button">
                           {row}
                         </Pressable>
                       ) : (
@@ -1546,7 +1582,16 @@ export default function CoordinatorHome() {
                         committees screen is their own work, not a
                         coordinator-only fix screen. */}
                     {committeeTasks.slice(0, 3).map((c) => (
-                      <Pressable key={c.id} style={apStyles.feedItem} onPress={() => router.push('/committees' as any)} accessibilityRole="button">
+                      <Pressable
+                        key={c.id}
+                        style={apStyles.feedItem}
+                        // Opens that review / the chair's decision directly
+                        // (app/committees.tsx's deep link).
+                        onPress={() => router.push((c.id.startsWith('chair-')
+                          ? { pathname: '/committees', params: { chairMilestoneId: c.id.slice('chair-'.length) } }
+                          : { pathname: '/committees', params: { milestoneId: c.id } }) as any)}
+                        accessibilityRole="button"
+                      >
                         <Text style={apStyles.feedBadge}>
                           {c.isChairman ? (lang === 'he' ? 'החלטת יו"ר ועדה' : 'Committee Chair Decision') : (lang === 'he' ? 'בדיקת ועדה' : 'Committee Review')}
                         </Text>
@@ -1612,10 +1657,12 @@ export default function CoordinatorHome() {
               pendingMilestones.map((m) => (
                 <Pressable
                   key={m.id}
+                  onLayout={onItemLayout(`pending-${m.id}`)}
                   style={[
                     styles.card,
                     apStyles.pendingCardAccent,
                     expandedCards[m.id] && styles.cardExpanded,
+                    focusRing(`pending-${m.id}`),
                   ]}
                   onPress={() => toggleCardExpansion(m.id)}
                   accessibilityRole="button"
@@ -1786,7 +1833,9 @@ export default function CoordinatorHome() {
         </Text>
       </View>
     ) : (
-      sortedDefenseCards.map((card) => {
+      // Each card sits in a wrapper that reports its offset and carries the
+      // focus ring, so an Urgent Actions row can land on it.
+      sortedDefenseCards.map((card) => <View key={card.key} onLayout={onItemLayout(`defense-${card.key}`)} style={focusRing(`defense-${card.key}`)}>{(() => {
         const accentStyle = { borderLeftWidth: 4, borderLeftColor: getDefenseAccent(card) };
 
         // ── Bucket 1: final report graded — needs approval + examiner assignment ──
@@ -2052,7 +2101,7 @@ export default function CoordinatorHome() {
             </Text>
           </View>
         );
-      })
+      })()}</View>)
     )}
   </>
         )}
@@ -2289,7 +2338,7 @@ export default function CoordinatorHome() {
               <View style={styles.centered}><Text>{lang === 'he' ? 'אין מועדי הגשה' : 'No deadlines'}</Text></View>
             ) : (
               deadlines.map((d) => (
-                <View key={`${d.milestoneId}-${d.studentId}`} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#F59E0B' }]}>
+                <View key={`${d.milestoneId}-${d.studentId}`} onLayout={onItemLayout(deadlineKey(d))} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#F59E0B' }, focusRing(deadlineKey(d))]}>
                   {/* Student Name - Bold Header */}
                   <Text style={[styles.cardTitle, { marginBottom: 12 }]}>👤 {d.studentName}</Text>
 
