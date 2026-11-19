@@ -48,7 +48,7 @@
 //                            template's percentages, frozen with its breakdown
 //                            (gradeBreakdown) — awaits the grad school head:
 //                            approve → exam_coordinator_approval (or, below
-//                            MIN_PASSING_FINAL_GRADE — not set yet —
+//                            MIN_PASSING_FINAL_GRADE = 75,
 //                            exam_returned_to_supervisor); deny →
 //                            exam_grade_denied (what follows: not defined yet)
 //   exam_coordinator_approval  the administrative coordinator's final
@@ -1703,11 +1703,11 @@ export async function submitSupervisorExamGrade(milestoneId: string, supervisor:
 
 // ── Final grade: breakdown → grad school head → administrative coordinator ──
 
-/** Below this final grade, the grad school head's approval sends the thesis
- *  back to the supervisor for more work with the student. NOT SET YET — the
- *  faculty will give the number (and which milestone it returns to); until
- *  then every approved grade goes on to the administrative coordinator. */
-export const MIN_PASSING_FINAL_GRADE: number | null = null;
+/** 75 and above is good enough (faculty, 2026-11-19); below it, the grad
+ *  school head's approval sends the thesis back to the supervisor for more
+ *  work with the student. WHICH milestone it returns to is not set yet — it
+ *  parks at exam_returned_to_supervisor until the faculty says. */
+export const MIN_PASSING_FINAL_GRADE: number | null = 75;
 
 /** The template the exam milestone was enrolled from: the project ref whose
  *  template has this exam milestone. A project's projectType can disagree

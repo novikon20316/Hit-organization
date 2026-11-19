@@ -233,7 +233,7 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
         <p className="mt-2 text-xs text-muted">{he ? 'ההמשך לאחר דחייה ייקבע בהמשך לפי הנחיות הפקולטה.' : "What follows a denial will be set by the faculty's rules."}</p>
       )}
       {exam.status === 'exam_returned_to_supervisor' && (
-        <p className="mt-2 text-xs text-muted">{he ? 'הציון נמוך מהנדרש — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.' : 'The grade is below what is required — the thesis returns to the supervisor for more work with the student.'}</p>
+        <p className="mt-2 text-xs text-muted">{he ? `הציון נמוך מ-${exam.rules.minPassingFinalGrade ?? ''} — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.` : `The grade is below ${exam.rules.minPassingFinalGrade ?? ''} — the thesis returns to the supervisor for more work with the student.`}</p>
       )}
       {has('review_final_grade') && <GradeReviewPanel exam={exam} lang={lang} onDone={onChanged} />}
       {exam.status === 'exam_coordinator_approval' && !has('final_approval') && (
@@ -303,6 +303,23 @@ function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBr
   );
 }
 
+/** What approving leads to: at or above the passing grade → the
+ *  coordinator's final approval; below it → back to the supervisor. */
+function PassingHint({ exam, lang }: { exam: ThesisExamCard; lang: 'he' | 'en' }) {
+  const he = lang === 'he';
+  const min = exam.rules.minPassingFinalGrade;
+  const grades = Object.values(exam.gradeBreakdown?.finalGradeByStudent ?? {}).filter((g): g is number => g != null);
+  if (min == null || grades.length === 0) return null;
+  const low = grades.some((g) => g < min);
+  return (
+    <p className={`mt-1 rounded-md px-3 py-2 text-xs ${low ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success'}`}>
+      {low
+        ? (he ? `הציון נמוך מ-${min}. באישור — התזה תחזור למנחה להמשך עבודה עם הסטודנט/ית.` : `The grade is below ${min}. Approving returns the thesis to the supervisor for more work with the student.`)
+        : (he ? `הציון ${min} ומעלה. באישור — יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית.` : `The grade is ${min} or above. Approving sends it to the administrative coordinator's final approval.`)}
+    </p>
+  );
+}
+
 function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
   const he = lang === 'he';
   const [reason, setReason] = useState('');
@@ -328,6 +345,7 @@ function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 
   return (
     <div className="mt-3 rounded-lg border border-line bg-paper p-3">
       <p className="text-sm font-semibold text-ink">{he ? 'אישור הציון הסופי' : 'Approve the final grade'}</p>
+      <PassingHint exam={exam} lang={lang} />
       <label htmlFor={`grade-review-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הערה / סיבת דחייה (חובה בדחייה)' : 'Note / reason (required to deny)'}</label>
       <textarea id={`grade-review-${exam.milestoneId}`} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
       {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}

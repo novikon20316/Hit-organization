@@ -104,8 +104,8 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: string; h
   exam_date_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_date_final_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { color: p.success, bg: p.successContainer, icon: '🎓', he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
-  exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
-  exam_grades_pending: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'הציון הסופי בחישוב', en: 'Final Grade Being Completed' },
+  exam_committee_review: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'ממתין לציון המחקר של המנחה', en: "Waiting for the Supervisor's Research Grade" },
+  exam_grades_pending: { color: '#736b8c', bg: '#edebf2', icon: '🧮', he: 'ממתין לציון המחקר של המנחה', en: "Waiting for the Supervisor's Research Grade" },
   exam_grade_review: { color: '#b8862e', bg: '#fbf3e3', icon: '⏳', he: 'הציון ממתין לאישור ראש בית הספר', en: 'Grade Awaiting the Grad School Head' },
   exam_grade_denied: { color: '#b54141', bg: '#fdecec', icon: '⚠️', he: 'הציון נדחה ע"י ראש בית הספר', en: 'Grade Denied by the Grad School Head' },
   exam_returned_to_supervisor: { color: '#b54141', bg: '#fdecec', icon: '↩️', he: 'הוחזר למנחה להמשך עבודה', en: 'Returned to the Supervisor' },
@@ -208,7 +208,12 @@ function buildThesisExamChain(m: RoadmapMilestone, lang: 'he' | 'en'): ChainStep
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang)} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_grades_pending', he ? 'ציון המחקר של המנחה וחישוב הציון הסופי לפי משקלות אבני הדרך' : "Supervisor's research grade + final grade by the milestone weights"),
+    // The only thing this step waits for is the supervisor's research grade
+    // (or another weighted milestone's grade); the final grade itself is
+    // computed automatically the moment the grades are in.
+    step('exam_grades_pending', status === 'exam_grades_pending'
+      ? (he ? 'ממתין לציון המחקר של המנחה (40%) — הציון הסופי יחושב אוטומטית' : "Waiting for the supervisor's research grade (40%) — the final grade is computed automatically")
+      : (he ? 'ציון המחקר של המנחה; הציון הסופי חושב אוטומטית לפי משקלות אבני הדרך' : "Supervisor's research grade; final grade computed automatically by the milestone weights")),
     step('exam_grade_review', m.status === 'exam_grade_denied'
       ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
       : m.status === 'exam_returned_to_supervisor'

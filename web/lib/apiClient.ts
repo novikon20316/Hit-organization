@@ -4225,7 +4225,8 @@ export interface ThesisExamCard {
   finalApproval: { byName: string; at: string; note: string } | null;
   /** A student's own final grade, once finally approved. */
   myFinalGrade: number | null;
-  rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number };
+  /** minPassingFinalGrade: below it, an approved grade returns to the supervisor. */
+  rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number; minPassingFinalGrade: number | null };
 }
 export interface ThesisExamFormInput {
   ratings: Record<string, number>;

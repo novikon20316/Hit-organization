@@ -233,7 +233,12 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     step('exam_date_review', he ? 'אישור המועד ע״י ראש התוכנית' : 'Program head approves the date'),
     step('exam_date_final_review', he ? 'אישור המועד ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the date'),
     step('exam_scheduled', sched ? `${examLabel} · ${formatDate(sched.date, lang, { day: 'numeric', month: 'short', year: 'numeric' })} ${sched.from}–${sched.to}` : examLabel),
-    step('exam_grades_pending', he ? 'ציון המחקר של המנחה וחישוב הציון הסופי לפי משקלות אבני הדרך' : "Supervisor's research grade + final grade by the milestone weights"),
+    // The only thing this step waits for is the supervisor's research grade
+    // (or another weighted milestone's grade); the final grade itself is
+    // computed automatically the moment the grades are in.
+    step('exam_grades_pending', status === 'exam_grades_pending'
+      ? (he ? 'ממתין לציון המחקר של המנחה (40%) — הציון הסופי יחושב אוטומטית' : "Waiting for the supervisor's research grade (40%) — the final grade is computed automatically")
+      : (he ? 'ציון המחקר של המנחה; הציון הסופי חושב אוטומטית לפי משקלות אבני הדרך' : "Supervisor's research grade; final grade computed automatically by the milestone weights")),
     step('exam_grade_review', m.status === 'exam_grade_denied'
       ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
       : m.status === 'exam_returned_to_supervisor'

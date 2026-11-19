@@ -274,7 +274,7 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
         <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'ההמשך לאחר דחייה ייקבע בהמשך לפי הנחיות הפקולטה.' : "What follows a denial will be set by the faculty's rules."}</Text>
       )}
       {exam.status === 'exam_returned_to_supervisor' && (
-        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'הציון נמוך מהנדרש — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.' : 'The grade is below what is required — the thesis returns to the supervisor for more work with the student.'}</Text>
+        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? `הציון נמוך מ-${exam.rules.minPassingFinalGrade ?? ''} — התזה חוזרת למנחה להמשך עבודה עם הסטודנט/ית.` : `The grade is below ${exam.rules.minPassingFinalGrade ?? ''} — the thesis returns to the supervisor for more work with the student.`}</Text>
       )}
       {has('review_final_grade') && <GradeReviewPanel exam={exam} lang={lang} onDone={onChanged} />}
       {exam.status === 'exam_coordinator_approval' && !has('final_approval') && (
@@ -333,6 +333,22 @@ function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBr
   );
 }
 
+/** What approving leads to — mirrors web's PassingHint. */
+function PassingHint({ exam, lang }: { exam: ThesisExamCard; lang: Lang }) {
+  const he = lang === 'he';
+  const min = exam.rules.minPassingFinalGrade;
+  const grades = Object.values(exam.gradeBreakdown?.finalGradeByStudent ?? {}).filter((g): g is number => g != null);
+  if (min == null || grades.length === 0) return null;
+  const low = grades.some((g) => g < min);
+  return (
+    <Text style={{ marginTop: 6, padding: 8, borderRadius: 8, fontSize: 12, backgroundColor: low ? C.dangerBg : C.successBg, color: low ? C.danger : C.success, textAlign: he ? 'right' : 'left' }}>
+      {low
+        ? (he ? `הציון נמוך מ-${min}. באישור — התזה תחזור למנחה להמשך עבודה עם הסטודנט/ית.` : `The grade is below ${min}. Approving returns the thesis to the supervisor for more work with the student.`)
+        : (he ? `הציון ${min} ומעלה. באישור — יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית.` : `The grade is ${min} or above. Approving sends it to the administrative coordinator's final approval.`)}
+    </Text>
+  );
+}
+
 function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
@@ -358,6 +374,7 @@ function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 
       }}
     >
       <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? 'אישור הציון הסופי' : 'Approve the final grade'}</Text>
+      <PassingHint exam={exam} lang={lang} />
     </ReasonedDecision>
   );
 }

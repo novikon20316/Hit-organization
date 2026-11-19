@@ -60,6 +60,7 @@ import {
   buildExamGradeBreakdown,
   reviewExamFinalGrade,
   approveExamFinalGrade,
+  MIN_PASSING_FINAL_GRADE,
 } from '../services/thesisExam.js';
 import { getPrivateContact } from '../services/privateContact.js';
 import { withinCoordinatorScope, type ResourceScope } from '../services/scopeAuthorization.js';
@@ -223,7 +224,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
       : null,
     // A student sees their own final grade once it's finally approved.
     myFinalGrade: rel.isStudent && exam.status === EXAM_COMPLETED && myUid ? exam.gradeBreakdown?.finalGradeByStudent?.[myUid] ?? null : null,
-    rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES },
+    rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES, minPassingFinalGrade: MIN_PASSING_FINAL_GRADE },
   };
 }
 
