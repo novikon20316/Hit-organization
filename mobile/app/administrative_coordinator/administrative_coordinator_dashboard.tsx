@@ -1288,8 +1288,8 @@ export default function ProjectCoordinatorDashboard() {
           <View>
             <Text style={{ fontSize: 12, color: ap.onSurfaceVariant, marginBottom: 10 }}>
               {lang === 'he'
-                ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. ההחלפה חלה על אבן הדרך הזו בלבד; אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה.'
-                : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The swap applies to this milestone only; a held milestone goes to the committee as soon as you swap."}
+                ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. המחליף/ה הראשון/ה שנבחר/ת בפרויקט מחליף/ה את המנחה בוועדה לאורך כל הפרויקט, כולל בחינת התזה; אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה.'
+                : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The first replacement chosen for a project replaces the supervisor on the committee for the whole project, thesis exam included; a held milestone goes to the committee as soon as you swap."}
             </Text>
             {conflictsLoading && !conflictsLoaded ? (
               <ActivityIndicator style={{ marginTop: 24 }} />

@@ -432,13 +432,33 @@ export async function resolveCommitteeForMilestone(
 ): Promise<CommitteeDoc | null> {
   const routing: Array<{ role?: string; committeeId?: string | null }> = milestoneData.routing ?? [];
   const currentIndex: number = milestoneData.currentStageIndex ?? 0;
-  const committeeStage = routing.slice(currentIndex).find((s) => s?.role === 'committee');
+  // Past its last committee stage (e.g. a CS thesis exam opened after the
+  // committee approved the milestone), the committee that reviewed it is
+  // still the right one — the dynamic lookup below guesses from the
+  // project's projectType and can land on a different committee.
+  const committeeStage = routing.slice(currentIndex).find((s) => s?.role === 'committee')
+    ?? routing.slice(0, currentIndex).reverse().find((s) => s?.role === 'committee');
   const substitutions = mergedCommitteeSubstitutions(projectData, milestoneData);
   if (committeeStage?.committeeId) {
     const pinnedSnap = await db.collection('committees').doc(committeeStage.committeeId).get();
     return pinnedSnap.exists ? applyCommitteeSubstitutions({ id: pinnedSnap.id, ...pinnedSnap.data() } as CommitteeDoc, substitutions) : null;
   }
   return resolveCommitteeForProject({ ...projectData, committeeMemberSubstitutions: substitutions });
+}
+
+/** After a project-level stand-in is saved: every milestone of the project
+ *  still held for a committee conflict is re-entered (the stand-in now
+ *  resolves it), and an open thesis exam's committee is rebuilt so the
+ *  stand-in joins it. `skipMilestoneId` was already handled by the caller. */
+export async function applyProjectStandInEverywhere(projectId: string, skipMilestoneId: string | null): Promise<void> {
+  const milestones = await db.collection('milestones').where('projectId', '==', projectId).get();
+  for (const doc of milestones.docs) {
+    if (doc.id === skipMilestoneId || !doc.data().committeeConflictHold) continue;
+    await onEnterCommitteeStage(doc.id, doc.data()).catch((err) => console.error(`applyProjectStandInEverywhere: re-enter ${doc.id} failed:`, err));
+  }
+  // Dynamic import: services/thesisExam.ts imports this module.
+  const { refreshExamCommitteeForProject } = await import('../services/thesisExam.js');
+  await refreshExamCommitteeForProject(projectId).catch((err) => console.error(`applyProjectStandInEverywhere: exam refresh for ${projectId} failed:`, err));
 }
 
 export interface SupervisorCommitteeConflict {
@@ -589,17 +609,30 @@ export const substituteCommitteeMember = async (req: AuthenticatedRequest, res: 
         [`committeeMemberSubstitutions.${originalUserId}`]: replacementUserId,
         committeeSubstituteIds: admin.firestore.FieldValue.arrayUnion(replacementUserId),
       });
+      // The FIRST stand-in chosen for this person on this project replaces
+      // them for the whole project from then on (every later milestone and
+      // the thesis exam) — the administrative coordinator isn't asked again.
+      // A later pick for one milestone still overrides it for that milestone.
+      const projectHasStandIn = !!project.committeeMemberSubstitutions?.[originalUserId];
+      if (!projectHasStandIn) {
+        await projectRef.set(
+          { committeeMemberSubstitutions: { [originalUserId]: replacementUserId } },
+          { merge: true }
+        );
+      }
       // A held milestone (see onEnterCommitteeStage) is re-entered: if that
       // was the last conflict, the committee now receives it.
       if (milestone.committeeConflictHold) {
         const fresh = (await milestoneRef.get()).data()!;
         await onEnterCommitteeStage(milestoneRef.id, fresh);
       }
+      if (!projectHasStandIn) await applyProjectStandInEverywhere(projectId, milestoneRef.id);
     } else {
       await projectRef.set(
         { committeeMemberSubstitutions: { [originalUserId]: replacementUserId } },
         { merge: true }
       );
+      await applyProjectStandInEverywhere(projectId, null);
     }
 
     return res.status(200).json({ success: true });

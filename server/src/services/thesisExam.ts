@@ -789,9 +789,10 @@ async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFiresto
   const committee = await resolveCommitteeForMilestone(milestone, project).catch(() => null);
   // The project's own supervisor can't sit on the committee that judges
   // their student's exam (conflict of interest — same rule as the committee
-  // stage's COI hold). They still take part, as the supervisor; a per-
-  // milestone substitution by the administrative coordinator is already
-  // applied by resolveCommitteeForMilestone.
+  // stage's COI hold). They still take part, as the supervisor; their stand-in
+  // (the project-wide one the administrative coordinator chose the first
+  // time, or this milestone's own) is already swapped in by
+  // resolveCommitteeForMilestone.
   const supervisorIds = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
   const committeeMemberIds = committee
     ? [...new Set([...(committee.memberIds ?? []), committee.chairmanId].filter(Boolean) as string[])].filter((id) => !supervisorIds.includes(id))
@@ -811,6 +812,37 @@ async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFiresto
     else byKey.set(e.key, { key: e.key, ...(e.token ? { token: e.token } : {}), ...(e.email ? { email: e.email } : {}), name: e.name, roles: ['examiner'] });
   }
   return { participants: [...byKey.values()], committeeId: committee?.id ?? null, committeeMemberIds };
+}
+
+/** Rebuilds the committee of the project's open exam(s) after a stand-in
+ *  was chosen (see committeeController.applyProjectStandInEverywhere). The
+ *  list is otherwise only built when a picking round opens. A member who
+ *  joins after every examiner already submitted gets the same "forms are
+ *  in" task the committee got then. */
+export async function refreshExamCommitteeForProject(projectId: string): Promise<void> {
+  const exams = await db.collection(THESIS_EXAMS).where('projectId', '==', projectId).get();
+  for (const doc of exams.docs) {
+    const exam = doc.data() as ThesisExamDoc;
+    // Not at the picking round yet — openAvailabilityRound builds it then.
+    if (!exam.participants?.length) continue;
+    const msSnap = await db.collection('milestones').doc(exam.milestoneId).get();
+    if (!msSnap.exists) continue;
+    const { participants, committeeId, committeeMemberIds } = await buildParticipants(exam, msSnap.data()!);
+    const before = exam.committeeMemberIds ?? [];
+    const added = committeeMemberIds.filter((id) => !before.includes(id));
+    const removed = before.filter((id) => !committeeMemberIds.includes(id));
+    if (added.length === 0 && removed.length === 0 && committeeId === exam.committeeId) continue;
+    await doc.ref.update({ participants, committeeId, committeeMemberIds, updatedAt: new Date().toISOString() });
+    if (exam.status === EXAM_COMMITTEE_REVIEW && added.length > 0) {
+      const title = projectTitle(await projectOf(exam.projectId));
+      await notifyUsers(added, exam, {
+        titleHe: 'טופסי הבוחנים התקבלו',
+        titleEn: "The examiners' forms are in",
+        bodyHe: `כל הבוחנים מילאו את טופס מבחן התזה "${title.he}". הטפסים זמינים לוועדה.`,
+        bodyEn: `Every examiner filled in the thesis exam form for "${title.en}". The forms are available to the committee.`,
+      }, { pending: true });
+    }
+  }
 }
 
 /** Starts a fresh picking round: a new 14-day window from today, everyone's

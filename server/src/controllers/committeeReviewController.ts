@@ -156,10 +156,19 @@ export async function onEnterCommitteeStage(
     return;
   }
 
+  // Project-wide stand-ins (see substituteCommitteeMember — the first pick
+  // covers the whole project) are copied onto this milestone: its
+  // committeeSubstituteIds index is how the stand-in's pending-review list
+  // and firestore.rules find it. The milestone's own pick, if any, wins.
+  const projectSubs: Record<string, string> = projectData.committeeMemberSubstitutions ?? {};
+  const milestoneSubs: Record<string, string> = milestoneData.committeeMemberSubstitutions ?? {};
+  const inherited = Object.entries(projectSubs).filter(([orig]) => !milestoneSubs[orig]);
   await milestoneRef.update({
     currentCommitteeId: committee.id,
     committeeVotes: [],
     committeeConflictHold: admin.firestore.FieldValue.delete(),
+    ...Object.fromEntries(inherited.map(([orig, sub]) => [`committeeMemberSubstitutions.${orig}`, sub])),
+    ...(inherited.length > 0 ? { committeeSubstituteIds: admin.firestore.FieldValue.arrayUnion(...inherited.map(([, sub]) => sub)) } : {}),
   });
 
   const studentNames: string[] = (projectData.enrolledStudentIds ?? []).length

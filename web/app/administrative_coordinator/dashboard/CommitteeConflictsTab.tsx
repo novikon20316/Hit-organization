@@ -100,8 +100,8 @@ export function CommitteeConflictsTab() {
     <div className="grid gap-3">
       <p className="text-xs text-administrative-coordinator-on-surface-variant">
         {lang === 'he'
-          ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. ההחלפה חלה על אבן הדרך הזו בלבד (לכל אבן דרך אפשר לבחור מחליף/ה אחר/ת); אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה. שאר חברי הוועדה, ופרויקטים אחרים שהוועדה בוחנת, אינם מושפעים.'
-          : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The swap applies to this milestone only (each milestone can get a different replacement); a held milestone goes to the committee as soon as you swap. Every other committee member, and every other project the committee reviews, is unaffected."}
+          ? 'אבני דרך בהן המנחה הוא גם חבר/יו"ר בוועדה שתבחן אותן — יש לבחור מחליף/ה. המחליף/ה הראשון/ה שנבחר/ת בפרויקט מחליף/ה את המנחה בוועדה לאורך כל הפרויקט, כולל בחינת התזה; אבן דרך מעוכבת תועבר לוועדה מיד לאחר ההחלפה. שאר חברי הוועדה, ופרויקטים אחרים שהוועדה בוחנת, אינם מושפעים.'
+          : "Milestones where the supervisor is also a member/chairman of the committee reviewing them — choose a replacement. The first replacement chosen for a project replaces the supervisor on the committee for the whole project, thesis exam included; a held milestone goes to the committee as soon as you swap. Every other committee member, and every other project the committee reviews, is unaffected."}
       </p>
 
       {error && <p className="rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
