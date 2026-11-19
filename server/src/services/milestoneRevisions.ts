@@ -93,6 +93,24 @@ export function buildRevisionArchiveUpdate(
   };
 }
 
+/** Whether a student may submit (or resubmit) this milestone right now:
+ *  only before the first submission ('pending') or after it was returned
+ *  ('rejected' — which also covers a thesis sent back after the examiners'
+ *  opinions, see sendThesisBackForCorrections). Matches the only states in
+ *  which the web/mobile dashboards offer a Submit button. Anything else is
+ *  under review or already approved, and a fresh submission would reset it
+ *  to 'submitted', archive the decision and restart the review chain. A
+ *  milestone with no status recorded is treated as 'pending'. */
+export function isOpenForStudentSubmission(status: unknown): boolean {
+  const s = status ?? 'pending';
+  return s === 'pending' || s === 'rejected';
+}
+
+export const SUBMISSION_LOCKED_MESSAGE = {
+  he: 'אבן הדרך הזו כבר הוגשה ונמצאת בבדיקה או אושרה. ניתן להגיש שוב רק אם היא תוחזר לתיקון.',
+  en: 'This milestone was already submitted and is under review or approved. You can submit again only if it is returned for corrections.',
+};
+
 /** How many times this milestone has been returned to the student
  *  (status → 'rejected'), across every round. Stored as `rejectionCount`
  *  on the milestone doc from 2026-11-11 on; for older milestones that

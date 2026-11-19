@@ -11,7 +11,7 @@ import { isChainDriven } from '../services/milestoneRouting.js';
 import { sanitizeMilestoneForViewer, redactUnreleasedGradeForStudent } from '../services/milestoneVisibility.js';
 import { waitingRoleOf, waitingSince } from '../services/stuckMilestones.js';
 import { notifyExaminersOfResubmission } from '../services/examinerOpinion.js';
-import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
+import { buildRevisionArchiveUpdate, isOpenForStudentSubmission, SUBMISSION_LOCKED_MESSAGE } from '../services/milestoneRevisions.js';
 import { applySingleDueDateOverride, applyBulkDueDateOverride } from '../services/deadlineOverride.js';
 import { requestExceptionalAction } from '../services/exceptionalActions.js';
 import { isSeminarInProgress } from '../services/seminarScheduling.js';
@@ -129,14 +129,15 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       return res.status(409).json({ message: L(req, 'Nothing to submit here — the exam steps run on the Thesis Exam page.', 'אין מה להגיש כאן — שלבי הבחינה מתנהלים בעמוד "בחינת תזה".') });
     }
 
-    // Team milestone (more than one owner — see projectEnrollment.ts) — once
-    // any teammate has submitted, lock the rest out until it's rejected
-    // (student-facing revision, reopening for anyone on the team) or fully
-    // approved and the next milestone opens. A solo milestone keeps today's
-    // behavior (a student may resubmit anytime before grading).
-    if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
-      const messageHe = 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.';
-      const messageEn = 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.';
+    // Once submitted, a milestone is locked until it's returned to the
+    // student ('rejected') — see isOpenForStudentSubmission. A team milestone
+    // (more than one owner — see projectEnrollment.ts) gets the
+    // teammate-specific wording. Solo milestones used to skip this check, so
+    // a direct API call could resubmit one under review or even approved,
+    // resetting it to 'submitted' and archiving the approval.
+    if (!isOpenForStudentSubmission(milestoneData.status)) {
+      const messageHe = studentIds.length > 1 ? 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.' : SUBMISSION_LOCKED_MESSAGE.he;
+      const messageEn = studentIds.length > 1 ? 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.' : SUBMISSION_LOCKED_MESSAGE.en;
       return res.status(409).json({
         message: L(req, messageEn, messageHe),
         messageHe,
@@ -302,8 +303,8 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
       await db.runTransaction(async (transaction) => {
         const freshSnap = await transaction.get(milestoneRef);
         const freshData: any = freshSnap.data() ?? {};
-        if (studentIds.length > 1 && freshData.status !== 'pending' && freshData.status !== 'rejected') {
-          throw new Error('TEAMMATE_ALREADY_SUBMITTED');
+        if (!isOpenForStudentSubmission(freshData.status)) {
+          throw new Error(studentIds.length > 1 ? 'TEAMMATE_ALREADY_SUBMITTED' : 'SUBMISSION_LOCKED');
         }
 
         // Preserve the outgoing round (its file(s), note, and whatever
@@ -349,6 +350,13 @@ export const submitMilestone = async (req: AuthenticatedRequest, res: Response) 
           message: L(req, messageEn, messageHe),
           messageHe,
           messageEn,
+        });
+      }
+      if (err?.message === 'SUBMISSION_LOCKED') {
+        return res.status(409).json({
+          message: L(req, SUBMISSION_LOCKED_MESSAGE.en, SUBMISSION_LOCKED_MESSAGE.he),
+          messageHe: SUBMISSION_LOCKED_MESSAGE.he,
+          messageEn: SUBMISSION_LOCKED_MESSAGE.en,
         });
       }
       throw err;

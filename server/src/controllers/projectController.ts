@@ -18,7 +18,7 @@ const TZ = 'Asia/Jerusalem';
 import { logAuditEvent } from '../services/auditLog.js';
 import { logProjectRecordEntry } from '../services/projectRecords.js';
 import { computeWeightedFinalGrade, computeIdentityWeightedFinalGrade, computeExaminerOnlyGrade, computeFinalGradeByStudent, computePerStudentAutoGrades, averageGrade, DEFAULT_INDIVIDUAL_WEIGHT } from '../services/gradeEngine.js';
-import { buildRevisionArchiveUpdate } from '../services/milestoneRevisions.js';
+import { buildRevisionArchiveUpdate, isOpenForStudentSubmission, SUBMISSION_LOCKED_MESSAGE } from '../services/milestoneRevisions.js';
 import { resolveMilestoneScope, withinCoordinatorScope, facultyIdMatches, resolveProjectScope, resolveStaffForScope } from '../services/scopeAuthorization.js';
 import { notifyUser } from '../services/notify.js';
 import { targetScreenFor } from '../services/notificationTargets.js';
@@ -1556,11 +1556,20 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       return res.status(409).json({ message: L(req, 'Your supervisor already approved this seminar.', 'המנחה כבר אישר/ה את הסמינר הזה.') });
     }
 
-    if (studentIds.length > 1 && milestoneData.status !== 'pending' && milestoneData.status !== 'rejected') {
+    if (!isOpenForStudentSubmission(milestoneData.status)) {
+      if (studentIds.length > 1) {
+        return res.status(409).json({
+          message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),
+          messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
+          messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        });
+      }
+      // Solo milestone under review or approved — same lock as
+      // milestoneController.ts's submitMilestone (see isOpenForStudentSubmission).
       return res.status(409).json({
-        message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),
-        messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
-        messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        message: L(req, SUBMISSION_LOCKED_MESSAGE.en, SUBMISSION_LOCKED_MESSAGE.he),
+        messageHe: SUBMISSION_LOCKED_MESSAGE.he,
+        messageEn: SUBMISSION_LOCKED_MESSAGE.en,
       });
     }
 
@@ -1626,8 +1635,8 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
       await db.runTransaction(async (transaction) => {
         const freshSnap = await transaction.get(milestoneRef);
         const freshData: any = freshSnap.data() ?? {};
-        if (studentIds.length > 1 && freshData.status !== 'pending' && freshData.status !== 'rejected') {
-          throw new Error('TEAMMATE_ALREADY_SUBMITTED');
+        if (!isOpenForStudentSubmission(freshData.status)) {
+          throw new Error(studentIds.length > 1 ? 'TEAMMATE_ALREADY_SUBMITTED' : 'SUBMISSION_LOCKED');
         }
 
         // Preserve the outgoing round before it's overwritten — see
@@ -1667,6 +1676,13 @@ export const submitStudentMilestone = async (req: AuthenticatedRequest, res: Res
           message: L(req, 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.', 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.'),
           messageHe: 'חבר/ת קבוצה כבר הגיש/ה את אבן הדרך הזו. יש להמתין לבדיקה ואישור לפני הגשה נוספת.',
           messageEn: 'A teammate already submitted this milestone. Wait for it to be graded and approved before submitting again.',
+        });
+      }
+      if (err?.message === 'SUBMISSION_LOCKED') {
+        return res.status(409).json({
+          message: L(req, SUBMISSION_LOCKED_MESSAGE.en, SUBMISSION_LOCKED_MESSAGE.he),
+          messageHe: SUBMISSION_LOCKED_MESSAGE.he,
+          messageEn: SUBMISSION_LOCKED_MESSAGE.en,
         });
       }
       throw err;
