@@ -27,6 +27,9 @@ interface InfoFile {
   /** A student's TRACK (thesis vs. project) — see server's
    *  config/studentTrack.ts's resolveEffectiveTrack. */
   trackTypes: string[];
+  /** Server-computed: may this viewer delete it (a coordinator only
+   *  manages their own faculty's files). */
+  canManage?: boolean;
 }
 
 interface FacultyContentItem {
@@ -39,6 +42,8 @@ interface FacultyContentItem {
   facultyIds: string[];
   majors: string[];
   degreeTypes: string[];
+  /** Server-computed: may this viewer delete it. */
+  canManage?: boolean;
 }
 
 // Visibility scoping — leaving an axis empty means "unrestricted" for that
@@ -566,17 +571,19 @@ export default function InfoFilesAdmin() {
               <View style={[styles.scopeBadge, isRtl && styles.scopeBadgeRtl]}>
                 <Text style={styles.scopeBadgeText}>{scopeSummary(f, lang)}</Text>
               </View>
-              <Pressable
-                onPress={() => handleDelete(f)}
-                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={lang === 'he' ? 'מחק קובץ' : 'Delete file'}
-              >
-                {deletingId === f.id
-                  ? <ActivityIndicator size="small" color="#EF4444" />
-                  : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
-                }
-              </Pressable>
+              {f.canManage !== false && (
+                <Pressable
+                  onPress={() => handleDelete(f)}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === 'he' ? 'מחק קובץ' : 'Delete file'}
+                >
+                  {deletingId === f.id
+                    ? <ActivityIndicator size="small" color="#EF4444" />
+                    : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
+                  }
+                </Pressable>
+              )}
             </View>
           ))
         )}
@@ -710,17 +717,19 @@ export default function InfoFilesAdmin() {
                   {lang === 'he' ? (c.bodyHe || c.bodyEn) : (c.bodyEn || c.bodyHe)}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => handleDeleteContent(c)}
-                style={{ paddingHorizontal: 10, paddingVertical: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={lang === 'he' ? 'מחק תוכן' : 'Delete content'}
-              >
-                {deletingContentId === c.id
-                  ? <ActivityIndicator size="small" color="#EF4444" />
-                  : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
-                }
-              </Pressable>
+              {c.canManage !== false && (
+                <Pressable
+                  onPress={() => handleDeleteContent(c)}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={lang === 'he' ? 'מחק תוכן' : 'Delete content'}
+                >
+                  {deletingContentId === c.id
+                    ? <ActivityIndicator size="small" color="#EF4444" />
+                    : <Text style={{ color: '#EF4444', fontWeight: '700' }}>✕</Text>
+                  }
+                </Pressable>
+              )}
             </View>
           ))
         )}

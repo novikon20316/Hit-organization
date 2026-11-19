@@ -14,8 +14,16 @@ import { AuthenticatedRequest, hasAnyRole } from '../middleware/auth.js';
 import { VALID_MAJORS } from '../config/majors.js';
 import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
+import { coordinatorOwnsFacultyScope } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
+
+// A system_admin is unrestricted; anyone else allowed here (a coordinator) is
+// confined to their own faculty — see coordinatorOwnsFacultyScope. Same rule
+// infoFilesController applies to file uploads.
+function isContentAdmin(user: AuthenticatedRequest['user']): boolean {
+  return hasAnyRole(user, ['system_admin']);
+}
 
 // Mounted under both /api/admin/faculty-content and
 // /api/coordinator/faculty-content — same convention as infoFilesController.
@@ -74,6 +82,11 @@ export const createFacultyContent = async (req: AuthenticatedRequest, res: Respo
       return res.status(400).json({ message: clientMessage(e, L(req, 'The request could not be completed.', 'לא ניתן היה להשלים את הבקשה.')) });
     }
 
+    // A coordinator used to be able to post to any faculty, or to everyone.
+    if (!isContentAdmin(req.user) && !coordinatorOwnsFacultyScope(req.user.facultyId, facultyIds)) {
+      return res.status(403).json({ message: L(req, 'A coordinator may only post to their own faculty.', 'רכז יכול לפרסם רק לפקולטה שלו.') });
+    }
+
     const docRef = db.collection('facultyContent').doc();
     await docRef.set({
       type,
@@ -128,6 +141,19 @@ export const getFacultyContent = async (req: AuthenticatedRequest, res: Response
         (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
         !(dismissedByUid.get(f.id) ?? []).includes(req.user!.uid)
       );
+    } else if (req.user) {
+      // Staff: whether THIS viewer may delete each item — same rule
+      // deleteFacultyContent enforces, so the staff page only shows ✕ where
+      // it would work.
+      const user = req.user;
+      const isAdmin = isContentAdmin(user);
+      const canPost = hasAnyRole(user, FACULTY_CONTENT_ROLES);
+      return res.status(200).json({
+        items: items.map((c) => ({
+          ...c,
+          canManage: isAdmin || (canPost && coordinatorOwnsFacultyScope(user.facultyId, c.facultyIds)),
+        })),
+      });
     }
 
     return res.status(200).json({ items });
@@ -172,7 +198,15 @@ export const deleteFacultyContent = async (req: AuthenticatedRequest, res: Respo
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid content id.', 'מזהה התוכן אינו תקין.') });
   try {
-    await db.collection('facultyContent').doc(id).delete();
+    const ref = db.collection('facultyContent').doc(id);
+    if (!isContentAdmin(req.user)) {
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ message: L(req, 'Content not found.', 'התוכן לא נמצא.') });
+      if (!coordinatorOwnsFacultyScope(req.user.facultyId, snap.data()!.facultyIds ?? [])) {
+        return res.status(403).json({ message: L(req, "You may only delete your own faculty's content.", 'ניתן למחוק רק תוכן של הפקולטה שלך.') });
+      }
+    }
+    await ref.delete();
     return res.status(200).json({ success: true, message: 'Content deleted.' });
   } catch (error: any) {
     console.error('deleteFacultyContent error:', error);

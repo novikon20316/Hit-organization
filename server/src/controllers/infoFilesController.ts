@@ -11,6 +11,7 @@ import { fixMulterFilenameEncoding } from '../utils/fileNameEncoding.js';
 import { resolveEffectiveTrack } from '../config/studentTrack.js';
 import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
+import { coordinatorOwnsFacultyScope } from '../services/scopeAuthorization.js';
 
 const db = admin.firestore();
 
@@ -85,6 +86,42 @@ async function verifySupervisorOwnsProjects(supervisorId: string, projectIds: st
   });
 }
 
+// The role this request acts as. system_admin wins whenever the user holds
+// it — matchedRole alone follows the user's own role order, so a
+// system_admin whose primary role is coordinator would otherwise be held to
+// coordinator scope here.
+function infoFileRole(user: AuthenticatedRequest['user']): string | undefined {
+  if (hasAnyRole(user, ['system_admin'])) return 'system_admin';
+  return matchedRole(user, INFO_FILE_ROLES);
+}
+
+// Project-scoped mode, coordinator side: every target project must belong to
+// the coordinator's own faculty. `projectFaculty` maps projectId → facultyId
+// (undefined = project doesn't exist).
+function coordinatorOwnsProjectsIn(ownFacultyId: unknown, projectIds: string[], projectFaculty: Map<string, string | undefined>): boolean {
+  return typeof ownFacultyId === 'string' && !!ownFacultyId && ownFacultyId !== 'all'
+    && projectIds.length > 0 && projectIds.every((id) => projectFaculty.get(id) === ownFacultyId);
+}
+
+async function loadProjectFaculties(projectIds: string[]): Promise<Map<string, string | undefined>> {
+  const unique = [...new Set(projectIds)];
+  const out = new Map<string, string | undefined>();
+  if (unique.length === 0) return out;
+  const snaps = await db.getAll(...unique.map((id) => db.collection('projects').doc(id)));
+  snaps.forEach((snap) => out.set(snap.id, snap.exists ? (snap.data()?.facultyId as string | undefined) : undefined));
+  return out;
+}
+
+// May this coordinator replace / hide / delete this existing file? Same rule
+// as creating it: own faculty only, whichever scope mode it was uploaded in.
+async function coordinatorCanManageFile(ownFacultyId: unknown, data: FirebaseFirestore.DocumentData): Promise<boolean> {
+  const projectIds: string[] = data.projectIds ?? [];
+  if (projectIds.length > 0) {
+    return coordinatorOwnsProjectsIn(ownFacultyId, projectIds, await loadProjectFaculties(projectIds));
+  }
+  return coordinatorOwnsFacultyScope(ownFacultyId, data.facultyIds ?? []);
+}
+
 // ── Multer setup (memory storage — same pattern as milestoneController) ───────
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -110,7 +147,7 @@ export const uploadInfoFileMiddleware: RequestHandler = upload.single('file') as
 export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uploaderId = req.user?.uid;
   if (!uploaderId || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
-  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  const role = infoFileRole(req.user);
   if (!role) {
     return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
@@ -163,6 +200,11 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uploaderId, projectIds))) {
         return res.status(403).json({ message: L(req, 'You may only attach files to your own projects.', 'ניתן לצרף קבצים רק לפרויקטים שלך.') });
       }
+      // Same own-faculty confinement as the faculty-wide branch below — a
+      // coordinator used to be able to attach a file to any faculty's project.
+      if (role === 'coordinator' && !coordinatorOwnsProjectsIn(req.user.facultyId, projectIds, await loadProjectFaculties(projectIds))) {
+        return res.status(403).json({ message: L(req, 'A coordinator may only attach files to projects in their own faculty.', 'רכז יכול לצרף קבצים רק לפרויקטים בפקולטה שלו.') });
+      }
     } else if (role === 'supervisor') {
       // Supervisors have no faculty-wide authority — they must always target
       // specific project(s).
@@ -173,8 +215,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
       // leave it empty (which getInfoFiles below treats as "unrestricted,"
       // i.e. visible institution-wide), despite every other coordinator-
       // facing endpoint in this codebase confining her to her own faculty.
-      const ownFacultyId = req.user.facultyId;
-      if (facultyIds.length === 0 || facultyIds.some((f) => f !== ownFacultyId)) {
+      if (!coordinatorOwnsFacultyScope(req.user.facultyId, facultyIds)) {
         return res.status(403).json({ message: L(req, 'A coordinator may only scope a file to their own faculty.', 'רכז יכול להגביל קובץ רק לפקולטה שלו.') });
       }
     }
@@ -219,7 +260,7 @@ export const uploadInfoFile = async (req: AuthenticatedRequest, res: Response) =
 export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
-  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  const role = infoFileRole(req.user);
   if (!role) {
     return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
@@ -234,6 +275,9 @@ export const updateInfoFile = async (req: AuthenticatedRequest, res: Response) =
 
     if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uid, data.projectIds ?? []))) {
       return res.status(403).json({ message: L(req, 'You may only edit files attached to your own projects.', 'ניתן לערוך קבצים המצורפים רק לפרויקטים שלך.') });
+    }
+    if (role === 'coordinator' && !(await coordinatorCanManageFile(req.user.facultyId, data))) {
+      return res.status(403).json({ message: L(req, "You may only edit your own faculty's files.", 'ניתן לערוך רק קבצים של הפקולטה שלך.') });
     }
 
     const update: Record<string, unknown> = {};
@@ -309,8 +353,13 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       // needs the student's own degreeType/major/track, all already loaded.
       const effectiveTrack = resolveEffectiveTrack(student);
 
+      // isVisible applies to faculty-wide files too — the staff page offers
+      // the hide toggle on every file, but this filter used to check it only
+      // for project-scoped ones, so a hidden faculty-wide file stayed
+      // visible (and downloadable) to students.
       const facultyMajorMatched = files.filter((f) =>
         f.projectIds.length === 0 &&
+        f.isVisible !== false &&
         (f.facultyIds.length === 0  || f.facultyIds.includes(req.user!.facultyId)) &&
         (f.majors.length === 0      || f.majors.includes(student.major)) &&
         (f.degreeTypes.length === 0 || f.degreeTypes.includes(student.degreeType)) &&
@@ -374,6 +423,32 @@ export const getInfoFiles = async (req: AuthenticatedRequest, res: Response) => 
       );
     }
 
+    // Staff only: whether THIS viewer may replace / hide / delete each file,
+    // computed with the same rules updateInfoFile/deleteInfoFile enforce, so
+    // the staff page shows those buttons only where they'd actually work.
+    if (req.user && !hasAnyRole(req.user, ['student'])) {
+      const role = infoFileRole(req.user);
+      let canManage: (f: (typeof files)[number]) => boolean = () => false;
+      if (role === 'system_admin') {
+        canManage = () => true;
+      } else if (role === 'coordinator') {
+        const own = req.user.facultyId;
+        const projectFaculty = await loadProjectFaculties(files.flatMap((f) => f.projectIds));
+        canManage = (f) => f.projectIds.length > 0
+          ? coordinatorOwnsProjectsIn(own, f.projectIds, projectFaculty)
+          : coordinatorOwnsFacultyScope(own, f.facultyIds);
+      } else if (role === 'supervisor') {
+        const [asPrimarySnap, asSecondarySnap] = await Promise.all([
+          db.collection('projects').where('supervisorId', '==', req.user.uid).get(),
+          db.collection('projects').where('secondarySupervisorId', '==', req.user.uid).get(),
+        ]);
+        const owned = new Set([...asPrimarySnap.docs, ...asSecondarySnap.docs].map((d) => d.id));
+        // verifySupervisorOwnsProjects requires EVERY tagged project to be theirs.
+        canManage = (f) => f.projectIds.length > 0 && f.projectIds.every((pid: string) => owned.has(pid));
+      }
+      return res.status(200).json({ files: files.map((f) => ({ ...f, canManage: canManage(f) })) });
+    }
+
     return res.status(200).json({ files });
   } catch (error: any) {
     console.error('getInfoFiles error:', error);
@@ -386,18 +461,21 @@ export const deleteInfoFile = async (req: AuthenticatedRequest, res: Response) =
   const uploaderId = req.user?.uid;
   const { id } = req.params;
   if (!uploaderId || !req.user) return res.status(401).json({ message: L(req, 'Unauthorized.', 'אין הרשאה.') });
-  const role = matchedRole(req.user, INFO_FILE_ROLES);
+  const role = infoFileRole(req.user);
   if (!role) {
     return res.status(403).json({ message: L(req, 'Access denied.', 'הגישה נדחתה.') });
   }
   if (!id || typeof id !== 'string') return res.status(400).json({ message: L(req, 'Invalid file id.', 'מזהה קובץ לא תקין.') });
   try {
     const ref = db.collection('infoFiles').doc(id);
-    if (role === 'supervisor') {
+    if (role === 'supervisor' || role === 'coordinator') {
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ message: L(req, 'File not found.', 'הקובץ לא נמצא.') });
-      if (!(await verifySupervisorOwnsProjects(uploaderId, snap.data()!.projectIds ?? []))) {
+      if (role === 'supervisor' && !(await verifySupervisorOwnsProjects(uploaderId, snap.data()!.projectIds ?? []))) {
         return res.status(403).json({ message: L(req, 'You may only delete files attached to your own projects.', 'ניתן למחוק קבצים המצורפים רק לפרויקטים שלך.') });
+      }
+      if (role === 'coordinator' && !(await coordinatorCanManageFile(req.user.facultyId, snap.data()!))) {
+        return res.status(403).json({ message: L(req, "You may only delete your own faculty's files.", 'ניתן למחוק רק קבצים של הפקולטה שלך.') });
       }
     }
     await ref.delete();

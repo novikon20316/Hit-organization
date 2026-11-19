@@ -1587,6 +1587,10 @@ export const apiClient = {
         /** Manual staff on/off switch, independent of the milestone gate —
          *  both must pass for a student to see the file. */
         isVisible: boolean;
+        /** Staff only — whether this viewer may replace / hide / delete the
+         *  file (server-computed, same rules as PATCH/DELETE). Absent for
+         *  students. */
+        canManage?: boolean;
       }>;
     }>('/api/info-files', { method: 'GET' });
   },
@@ -1621,6 +1625,8 @@ export const apiClient = {
         id: string; type: 'procedure' | 'announcement'; titleHe: string; titleEn: string;
         bodyHe: string; bodyEn: string; facultyIds: string[]; majors: string[]; degreeTypes: string[];
         createdAt: string | null;
+        /** Staff only — whether this viewer may delete the item (server-computed). */
+        canManage?: boolean;
       }>;
     }>('/api/faculty-content', { method: 'GET' });
   },

@@ -118,6 +118,17 @@ export function withinCoordinatorScope(user: AuthUser | undefined, resource: Res
   return user.facultyId !== 'all' && user.facultyId === resource.facultyId;
 }
 
+/** Student-facing content a coordinator publishes (info files, faculty
+ *  procedures/announcements) is confined to their own single faculty: the
+ *  scope must name only that faculty. An empty scope means "everyone" and is
+ *  out of their reach; an 'all'-provisioned account is not a real faculty and
+ *  never satisfies this. Used for both creating and changing/deleting such
+ *  content. */
+export function coordinatorOwnsFacultyScope(ownFacultyId: unknown, facultyIds: string[]): boolean {
+  return typeof ownFacultyId === 'string' && !!ownFacultyId && ownFacultyId !== 'all'
+    && facultyIds.length > 0 && facultyIds.every((f) => f === ownFacultyId);
+}
+
 /** Field names holding a role's extra-faculty grants — see effectiveFacultyIds. */
 export type RoleFacultyField =
   | 'supervisorFacultyIds' | 'secondarySupervisorFacultyIds'

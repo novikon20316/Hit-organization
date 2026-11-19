@@ -67,6 +67,8 @@ interface InfoFile {
   projectIds: string[];
   milestoneType: string | null;
   isVisible: boolean;
+  /** Server-computed: may this viewer replace / hide / delete it. */
+  canManage?: boolean;
 }
 
 interface FacultyContentItem {
@@ -80,6 +82,8 @@ interface FacultyContentItem {
   majors: string[];
   degreeTypes: string[];
   createdAt: string | null;
+  /** Server-computed: may this viewer delete it. */
+  canManage?: boolean;
 }
 
 function scopeSummary(f: { facultyIds: string[]; majors: string[]; degreeTypes: string[]; trackTypes?: string[] }, lang: 'he' | 'en'): string {
@@ -262,7 +266,11 @@ export default function InfoFilesPage() {
     return files.filter((f) => f.projectIds.some((id) => myIds.has(id)));
   }, [files, role, myProjects]);
 
+  // The server says per file (same rules it enforces on replace/hide/delete —
+  // a coordinator only manages their own faculty's files); the local check is
+  // only a fallback for a server that predates canManage.
   const canManageFile = (f: InfoFile): boolean => {
+    if (typeof f.canManage === 'boolean') return f.canManage;
     if (role !== 'supervisor') return true;
     const myIds = new Set(myProjects.map((p) => p.id));
     return f.projectIds.some((id) => myIds.has(id));
@@ -1037,9 +1045,11 @@ export default function InfoFilesPage() {
                   <p className="mt-1 whitespace-pre-wrap text-xs text-muted">{lang === 'he' ? c.bodyHe || c.bodyEn : c.bodyEn || c.bodyHe}</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{scopeSummary(c, lang)}</span>
-                <button type="button" onClick={() => setDeletingContent(c)} aria-label={lang === 'he' ? 'מחק תוכן' : 'Delete content'} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
-                  ✕
-                </button>
+                {c.canManage !== false && (
+                  <button type="button" onClick={() => setDeletingContent(c)} aria-label={lang === 'he' ? 'מחק תוכן' : 'Delete content'} className="shrink-0 px-2 py-1 text-sm font-semibold text-danger hover:opacity-70">
+                    ✕
+                  </button>
+                )}
               </div>
             </div>
           ))}
