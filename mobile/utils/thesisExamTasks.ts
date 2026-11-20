@@ -8,7 +8,7 @@
 
 import type { ThesisExamCard } from '@/src/api/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade' | 'review_final_grade' | 'final_approval';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -32,6 +32,7 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
       if (a === 'availability' && e.myAvailability) continue;
       if (a === 'form' && (e.myFormSubmitted || !e.formOpen)) continue;
       if (a === 'supervisor_grade' && e.supervisorGradeGiven) continue;
+      if (a === 'fix_opinion' && e.fixCommittee?.members.some((m) => m.isMe && m.opinion)) continue;
       const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
         : a === 'late_entry' ? e.lateEntryDeadline
         : null;
@@ -54,6 +55,9 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   supervisor_grade: { he: 'יש לתת ציון מחקר (מנחה) לבחינת התזה', en: 'Give the research grade for the thesis exam' },
   review_final_grade: { he: 'יש לאשר את הציון הסופי של התזה', en: "Approve the thesis's final grade" },
   final_approval: { he: 'יש לתת אישור סופי לציון התזה (לפני המכלול)', en: "Give the thesis grade's final approval (before Michlol)" },
+  supervisor_fix: { he: 'הציון הסופי נדחה — יש לתקן את ציון המחקר', en: 'The final grade was denied — fix the research grade' },
+  fix_opinion: { he: 'יש לתת חוות דעת על תיקון ציון התזה', en: "Give your opinion on the thesis grade fix" },
+  fix_decide: { he: 'יש להחליט על תיקון ציון התזה (יו"ר הוועדה)', en: 'Decide on the thesis grade fix (committee chairman)' },
 };
 
 export function thesisExamTaskLabel(kind: ThesisExamTaskKind, lang: 'he' | 'en'): string {

@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, ActivityIndicator, Pressable, ScrollView, RefreshControl, TextInput, Modal, Alert, Linking, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { apiClient, type ThesisExamCard, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/src/api/apiClient';
+import { apiClient, type ThesisExamCard, type ThesisExamFixVote, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/src/api/apiClient';
 import type { Lang } from '@/components/i18n';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { C, THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/components/thesisExam/shared';
@@ -281,6 +281,12 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
         <Text style={{ marginTop: 8, fontSize: 13, color: C.muted, ...align }}>{he ? 'ממתין לאישור הסופי של הרכזת האדמיניסטרטיבית לפני העברת הציון למכלול.' : "Awaiting the administrative coordinator's final approval before the grade goes to Michlol."}</Text>
       )}
       {has('final_approval') && <FinalApprovalPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.supervisorFix && <SupervisorFixSummary exam={exam} lang={lang} />}
+      {has('supervisor_fix') && <SupervisorFixPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_supervisor_fix' && !has('supervisor_fix') && (
+        <Text style={{ marginTop: 6, fontSize: 12, color: C.muted, ...align }}>{he ? 'ממתין לתיקון ציון המחקר ע״י המנחה; התיקון יעבור לאישור הוועדה ואז שוב לראש בית הספר.' : "Waiting for the supervisor's research grade fix; it then goes to the committee and back to the grad school head."}</Text>
+      )}
+      {exam.fixCommittee && <FixCommitteePanel exam={exam} lang={lang} onDone={onChanged} />}
       {exam.status === 'exam_completed' && (
         <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: C.successBg }}>
           <Text style={{ fontSize: 13, fontWeight: '700', color: C.success, ...align }}>
@@ -329,6 +335,227 @@ function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBr
       {breakdown.missing.length > 0 && (
         <Text style={{ marginTop: 4, fontSize: 12, color: C.danger, ...align }}>{he ? 'חסר עדיין' : 'Still missing'}: {breakdown.missing.map((m) => m[lang]).join(' · ')}</Text>
       )}
+    </View>
+  );
+}
+
+/** Why the supervisor is fixing the grade and, once sent, the fix — mirrors web. */
+function SupervisorFixSummary({ exam, lang }: { exam: ThesisExamCard; lang: Lang }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const f = exam.supervisorFix!;
+  return (
+    <View style={{ marginTop: 10, borderRadius: 10, padding: 10, backgroundColor: C.dangerBg }}>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: C.danger, ...align }}>
+        {f.requestedBy === 'grad_school_head'
+          ? (he ? `ראש בית הספר ללימודים מתקדמים (${f.requestedByName}) דחה/תה את הציון הסופי` : `The grad school head (${f.requestedByName}) denied the final grade`)
+          : (he ? `הוועדה (יו"ר: ${f.requestedByName}) דחתה את תיקון הציון` : `The committee (chairman: ${f.requestedByName}) rejected the grade fix`)}
+        {f.round > 1 ? (he ? ` · סבב תיקון ${f.round}` : ` · fix round ${f.round}`) : ''}
+      </Text>
+      <Text style={{ fontSize: 12, color: C.danger, marginTop: 2, ...align }}>{f.reason}</Text>
+      {!!f.submittedAt && (
+        <Text style={{ fontSize: 12, color: C.ink, marginTop: 4, ...align }}>
+          {he ? 'תיקון המנחה: ציון מחקר' : "Supervisor's fix: research grade"} {f.previousResearch ?? '—'} → <Text style={{ fontWeight: '700' }}>{f.newResearch}</Text>{f.note ? ` · ${f.note}` : ''}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SupervisorFixPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const f = exam.supervisorFix;
+  const [research, setResearch] = useState(f?.previousResearch != null ? String(f.previousResearch) : '');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const send = async (v: number) => {
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.fixThesisExamSupervisorGrade(exam.milestoneId, v, note.trim());
+      await onDone();
+    } catch (err) {
+      setError(errText(err, he ? 'השליחה נכשלה' : 'Sending failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = () => {
+    const v = Number(research);
+    if (!research.trim() || !Number.isFinite(v) || v < 1 || v > 100) { setError(he ? 'יש לתת ציון מחקר בין 1 ל-100.' : 'Give a research grade from 1 to 100.'); return; }
+    Alert.alert(he ? 'שליחת התיקון' : 'Send the fix', he ? `לשלוח ציון מחקר ${v} לאישור הוועדה?` : `Send research grade ${v} to the committee?`, [
+      { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
+      { text: he ? 'שליחה' : 'Send', onPress: () => { void send(v); } },
+    ]);
+  };
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? 'תיקון ציון המחקר (40%)' : 'Fix the research grade (40%)'}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'הציון הקודם יישמר בהיסטוריה. התיקון יעבור לאישור הוועדה ואז שוב לראש בית הספר ללימודים מתקדמים.' : 'The previous grade is kept in the history. The fix goes to the committee, then back to the grad school head.'}</Text>
+      <TextInput
+        accessibilityLabel={he ? 'ציון מחקר מתוקן (1–100)' : 'Fixed research grade (1–100)'}
+        placeholder={he ? 'ציון מחקר מתוקן (1–100)' : 'Fixed research grade (1–100)'}
+        value={research}
+        onChangeText={setResearch}
+        keyboardType="decimal-pad"
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, fontSize: 14, backgroundColor: '#fff', width: 140, alignSelf: he ? 'flex-end' : 'flex-start', ...align }}
+      />
+      <TextInput
+        accessibilityLabel={he ? 'הסבר לוועדה (לא חובה)' : 'Explanation for the committee (optional)'}
+        placeholder={he ? 'הסבר לוועדה (לא חובה)' : 'Explanation for the committee (optional)'}
+        value={note}
+        onChangeText={setNote}
+        multiline
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 56, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
+      />
+      {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
+      <View style={{ flexDirection: 'row', marginTop: 8 }}>
+        <PrimaryButton busy={busy} onPress={submit} label={he ? 'שליחת התיקון לוועדה' : 'Send the fix to the committee'} />
+      </View>
+    </View>
+  );
+}
+
+const VOTE_LABEL: Record<ThesisExamFixVote, { he: string; en: string }> = {
+  approve: { he: 'אישור התיקון', en: 'Approve the fix' },
+  reject: { he: 'דחיית התיקון', en: 'Reject the fix' },
+};
+
+/** The committee's review of the supervisor's fix — mirrors web's FixCommitteePanel. */
+function FixCommitteePanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const c = exam.fixCommittee!;
+  const mine = c.members.find((m) => m.isMe)?.opinion ?? null;
+  const canOpine = exam.actions.includes('fix_opinion');
+  const canDecide = exam.actions.includes('fix_decide');
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink, ...align }}>🏛️ {he ? 'אישור הוועדה לתיקון הציון' : "The committee's approval of the grade fix"}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>
+        {he
+          ? `כל חבר/ת ועדה נותן/ת חוות דעת; יו"ר הוועדה${c.chairmanName ? ` (${c.chairmanName})` : ''} מחליט/ה לאחר שכולם נתנו. אישור — הציון הסופי המחושב מחדש עובר שוב לראש בית הספר; דחייה — חוזר למנחה לתיקון.`
+          : `Every member gives an opinion; the chairman${c.chairmanName ? ` (${c.chairmanName})` : ''} decides once all have. Approve — the recomputed final grade goes back to the grad school head; reject — back to the supervisor.`}
+      </Text>
+      {!c.chairmanName && (
+        <Text style={{ marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: C.dangerBg, color: C.danger, fontSize: 12, ...align }} accessibilityRole="alert">
+          {he ? 'לוועדה אין יו"ר שיכול להחליט (היו"ר הוא מנחה הפרויקט ולא נבחר מחליף) — יש לפנות לרכזת האדמיניסטרטיבית.' : "The committee has no chairman who can decide (the chairman is the project's supervisor and no stand-in was chosen) — contact the administrative coordinator."}
+        </Text>
+      )}
+      {c.members.map((m, i) => (
+        <View key={i} style={{ marginTop: 6, backgroundColor: '#fff', borderRadius: 8, padding: 8 }}>
+          <Text style={{ fontSize: 12, color: C.ink, ...align }}>
+            <Text style={{ fontWeight: '700' }}>{m.name}{m.isMe ? (he ? ' (את/ה)' : ' (you)') : ''}</Text>
+            {m.opinion
+              ? <Text style={{ color: m.opinion.result === 'approve' ? C.success : C.danger, fontWeight: '700' }}> · {VOTE_LABEL[m.opinion.result][lang]}</Text>
+              : <Text style={{ color: C.muted }}> · {he ? 'טרם נתן/ה חוות דעת' : 'No opinion yet'}</Text>}
+          </Text>
+          {!!m.opinion?.note && <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{m.opinion.note}</Text>}
+        </View>
+      ))}
+      {canOpine && (
+        <VoteForm
+          key={mine ? `${mine.result}-${mine.at}` : 'new'}
+          lang={lang}
+          title={mine ? (he ? 'עדכון חוות הדעת שלי' : 'Update my opinion') : (he ? 'חוות הדעת שלי' : 'My opinion')}
+          hint={he ? 'ניתן לשנות עד שהיו"ר מחליט/ה.' : 'You can change it until the chairman decides.'}
+          initial={mine}
+          submitLabel={he ? 'שמירת חוות הדעת' : 'Save my opinion'}
+          onSubmit={async (result, note) => { await apiClient.giveThesisExamFixOpinion(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+      {c.isChairman && !canDecide && c.missingNames.length > 0 && (
+        <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '600', color: C.accent, ...align }}>
+          {he ? `ניתן יהיה להחליט לאחר שכל חברי הוועדה יתנו חוות דעת. חסרים: ${c.missingNames.join(', ')}.` : `You can decide once every member gave an opinion. Missing: ${c.missingNames.join(', ')}.`}
+        </Text>
+      )}
+      {!c.isChairman && !canOpine && c.missingNames.length === 0 && !!c.chairmanName && (
+        <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>{he ? `כל חוות הדעת התקבלו — ממתין להחלטת היו"ר (${c.chairmanName}).` : `Every opinion is in — waiting for the chairman (${c.chairmanName}).`}</Text>
+      )}
+      {canDecide && (
+        <VoteForm
+          lang={lang}
+          title={he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}
+          hint={he ? 'אישור — הציון עובר שוב לראש בית הספר ללימודים מתקדמים. דחייה — חוזר למנחה לתיקון נוסף.' : 'Approve — the grade goes back to the grad school head. Reject — back to the supervisor to fix again.'}
+          initial={null}
+          confirm
+          submitLabel={he ? 'אישור ההחלטה' : 'Confirm the decision'}
+          onSubmit={async (result, note) => { await apiClient.decideThesisExamFix(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+    </View>
+  );
+}
+
+function VoteForm({ lang, title, hint, initial, submitLabel, confirm = false, onSubmit }: {
+  lang: Lang;
+  title: string;
+  hint: string;
+  initial: { result: ThesisExamFixVote; note: string } | null;
+  submitLabel: string;
+  confirm?: boolean;
+  onSubmit: (result: ThesisExamFixVote, note: string) => Promise<void>;
+}) {
+  const he = lang === 'he';
+  const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
+  const [result, setResult] = useState<ThesisExamFixVote | null>(initial?.result ?? null);
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const send = async (r: ThesisExamFixVote) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onSubmit(r, note.trim());
+    } catch (err) {
+      setError(errText(err, he ? 'הפעולה נכשלה' : 'Action failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = () => {
+    if (!result) { setError(he ? 'יש לבחור אישור או דחייה.' : 'Choose approve or reject.'); return; }
+    if (result === 'reject' && !note.trim()) { setError(he ? 'יש לנמק את הדחייה — מה המנחה צריך/ה לתקן.' : 'Write why you reject it — what the supervisor must fix.'); return; }
+    if (!confirm) { void send(result); return; }
+    Alert.alert(he ? 'אישור ההחלטה' : 'Confirm the decision', he ? `לאשר את ההחלטה "${VOTE_LABEL[result].he}"?` : `Confirm the decision "${VOTE_LABEL[result].en}"?`, [
+      { text: he ? 'ביטול' : 'Cancel', style: 'cancel' },
+      { text: he ? 'אישור' : 'Confirm', style: result === 'approve' ? 'default' : 'destructive', onPress: () => { void send(result); } },
+    ]);
+  };
+  return (
+    <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: '#fff' }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{title}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{hint}</Text>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: he ? 'row-reverse' : 'row', gap: 8, marginTop: 8 }}>
+        {(['approve', 'reject'] as const).map((r) => {
+          const on = result === r;
+          return (
+            <Pressable
+              key={r}
+              onPress={() => setResult(r)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              style={{ flex: 1, borderWidth: on ? 2 : 1, borderColor: on ? C.primary : C.line, borderRadius: 18, paddingVertical: 8, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: r === 'approve' ? C.success : C.danger }}>{on ? '◉ ' : '○ '}{VOTE_LABEL[r][lang]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <TextInput
+        accessibilityLabel={result === 'reject' ? (he ? 'נימוק (חובה בדחייה)' : 'Reason (required to reject)') : (he ? 'הערה (לא חובה)' : 'Note (optional)')}
+        placeholder={result === 'reject' ? (he ? 'נימוק (חובה בדחייה)' : 'Reason (required to reject)') : (he ? 'הערה (לא חובה)' : 'Note (optional)')}
+        value={note}
+        onChangeText={setNote}
+        multiline
+        style={{ marginTop: 8, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: 10, minHeight: 56, fontSize: 13, backgroundColor: '#fff', textAlignVertical: 'top', ...align }}
+      />
+      {!!error && <Text style={{ marginTop: 6, fontSize: 12, color: C.danger, ...align }} accessibilityRole="alert">{error}</Text>}
+      <View style={{ flexDirection: 'row', marginTop: 8 }}>
+        <PrimaryButton busy={busy} onPress={submit} label={submitLabel} />
+      </View>
     </View>
   );
 }

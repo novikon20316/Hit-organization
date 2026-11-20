@@ -33,13 +33,15 @@ export const THESIS_EXAM_STATUS_LABEL: Record<ThesisExamStatus, { he: string; en
   exam_returned_to_supervisor: { he: 'הוחזר למנחה להמשך עבודה', en: 'Returned to the supervisor for more work' },
   exam_coordinator_approval: { he: 'ממתין לאישור הסופי של הרכזת', en: "Awaiting the coordinator's final approval" },
   exam_completed: { he: 'התזה הושלמה', en: 'Thesis completed' },
+  exam_supervisor_fix: { he: 'הציון נדחה — המנחה מתקן את ציון המחקר', en: 'Grade denied — the supervisor is fixing the research grade' },
+  exam_fix_committee_review: { he: 'הוועדה בודקת את תיקון הציון', en: 'The committee is reviewing the grade fix' },
 };
 
 /** Which step of THESIS_EXAM_STEPS a status belongs to. */
 export function thesisExamStepIndex(status: ThesisExamStatus): number {
   if (status === 'exam_completed') return THESIS_EXAM_STEPS.length;
   const as: ThesisExamStatus = status === 'exam_committee_review' ? 'exam_grades_pending'
-    : status === 'exam_grade_denied' || status === 'exam_returned_to_supervisor' ? 'exam_grade_review'
+    : status === 'exam_grade_denied' || status === 'exam_returned_to_supervisor' || status === 'exam_supervisor_fix' || status === 'exam_fix_committee_review' ? 'exam_grade_review'
     : status;
   return THESIS_EXAM_STEPS.findIndex((x) => x.status === as);
 }

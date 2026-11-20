@@ -18,7 +18,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { useRequireRole } from '@/hooks/useRequireRole';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
-import { apiClient, type ThesisExamCard, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/lib/apiClient';
+import { apiClient, type ThesisExamCard, type ThesisExamFixVote, type ThesisExamGradeBreakdown, type ThesisExamNomineeInput } from '@/lib/apiClient';
 import { VALID_ROLES } from '@/lib/roles';
 import { THESIS_EXAM_STEPS, THESIS_EXAM_STATUS_LABEL, formatExamDay, formatExamDeadline, formatExamSlot, thesisExamStepIndex } from '@/lib/thesisExam';
 import { AvailabilityPicker, EXAM_DAY_START, EXAM_MIN_MINUTES, EXAM_TIMES, fridayLatestEnd, isShabbat, latestEndFor, shiftTime } from '@/components/thesisExam/AvailabilityPicker';
@@ -240,6 +240,12 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
         <p className="mt-3 text-sm text-muted">{he ? 'ממתין לאישור הסופי של הרכזת האדמיניסטרטיבית לפני העברת הציון למכלול.' : "Awaiting the administrative coordinator's final approval before the grade goes to Michlol."}</p>
       )}
       {has('final_approval') && <FinalApprovalPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.supervisorFix && <SupervisorFixSummary exam={exam} lang={lang} />}
+      {has('supervisor_fix') && <SupervisorFixPanel exam={exam} lang={lang} onDone={onChanged} />}
+      {exam.status === 'exam_supervisor_fix' && !has('supervisor_fix') && (
+        <p className="mt-2 text-xs text-muted">{he ? 'ממתין לתיקון ציון המחקר ע״י המנחה; התיקון יעבור לאישור הוועדה ואז שוב לראש בית הספר.' : "Waiting for the supervisor's research grade fix; it then goes to the committee and back to the grad school head."}</p>
+      )}
+      {exam.fixCommittee && <FixCommitteePanel exam={exam} lang={lang} onDone={onChanged} />}
       {exam.status === 'exam_completed' && (
         <p className="mt-3 rounded-md bg-success-bg px-3 py-2 text-sm font-semibold text-success">
           🎓 {he ? 'התזה הושלמה — הציון הסופי אושר סופית' : 'Thesis completed — the final grade received final approval'}
@@ -300,6 +306,197 @@ function GradeBreakdownTable({ breakdown, lang }: { breakdown: ThesisExamGradeBr
         <p className="mt-2 text-xs text-danger">{he ? 'חסר עדיין' : 'Still missing'}: {breakdown.missing.map((m) => m[lang]).join(' · ')}</p>
       )}
     </div>
+  );
+}
+
+/** Why the supervisor is fixing the grade and, once sent, the fix itself. */
+function SupervisorFixSummary({ exam, lang }: { exam: ThesisExamCard; lang: 'he' | 'en' }) {
+  const he = lang === 'he';
+  const f = exam.supervisorFix!;
+  return (
+    <div className="mt-3 rounded-lg border border-danger/40 bg-danger-bg px-3 py-2 text-xs text-danger">
+      <p className="font-semibold">
+        {f.requestedBy === 'grad_school_head'
+          ? (he ? `ראש בית הספר ללימודים מתקדמים (${f.requestedByName}) דחה/תה את הציון הסופי` : `The grad school head (${f.requestedByName}) denied the final grade`)
+          : (he ? `הוועדה (יו"ר: ${f.requestedByName}) דחתה את תיקון הציון` : `The committee (chairman: ${f.requestedByName}) rejected the grade fix`)}
+        {f.round > 1 ? (he ? ` · סבב תיקון ${f.round}` : ` · fix round ${f.round}`) : ''}
+      </p>
+      <p className="mt-0.5 whitespace-pre-wrap">{f.reason}</p>
+      {f.submittedAt && (
+        <p className="mt-1 text-ink">
+          {he ? 'תיקון המנחה' : "Supervisor's fix"}: {he ? 'ציון מחקר' : 'research grade'} {f.previousResearch ?? '—'} → <strong>{f.newResearch}</strong>
+          {f.note ? ` · ${f.note}` : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SupervisorFixPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const f = exam.supervisorFix;
+  const [research, setResearch] = useState(f?.previousResearch != null ? String(f.previousResearch) : '');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    const v = Number(research);
+    if (!research.trim() || !Number.isFinite(v) || v < 1 || v > 100) { setError(he ? 'יש לתת ציון מחקר בין 1 ל-100.' : 'Give a research grade from 1 to 100.'); return; }
+    if (!window.confirm(he ? `לשלוח ציון מחקר ${v} לאישור הוועדה?` : `Send research grade ${v} to the committee?`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiClient.fixThesisExamSupervisorGrade(exam.milestoneId, v, note.trim());
+      await onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'השליחה נכשלה' : 'Sending failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <p className="text-sm font-semibold text-ink">{he ? 'תיקון ציון המחקר (40%)' : 'Fix the research grade (40%)'}</p>
+      <p className="mt-0.5 text-xs text-muted">{he ? 'הציון הקודם יישמר בהיסטוריה. התיקון יעבור לאישור הוועדה ואז שוב לראש בית הספר ללימודים מתקדמים.' : 'The previous grade is kept in the history. The fix goes to the committee, then back to the grad school head.'}</p>
+      <label htmlFor={`fix-research-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'ציון מחקר מתוקן (1–100)' : 'Fixed research grade (1–100)'}</label>
+      <input id={`fix-research-${exam.milestoneId}`} type="number" min={1} max={100} step={0.1} inputMode="decimal" value={research} onChange={(e) => setResearch(e.target.value)} className="mt-1 w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      <label htmlFor={`fix-note-${exam.milestoneId}`} className="mt-2 block text-xs text-muted">{he ? 'הסבר לוועדה (לא חובה)' : 'Explanation for the committee (optional)'}</label>
+      <textarea id={`fix-note-${exam.milestoneId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+      <button type="button" onClick={submit} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+        {busy ? '…' : (he ? 'שליחת התיקון לוועדה' : 'Send the fix to the committee')}
+      </button>
+    </div>
+  );
+}
+
+const VOTE_LABEL: Record<ThesisExamFixVote, { he: string; en: string }> = {
+  approve: { he: 'אישור התיקון', en: 'Approve the fix' },
+  reject: { he: 'דחיית התיקון', en: 'Reject the fix' },
+};
+
+/** The committee's review of the supervisor's fix: every member but the
+ *  chairman gives an opinion; the chairman decides once all are in. */
+function FixCommitteePanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 'he' | 'en'; onDone: () => Promise<void> }) {
+  const he = lang === 'he';
+  const c = exam.fixCommittee!;
+  const mine = c.members.find((m) => m.isMe)?.opinion ?? null;
+  const canOpine = exam.actions.includes('fix_opinion');
+  const canDecide = exam.actions.includes('fix_decide');
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <p className="text-sm font-semibold text-ink">🏛️ {he ? 'אישור הוועדה לתיקון הציון' : "The committee's approval of the grade fix"}</p>
+      <p className="mt-0.5 text-xs text-muted">
+        {he
+          ? `כל חבר/ת ועדה נותן/ת חוות דעת; יו"ר הוועדה${c.chairmanName ? ` (${c.chairmanName})` : ''} מחליט/ה לאחר שכולם נתנו. אישור — הציון הסופי המחושב מחדש (בטבלה למעלה) עובר שוב לראש בית הספר; דחייה — חוזר למנחה לתיקון.`
+          : `Every member gives an opinion; the chairman${c.chairmanName ? ` (${c.chairmanName})` : ''} decides once all have. Approve — the recomputed final grade (table above) goes back to the grad school head; reject — back to the supervisor to fix.`}
+      </p>
+      {!c.chairmanName && (
+        <p className="mt-2 rounded-md bg-danger-bg px-3 py-2 text-xs text-danger" role="alert">
+          {he ? 'לוועדה אין יו"ר שיכול להחליט (היו"ר הוא מנחה הפרויקט ולא נבחר מחליף) — יש לפנות לרכזת האדמיניסטרטיבית.' : "The committee has no chairman who can decide (the chairman is the project's supervisor and no stand-in was chosen) — contact the administrative coordinator."}
+        </p>
+      )}
+      {c.members.length > 0 && (
+        <ul className="mt-2 grid gap-1.5">
+          {c.members.map((m, i) => (
+            <li key={i} className="rounded-md bg-surface px-3 py-2 text-xs">
+              <span className="font-medium text-ink">{m.name}{m.isMe ? (he ? ' (את/ה)' : ' (you)') : ''}</span>
+              {m.opinion ? (
+                <>
+                  {' · '}<span className={`font-semibold ${m.opinion.result === 'approve' ? 'text-success' : 'text-danger'}`}>{VOTE_LABEL[m.opinion.result][lang]}</span>
+                  {m.opinion.note && <span className="mt-1 block whitespace-pre-wrap text-muted">{m.opinion.note}</span>}
+                </>
+              ) : (
+                <span className="text-muted"> · {he ? 'טרם נתן/ה חוות דעת' : 'No opinion yet'}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canOpine && (
+        <VoteForm
+          key={mine ? `${mine.result}-${mine.at}` : 'new'}
+          idBase={`fix-opinion-${exam.milestoneId}`}
+          lang={lang}
+          title={mine ? (he ? 'עדכון חוות הדעת שלי' : 'Update my opinion') : (he ? 'חוות הדעת שלי' : 'My opinion')}
+          hint={he ? 'ניתן לשנות עד שהיו"ר מחליט/ה.' : 'You can change it until the chairman decides.'}
+          initial={mine}
+          submitLabel={he ? 'שמירת חוות הדעת' : 'Save my opinion'}
+          onSubmit={async (result, note) => { await apiClient.giveThesisExamFixOpinion(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+      {c.isChairman && !canDecide && c.missingNames.length > 0 && (
+        <p className="mt-3 text-xs font-medium text-accent">
+          {he ? `ניתן יהיה להחליט לאחר שכל חברי הוועדה יתנו חוות דעת. חסרים: ${c.missingNames.join(', ')}.` : `You can decide once every member gave an opinion. Missing: ${c.missingNames.join(', ')}.`}
+        </p>
+      )}
+      {!c.isChairman && !canOpine && c.missingNames.length === 0 && c.chairmanName && (
+        <p className="mt-3 text-xs text-muted">{he ? `כל חוות הדעת התקבלו — ממתין להחלטת היו"ר (${c.chairmanName}).` : `Every opinion is in — waiting for the chairman (${c.chairmanName}).`}</p>
+      )}
+      {canDecide && (
+        <VoteForm
+          idBase={`fix-decide-${exam.milestoneId}`}
+          lang={lang}
+          title={he ? 'החלטת יו"ר הוועדה' : "The chairman's decision"}
+          hint={he ? 'אישור — הציון עובר שוב לראש בית הספר ללימודים מתקדמים. דחייה — חוזר למנחה לתיקון נוסף.' : 'Approve — the grade goes back to the grad school head. Reject — back to the supervisor to fix again.'}
+          initial={null}
+          confirm
+          submitLabel={he ? 'אישור ההחלטה' : 'Confirm the decision'}
+          onSubmit={async (result, note) => { await apiClient.decideThesisExamFix(exam.milestoneId, result, note); await onDone(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function VoteForm({ idBase, lang, title, hint, initial, submitLabel, confirm = false, onSubmit }: {
+  idBase: string;
+  lang: 'he' | 'en';
+  title: string;
+  hint: string;
+  initial: { result: ThesisExamFixVote; note: string } | null;
+  submitLabel: string;
+  confirm?: boolean;
+  onSubmit: (result: ThesisExamFixVote, note: string) => Promise<void>;
+}) {
+  const he = lang === 'he';
+  const [result, setResult] = useState<ThesisExamFixVote | null>(initial?.result ?? null);
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    if (!result) { setError(he ? 'יש לבחור אישור או דחייה.' : 'Choose approve or reject.'); return; }
+    if (result === 'reject' && !note.trim()) { setError(he ? 'יש לנמק את הדחייה — מה המנחה צריך/ה לתקן.' : 'Write why you reject it — what the supervisor must fix.'); return; }
+    if (confirm && !window.confirm(he ? `לאשר את ההחלטה "${VOTE_LABEL[result].he}"?` : `Confirm the decision "${VOTE_LABEL[result].en}"?`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onSubmit(result, note.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : he ? 'הפעולה נכשלה' : 'Action failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <fieldset className="mt-3 rounded-lg border border-line bg-surface p-3">
+      <legend className="px-1 text-sm font-semibold text-ink">{title}</legend>
+      <p className="text-xs text-muted">{hint}</p>
+      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label={title}>
+        {(['approve', 'reject'] as const).map((r) => (
+          <label key={r} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold ${result === r ? 'border-primary ring-1 ring-primary' : 'border-line'} ${r === 'approve' ? 'text-success' : 'text-danger'}`}>
+            <input type="radio" name={`${idBase}-result`} checked={result === r} onChange={() => setResult(r)} className="me-1.5" />
+            {VOTE_LABEL[r][lang]}
+          </label>
+        ))}
+      </div>
+      <label htmlFor={`${idBase}-note`} className="mt-3 block text-xs text-muted">{result === 'reject' ? (he ? 'נימוק (חובה בדחייה)' : 'Reason (required to reject)') : (he ? 'הערה (לא חובה)' : 'Note (optional)')}</label>
+      <textarea id={`${idBase}-note`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm" />
+      {error && <p className="mt-2 text-xs text-danger" role="alert">{error}</p>}
+      <button type="button" onClick={submit} disabled={busy} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover disabled:opacity-60">
+        {busy ? '…' : submitLabel}
+      </button>
+    </fieldset>
   );
 }
 

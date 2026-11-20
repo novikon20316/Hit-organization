@@ -204,6 +204,8 @@ const EXAM_STATUS_AS: Record<string, (typeof EXAM_STATUS_ORDER)[number]> = {
   exam_committee_review: 'exam_grades_pending',
   exam_grade_denied: 'exam_grade_review',
   exam_returned_to_supervisor: 'exam_grade_review',
+  exam_supervisor_fix: 'exam_grade_review',
+  exam_fix_committee_review: 'exam_grade_review',
 };
 
 function isThesisExamMilestone(m: MilestoneData): boolean {
@@ -243,6 +245,10 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
       ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
       : m.status === 'exam_returned_to_supervisor'
         ? (he ? 'הוחזר למנחה להמשך עבודה' : 'Returned to the supervisor for more work')
+        : m.status === 'exam_supervisor_fix'
+          ? (he ? 'הציון נדחה — המנחה מתקן את ציון המחקר (התיקון יעבור לוועדה ואז שוב לראש בית הספר)' : 'Grade denied — the supervisor fixes the research grade (then the committee, then the grad school head again)')
+          : m.status === 'exam_fix_committee_review'
+            ? (he ? 'הוועדה בודקת את תיקון הציון (ואז שוב לראש בית הספר)' : 'The committee reviews the grade fix (then the grad school head again)')
         : (he ? 'אישור הציון ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the grade')),
     step('exam_coordinator_approval', he ? 'אישור סופי ע״י הרכזת האדמיניסטרטיבית והעברה למכלול' : 'Admin coordinator final approval + Michlol'),
   );

@@ -70,6 +70,8 @@ export type MilestoneStatus =
   | 'exam_grade_review'
   | 'exam_grade_denied'
   | 'exam_returned_to_supervisor'
+  | 'exam_supervisor_fix'
+  | 'exam_fix_committee_review'
   | 'exam_coordinator_approval'
   | 'examiner_graded'       // at least one examiner graded
   | 'both_examiners_graded' // both examiners submitted grades

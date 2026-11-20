@@ -49,8 +49,16 @@
 //                            (gradeBreakdown) — awaits the grad school head:
 //                            approve → exam_coordinator_approval (or, below
 //                            MIN_PASSING_FINAL_GRADE = 75,
-//                            exam_returned_to_supervisor); deny →
-//                            exam_grade_denied (what follows: not defined yet)
+//                            exam_returned_to_supervisor); deny (reason) →
+//   exam_supervisor_fix      the supervisor fixes their research grade (the
+//                            previous one is archived) →
+//   exam_fix_committee_review  every committee member except the chairman
+//                            approves the fix or not; once all have, the
+//                            chairman decides: approve → the final grade is
+//                            recomputed → exam_grade_review again; reject
+//                            (reason) → exam_supervisor_fix again. The loop
+//                            repeats until the grad school head approves.
+//   exam_grade_denied        RETIRED (a denial now goes to the supervisor)
 //   exam_coordinator_approval  the administrative coordinator's final
 //                            approval → exam_completed: milestone completed,
 //                            project closed, grade sent to Michlol (stub)
@@ -103,7 +111,11 @@ export const EXAM_SCHEDULED = 'exam_scheduled';
 export const EXAM_COMMITTEE_REVIEW = 'exam_committee_review';
 export const EXAM_GRADES_PENDING = 'exam_grades_pending';
 export const EXAM_GRADE_REVIEW = 'exam_grade_review';
+/** Retired — a denial now goes to exam_supervisor_fix. */
 export const EXAM_GRADE_DENIED = 'exam_grade_denied';
+export const EXAM_SUPERVISOR_FIX = 'exam_supervisor_fix';
+export const EXAM_FIX_COMMITTEE_REVIEW = 'exam_fix_committee_review';
+export const THESIS_EXAM_FORM_HISTORY = 'thesisExamFormHistory';
 export const EXAM_RETURNED_TO_SUPERVISOR = 'exam_returned_to_supervisor';
 export const EXAM_COORDINATOR_APPROVAL = 'exam_coordinator_approval';
 export const EXAM_COMPLETED = 'exam_completed';
@@ -112,12 +124,13 @@ export const THESIS_EXAM_STATUSES = [
   EXAM_NOMINATION, EXAM_NOMINATION_REVIEW, EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR,
   EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW,
   EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED, EXAM_RETURNED_TO_SUPERVISOR,
-  EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED,
+  EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED, EXAM_SUPERVISOR_FIX, EXAM_FIX_COMMITTEE_REVIEW,
 ] as const;
 
 /** Every examiner already submitted — the forms are locked and readable. */
 export const EXAM_FORMS_DONE_STATUSES: readonly string[] = [
   EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED,
+  EXAM_SUPERVISOR_FIX, EXAM_FIX_COMMITTEE_REVIEW,
   EXAM_RETURNED_TO_SUPERVISOR, EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED,
 ];
 
@@ -312,8 +325,20 @@ export interface ThesisExamDoc {
   opinionReminderSentFor?: string | null;
   /** How the final grade was made — frozen when it went to the grad school head. */
   gradeBreakdown?: ExamGradeBreakdown | null;
-  /** The grad school head's decision on the final grade. */
+  /** The grad school head's latest decision on the final grade. */
   gradeReview?: ExamGradeReview | null;
+  /** Every decision of the grad school head, oldest first. */
+  gradeReviews?: ExamGradeReview[];
+  /** The committee's chairman (after stand-ins; null when the chairman is
+   *  the project's supervisor and no stand-in was chosen). Absent on exams
+   *  from before it was stored — resolved on read (examChairmanId). */
+  committeeChairmanId?: string | null;
+  /** The open (or last) request for the supervisor to fix the research grade. */
+  supervisorFix?: SupervisorGradeFix | null;
+  /** The committee members' opinions on the current fix (uid → opinion). */
+  fixOpinions?: Record<string, FixOpinion>;
+  /** The chairman's decisions on fixes, oldest first. */
+  fixDecisions?: FixCommitteeDecision[];
   /** The administrative coordinator's final approval. */
   finalApproval?: ExamFinalApproval | null;
   updatedAt: string;
@@ -346,6 +371,38 @@ export interface ExamGradeReview {
   byName: string;
   at: string;
   signature?: EvaluationSignature;
+}
+
+export interface SupervisorGradeFix {
+  round: number;
+  requestedBy: 'grad_school_head' | 'committee';
+  requestedByName: string;
+  reason: string;
+  requestedAt: string;
+  previousResearch: number | null;
+  newResearch: number | null;
+  note: string;
+  submittedAt: string | null;
+  submittedByName: string | null;
+}
+
+export type FixVote = 'approve' | 'reject';
+
+export interface FixOpinion {
+  result: FixVote;
+  note: string;
+  name: string;
+  at: string;
+}
+
+export interface FixCommitteeDecision {
+  result: FixVote;
+  note: string;
+  byUid: string;
+  byName: string;
+  at: string;
+  round: number;
+  opinions: Record<string, FixOpinion>;
 }
 
 export interface ExamFinalApproval {
@@ -888,7 +945,7 @@ export async function decideNomination(
 
 // ── Step 2: availability ─────────────────────────────────────────────────────
 
-async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<{ participants: Participant[]; committeeId: string | null; committeeMemberIds: string[] }> {
+async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<{ participants: Participant[]; committeeId: string | null; committeeMemberIds: string[]; committeeChairmanId: string | null }> {
   const project = await projectOf(milestone.projectId);
   const committee = await resolveCommitteeForMilestone(milestone, project).catch(() => null);
   // The project's own supervisor can't sit on the committee that judges
@@ -915,7 +972,16 @@ async function buildParticipants(exam: ThesisExamDoc, milestone: FirebaseFiresto
     if (e.type === 'internal') await addUser(e.uid!, 'examiner');
     else byKey.set(e.key, { key: e.key, ...(e.token ? { token: e.token } : {}), ...(e.email ? { email: e.email } : {}), name: e.name, roles: ['examiner'] });
   }
-  return { participants: [...byKey.values()], committeeId: committee?.id ?? null, committeeMemberIds };
+  const committeeChairmanId = committee?.chairmanId && committeeMemberIds.includes(committee.chairmanId) ? committee.chairmanId : null;
+  return { participants: [...byKey.values()], committeeId: committee?.id ?? null, committeeMemberIds, committeeChairmanId };
+}
+
+/** The committee chairman who decides on a grade fix. Exams from before
+ *  the chairman was stored resolve it from the committee now. */
+export async function examChairmanId(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData): Promise<string | null> {
+  if (exam.committeeChairmanId !== undefined) return exam.committeeChairmanId;
+  if (!exam.participants?.length) return null;
+  return (await buildParticipants(exam, milestone)).committeeChairmanId;
 }
 
 /** Rebuilds the committee of the project's open exam(s) after a stand-in
@@ -931,12 +997,12 @@ export async function refreshExamCommitteeForProject(projectId: string): Promise
     if (!exam.participants?.length) continue;
     const msSnap = await db.collection('milestones').doc(exam.milestoneId).get();
     if (!msSnap.exists) continue;
-    const { participants, committeeId, committeeMemberIds } = await buildParticipants(exam, msSnap.data()!);
+    const { participants, committeeId, committeeMemberIds, committeeChairmanId } = await buildParticipants(exam, msSnap.data()!);
     const before = exam.committeeMemberIds ?? [];
     const added = committeeMemberIds.filter((id) => !before.includes(id));
     const removed = before.filter((id) => !committeeMemberIds.includes(id));
-    if (added.length === 0 && removed.length === 0 && committeeId === exam.committeeId) continue;
-    await doc.ref.update({ participants, committeeId, committeeMemberIds, updatedAt: new Date().toISOString() });
+    if (added.length === 0 && removed.length === 0 && committeeId === exam.committeeId && committeeChairmanId === exam.committeeChairmanId) continue;
+    await doc.ref.update({ participants, committeeId, committeeMemberIds, committeeChairmanId, updatedAt: new Date().toISOString() });
   }
 }
 
@@ -946,7 +1012,7 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
   const loaded = await loadExam(milestoneId);
   if (!loaded) return;
   const { exam, milestone } = loaded;
-  const { participants, committeeId, committeeMemberIds } = await buildParticipants(exam, milestone);
+  const { participants, committeeId, committeeMemberIds, committeeChairmanId } = await buildParticipants(exam, milestone);
   const window = windowFor(todayInIsrael());
   const round = (exam.availabilityRound ?? 0) + 1;
   const now = new Date().toISOString();
@@ -957,6 +1023,7 @@ export async function openAvailabilityRound(milestoneId: string, why: { reason: 
       participants,
       committeeId,
       committeeMemberIds,
+      committeeChairmanId,
       availabilityRound: round,
       window,
       availability: {},
@@ -1850,7 +1917,7 @@ export async function reviewExamFinalGrade(
   if (decision === 'deny' && !reason) throw new ThesisExamError('יש לכתוב את סיבת הדחייה.', 'Write the reason for denying.');
   const grades = Object.values(exam.gradeBreakdown.finalGradeByStudent).filter((g): g is number => g != null);
   const tooLow = decision === 'approve' && MIN_PASSING_FINAL_GRADE != null && grades.some((g) => g < MIN_PASSING_FINAL_GRADE!);
-  const next = decision === 'deny' ? EXAM_GRADE_DENIED : tooLow ? EXAM_RETURNED_TO_SUPERVISOR : EXAM_COORDINATOR_APPROVAL;
+  const next = decision === 'deny' ? EXAM_SUPERVISOR_FIX : tooLow ? EXAM_RETURNED_TO_SUPERVISOR : EXAM_COORDINATOR_APPROVAL;
   const signature = decision === 'approve' ? await signEvaluation({
     milestoneId,
     signerUid: actor.uid,
@@ -1862,10 +1929,17 @@ export async function reviewExamFinalGrade(
     scores: { thesisExamFinalGrade: exam.gradeBreakdown.finalGradeByStudent },
   }) : null;
   const gradeReview: ExamGradeReview = { decision, reason, byUid: actor.uid, byName: actor.name, at: new Date().toISOString(), ...(signature ? { signature } : {}) };
+  const fix = decision === 'deny' ? supervisorFixRequest(exam, 'grad_school_head', actor.name, reason, exam.gradeBreakdown.exam.research) : null;
   await db.runTransaction(async (tx) => {
     const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
     if (!fresh || fresh.status !== EXAM_GRADE_REVIEW) throw new ThesisExamError('הציון כבר טופל.', 'The grade was already handled.', 409);
-    tx.update(examRef(milestoneId), { status: next, gradeReview, updatedAt: gradeReview.at });
+    tx.update(examRef(milestoneId), {
+      status: next,
+      gradeReview,
+      gradeReviews: [...(fresh.gradeReviews ?? []), gradeReview],
+      ...(fix ? { supervisorFix: fix, fixOpinions: {} } : {}),
+      updatedAt: gradeReview.at,
+    });
     tx.update(db.collection('milestones').doc(milestoneId), { status: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   });
   const title = projectTitle(await projectOf(milestone.projectId));
@@ -1891,13 +1965,8 @@ export async function reviewExamFinalGrade(
       bodyHe: `הציון הסופי של התזה "${title.he}" נמוך מהנדרש. יש להמשיך לעבוד עם הסטודנט/ית.${reason ? ` ${reason}` : ''}`,
       bodyEn: `The final grade of the thesis "${title.en}" is below what is required. Continue working with the student.${reason ? ` ${reason}` : ''}`,
     }, { pending: true });
-  } else {
-    await notifyUsers([...supervisors, ...(await adminCoordinatorIds(exam.scope))], exam, {
-      titleHe: 'הציון הסופי נדחה ע"י ראש בית הספר',
-      titleEn: 'The grad school head denied the final grade',
-      bodyHe: `ראש בית הספר ללימודים מתקדמים דחה/תה את הציון הסופי של התזה "${title.he}": ${reason}`,
-      bodyEn: `The grad school head denied the final grade of the thesis "${title.en}": ${reason}`,
-    });
+  } else if (fix) {
+    await notifySupervisorFix(exam, milestone, fix);
   }
   return { status: next };
 }
@@ -1978,6 +2047,228 @@ export async function approveExamFinalGrade(milestoneId: string, actor: { uid: s
   });
   return { finalGradeByStudent };
 }
+
+// ── Denied grade: supervisor fix → committee → grad school head (loop) ──────
+
+const parseVote = (raw: unknown): FixVote => {
+  if (raw === 'approve' || raw === 'reject') return raw;
+  throw new ThesisExamError('החלטה לא תקינה.', 'Invalid decision.');
+};
+
+const parseVoteNote = (raw: unknown, vote: FixVote): string => {
+  const note = typeof raw === 'string' ? raw.trim().slice(0, 5000) : '';
+  if (vote === 'reject' && !note) throw new ThesisExamError('יש לנמק את הדחייה — מה המנחה צריך/ה לתקן.', 'Write why you reject it — what the supervisor must fix.');
+  return note;
+};
+
+/** The committee members whose opinion the chairman waits for. */
+export function fixOpinionMemberIds(exam: ThesisExamDoc, chairmanId: string | null): string[] {
+  return (exam.committeeMemberIds ?? []).filter((id) => id !== chairmanId);
+}
+
+export function missingFixOpinionIds(exam: ThesisExamDoc, chairmanId: string | null): string[] {
+  return fixOpinionMemberIds(exam, chairmanId).filter((id) => !exam.fixOpinions?.[id]);
+}
+
+/** Sends the exam to the supervisor to fix their research grade — after
+ *  the grad school head denied the final grade, or the committee rejected
+ *  the previous fix. */
+function supervisorFixRequest(exam: ThesisExamDoc, by: 'grad_school_head' | 'committee', byName: string, reason: string, previousResearch: number | null): SupervisorGradeFix {
+  return {
+    round: (exam.supervisorFix?.round ?? 0) + 1,
+    requestedBy: by,
+    requestedByName: byName,
+    reason,
+    requestedAt: new Date().toISOString(),
+    previousResearch,
+    newResearch: null,
+    note: '',
+    submittedAt: null,
+    submittedByName: null,
+  };
+}
+
+async function notifySupervisorFix(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData, fix: SupervisorGradeFix): Promise<void> {
+  const title = projectTitle(await projectOf(milestone.projectId));
+  const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
+  const who = fix.requestedBy === 'grad_school_head'
+    ? { he: 'ראש בית הספר ללימודים מתקדמים דחה/תה את הציון הסופי', en: 'The grad school head denied the final grade' }
+    : { he: 'ועדת התזה דחתה את תיקון הציון', en: 'The thesis committee rejected the grade fix' };
+  await notifyUsers(supervisors, exam, {
+    titleHe: 'יש לתקן את ציון המחקר',
+    titleEn: 'Fix the research grade',
+    bodyHe: `${who.he} של התזה "${title.he}": ${fix.reason}. יש לתקן את ציון המחקר (40%); התיקון יעבור לאישור הוועדה.`,
+    bodyEn: `${who.en} of the thesis "${title.en}": ${fix.reason}. Fix the research grade (40%); the fix goes to the committee for approval.`,
+  }, { pending: true });
+}
+
+/** The supervisor submits the fixed research grade. The previous grade is
+ *  archived (thesisExamFormHistory) and the new one signed; the committee
+ *  then approves the fix or not. */
+export async function submitSupervisorGradeFix(milestoneId: string, supervisor: { uid: string; name: string }, raw: unknown): Promise<void> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam, milestone } = loaded;
+  if (![milestone.supervisorId, milestone.secondarySupervisorId].includes(supervisor.uid)) {
+    throw new ThesisExamError('רק מנחה הפרויקט רשאי/ת לתקן את ציון המחקר.', "Only the project's supervisor may fix the research grade.", 403);
+  }
+  if (exam.status !== EXAM_SUPERVISOR_FIX || !exam.supervisorFix) throw new ThesisExamError('ציון המחקר אינו ממתין לתיקון.', "The research grade isn't awaiting a fix.", 409);
+  const body = (raw ?? {}) as { research?: unknown; note?: unknown };
+  const v = Number(body.research);
+  if (!Number.isFinite(v) || v < 1 || v > 100) throw new ThesisExamError('יש לתת ציון מחקר בין 1 ל-100.', 'Give the research grade a score from 1 to 100.');
+  const research = round1(v);
+  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 5000) : '';
+  const signature = await signEvaluation({
+    milestoneId,
+    signerUid: supervisor.uid,
+    signerName: supervisor.name,
+    role: 'supervisor',
+    positionHe: 'מנחה — תיקון ציון המחקר',
+    positionEn: 'Supervisor — research grade fix',
+    facultyId: exam.facultyId,
+    scores: { thesisExamSupervisorGrade: { research } },
+  });
+  const now = new Date().toISOString();
+  const chairman = await examChairmanId(exam, milestone);
+  const round = exam.supervisorFix.round;
+  const ref = db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, SUPERVISOR_GRADE_KEY));
+  await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_SUPERVISOR_FIX) throw new ThesisExamError('התיקון כבר נשלח.', 'The fix was already sent.', 409);
+    const previous = await tx.get(ref);
+    if (previous.exists) tx.set(db.collection(THESIS_EXAM_FORM_HISTORY).doc(`${formDocId(milestoneId, SUPERVISOR_GRADE_KEY)}__fix${round}`), { ...previous.data(), replacedAt: now, fixRound: round });
+    const stored: StoredSupervisorExamGrade = { milestoneId, supervisorUid: supervisor.uid, supervisorName: supervisor.name, research, submittedAt: now, signature };
+    tx.set(ref, stored);
+    tx.update(examRef(milestoneId), {
+      status: EXAM_FIX_COMMITTEE_REVIEW,
+      supervisorFix: { ...fresh.supervisorFix, newResearch: research, note, submittedAt: now, submittedByName: supervisor.name },
+      fixOpinions: {},
+      committeeChairmanId: chairman,
+      updatedAt: now,
+    });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_FIX_COMMITTEE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  const title = projectTitle(await projectOf(milestone.projectId));
+  const members = fixOpinionMemberIds(exam, chairman);
+  const body2 = {
+    he: `המנחה תיקן/ה את ציון המחקר של התזה "${title.he}" (${exam.supervisorFix.previousResearch ?? '—'} ← ${research}) לאחר שהציון הסופי נדחה.`,
+    en: `The supervisor fixed the research grade of the thesis "${title.en}" (${exam.supervisorFix.previousResearch ?? '—'} → ${research}) after the final grade was denied.`,
+  };
+  await notifyUsers(members, exam, {
+    titleHe: 'תיקון ציון ממתין לחוות דעתך',
+    titleEn: 'A grade fix awaits your opinion',
+    bodyHe: `${body2.he} יש לתת חוות דעת — לאשר את התיקון או לא.`,
+    bodyEn: `${body2.en} Give your opinion — approve the fix or not.`,
+  }, { pending: true });
+  if (chairman) {
+    await notifyUsers([chairman], exam, {
+      titleHe: 'תיקון ציון ממתין להחלטת הוועדה',
+      titleEn: "A grade fix awaits the committee's decision",
+      bodyHe: members.length ? `${body2.he} לאחר שכל חברי הוועדה יתנו חוות דעת תוכל/י להחליט.` : `${body2.he} ניתן להחליט.`,
+      bodyEn: members.length ? `${body2.en} Once every member gives an opinion you can decide.` : `${body2.en} You can decide now.`,
+    }, { pending: members.length === 0 });
+  } else {
+    await notifyUsers(await adminCoordinatorIds(exam.scope), exam, {
+      titleHe: 'לוועדה אין יו"ר שיכול להחליט על תיקון ציון',
+      titleEn: 'The committee has no chairman to decide a grade fix',
+      bodyHe: `${body2.he} לוועדה אין יו"ר שיכול להחליט (היו"ר הוא המנחה ולא נבחר מחליף). יש לבחור מחליף/ה בלשונית "החלפת חבר ועדה".`,
+      bodyEn: `${body2.en} The committee has no chairman who can decide (the chairman is the supervisor and no stand-in was chosen). Choose one in the "Replace committee member" tab.`,
+    }, { pending: true });
+  }
+}
+
+/** A committee member (not the chairman) approves the supervisor's fix or
+ *  not; may change it until the chairman decides. */
+export async function submitFixOpinion(milestoneId: string, actor: { uid: string; name: string }, raw: unknown): Promise<{ allIn: boolean }> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam, milestone } = loaded;
+  const chairman = await examChairmanId(exam, milestone);
+  if (!fixOpinionMemberIds(exam, chairman).includes(actor.uid)) {
+    throw new ThesisExamError('רק חבר/ת ועדה (שאינו/ה היו"ר) נותן/ת חוות דעת.', 'Only a committee member (not the chairman) gives an opinion.', 403);
+  }
+  const body = (raw ?? {}) as { result?: unknown; note?: unknown };
+  const result = parseVote(body.result);
+  const opinion: FixOpinion = { result, note: parseVoteNote(body.note, result), name: actor.name, at: new Date().toISOString() };
+  const allIn = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_FIX_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה על התיקון.', 'The committee already decided on the fix.', 409);
+    const fixOpinions = { ...(fresh.fixOpinions ?? {}), [actor.uid]: opinion };
+    tx.update(examRef(milestoneId), { fixOpinions, updatedAt: opinion.at });
+    return missingFixOpinionIds(fresh, chairman).length > 0 && missingFixOpinionIds({ ...fresh, fixOpinions }, chairman).length === 0;
+  });
+  if (allIn && chairman) {
+    const title = projectTitle(await projectOf(exam.projectId));
+    await notifyUsers([chairman], exam, {
+      titleHe: 'כל חברי הוועדה נתנו חוות דעת על תיקון הציון',
+      titleEn: 'Every member gave an opinion on the grade fix',
+      bodyHe: `תיקון ציון המחקר של התזה "${title.he}": כל חברי הוועדה נתנו חוות דעת. כיו"ר, יש להחליט אם לאשר את התיקון.`,
+      bodyEn: `Research grade fix of the thesis "${title.en}": every member gave an opinion. As chairman, decide whether to approve the fix.`,
+    }, { pending: true });
+  }
+  return { allIn };
+}
+
+/** The chairman's decision on the fix, once every member gave an opinion.
+ *  approve → the final grade is recomputed and goes back to the grad school
+ *  head; reject → back to the supervisor to fix again. */
+export async function decideGradeFix(milestoneId: string, actor: { uid: string; name: string }, raw: unknown): Promise<{ status: string }> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam, milestone } = loaded;
+  const chairman = await examChairmanId(exam, milestone);
+  if (!chairman || chairman !== actor.uid) throw new ThesisExamError('רק יו"ר הוועדה רשאי/ת להחליט.', 'Only the committee chairman may decide.', 403);
+  if (exam.status !== EXAM_FIX_COMMITTEE_REVIEW || !exam.supervisorFix) throw new ThesisExamError('אין תיקון ציון שממתין להחלטה.', 'No grade fix is awaiting a decision.', 409);
+  const missing = missingFixOpinionIds(exam, chairman);
+  if (missing.length) {
+    const names = await Promise.all(missing.map(userName));
+    throw new ThesisExamError(`עדיין חסרה חוות דעת של: ${names.join(', ')}.`, `Still waiting for an opinion from: ${names.join(', ')}.`, 409);
+  }
+  const body = (raw ?? {}) as { result?: unknown; note?: unknown };
+  const result = parseVote(body.result);
+  const note = parseVoteNote(body.note, result);
+  const now = new Date().toISOString();
+  const decision: FixCommitteeDecision = { result, note, byUid: actor.uid, byName: actor.name, at: now, round: exam.supervisorFix.round, opinions: exam.fixOpinions ?? {} };
+
+  if (result === 'approve') {
+    const breakdown = await buildExamGradeBreakdown(exam, milestone);
+    if (breakdown.missing.length || Object.values(breakdown.finalGradeByStudent).some((g) => g == null)) {
+      throw new ThesisExamError('לא ניתן לחשב את הציון הסופי — חסרים ציונים.', "The final grade can't be computed — grades are missing.", 409);
+    }
+    await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+      if (!fresh || fresh.status !== EXAM_FIX_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה על התיקון.', 'The committee already decided on the fix.', 409);
+      tx.update(examRef(milestoneId), { status: EXAM_GRADE_REVIEW, gradeBreakdown: breakdown, fixDecisions: [...(fresh.fixDecisions ?? []), decision], updatedAt: now });
+      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_GRADE_REVIEW, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+    const title = projectTitle(await projectOf(milestone.projectId));
+    await notifyUsers(await gradSchoolHeadIds(exam.scope), exam, {
+      titleHe: 'ציון סופי מתוקן ממתין לאישורך',
+      titleEn: 'A fixed final grade awaits your approval',
+      bodyHe: `הוועדה אישרה את תיקון ציון המחקר של התזה "${title.he}". הציון הסופי חושב מחדש — יש לאשר או לדחות.`,
+      bodyEn: `The committee approved the research grade fix of the thesis "${title.en}". The final grade was recomputed — approve or deny it.`,
+    }, { pending: true });
+    const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
+    await notifyUsers(supervisors, exam, {
+      titleHe: 'הוועדה אישרה את תיקון הציון',
+      titleEn: 'The committee approved your grade fix',
+      bodyHe: `תיקון ציון המחקר של התזה "${title.he}" אושר ועבר לאישור ראש בית הספר ללימודים מתקדמים.`,
+      bodyEn: `The research grade fix of the thesis "${title.en}" was approved and went to the grad school head.`,
+    });
+    return { status: EXAM_GRADE_REVIEW };
+  }
+
+  const fix = supervisorFixRequest(exam, 'committee', actor.name, note, exam.supervisorFix.newResearch ?? null);
+  await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_FIX_COMMITTEE_REVIEW) throw new ThesisExamError('הוועדה כבר החליטה על התיקון.', 'The committee already decided on the fix.', 409);
+    tx.update(examRef(milestoneId), { status: EXAM_SUPERVISOR_FIX, supervisorFix: fix, fixDecisions: [...(fresh.fixDecisions ?? []), decision], updatedAt: now });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_SUPERVISOR_FIX, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  await notifySupervisorFix(exam, milestone, fix);
+  return { status: EXAM_SUPERVISOR_FIX };
+}
+
 
 // ── Hourly sweep ─────────────────────────────────────────────────────────────
 

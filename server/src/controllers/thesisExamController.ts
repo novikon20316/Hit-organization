@@ -61,6 +61,14 @@ import {
   reviewExamFinalGrade,
   approveExamFinalGrade,
   MIN_PASSING_FINAL_GRADE,
+  EXAM_SUPERVISOR_FIX,
+  EXAM_FIX_COMMITTEE_REVIEW,
+  examChairmanId,
+  fixOpinionMemberIds,
+  missingFixOpinionIds,
+  submitSupervisorGradeFix,
+  submitFixOpinion,
+  decideGradeFix,
 } from '../services/thesisExam.js';
 import { getPrivateContact } from '../services/privateContact.js';
 import { withinCoordinatorScope, type ResourceScope } from '../services/scopeAuthorization.js';
@@ -124,6 +132,17 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (formsDone && (rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator)) actions.push('view_forms');
   if (exam.status === EXAM_GRADE_REVIEW && rel.isGradHead) actions.push('review_final_grade');
   if (exam.status === EXAM_COORDINATOR_APPROVAL && rel.isAdminCoordinator) actions.push('final_approval');
+  // A denied grade: the supervisor fixes the research grade, then every
+  // committee member but the chairman gives an opinion, then the chairman
+  // decides.
+  if (exam.status === EXAM_SUPERVISOR_FIX && rel.isSupervisor) actions.push('supervisor_fix');
+  const inFixReview = exam.status === EXAM_FIX_COMMITTEE_REVIEW;
+  const chairmanId = inFixReview || (exam.status === EXAM_SUPERVISOR_FIX && rel.isCommittee) ? await examChairmanId(exam, milestone) : null;
+  const fixMemberIds = fixOpinionMemberIds(exam, chairmanId);
+  const fixMissingIds = missingFixOpinionIds(exam, chairmanId);
+  const isChairman = !!chairmanId && chairmanId === myUid;
+  if (inFixReview && myUid && fixMemberIds.includes(myUid)) actions.push('fix_opinion');
+  if (inFixReview && isChairman && fixMissingIds.length === 0) actions.push('fix_decide');
   // The research component (40%) is the supervisor's alone — examiners never see it.
   if (supervisorGradeOpen(exam) && rel.isSupervisor && !rel.isExaminer) actions.push('supervisor_grade');
 
@@ -139,9 +158,32 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   // supervisor; never examiners (it shows the supervisor's research grade)
   // nor, before the final approval, students. While grades are still
   // missing it's computed live so they can see what is missing.
-  const seesGrade = rel.isSupervisor || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator;
+  // The committee judges a grade fix, so it sees the grade while it does.
+  const seesGrade = rel.isSupervisor || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator
+    || (rel.isCommittee && (inFixReview || exam.status === EXAM_SUPERVISOR_FIX));
+  // Live while grades are missing, and during a fix review (the frozen one
+  // still has the supervisor's old research grade).
+  const liveBreakdown = exam.status === EXAM_GRADES_PENDING || exam.status === EXAM_COMMITTEE_REVIEW || inFixReview;
   const gradeBreakdown = seesGrade && formsDone
-    ? exam.gradeBreakdown ?? (exam.status === EXAM_GRADES_PENDING || exam.status === EXAM_COMMITTEE_REVIEW ? await buildExamGradeBreakdown(exam, milestone) : null)
+    ? (liveBreakdown ? await buildExamGradeBreakdown(exam, milestone) : exam.gradeBreakdown ?? null)
+    : null;
+  const fix = exam.supervisorFix;
+  const supervisorFix = seesGrade && fix && (exam.status === EXAM_SUPERVISOR_FIX || inFixReview)
+    ? {
+      round: fix.round, requestedBy: fix.requestedBy, requestedByName: fix.requestedByName, reason: fix.reason, requestedAt: fix.requestedAt,
+      previousResearch: fix.previousResearch, newResearch: fix.newResearch, note: fix.note, submittedAt: fix.submittedAt,
+    }
+    : null;
+  const fixCommittee = inFixReview && (rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator)
+    ? {
+      chairmanName: chairmanId ? await nameOf(chairmanId) : null,
+      isChairman,
+      members: await Promise.all(fixMemberIds.map(async (id) => {
+        const o = exam.fixOpinions?.[id];
+        return { name: o?.name || await nameOf(id), isMe: id === myUid, opinion: o ? { result: o.result, note: o.note, at: o.at } : null };
+      })),
+      missingNames: await Promise.all(fixMissingIds.map(nameOf)),
+    }
     : null;
 
   return {
@@ -223,6 +265,8 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
       ? { byName: exam.finalApproval.byName, at: exam.finalApproval.at, note: seesGrade ? exam.finalApproval.note : '' }
       : null,
     // A student sees their own final grade once it's finally approved.
+    supervisorFix,
+    fixCommittee,
     myFinalGrade: rel.isStudent && exam.status === EXAM_COMPLETED && myUid ? exam.gradeBreakdown?.finalGradeByStudent?.[myUid] ?? null : null,
     rules: { examinerCount: examinerCountFor(milestone), datesPerParticipant: DATES_PER_PARTICIPANT, windowDays: AVAILABILITY_WINDOW_DAYS, minExamMinutes: MIN_EXAM_MINUTES, minPassingFinalGrade: MIN_PASSING_FINAL_GRADE },
   };
@@ -560,6 +604,54 @@ export const reviewFinalGrade = async (req: AuthenticatedRequest, res: Response)
 // ─── POST /api/thesis-exam/:milestoneId/final-approval ───────────────────────
 // Body: { note? } — the administrative coordinator's final approval; closes
 // the thesis and sends the grade to Michlol.
+// ─── POST /api/thesis-exam/:milestoneId/supervisor-fix ───────────────────────
+// Body: { research: 1-100, note? } — after a denial, the supervisor's fixed
+// research grade; goes to the committee.
+export const fixSupervisorGrade = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    await submitSupervisorGradeFix(milestoneId, { uid, name: await nameOf(uid) }, req.body);
+    await audit(req, milestoneId, 'supervisor_grade_fixed', { research: req.body?.research });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to save the fixed grade.', 'שמירת הציון המתוקן נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/fix-opinion ──────────────────────────
+// Body: { result: 'approve' | 'reject', note } — a committee member (not
+// the chairman) on the supervisor's fix.
+export const giveFixOpinion = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    const result = await submitFixOpinion(milestoneId, { uid, name: await nameOf(uid) }, req.body);
+    await audit(req, milestoneId, 'grade_fix_opinion', { result: req.body?.result });
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to save your opinion.', 'שמירת חוות הדעת נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/fix-decision ─────────────────────────
+// Body: { result: 'approve' | 'reject', note } — the committee chairman,
+// once every member gave an opinion.
+export const decideFix = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    const result = await decideGradeFix(milestoneId, { uid, name: await nameOf(uid) }, req.body);
+    await audit(req, milestoneId, 'grade_fix_decision', { result: req.body?.result, status: result.status });
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to record the decision.', 'שמירת ההחלטה נכשלה.');
+  }
+};
+
 export const giveFinalApproval = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });

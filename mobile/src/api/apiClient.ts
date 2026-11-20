@@ -628,6 +628,21 @@ class ApiClient {
     return response.data as { success: boolean; status: ThesisExamStatus };
   }
   /** The administrative coordinator's final approval — closes the thesis. */
+  /** After a denial: the supervisor's fixed research grade (goes to the committee). */
+  async fixThesisExamSupervisorGrade(milestoneId: string, research: number, note: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/supervisor-fix`, { research, note });
+    return response.data as { success: boolean };
+  }
+  /** A committee member's opinion on the supervisor's fix. */
+  async giveThesisExamFixOpinion(milestoneId: string, result: ThesisExamFixVote, note: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/fix-opinion`, { result, note });
+    return response.data as { success: boolean; allIn: boolean };
+  }
+  /** The committee chairman's decision on the fix. */
+  async decideThesisExamFix(milestoneId: string, result: ThesisExamFixVote, note: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/fix-decision`, { result, note });
+    return response.data as { success: boolean; status: ThesisExamStatus };
+  }
   async approveThesisExamFinalGrade(milestoneId: string, note: string) {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/final-approval`, { note });
     return response.data as { success: boolean; finalGradeByStudent: Record<string, number> };
@@ -743,8 +758,10 @@ export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review'
   | 'exam_grades_pending' | 'exam_grade_review' | 'exam_grade_denied' | 'exam_returned_to_supervisor'
-  | 'exam_coordinator_approval' | 'exam_completed';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'review_final_grade' | 'final_approval';
+  | 'exam_coordinator_approval' | 'exam_completed' | 'exam_supervisor_fix' | 'exam_fix_committee_review';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide';
+/** A committee member's / the chairman's answer on a supervisor's grade fix. */
+export type ThesisExamFixVote = 'approve' | 'reject';
 /** How the final grade is made — see web's lib/apiClient.ts. */
 export interface ThesisExamGradeBreakdown {
   computedAt: string;
@@ -813,6 +830,27 @@ export interface ThesisExamCard {
   finalApproval: { byName: string; at: string; note: string } | null;
   /** A student's own final grade, once finally approved. */
   myFinalGrade: number | null;
+  /** After a denial: the request to the supervisor and, once sent, the fix
+   *  (supervisor, heads, coordinator, and the committee while it reviews). */
+  supervisorFix: {
+    round: number;
+    requestedBy: 'grad_school_head' | 'committee';
+    requestedByName: string;
+    reason: string;
+    requestedAt: string;
+    previousResearch: number | null;
+    newResearch: number | null;
+    note: string;
+    submittedAt: string | null;
+  } | null;
+  /** The committee's review of the fix — every member but the chairman
+   *  gives an opinion, then the chairman decides. */
+  fixCommittee: {
+    chairmanName: string | null;
+    isChairman: boolean;
+    members: { name: string; isMe: boolean; opinion: { result: ThesisExamFixVote; note: string; at: string } | null }[];
+    missingNames: string[];
+  } | null;
   /** minPassingFinalGrade: below it, an approved grade returns to the supervisor. */
   rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number; minPassingFinalGrade: number | null };
 }
