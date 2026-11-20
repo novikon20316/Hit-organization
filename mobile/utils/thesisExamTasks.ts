@@ -54,7 +54,7 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   form: { he: 'יש למלא את טופס מבחן התזה', en: 'Fill in the thesis exam form' },
   supervisor_grade: { he: 'יש לתת ציון מחקר (מנחה) לבחינת התזה', en: 'Give the research grade for the thesis exam' },
   review_final_grade: { he: 'יש לאשר את הציון הסופי של התזה', en: "Approve the thesis's final grade" },
-  final_approval: { he: 'יש לתת אישור סופי לציון התזה (לפני המכלול)', en: "Give the thesis grade's final approval (before Michlol)" },
+  final_approval: { he: 'התזה הסתיימה — יש לאשר את הציון הסופי (לידיעה, לפני המכלול)', en: 'A thesis is complete — approve its final grade (for your information, before Michlol)' },
   supervisor_fix: { he: 'הציון הסופי נדחה — יש לתקן את ציון המחקר', en: 'The final grade was denied — fix the research grade' },
   fix_opinion: { he: 'יש לתת חוות דעת על תיקון ציון התזה', en: "Give your opinion on the thesis grade fix" },
   fix_decide: { he: 'יש להחליט על תיקון ציון התזה (יו"ר הוועדה)', en: 'Decide on the thesis grade fix (committee chairman)' },

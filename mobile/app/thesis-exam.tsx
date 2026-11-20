@@ -570,7 +570,7 @@ function PassingHint({ exam, lang }: { exam: ThesisExamCard; lang: Lang }) {
   return (
     <Text style={{ marginTop: 6, padding: 8, borderRadius: 8, fontSize: 12, backgroundColor: low ? C.dangerBg : C.successBg, color: low ? C.danger : C.success, textAlign: he ? 'right' : 'left' }}>
       {low
-        ? (he ? `הציון נמוך מ-${min}. באישור — התזה תחזור למנחה להמשך עבודה עם הסטודנט/ית.` : `The grade is below ${min}. Approving returns the thesis to the supervisor for more work with the student.`)
+        ? (he ? `שימו לב: הציון נמוך מ-${min}. באישור — יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית ויהיה הציון הסופי של התזה.` : `Note: the grade is below ${min}. Approving sends it to the administrative coordinator's final approval, and it becomes the thesis's final grade.`)
         : (he ? `הציון ${min} ומעלה. באישור — יעבור לאישור הסופי של הרכזת האדמיניסטרטיבית.` : `The grade is ${min} or above. Approving sends it to the administrative coordinator's final approval.`)}
     </Text>
   );
@@ -606,6 +606,13 @@ function GradeReviewPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: 
   );
 }
 
+/** "86" — or "Dana: 86, Noam: 84" for a team — from the frozen breakdown. */
+function finalGradeText(exam: ThesisExamCard): string {
+  const b = exam.gradeBreakdown;
+  if (!b) return '—';
+  return b.students.map((s) => `${b.students.length > 1 ? `${s.name}: ` : ''}${b.finalGradeByStudent[s.id] ?? '—'}`).join(', ');
+}
+
 function FinalApprovalPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang: Lang; onDone: () => Promise<void> }) {
   const he = lang === 'he';
   const align = { textAlign: (he ? 'right' : 'left') as 'right' | 'left' };
@@ -634,8 +641,10 @@ function FinalApprovalPanel({ exam, lang, onDone }: { exam: ThesisExamCard; lang
   );
   return (
     <View style={{ marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: 10, padding: 10, backgroundColor: C.paper }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? 'אישור סופי לפני העברה למכלול' : 'Final approval before Michlol'}</Text>
-      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he ? 'ראש בית הספר ללימודים מתקדמים אישר את הציון. האישור שלך מסיים את התזה ומעביר את הציון למכלול (החיבור למכלול עדיין לא פעיל).' : 'The grad school head approved the grade. Your approval completes the thesis and sends the grade to Michlol (the Michlol connection is not live yet).'}</Text>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: C.ink, ...align }}>{he ? `🎓 התזה של ${exam.studentNames.join(', ')} הסתיימה — אישור סופי` : `🎓 ${exam.studentNames.join(', ')}'s thesis is complete — final approval`}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, marginTop: 2, ...align }}>{he
+          ? `התזה של ${exam.studentNames.join(', ')} הסתיימה. הציון הסופי (לאחר החישוב ואישור ראש בית הספר ללימודים מתקדמים): ${finalGradeText(exam)}. האישור הוא לידיעתך ואינו ניתן לדחייה; הוא מסיים את התזה ומעביר את הציון למכלול (החיבור למכלול עדיין לא פעיל).`
+          : `${exam.studentNames.join(', ')}'s thesis is complete. Final grade (computed, approved by the grad school head): ${finalGradeText(exam)}. Your approval is for your information and can't be rejected; it completes the thesis and sends the grade to Michlol (the Michlol connection is not live yet).`}</Text>
       <TextInput
         accessibilityLabel={he ? 'הערה (לא חובה)' : 'Note (optional)'}
         placeholder={he ? 'הערה (לא חובה)' : 'Note (optional)'}

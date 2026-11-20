@@ -47,9 +47,9 @@
 //   exam_grade_review        the final grade — every milestone's grade by the
 //                            template's percentages, frozen with its breakdown
 //                            (gradeBreakdown) — awaits the grad school head:
-//                            approve → exam_coordinator_approval (or, below
-//                            MIN_PASSING_FINAL_GRADE = 75,
-//                            exam_returned_to_supervisor); deny (reason) →
+//                            approve → exam_coordinator_approval, whatever the
+//                            grade (below 75 too — it is then the final
+//                            grade); deny (reason) →
 //   exam_supervisor_fix      the supervisor fixes their research grade (the
 //                            previous one is archived) →
 //   exam_fix_committee_review  every committee member except the chairman
@@ -341,6 +341,10 @@ export interface ThesisExamDoc {
   fixDecisions?: FixCommitteeDecision[];
   /** The administrative coordinator's final approval. */
   finalApproval?: ExamFinalApproval | null;
+  /** Last reminder to the administrative coordinator to give the final
+   *  approval (exam_coordinator_approval) — the hourly sweep re-sends
+   *  every COORDINATOR_REMINDER_HOURS. */
+  coordinatorReminderSentAt?: string | null;
   updatedAt: string;
 }
 
@@ -1770,10 +1774,10 @@ export async function submitSupervisorExamGrade(milestoneId: string, supervisor:
 
 // ── Final grade: breakdown → grad school head → administrative coordinator ──
 
-/** 75 and above is good enough (faculty, 2026-11-19); below it, the grad
- *  school head's approval sends the thesis back to the supervisor for more
- *  work with the student. WHICH milestone it returns to is not set yet — it
- *  parks at exam_returned_to_supervisor until the faculty says. */
+/** 75 and above is "good enough" (faculty, 2026-11-19). Shown to the grad
+ *  school head as a warning only: an approved grade below it still goes to
+ *  the administrative coordinator and becomes the thesis's final grade
+ *  (faculty, 2026-11-20). exam_returned_to_supervisor is retired. */
 export const MIN_PASSING_FINAL_GRADE: number | null = 75;
 
 /** The template the exam milestone was enrolled from: the project ref whose
@@ -1915,9 +1919,8 @@ export async function reviewExamFinalGrade(
   if (exam.status !== EXAM_GRADE_REVIEW || !exam.gradeBreakdown) throw new ThesisExamError('הציון אינו ממתין לאישורך.', "The grade isn't awaiting your approval.", 409);
   const reason = typeof reasonRaw === 'string' ? reasonRaw.trim().slice(0, 5000) : '';
   if (decision === 'deny' && !reason) throw new ThesisExamError('יש לכתוב את סיבת הדחייה.', 'Write the reason for denying.');
-  const grades = Object.values(exam.gradeBreakdown.finalGradeByStudent).filter((g): g is number => g != null);
-  const tooLow = decision === 'approve' && MIN_PASSING_FINAL_GRADE != null && grades.some((g) => g < MIN_PASSING_FINAL_GRADE!);
-  const next = decision === 'deny' ? EXAM_SUPERVISOR_FIX : tooLow ? EXAM_RETURNED_TO_SUPERVISOR : EXAM_COORDINATOR_APPROVAL;
+  // Approved → the coordinator, below 75 too (it then is the final grade).
+  const next = decision === 'deny' ? EXAM_SUPERVISOR_FIX : EXAM_COORDINATOR_APPROVAL;
   const signature = decision === 'approve' ? await signEvaluation({
     milestoneId,
     signerUid: actor.uid,
@@ -1946,29 +1949,52 @@ export async function reviewExamFinalGrade(
   const supervisors = [milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[];
   const students: string[] = milestone.studentIds ?? [];
   if (next === EXAM_COORDINATOR_APPROVAL) {
-    await notifyUsers(await adminCoordinatorIds(exam.scope), exam, {
-      titleHe: 'ציון סופי של תזה ממתין לאישור סופי',
-      titleEn: 'A thesis final grade awaits final approval',
-      bodyHe: `ראש בית הספר ללימודים מתקדמים אישר/ה את הציון הסופי של התזה "${title.he}". יש לאשר סופית לפני העברת הציון למכלול.`,
-      bodyEn: `The grad school head approved the final grade of the thesis "${title.en}". Give the final approval before the grade goes to Michlol.`,
-    }, { pending: true });
+    await notifyCoordinatorFinalApproval({ ...exam, status: next }, title);
     await notifyUsers([...supervisors, ...students], exam, {
       titleHe: 'הציון הסופי אושר ע"י ראש בית הספר',
       titleEn: 'The grad school head approved the final grade',
       bodyHe: `הציון הסופי של התזה "${title.he}" אושר וממתין לאישור הסופי של הרכזת האדמיניסטרטיבית.`,
       bodyEn: `The final grade of the thesis "${title.en}" was approved and awaits the administrative coordinator's final approval.`,
     });
-  } else if (next === EXAM_RETURNED_TO_SUPERVISOR) {
-    await notifyUsers(supervisors, exam, {
-      titleHe: 'התזה חוזרת אליך להמשך עבודה',
-      titleEn: 'The thesis returns to you for more work',
-      bodyHe: `הציון הסופי של התזה "${title.he}" נמוך מהנדרש. יש להמשיך לעבוד עם הסטודנט/ית.${reason ? ` ${reason}` : ''}`,
-      bodyEn: `The final grade of the thesis "${title.en}" is below what is required. Continue working with the student.${reason ? ` ${reason}` : ''}`,
-    }, { pending: true });
   } else if (fix) {
     await notifySupervisorFix(exam, milestone, fix);
   }
   return { status: next };
+}
+
+/** Re-sent every this many hours until the coordinator approves. */
+export const COORDINATOR_REMINDER_HOURS = 24;
+
+/** "<student>'s thesis is over — final grade X": the administrative
+ *  coordinator only acknowledges it (approve, no reject), so it should be
+ *  quick. Sent when the grad school head approves, then every
+ *  COORDINATOR_REMINDER_HOURS by the sweep. */
+async function notifyCoordinatorFinalApproval(exam: ThesisExamDoc, title: { he: string; en: string }, opts: { reminder?: boolean } = {}): Promise<void> {
+  const b = exam.gradeBreakdown;
+  const students = b?.students ?? [];
+  const names = students.map((s) => s.name).join(', ') || title.he;
+  const grades = students.map((s) => `${students.length > 1 ? `${s.name}: ` : ''}${b?.finalGradeByStudent[s.id] ?? '—'}`).join(', ');
+  const lead = opts.reminder ? { he: 'תזכורת: ', en: 'Reminder: ' } : { he: '', en: '' };
+  await notifyUsers(await adminCoordinatorIds(exam.scope), exam, {
+    titleHe: `${lead.he}התזה של ${names} הסתיימה — יש לאשר`,
+    titleEn: `${lead.en}${names}'s thesis is complete — please approve`,
+    bodyHe: `התזה "${title.he}" של ${names} הסתיימה. הציון הסופי (לאחר החישוב ואישור ראש בית הספר ללימודים מתקדמים): ${grades}. יש לאשר — האישור לידיעתך, אינו ניתן לדחייה, ומעביר את הציון למכלול.`,
+    bodyEn: `The thesis "${title.en}" of ${names} is complete. Final grade (computed, approved by the grad school head): ${grades}. Please approve — it is for your information, can't be rejected, and sends the grade to Michlol.`,
+  }, { pending: true });
+}
+
+/** Sweep: reminds the coordinator while the final approval waits. */
+export async function remindCoordinatorFinalApproval(exam: ThesisExamDoc): Promise<void> {
+  const since = exam.coordinatorReminderSentAt ?? exam.gradeReview?.at ?? exam.updatedAt;
+  if (dayjs().diff(dayjs(since), 'hour', true) < COORDINATOR_REMINDER_HOURS) return;
+  const claimed = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(exam.milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_COORDINATOR_APPROVAL || fresh.coordinatorReminderSentAt !== exam.coordinatorReminderSentAt) return false;
+    tx.update(examRef(exam.milestoneId), { coordinatorReminderSentAt: new Date().toISOString() });
+    return true;
+  });
+  if (!claimed) return;
+  await notifyCoordinatorFinalApproval(exam, projectTitle(await projectOf(exam.projectId)), { reminder: true });
 }
 
 /** The administrative coordinator's final approval: the student finished
@@ -2281,12 +2307,14 @@ export async function sweepThesisExams(): Promise<void> {
   const projectIds = new Set(pending.docs.map((d) => d.data().projectId as string));
   for (const pid of projectIds) await maybeOpenThesisExamForProject(pid).catch((err) => console.error('sweepThesisExams open:', err));
 
-  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING]).get();
+  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_COORDINATOR_APPROVAL]).get();
   const today = todayInIsrael();
   for (const doc of active.docs) {
     const exam = doc.data() as ThesisExamDoc;
     try {
-      if (exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING) {
+      if (exam.status === EXAM_COORDINATOR_APPROVAL) {
+        await remindCoordinatorFinalApproval(exam);
+      } else if (exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING) {
         // Backstop for a missed hook, a grade given elsewhere, and exams
         // left at the retired committee step.
         await advanceExamGrading(exam.milestoneId);
