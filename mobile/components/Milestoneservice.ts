@@ -66,6 +66,7 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
+  | 'exam_signatures'
   | 'exam_grades_pending'
   | 'exam_grade_review'
   | 'exam_grade_denied'

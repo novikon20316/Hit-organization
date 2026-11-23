@@ -122,7 +122,7 @@ export default function ExaminerAccessScreen() {
   useEffect(() => { if (phase === 'accepted') void loadThesisExam(); }, [phase, loadThesisExam]);
   const thesisExamFormSource = React.useMemo<ThesisExamFormSource | null>(() => token ? {
     load: () => apiClient.getExternalThesisExamForm(token),
-    submit: (body) => apiClient.submitExternalThesisExamForm(token, body),
+    sign: () => apiClient.signExternalThesisExamForm(token),
   } : null, [token]);
 
   // Second-factor: a one-time code emailed to the examiner, required before

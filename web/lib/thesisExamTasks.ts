@@ -8,7 +8,7 @@
 
 import type { ThesisExamCard } from '@/lib/apiClient';
 
-export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide';
+export type ThesisExamTaskKind = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'set_hours' | 'review_date' | 'form' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide' | 'chair_form' | 'sign' | 'unsigned_examiners';
 
 export interface ThesisExamTask {
   milestoneId: string;
@@ -29,8 +29,10 @@ export function thesisExamTasks(exams: ThesisExamCard[]): ThesisExamTask[] {
     const base = { milestoneId: e.milestoneId, studentNames: e.studentNames, projectTitleHe: e.projectTitleHe, projectTitleEn: e.projectTitleEn };
     for (const a of e.actions) {
       if (a === 'view_forms') continue;
+      // An examiner's 'form' is now only reading the details; 'sign' is the task.
+      if (a === 'form') continue;
+      if (a === 'chair_form' && (e.chairFormSubmitted || !e.formOpen)) continue;
       if (a === 'availability' && e.myAvailability) continue;
-      if (a === 'form' && (e.myFormSubmitted || !e.formOpen)) continue;
       if (a === 'supervisor_grade' && e.supervisorGradeGiven) continue;
       if (a === 'fix_opinion' && e.fixCommittee?.members.some((m) => m.isMe && m.opinion)) continue;
       const deadline = a === 'availability' ? e.lateEntryDeadline ?? e.pickDeadline ?? e.window?.end ?? null
@@ -58,6 +60,9 @@ const LABEL: Record<ThesisExamTaskKind, { he: string; en: string }> = {
   supervisor_fix: { he: 'הציון הסופי נדחה — יש לתקן את ציון המחקר', en: 'The final grade was denied — fix the research grade' },
   fix_opinion: { he: 'יש לתת חוות דעת על תיקון ציון התזה', en: "Give your opinion on the thesis grade fix" },
   fix_decide: { he: 'יש להחליט על תיקון ציון התזה (יו"ר הוועדה)', en: 'Decide on the thesis grade fix (committee chairman)' },
+  chair_form: { he: 'יש למלא את טופס הבחינה (יו"ר הבחינה)', en: 'Fill in the exam form (exam chairman)' },
+  sign: { he: 'יש לחתום על טופס בחינת התזה', en: 'Sign the thesis exam form' },
+  unsigned_examiners: { he: 'דחוף: בוחן/ת לא חתם/ה על טופס בחינת התזה', en: "Urgent: an examiner hasn't signed the thesis exam form" },
 };
 
 export function thesisExamTaskLabel(kind: ThesisExamTaskKind, lang: 'he' | 'en'): string {

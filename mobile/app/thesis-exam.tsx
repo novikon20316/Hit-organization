@@ -72,7 +72,8 @@ export default function ThesisExamScreen() {
 
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
     load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
-    submit: (body) => apiClient.submitThesisExamForm(formFor.id, body),
+    submitChair: (body) => apiClient.submitThesisExamChairForm(formFor.id, body),
+    sign: () => apiClient.signThesisExamForm(formFor.id),
     submitSupervisor: (research) => apiClient.submitThesisExamSupervisorGrade(formFor.id, research),
   } : null, [formFor]);
 
@@ -230,16 +231,48 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
 
-      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review' || exam.status === 'exam_grades_pending') && (
+      {exam.status === 'exam_scheduled' && (
         <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>
-          {he ? `${exam.formsSubmittedCount} מתוך ${exam.examinerCount} בוחנים מילאו את טופס הבחינה` : `${exam.formsSubmittedCount} of ${exam.examinerCount} examiners filled in the exam form`}
+          {he ? 'יו"ר הבחינה (המנחה) ממלא את טופס הבחינה בתום הבחינה; הבוחנים חותמים עליו לאחר מכן.' : "The exam's chairman (the supervisor) fills in the exam form when the exam ends; the examiners then sign it."}
         </Text>
+      )}
+      {exam.status === 'exam_signatures' && (
+        <Text style={{ marginTop: 8, fontSize: 12, color: C.muted, ...align }}>
+          {he ? `טופס הבחינה נשלח — ${exam.signedCount ?? 0} מתוך ${exam.examinerCount} בוחנים חתמו.` : `The exam form was sent — ${exam.signedCount ?? 0} of ${exam.examinerCount} examiners signed.`}
+        </Text>
+      )}
+      {exam.status === 'exam_signatures' && exam.myRoles.adminCoordinator && (exam.unsignedExaminers?.length ?? 0) > 0 && (
+        <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: has('unsigned_examiners') ? C.dangerBg : C.paper }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: has('unsigned_examiners') ? C.danger : C.ink, ...align }}>
+            {has('unsigned_examiners') ? (he ? '⚠️ בוחנים שלא חתמו על טופס הבחינה' : "⚠️ Examiners who haven't signed the exam form") : (he ? 'ממתינים לחתימת:' : 'Awaiting the signature of:')}
+          </Text>
+          {exam.unsignedExaminers!.map((u) => (
+            <Text key={u.name} selectable style={{ marginTop: 3, fontSize: 12, color: C.ink, ...align }}>
+              {[u.name, u.external ? (he ? 'חיצוני/ת' : 'outside') : (he ? 'פנימי/ת' : 'internal'), u.institution, u.email, u.phone].filter(Boolean).join(' · ')}
+            </Text>
+          ))}
+        </View>
+      )}
+      {has('chair_form') && (
+        <View style={{ marginTop: 8 }}>
+          <View style={{ flexDirection: 'row' }}>
+            <PrimaryButton
+              onPress={() => onOpenForm('supervisor')}
+              label={exam.chairFormSubmitted ? (he ? 'צפייה בטופס הבחינה ששלחתי' : 'View the exam form I sent') : exam.formOpen ? (he ? 'מילוי טופס הבחינה (יו"ר)' : 'Fill in the exam form (chairman)') : (he ? 'טופס הבחינה (יו"ר)' : 'Exam form (chairman)')}
+            />
+          </View>
+          {!exam.chairFormSubmitted && (
+            <Text style={{ marginTop: 4, fontSize: 11, color: C.muted, ...align }}>
+              {he ? 'את/ה יו"ר הבחינה: ממלא/ת חוות דעת המנחה (40%), ציון כתיבת התזה שסוכם עם הבוחנים (40%) ומבחן ההגנה (20%).' : "You chair the exam: you fill in the supervisor's opinion (40%), the thesis writing grade agreed with the examiners (40%) and the defense exam (20%)."}
+            </Text>
+          )}
+        </View>
       )}
       {has('form') && (
         <View style={{ flexDirection: 'row', marginTop: 8 }}>
           <PrimaryButton
             onPress={() => onOpenForm()}
-            label={exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : exam.formOpen ? (he ? 'מילוי טופס מבחן התזה' : 'Fill in the exam form') : (he ? 'טופס מבחן התזה' : 'Thesis exam form')}
+            label={has('sign') ? (he ? '✍️ חתימה על טופס הבחינה' : '✍️ Sign the exam form') : exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : (he ? 'פרטי הבחינה והטופס' : 'Exam details and form')}
           />
         </View>
       )}
@@ -258,7 +291,7 @@ function ExamCard({ exam, lang, highlighted = false, onLayout, onChanged, onOpen
       )}
       {has('view_forms') && (
         <View style={{ marginTop: 8, flexDirection: 'row' }}>
-          <PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"} />
+          <PrimaryButton onPress={() => onOpenForm()} label={he ? 'צפייה בטופס הבחינה' : 'View the exam form'} />
         </View>
       )}
 

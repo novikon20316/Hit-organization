@@ -45,8 +45,12 @@ import {
   submitAvailability,
   decideDate,
   buildExamFormView,
-  submitExamForm,
   submitSupervisorExamGrade,
+  submitChairExamForm,
+  signChairExamForm,
+  resolveSignToken,
+  unsignedExaminers,
+  EXAM_SIGNATURES,
   loadSupervisorExamGrade,
   supervisorGradeOpen,
   loadExamForms,
@@ -128,7 +132,15 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
   if (exam.status === EXAM_DATE_REVIEW && rel.isProgramHead) actions.push('review_date');
   if (exam.status === EXAM_DATE_FINAL_REVIEW && rel.isGradHead) actions.push('review_date');
   const formsDone = EXAM_FORMS_DONE_STATUSES.includes(exam.status);
+  // Examiners grade nothing (since 2026-11-23): they see the project's
+  // details and the form, and sign it once the chairman (the supervisor)
+  // sent it. The supervisor fills it.
   if ((exam.status === EXAM_SCHEDULED || formsDone) && rel.isExaminer) actions.push('form');
+  const mySignatureGiven = !!(rel.participantKey && exam.examinerSignatures?.[rel.participantKey]);
+  if (exam.status === EXAM_SIGNATURES && rel.isExaminer && !mySignatureGiven) actions.push('sign');
+  if ((exam.status === EXAM_SCHEDULED || (formsDone && !!exam.chairFormSubmittedAt)) && rel.isSupervisor && !rel.isExaminer) actions.push('chair_form');
+  const unsigned = exam.status === EXAM_SIGNATURES ? await unsignedExaminers(exam) : [];
+  if (rel.isAdminCoordinator && unsigned.some((u) => u.alertedAt)) actions.push('unsigned_examiners');
   if (formsDone && (rel.isCommittee || rel.isGradHead || rel.isProgramHead || rel.isAdminCoordinator)) actions.push('view_forms');
   if (exam.status === EXAM_GRADE_REVIEW && rel.isGradHead) actions.push('review_final_grade');
   if (exam.status === EXAM_COORDINATOR_APPROVAL && rel.isAdminCoordinator) actions.push('final_approval');
@@ -163,7 +175,7 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     || (rel.isCommittee && (inFixReview || exam.status === EXAM_SUPERVISOR_FIX));
   // Live while grades are missing, and during a fix review (the frozen one
   // still has the supervisor's old research grade).
-  const liveBreakdown = exam.status === EXAM_GRADES_PENDING || exam.status === EXAM_COMMITTEE_REVIEW || inFixReview;
+  const liveBreakdown = exam.status === EXAM_GRADES_PENDING || exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_SIGNATURES || inFixReview;
   const gradeBreakdown = seesGrade && formsDone
     ? (liveBreakdown ? await buildExamGradeBreakdown(exam, milestone) : exam.gradeBreakdown ?? null)
     : null;
@@ -256,6 +268,14 @@ async function buildCard(exam: ThesisExamDoc, milestone: FirebaseFirestore.Docum
     examinerCount: exam.examiners.length,
     myFormSubmitted: !!myForm,
     supervisorGradeGiven,
+    chairFormSubmitted: !!exam.chairFormSubmittedAt,
+    mySignatureGiven,
+    signedCount: Object.keys(exam.examinerSignatures ?? {}).length,
+    // Examiners who haven't signed: the administrative coordinator gets how
+    // to reach them; other staff only the names.
+    unsignedExaminers: rel.isAdminCoordinator
+      ? unsigned.map((u) => ({ name: u.name, email: u.email, phone: u.phone, institution: u.institution, external: u.external, alertedAt: u.alertedAt }))
+      : staff ? unsigned.map((u) => ({ name: u.name, email: null, phone: null, institution: null, external: u.external, alertedAt: null })) : [],
     formOpen: formGate.open,
     gradeBreakdown,
     gradeReview: seesGrade && exam.gradeReview
@@ -547,19 +567,46 @@ export const getExamForm = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+const EXAMINERS_DONT_GRADE = {
+  en: "Examiners no longer fill in grades — the exam's chairman (the supervisor) fills the form, and the examiners sign it.",
+  he: 'הבוחנים אינם ממלאים עוד ציונים — יו"ר הבחינה (המנחה) ממלא את הטופס, והבוחנים חותמים עליו.',
+};
+
 // ─── POST /api/thesis-exam/:milestoneId/form ─────────────────────────────────
-// Body: { ratings: { q1..q5: 1-10 }, comments, components: { writing: 1-100 } }
-// (research is the supervisor's, defense is computed — both ignored here.)
+// Retired 2026-11-23 — examiners don't grade any more.
 export const submitMyExamForm = async (req: AuthenticatedRequest, res: Response) => {
+  return res.status(410).json({ message: L(req, EXAMINERS_DONT_GRADE.en, EXAMINERS_DONT_GRADE.he) });
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/chair-form ───────────────────────────
+// Body: { components: { research, writing, defense: 1-100 }, comments? } —
+// the supervisor as the exam's chairman. Sending = the chairman's signature;
+// the examiners are then emailed to sign.
+export const submitMyChairExamForm = async (req: AuthenticatedRequest, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
   const milestoneId = String(req.params.milestoneId);
   try {
-    const result = await submitExamForm(milestoneId, { key: `u:${uid}`, name: await nameOf(uid), external: false }, req.body);
-    await audit(req, milestoneId, 'exam_form_submitted', {});
+    await submitChairExamForm(milestoneId, { uid, name: await nameOf(uid) }, req.body);
+    await audit(req, milestoneId, 'exam_chair_form_submitted', {});
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to send the form.', 'שליחת הטופס נכשלה.');
+  }
+};
+
+// ─── POST /api/thesis-exam/:milestoneId/sign ─────────────────────────────────
+// An internal examiner signs the chairman's form from inside the app.
+export const signMyExamForm = async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(401).json({ message: L(req, 'Unauthorized.', 'משתמש לא מאומת.') });
+  const milestoneId = String(req.params.milestoneId);
+  try {
+    const result = await signChairExamForm(milestoneId, `u:${uid}`, 'app');
+    await audit(req, milestoneId, 'exam_form_signed_by_examiner', { allIn: result.allIn });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
-    return sendError(req, res, err, 'Failed to submit the form.', 'שליחת הטופס נכשלה.');
+    return sendError(req, res, err, 'Failed to sign the form.', 'החתימה על הטופס נכשלה.');
   }
 };
 
@@ -728,15 +775,50 @@ export const getExternalExamForm = async (req: Request, res: Response) => {
   }
 };
 
-/** POST /api/examiner-access/:token/thesis-exam/form */
+/** POST /api/examiner-access/:token/thesis-exam/form — retired 2026-11-23. */
 export const submitExternalExamForm = async (req: Request, res: Response) => {
+  return res.status(410).json({ message: L(req, EXAMINERS_DONT_GRADE.en, EXAMINERS_DONT_GRADE.he) });
+};
+
+/** POST /api/examiner-access/:token/thesis-exam/sign — an outside examiner
+ *  signs from their access page. */
+export const signExternalExamForm = async (req: Request, res: Response) => {
   try {
     const loaded = await loadTokenExam(req, res);
     if (!loaded) return;
-    const name = loaded.exam.examiners.find((e) => e.key === loaded.key)?.name || loaded.tokenDoc.examinerName || '';
-    const result = await submitExamForm(loaded.exam.milestoneId, { key: loaded.key, name, external: true }, req.body);
+    const result = await signChairExamForm(loaded.exam.milestoneId, loaded.key, 'access_page');
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
-    return sendError(req, res, err, 'Failed to submit the form.', 'שליחת הטופס נכשלה.');
+    return sendError(req, res, err, 'Failed to sign the form.', 'החתימה על הטופס נכשלה.');
+  }
+};
+
+// ─── The emailed sign link (public; the token is the credential) ────────────
+// GET shows the form, POST signs — a GET never signs, so a mail scanner that
+// opens the link can't sign on the examiner's behalf.
+
+/** GET /api/examiner-access/exam-sign/:signToken */
+export const getExamSignPage = async (req: Request, res: Response) => {
+  try {
+    const target = await resolveSignToken(String(req.params.signToken ?? ''));
+    if (!target) return res.status(404).json({ message: L(req, 'This signing link is invalid.', 'קישור החתימה אינו תקין.') });
+    const view = await buildExamFormView(target.milestoneId, { kind: 'examiner', key: target.key });
+    const loaded = await loadExam(target.milestoneId);
+    const examinerName = loaded?.exam.examiners.find((e) => e.key === target.key)?.name ?? '';
+    return res.status(200).json({ examinerName, view });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to load the form.', 'טעינת הטופס נכשלה.');
+  }
+};
+
+/** POST /api/examiner-access/exam-sign/:signToken */
+export const signExamByLink = async (req: Request, res: Response) => {
+  try {
+    const target = await resolveSignToken(String(req.params.signToken ?? ''));
+    if (!target) return res.status(404).json({ message: L(req, 'This signing link is invalid.', 'קישור החתימה אינו תקין.') });
+    const result = await signChairExamForm(target.milestoneId, target.key, 'email');
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    return sendError(req, res, err, 'Failed to sign the form.', 'החתימה על הטופס נכשלה.');
   }
 };

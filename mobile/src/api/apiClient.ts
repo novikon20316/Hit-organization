@@ -651,8 +651,14 @@ class ApiClient {
     const response = await this.api.post(`/api/thesis-exam/${milestoneId}/supervisor-grade`, { research });
     return response.data as { success: boolean };
   }
-  async submitThesisExamForm(milestoneId: string, body: ThesisExamFormInput) {
-    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/form`, body);
+  /** The supervisor, as the exam's chairman, sends the exam form (= their signature). */
+  async submitThesisExamChairForm(milestoneId: string, body: ThesisExamChairFormInput) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/chair-form`, body);
+    return response.data as { success: boolean };
+  }
+  /** An internal examiner signs the chairman's form in the app. */
+  async signThesisExamForm(milestoneId: string) {
+    const response = await this.api.post(`/api/thesis-exam/${milestoneId}/sign`, {});
     return response.data as { success: boolean; allIn: boolean };
   }
   async getExternalThesisExam(token: string) {
@@ -667,8 +673,8 @@ class ApiClient {
     const response = await this.api.get(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/form`);
     return response.data as ThesisExamFormView;
   }
-  async submitExternalThesisExamForm(token: string, body: ThesisExamFormInput) {
-    const response = await this.api.post(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/form`, body);
+  async signExternalThesisExamForm(token: string) {
+    const response = await this.api.post(`/api/examiner-access/${encodeURIComponent(token)}/thesis-exam/sign`, {});
     return response.data as { success: boolean; allIn: boolean };
   }
 
@@ -758,8 +764,10 @@ export type ThesisExamStatus =
   | 'exam_nomination' | 'exam_nomination_review' | 'exam_availability' | 'exam_date_coordinator'
   | 'exam_date_review' | 'exam_date_final_review' | 'exam_scheduled' | 'exam_committee_review'
   | 'exam_grades_pending' | 'exam_grade_review' | 'exam_grade_denied' | 'exam_returned_to_supervisor'
-  | 'exam_coordinator_approval' | 'exam_completed' | 'exam_supervisor_fix' | 'exam_fix_committee_review';
-export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide';
+  | 'exam_coordinator_approval' | 'exam_completed' | 'exam_supervisor_fix' | 'exam_fix_committee_review'
+  | 'exam_signatures';
+export type ThesisExamAction = 'nominate' | 'review_nomination' | 'availability' | 'late_entry' | 'set_date' | 'review_date' | 'form' | 'view_forms' | 'supervisor_grade' | 'review_final_grade' | 'final_approval' | 'supervisor_fix' | 'fix_opinion' | 'fix_decide'
+  | 'chair_form' | 'sign' | 'unsigned_examiners';
 /** A committee member's / the chairman's answer on a supervisor's grade fix. */
 export type ThesisExamFixVote = 'approve' | 'reject';
 /** How the final grade is made — see web's lib/apiClient.ts. */
@@ -823,6 +831,14 @@ export interface ThesisExamCard {
   examinerCount: number;
   myFormSubmitted: boolean;
   supervisorGradeGiven?: boolean;
+  /** The supervisor (exam chairman) sent the exam form. */
+  chairFormSubmitted?: boolean;
+  /** This examiner already signed the chairman's form. */
+  mySignatureGiven?: boolean;
+  signedCount?: number;
+  /** In exam_signatures: who hasn't signed. Contact details for the
+   *  administrative coordinator only; alertedAt = the urgent alert went out. */
+  unsignedExaminers?: { name: string; email: string | null; phone: string | null; institution: string | null; external: boolean; alertedAt: string | null }[];
   formOpen: boolean;
   /** Supervisor, grad school head, program head, administrative coordinator only. */
   gradeBreakdown: ThesisExamGradeBreakdown | null;
@@ -854,10 +870,21 @@ export interface ThesisExamCard {
   /** minPassingFinalGrade: below it, an approved grade returns to the supervisor. */
   rules: { examinerCount: number; datesPerParticipant: number; windowDays: number; minExamMinutes: number; minPassingFinalGrade: number | null };
 }
-export interface ThesisExamFormInput {
-  ratings: Record<string, number>;
-  comments: string;
+/** The chairman's (supervisor's) exam form: research, writing, defense 1–100. */
+export interface ThesisExamChairFormInput {
   components: Record<string, number>;
+  comments: string;
+}
+export interface ThesisExamSignatureInfo { code: string; signerName: string; signedAt: string; positionHe: string; positionEn: string }
+export interface ThesisExamChairForm {
+  research: number;
+  writing: number | null;
+  defense: number | null;
+  finalGrade: number | null;
+  comments: string;
+  chairName: string;
+  submittedAt: string;
+  signature: ThesisExamSignatureInfo;
 }
 export interface ThesisExamSubmittedForm {
   examinerName: string;
@@ -890,15 +917,25 @@ export interface ThesisExamFormView {
     titleEn: string;
     ratingScale: { min: number; max: number; minLabelHe: string; maxLabelHe: string; minLabelEn: string; maxLabelEn: string };
     questions: Array<{ key: string; labelHe: string; labelEn: string }>;
-    /** Who owns each component: 'supervisor' (research), 'examiner' (writing), 'computed' (defense). */
-    gradeComponents: Array<{ key: string; labelHe: string; labelEn: string; weight: number; source: 'supervisor' | 'examiner' | 'computed' }>;
+    /** Every component is filled by the exam's chairman (the supervisor); noteHe/En says how it is set. */
+    gradeComponents: Array<{ key: string; labelHe: string; labelEn: string; weight: number; source: 'chair'; noteHe: string; noteEn: string }>;
     gradeKey: Array<{ range: string; statusHe: string; statusEn: string; publicationHe: string; publicationEn: string }>;
   };
   header: Array<{ key: string; labelHe: string; labelEn: string; value: string | null }>;
   status: ThesisExamStatus;
   canEdit: boolean;
+  /** An examiner who may sign the chairman's form now. */
+  canSign: boolean;
+  /** Older exams only: the supervisor's separate research grade is open. */
+  legacyResearchOpen: boolean;
   lockedReasonHe: string | null;
   lockedReasonEn: string | null;
+  /** The chairman's form, once sent. */
+  chair: ThesisExamChairForm | null;
+  signatures: Array<{ index: number; name: string; signed: boolean; signedAt: string | null; signature: ThesisExamSignatureInfo | null; isMe: boolean }>;
+  signedCount: number;
+  /** Older exam — the examiners filled their own forms (mine / all / summary). */
+  legacy: boolean;
   submittedCount: number;
   examinerCount: number;
   viewerKind: 'examiner' | 'supervisor' | 'reviewer';

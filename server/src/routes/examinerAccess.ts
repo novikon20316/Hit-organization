@@ -28,11 +28,16 @@ import {
 } from '../controllers/examinerOnboardingController.js';
 import { examinerAccessLimiter } from '../middleware/rateLimit.js';
 import { externalDraft } from '../controllers/formDraftController.js';
-import { getExternalThesisExam, submitExternalAvailability, getExternalExamForm, submitExternalExamForm } from '../controllers/thesisExamController.js';
+import { getExternalThesisExam, submitExternalAvailability, getExternalExamForm, submitExternalExamForm, signExternalExamForm, getExamSignPage, signExamByLink } from '../controllers/thesisExamController.js';
 
 const router = Router();
 
 router.use(examinerAccessLimiter);
+
+// CS thesis exam — the emailed "please sign the exam form" link. Registered
+// first so '/exam-sign/...' is never read as '/:token/...'.
+router.get('/exam-sign/:signToken', getExamSignPage);
+router.post('/exam-sign/:signToken', signExamByLink);
 
 router.post('/:token/request-otp', requestOtp);
 router.post('/:token/verify-otp', verifyOtp);
@@ -54,6 +59,7 @@ router.get('/:token/thesis-exam', getExternalThesisExam);
 router.post('/:token/thesis-exam/availability', submitExternalAvailability);
 router.get('/:token/thesis-exam/form', getExternalExamForm);
 router.post('/:token/thesis-exam/form', submitExternalExamForm);
+router.post('/:token/thesis-exam/sign', signExternalExamForm);
 
 // One-time (per examiner identity) onboarding — see examinerOnboardingController.ts.
 router.get('/:token/onboarding-status', getOnboardingStatus);

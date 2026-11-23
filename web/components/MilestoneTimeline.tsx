@@ -196,7 +196,7 @@ function buildRoutingChain(m: MilestoneData, routing: RoutingStage[], lang: 'he'
 // supervisor approval…) that never happen. Order matches that file's header.
 const EXAM_STATUS_ORDER = [
   'exam_nomination', 'exam_nomination_review', 'exam_availability', 'exam_date_coordinator',
-  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_grades_pending',
+  'exam_date_review', 'exam_date_final_review', 'exam_scheduled', 'exam_signatures', 'exam_grades_pending',
   'exam_grade_review', 'exam_coordinator_approval',
 ] as const;
 // Statuses drawn at another step's place (retired / parked ones).
@@ -222,7 +222,7 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     return { label, done: allDone || (pos >= 0 && pos > at), current: status === s };
   };
   const sched = m.examSchedule;
-  const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י הבוחנים' : 'Exam held + examiners fill the thesis exam form';
+  const examLabel = he ? 'הבחינה ומילוי טופס מבחן תיזה ע״י יו״ר הבחינה (המנחה)' : "Exam held + the exam's chairman (the supervisor) fills the thesis exam form";
   const steps: ChainStep[] = [
     step('exam_nomination', he ? 'מינוי 2 בוחנים ע״י המנחה' : 'Supervisor nominates 2 examiners'),
     step('exam_nomination_review', he ? 'אישור המינוי ע״י ראש בית הספר ללימודים מתקדמים' : 'Grad school head approves the nomination'),
@@ -238,9 +238,10 @@ function buildThesisExamChain(m: MilestoneData, lang: 'he' | 'en'): ChainStep[] 
     // The only thing this step waits for is the supervisor's research grade
     // (or another weighted milestone's grade); the final grade itself is
     // computed automatically the moment the grades are in.
+    step('exam_signatures', he ? 'חתימת הבוחנים על טופס הבחינה' : "The examiners sign the exam form"),
     step('exam_grades_pending', status === 'exam_grades_pending'
-      ? (he ? 'ממתין לציון המחקר של המנחה (40%) — הציון הסופי יחושב אוטומטית' : "Waiting for the supervisor's research grade (40%) — the final grade is computed automatically")
-      : (he ? 'ציון המחקר של המנחה; הציון הסופי חושב אוטומטית לפי משקלות אבני הדרך' : "Supervisor's research grade; final grade computed automatically by the milestone weights")),
+      ? (he ? 'השלמת הציון — הציון הסופי יחושב אוטומטית' : 'Completing the grade — the final grade is computed automatically')
+      : (he ? 'הציון הסופי חושב אוטומטית לפי משקלות אבני הדרך' : 'Final grade computed automatically by the milestone weights')),
     step('exam_grade_review', m.status === 'exam_grade_denied'
       ? (he ? 'ראש בית הספר ללימודים מתקדמים דחה את הציון' : 'The grad school head denied the grade')
       : m.status === 'exam_returned_to_supervisor'

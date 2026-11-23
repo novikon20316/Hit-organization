@@ -3,7 +3,8 @@
 // app/examiner-access/ThesisExamSection.tsx
 // An outside examiner's part in the CS M.Sc. thesis exam (server's
 // services/thesisExam.ts), by access token: pick 5 dates with free hours,
-// see the agreed exam time, and fill the "טופס מבחן תיזה" after the exam.
+// see the agreed exam time and the project's details, and sign the
+// "טופס מבחן תיזה" once the exam's chairman (the supervisor) filled it.
 
 import { useCallback, useMemo, useState } from 'react';
 import { apiClient, type ThesisExamCard } from '@/lib/apiClient';
@@ -21,7 +22,7 @@ export function ThesisExamSection({ token, exam: initial, lang }: { token: strin
 
   const formSource = useMemo<ThesisExamFormSource>(() => ({
     load: () => apiClient.getExternalThesisExamForm(token),
-    submit: (body) => apiClient.submitExternalThesisExamForm(token, body),
+    sign: () => apiClient.signExternalThesisExamForm(token),
   }), [token]);
 
   return (

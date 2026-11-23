@@ -14,6 +14,8 @@ import {
   setExamDateByCoordinator,
   getExamForm,
   submitMyExamForm,
+  submitMyChairExamForm,
+  signMyExamForm,
   submitMySupervisorExamGrade,
   reviewFinalGrade,
   giveFinalApproval,
@@ -35,6 +37,8 @@ router.post('/:milestoneId/date-decision', verifyToken, decideExamDate);
 router.post('/:milestoneId/coordinator-date', verifyToken, setExamDateByCoordinator);
 router.get('/:milestoneId/form', verifyToken, getExamForm);
 router.post('/:milestoneId/form', verifyToken, submitMyExamForm);
+router.post('/:milestoneId/chair-form', verifyToken, submitMyChairExamForm);
+router.post('/:milestoneId/sign', verifyToken, signMyExamForm);
 router.post('/:milestoneId/supervisor-grade', verifyToken, submitMySupervisorExamGrade);
 router.post('/:milestoneId/final-grade-review', verifyToken, reviewFinalGrade);
 router.post('/:milestoneId/final-approval', verifyToken, giveFinalApproval);

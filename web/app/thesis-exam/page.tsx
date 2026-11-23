@@ -69,7 +69,8 @@ export default function ThesisExamPage() {
 
   const formSource = useMemo<ThesisExamFormSource | null>(() => formFor ? {
     load: () => apiClient.getThesisExamForm(formFor.id, formFor.as),
-    submit: (body) => apiClient.submitThesisExamForm(formFor.id, body),
+    submitChair: (body) => apiClient.submitThesisExamChairForm(formFor.id, body),
+    sign: () => apiClient.signThesisExamForm(formFor.id),
     submitSupervisor: (research) => apiClient.submitThesisExamSupervisorGrade(formFor.id, research),
   } : null, [formFor]);
 
@@ -197,12 +198,38 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
       )}
       {has('review_date') && <DateReview exam={exam} lang={lang} onDone={onChanged} />}
 
-      {(exam.status === 'exam_scheduled' || exam.status === 'exam_committee_review' || exam.status === 'exam_grades_pending') && (
-        <p className="mt-3 text-xs text-muted">{he ? `${exam.formsSubmittedCount} מתוך ${exam.examinerCount} בוחנים מילאו את טופס הבחינה` : `${exam.formsSubmittedCount} of ${exam.examinerCount} examiners filled in the exam form`}</p>
+      {exam.status === 'exam_scheduled' && (
+        <p className="mt-3 text-xs text-muted">{he ? 'יו"ר הבחינה (המנחה) ממלא את טופס הבחינה בתום הבחינה; הבוחנים חותמים עליו לאחר מכן.' : "The exam's chairman (the supervisor) fills in the exam form when the exam ends; the examiners then sign it."}</p>
+      )}
+      {exam.status === 'exam_signatures' && (
+        <p className="mt-3 text-xs text-muted">{he ? `טופס הבחינה נשלח — ${exam.signedCount ?? 0} מתוך ${exam.examinerCount} בוחנים חתמו.` : `The exam form was sent — ${exam.signedCount ?? 0} of ${exam.examinerCount} examiners signed.`}</p>
+      )}
+      {exam.status === 'exam_signatures' && (exam.unsignedExaminers?.length ?? 0) > 0 && exam.myRoles.adminCoordinator && (
+        <div className={`mt-2 rounded-md px-3 py-2 text-xs ${has('unsigned_examiners') ? 'bg-danger-bg text-danger' : 'bg-paper text-ink'}`}>
+          <p className="font-semibold">{has('unsigned_examiners') ? (he ? '⚠️ בוחנים שלא חתמו על טופס הבחינה' : "⚠️ Examiners who haven't signed the exam form") : (he ? 'ממתינים לחתימת:' : 'Awaiting the signature of:')}</p>
+          <ul className="mt-1 grid gap-1">
+            {exam.unsignedExaminers!.map((u) => (
+              <li key={u.name}>
+                <strong>{u.name}</strong> · {u.external ? (he ? 'חיצוני/ת' : 'outside') : (he ? 'פנימי/ת' : 'internal')}
+                {u.institution ? ` · ${u.institution}` : ''}
+                {u.email ? <> · <a className="underline" href={`mailto:${u.email}`}>{u.email}</a></> : ''}
+                {u.phone ? <> · <a className="underline" href={`tel:${u.phone}`} dir="ltr">{u.phone}</a></> : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {has('chair_form') && (
+        <div className="mt-2">
+          <button type="button" onClick={() => onOpenForm('supervisor')} className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
+            {exam.chairFormSubmitted ? (he ? 'צפייה בטופס הבחינה ששלחתי' : 'View the exam form I sent') : exam.formOpen ? (he ? 'מילוי טופס הבחינה (יו"ר הבחינה)' : 'Fill in the exam form (exam chairman)') : (he ? 'טופס הבחינה (יו"ר הבחינה)' : 'Exam form (exam chairman)')}
+          </button>
+          {!exam.chairFormSubmitted && <p className="mt-1 text-xs text-muted">{he ? 'את/ה יו"ר הבחינה: ממלא/ת חוות דעת המנחה (40%), ציון כתיבת התזה שסוכם עם הבוחנים (40%) ומבחן ההגנה (20%).' : "You chair the exam: you fill in the supervisor's opinion (40%), the thesis writing grade agreed with the examiners (40%) and the defense exam (20%)."}</p>}
+        </div>
       )}
       {has('form') && (
         <button type="button" onClick={() => onOpenForm()} className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-ink hover:bg-primary-hover">
-          {exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : exam.formOpen ? (he ? 'מילוי טופס מבחן התזה' : 'Fill in the thesis exam form') : (he ? 'טופס מבחן התזה' : 'Thesis exam form')}
+          {has('sign') ? (he ? '✍️ חתימה על טופס הבחינה' : '✍️ Sign the exam form') : exam.myFormSubmitted ? (he ? 'צפייה בטופס ששלחתי' : 'View my form') : (he ? 'פרטי הבחינה והטופס' : 'Exam details and form')}
         </button>
       )}
       {has('supervisor_grade') && (
@@ -216,7 +243,7 @@ function ExamCard({ exam, lang, highlighted = false, onChanged, onOpenForm }: { 
       {has('view_forms') && (
         <div className="mt-2">
           <button type="button" onClick={() => onOpenForm()} className="rounded-full border border-line px-4 py-1.5 text-xs font-semibold text-ink hover:border-primary">
-            {he ? 'צפייה בטופסי הבוחנים' : "View the examiners' forms"}
+            {he ? 'צפייה בטופס הבחינה' : 'View the exam form'}
           </button>
         </div>
       )}

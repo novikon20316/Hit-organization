@@ -32,6 +32,7 @@ export type MilestoneStatus =
   | 'exam_date_final_review'
   | 'exam_scheduled'
   | 'exam_committee_review'
+  | 'exam_signatures'
   | 'exam_grades_pending'
   | 'exam_grade_review'
   | 'exam_grade_denied'
@@ -368,6 +369,7 @@ export const STATUS_CONFIG: Record<MilestoneStatus, { color: string; bg: string;
   exam_date_final_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_scheduled: { color: '#3F6B4C', bg: 'var(--success-bg)', icon: '🎓' },
   exam_committee_review: { color: '#736B8C', bg: '#EDEBF2', icon: '🧮' },
+  exam_signatures: { color: '#736B8C', bg: '#EDEBF2', icon: '✍️' },
   exam_grades_pending: { color: '#736B8C', bg: '#EDEBF2', icon: '🧮' },
   exam_grade_review: { color: '#B8862E', bg: '#FBF3E3', icon: '⏳' },
   exam_grade_denied: { color: '#B54141', bg: 'var(--danger-bg)', icon: '⚠️' },
@@ -401,7 +403,8 @@ export const STATUS_LABEL: Record<MilestoneStatus, { he: string; en: string }> =
   exam_date_final_review: { he: 'מועד ממתין לאישור', en: 'Date Awaiting Approval' },
   exam_scheduled: { he: 'מועד הבחינה נקבע', en: 'Exam Scheduled' },
   exam_committee_review: { he: 'ממתין לציון המחקר של המנחה', en: "Waiting for the Supervisor's Research Grade" },
-  exam_grades_pending: { he: 'ממתין לציון המחקר של המנחה', en: "Waiting for the Supervisor's Research Grade" },
+  exam_signatures: { he: 'טופס הבחינה ממתין לחתימת הבוחנים', en: "Exam Form Awaiting the Examiners' Signatures" },
+  exam_grades_pending: { he: 'הציון הסופי בהשלמה', en: 'Final Grade Being Completed' },
   exam_grade_review: { he: 'הציון ממתין לאישור ראש בית הספר', en: 'Grade Awaiting the Grad School Head' },
   exam_grade_denied: { he: 'הציון נדחה ע"י ראש בית הספר', en: 'Grade Denied by the Grad School Head' },
   exam_returned_to_supervisor: { he: 'הוחזר למנחה להמשך עבודה', en: 'Returned to the Supervisor' },

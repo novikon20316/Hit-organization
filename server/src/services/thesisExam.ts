@@ -38,12 +38,24 @@
 //                            moves to the next common slot (back to the program
 //                            head); when none is left — or the rejected time was
 //                            the coordinator's — back to the coordinator.
-//   exam_scheduled           the exam takes place; from its start time the
-//                            examiners fill the faculty's "טופס מבחן תיזה"
-//                            (CS_THESIS_EXAM_FORM below)
-//   exam_grades_pending      every examiner submitted; waiting for the
-//                            supervisor's research grade (or another weighted
-//                            milestone's grade) — advanceExamGrading
+//   exam_scheduled           the exam takes place. The supervisor is the
+//                            exam's chairman: from its start time they fill
+//                            the faculty's "טופס מבחן תיזה" (CS_THESIS_EXAM_FORM
+//                            below) — research 40 (their opinion), writing 40
+//                            (agreed with the examiners), defense 20 — and
+//                            sending it is their signature. The examiners only
+//                            see the project's details; they grade nothing.
+//                            (Before 2026-11-23 the examiners filled forms;
+//                            those older exams still read them.)
+//   exam_signatures          each examiner got an email "please sign" with a
+//                            link (/exam-sign/<token>) and signs with one
+//                            click (or in the app). Unsigned SIGN_ALERT_HOURS
+//                            after → urgent alert to the administrative
+//                            coordinator with the examiner's details. The
+//                            last signature → exam_grades_pending.
+//   exam_grades_pending      the form is signed by all; waiting for any other
+//                            weighted milestone's grade — advanceExamGrading
+//                            (older exams: the supervisor's research grade)
 //   exam_grade_review        the final grade — every milestone's grade by the
 //                            template's percentages, frozen with its breakdown
 //                            (gradeBreakdown) — awaits the grad school head:
@@ -77,6 +89,7 @@
 // external-examiner token endpoints in examinerAccessController.ts.
 
 import admin from 'firebase-admin';
+import crypto from 'crypto';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
@@ -93,6 +106,7 @@ import { facultyName } from './studentProgress.js';
 import { logProjectRecordEntry } from './projectRecords.js';
 import { transferGradeToMichlol, computeProjectFinalGrade } from './gradeEngine.js';
 import { recordProjectCompletion } from './projectCompletion.js';
+import { getPrivateContact } from './privateContact.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -107,6 +121,9 @@ export const EXAM_DATE_COORDINATOR = 'exam_date_coordinator';
 export const EXAM_DATE_REVIEW = 'exam_date_review';
 export const EXAM_DATE_FINAL_REVIEW = 'exam_date_final_review';
 export const EXAM_SCHEDULED = 'exam_scheduled';
+/** The supervisor (the exam's chairman) sent the exam form; waiting for
+ *  every examiner to sign it (email link or in the app). */
+export const EXAM_SIGNATURES = 'exam_signatures';
 /** Retired — see the header. */
 export const EXAM_COMMITTEE_REVIEW = 'exam_committee_review';
 export const EXAM_GRADES_PENDING = 'exam_grades_pending';
@@ -125,11 +142,12 @@ export const THESIS_EXAM_STATUSES = [
   EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW,
   EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED, EXAM_RETURNED_TO_SUPERVISOR,
   EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED, EXAM_SUPERVISOR_FIX, EXAM_FIX_COMMITTEE_REVIEW,
+  EXAM_SIGNATURES,
 ] as const;
 
 /** Every examiner already submitted — the forms are locked and readable. */
 export const EXAM_FORMS_DONE_STATUSES: readonly string[] = [
-  EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED,
+  EXAM_SIGNATURES, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_GRADE_REVIEW, EXAM_GRADE_DENIED,
   EXAM_SUPERVISOR_FIX, EXAM_FIX_COMMITTEE_REVIEW,
   EXAM_RETURNED_TO_SUPERVISOR, EXAM_COORDINATOR_APPROVAL, EXAM_COMPLETED,
 ];
@@ -341,11 +359,27 @@ export interface ThesisExamDoc {
   fixDecisions?: FixCommitteeDecision[];
   /** The administrative coordinator's final approval. */
   finalApproval?: ExamFinalApproval | null;
+  /** examiner key → the sign token emailed to them. */
+  signTokens?: Record<string, string>;
   /** Last reminder to the administrative coordinator to give the final
    *  approval (exam_coordinator_approval) — the hourly sweep re-sends
    *  every COORDINATOR_REMINDER_HOURS. */
   coordinatorReminderSentAt?: string | null;
+  /** When the supervisor (chairman) sent the exam form. */
+  chairFormSubmittedAt?: string | null;
+  /** Each examiner's signature on the chairman's form (examiner key →). */
+  examinerSignatures?: Record<string, ExaminerFormSignature>;
+  /** Last "examiner hasn't signed" alert to the administrative coordinator,
+   *  per examiner key. */
+  unsignedAlertSentAt?: Record<string, string>;
   updatedAt: string;
+}
+
+export interface ExaminerFormSignature {
+  name: string;
+  signedAt: string;
+  via: 'email' | 'app' | 'access_page';
+  signature: EvaluationSignature;
 }
 
 export interface ExamGradeBreakdownRow {
@@ -1483,9 +1517,11 @@ export const CS_THESIS_EXAM_FORM = {
     { key: 'q5', labelHe: 'האם העבודה שנעשתה מהווה תרומה מדעית?', labelEn: 'Is the work a scientific contribution?' },
   ],
   gradeComponents: [
-    { key: 'research', labelHe: 'מחקר על סמך חוות דעת המנחה', labelEn: "Research, based on the supervisor's opinion", weight: 40, source: 'supervisor' },
-    { key: 'writing', labelHe: 'כתיבת התזה', labelEn: 'Writing the thesis', weight: 40, source: 'examiner' },
-    { key: 'defense', labelHe: 'מבחן ההגנה על התזה', labelEn: 'The thesis defense exam', weight: 20, source: 'computed' },
+    // Since 2026-11-23 the supervisor, as the exam's chairman, fills all
+    // three; the examiners only sign. `noteHe/En` says how each is set.
+    { key: 'research', labelHe: 'מחקר על סמך חוות דעת המנחה', labelEn: "Research, based on the supervisor's opinion", weight: 40, source: 'chair', noteHe: 'חוות דעת המנחה', noteEn: "The supervisor's opinion" },
+    { key: 'writing', labelHe: 'כתיבת התזה', labelEn: 'Writing the thesis', weight: 40, source: 'chair', noteHe: 'ציון שסוכם בדיון בין המנחה לבוחנים', noteEn: 'Agreed in discussion between the supervisor and the examiners' },
+    { key: 'defense', labelHe: 'מבחן ההגנה על התזה', labelEn: 'The thesis defense exam', weight: 20, source: 'chair', noteHe: 'ממולא על ידי יו"ר הבחינה (המנחה)', noteEn: "Filled in by the exam's chairman (the supervisor)" },
   ],
   /** The form's reference table — shown, not filled. */
   gradeKey: [
@@ -1516,12 +1552,19 @@ export interface StoredExamForm {
   signature: EvaluationSignature;
 }
 
-/** The supervisor's research grade — one per exam, signed. */
+/** The supervisor's grade doc — one per exam, signed. Since 2026-11-23 it is
+ *  the whole exam form filled by the supervisor as the exam's chairman
+ *  (`chairForm`: research + writing + defense). Older exams hold only the
+ *  research grade here; their writing/defense came from the examiners' forms. */
 export interface StoredSupervisorExamGrade {
   milestoneId: string;
   supervisorUid: string;
   supervisorName: string;
   research: number;
+  writing?: number;
+  defense?: number;
+  comments?: string;
+  chairForm?: boolean;
   submittedAt: string;
   signature: EvaluationSignature;
 }
@@ -1532,7 +1575,7 @@ const SUPERVISOR_GRADE_KEY = 'supervisor';
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
-/** mean(q1..q5) on the 1–10 scale, as a 0–100 score. */
+/** mean(q1..q5) on the 1–10 scale, as a 0–100 score (older exams only). */
 export function defenseContributionOf(ratings: Record<string, number>): number {
   return round1(mean(CS_THESIS_EXAM_FORM.questions.map((q) => Number(ratings[q.key] ?? 0))) * 10);
 }
@@ -1541,12 +1584,21 @@ export interface ExamGradeSummary {
   research: number | null;
   writing: number | null;
   defense: number | null;
-  /** Weighted total — null until the supervisor's grade and every examiner's
-   *  form are in. */
+  /** Weighted total — null until every component is in. */
   finalGrade: number | null;
 }
 
+function weightedExamGrade(parts: Record<'research' | 'writing' | 'defense', number | null>): number | null {
+  if (parts.research == null || parts.writing == null || parts.defense == null) return null;
+  return round1(CS_THESIS_EXAM_FORM.gradeComponents.reduce((sum, c) => sum + (parts[c.key] ?? 0) * c.weight, 0) / 100);
+}
+
 export function computeExamGradeSummary(exam: ThesisExamDoc, forms: Record<string, StoredExamForm>, supervisor: StoredSupervisorExamGrade | null): ExamGradeSummary {
+  if (supervisor?.chairForm) {
+    const parts = { research: supervisor.research, writing: supervisor.writing ?? null, defense: supervisor.defense ?? null };
+    return { ...parts, finalGrade: weightedExamGrade(parts) };
+  }
+  // Older exams: writing = the examiners' average, defense = their items 1–5.
   const submitted = Object.values(forms);
   const writing = submitted.map((f) => f.components?.writing).filter((v): v is number => typeof v === 'number');
   const defense = submitted.map((f) => f.defenseContribution ?? defenseContributionOf(f.ratings));
@@ -1556,10 +1608,7 @@ export function computeExamGradeSummary(exam: ThesisExamDoc, forms: Record<strin
     defense: defense.length ? round1(mean(defense)) : null,
   };
   const allIn = exam.examiners.length > 0 && exam.examiners.every((e) => !!forms[e.key]);
-  const finalGrade = allIn && parts.research != null && parts.writing != null && parts.defense != null
-    ? round1(CS_THESIS_EXAM_FORM.gradeComponents.reduce((sum, c) => sum + (parts[c.key] ?? 0) * c.weight, 0) / 100)
-    : null;
-  return { research: parts.research, writing: parts.writing, defense: parts.defense, finalGrade };
+  return { ...parts, finalGrade: allIn ? weightedExamGrade(parts) : null };
 }
 
 export async function loadSupervisorExamGrade(milestoneId: string): Promise<StoredSupervisorExamGrade | null> {
@@ -1567,10 +1616,11 @@ export async function loadSupervisorExamGrade(milestoneId: string): Promise<Stor
   return snap.exists ? (snap.data() as StoredSupervisorExamGrade) : null;
 }
 
-/** The supervisor may give the research grade once the exam is scheduled
- *  (it does not depend on the exam itself) and while the committee reviews. */
+/** OLDER EXAMS ONLY: the separate research grade, for an exam whose
+ *  examiners already filled their forms under the previous system and that
+ *  still waits for it. New exams use the chairman's form. */
 export function supervisorGradeOpen(exam: ThesisExamDoc): boolean {
-  return exam.status === EXAM_SCHEDULED || exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING;
+  return (exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING) && !exam.chairFormSubmittedAt;
 }
 
 function maskIdNumber(id: unknown): string | null {
@@ -1585,7 +1635,7 @@ const MAJOR_NAMES: Record<string, { he: string; en: string }> = {
 
 /** The header lines the system fills — the "dry details". The student's ID
  *  is masked (last 4 digits), as on the final report: outside examiners see
- *  this form. */
+ *  this form. The supervisor is the exam's chairman. */
 export async function examFormHeader(milestone: FirebaseFirestore.DocumentData, exam: ThesisExamDoc) {
   const project = await projectOf(milestone.projectId);
   const studentSnaps = await Promise.all(((milestone.studentIds ?? []) as string[]).map((id) => db.collection('users').doc(id).get()));
@@ -1602,15 +1652,17 @@ export async function examFormHeader(milestone: FirebaseFirestore.DocumentData, 
     line('academicUnit', 'יחידה אקדמית', 'Academic unit', [faculty.he, major?.he].filter(Boolean).join(' — ')),
     line('supervisor', 'שם המנחה', 'Supervisor', supervisor),
     line('secondarySupervisor', 'שם המנחה הנוסף/ת', 'Additional supervisor', secondary),
+    line('chairman', 'יו"ר הבחינה', 'Exam chairman', supervisor),
+    line('examiners', 'בוחנים', 'Examiners', exam.examiners.map((e) => e.name).join(', ')),
     line('topic', 'נושא המחקר', 'Research topic', project.titleHe || project.titleEn || ''),
     line('examDate', 'תאריך המבחן', 'Exam date', schedule ? formatSlot(schedule) : null),
   ];
 }
 
-/** The form opens once the scheduled exam has started, and locks once every
- *  examiner submitted. */
+/** The chairman's form opens once the scheduled exam has started, and locks
+ *  once the supervisor sent it. */
 export function examFormGate(exam: ThesisExamDoc): { open: true } | { open: false; he: string; en: string } {
-  if (EXAM_FORMS_DONE_STATUSES.includes(exam.status)) return { open: false, he: 'כל הבוחנים הגישו את הטופס — הטופס נעול.', en: 'Every examiner has submitted — the form is locked.' };
+  if (EXAM_FORMS_DONE_STATUSES.includes(exam.status)) return { open: false, he: 'טופס הבחינה נשלח — הטופס נעול.', en: 'The exam form was sent — it is locked.' };
   if (exam.status !== EXAM_SCHEDULED || !exam.schedule) return { open: false, he: 'הטופס ייפתח לאחר שייקבע ויתקיים מועד הבחינה.', en: 'The form opens once the exam date is set and the exam takes place.' };
   if (!slotHasStarted(exam.schedule)) {
     return { open: false, he: `הטופס ייפתח בתחילת הבחינה (${formatSlot(exam.schedule)}).`, en: `The form opens when the exam starts (${formatSlot(exam.schedule)}).` };
@@ -1629,10 +1681,10 @@ export async function loadExamForms(exam: ThesisExamDoc): Promise<Record<string,
 
 export type ExamFormViewer = { kind: 'examiner'; key: string } | { kind: 'reviewer' } | { kind: 'supervisor' };
 
-/** An examiner sees only their own form — never the supervisor's research
- *  grade; the supervisor sees only their own grade (not the examiners'
- *  forms); a reviewer (committee member, grad school head, program head) sees
- *  every submitted form, the supervisor's grade and the combined result. */
+/** The supervisor (chairman) fills the form; an examiner sees the project's
+ *  details and, once the chairman sent it, the form to sign; a reviewer
+ *  (committee member, heads, administrative coordinator) reads it. Older
+ *  exams' examiner forms are still shown (`all` / `mine`). */
 export async function buildExamFormView(milestoneId: string, viewer: ExamFormViewer) {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
@@ -1640,27 +1692,45 @@ export async function buildExamFormView(milestoneId: string, viewer: ExamFormVie
   const [forms, supervisorGrade] = await Promise.all([loadExamForms(exam), loadSupervisorExamGrade(milestoneId)]);
   const gate = examFormGate(exam);
   const sig = (s: EvaluationSignature) => ({ ...s, signerUid: undefined, digest: undefined });
-  // Only the examiner-owned components leave the server — a pre-split form's
-  // research/defense numbers are dropped, never shown.
-  const examinerKeys = CS_THESIS_EXAM_FORM.gradeComponents.filter((c) => c.source === 'examiner').map((c) => c.key as string);
   const strip = (f: StoredExamForm) => ({
     ...f,
     key: undefined,
     finalGrade: undefined,
-    components: Object.fromEntries(examinerKeys.filter((k) => typeof f.components?.[k] === 'number').map((k) => [k, f.components[k]!])),
+    components: typeof f.components?.writing === 'number' ? { writing: f.components.writing } : {},
     defenseContribution: f.defenseContribution ?? defenseContributionOf(f.ratings),
     signature: sig(f.signature),
   });
-  const supervisorOpen = supervisorGradeOpen(exam);
-  const supervisorView = supervisorGrade
+  const chairDoc = supervisorGrade?.chairForm ? supervisorGrade : null;
+  const chair = chairDoc
+    ? {
+      research: chairDoc.research,
+      writing: chairDoc.writing ?? null,
+      defense: chairDoc.defense ?? null,
+      finalGrade: computeExamGradeSummary(exam, {}, chairDoc).finalGrade,
+      comments: chairDoc.comments ?? '',
+      chairName: chairDoc.supervisorName,
+      submittedAt: chairDoc.submittedAt,
+      signature: sig(chairDoc.signature),
+    }
+    : null;
+  const sigs = exam.examinerSignatures ?? {};
+  const signatures = chair
+    ? exam.examiners.map((e, index) => {
+      const s = sigs[e.key];
+      return { index, name: e.name, signed: !!s, signedAt: s?.signedAt ?? null, signature: s ? sig(s.signature) : null, isMe: viewer.kind === 'examiner' && viewer.key === e.key };
+    })
+    : [];
+  const legacySupervisor = supervisorGrade && !supervisorGrade.chairForm
     ? { research: supervisorGrade.research, supervisorName: supervisorGrade.supervisorName, submittedAt: supervisorGrade.submittedAt, signature: sig(supervisorGrade.signature) }
     : null;
-  const canEdit = viewer.kind === 'examiner' ? gate.open && !forms[viewer.key]
-    : viewer.kind === 'supervisor' ? supervisorOpen && !supervisorGrade
-    : false;
-  const locked = viewer.kind === 'supervisor'
-    ? (supervisorOpen ? null : { he: 'ציון המנחה ייפתח לאחר שייקבע מועד הבחינה.', en: "The supervisor's grade opens once the exam date is set." })
-    : (gate.open ? null : { he: gate.he, en: gate.en });
+  const canEdit = viewer.kind === 'supervisor' && gate.open && !chairDoc;
+  const canSign = viewer.kind === 'examiner' && exam.status === EXAM_SIGNATURES && !!chairDoc && !sigs[viewer.key];
+  const legacy = !chairDoc && Object.keys(forms).length > 0;
+  const locked = viewer.kind === 'examiner'
+    ? (chairDoc || legacy ? null : { he: 'הבוחנים אינם ממלאים ציונים. יו"ר הבחינה (המנחה) ממלא את הטופס לאחר הבחינה, ואז תתבקש/י לחתום עליו.', en: "Examiners don't fill in grades. The exam's chairman (the supervisor) fills the form after the exam; you'll then be asked to sign it." })
+    : viewer.kind === 'supervisor'
+      ? (chairDoc || gate.open || legacySupervisor || supervisorGradeOpen(exam) ? null : { he: gate.he, en: gate.en })
+      : (chairDoc || legacy ? null : { he: 'יו"ר הבחינה (המנחה) טרם שלח את הטופס.', en: "The exam's chairman (the supervisor) hasn't sent the form yet." });
   return {
     milestoneId,
     viewerKind: viewer.kind,
@@ -1668,80 +1738,266 @@ export async function buildExamFormView(milestoneId: string, viewer: ExamFormVie
     header: await examFormHeader(milestone, exam),
     status: exam.status,
     canEdit,
+    canSign,
+    // Older exams: the supervisor's separate research grade is still open.
+    legacyResearchOpen: viewer.kind === 'supervisor' && supervisorGradeOpen(exam) && !supervisorGrade,
     lockedReasonHe: locked?.he ?? null,
     lockedReasonEn: locked?.en ?? null,
+    chair,
+    signatures,
+    signedCount: signatures.filter((s) => s.signed).length,
+    // ── Older exams (the examiners filled their own forms) ──
+    legacy,
     submittedCount: Object.keys(forms).length,
     examinerCount: exam.examiners.length,
     mine: viewer.kind === 'examiner' && forms[viewer.key] ? strip(forms[viewer.key]!) : null,
-    supervisorGrade: viewer.kind === 'supervisor' || viewer.kind === 'reviewer' ? supervisorView : null,
-    summary: viewer.kind === 'reviewer' ? computeExamGradeSummary(exam, forms, supervisorGrade) : null,
-    all: viewer.kind === 'reviewer'
+    supervisorGrade: viewer.kind === 'supervisor' || viewer.kind === 'reviewer' ? legacySupervisor : null,
+    summary: viewer.kind === 'reviewer' && legacy ? computeExamGradeSummary(exam, forms, supervisorGrade) : null,
+    all: viewer.kind === 'reviewer' && legacy
       ? exam.examiners.map((e, index) => ({ index, name: e.name, submitted: !!forms[e.key], form: forms[e.key] ? strip(forms[e.key]!) : null }))
       : null,
   };
 }
 
-export async function submitExamForm(milestoneId: string, examiner: { key: string; name: string; external: boolean }, raw: unknown): Promise<{ allIn: boolean }> {
+// ── The chairman's form → the examiners' signatures ─────────────────────────
+
+/** `thesisExamSignTokens/{token}` → { milestoneId, key }: the link each
+ *  examiner gets by email. Server-only. */
+export const THESIS_EXAM_SIGN_TOKENS = 'thesisExamSignTokens';
+/** PROVISIONAL (not set by the faculty): an examiner who hasn't signed this
+ *  long after the form was sent → urgent alert to the administrative
+ *  coordinator, repeated at the same interval while unsigned. */
+export const SIGN_ALERT_HOURS = 24;
+
+function signLink(token: string): string {
+  const base = process.env.EXAMINER_ACCESS_BASE_URL || WEBSITE_URL;
+  return `${base}/exam-sign/${encodeURIComponent(token)}`;
+}
+
+async function studentNamesOf(milestone: FirebaseFirestore.DocumentData): Promise<string> {
+  return (await Promise.all(((milestone.studentIds ?? []) as string[]).map(userName))).join(', ');
+}
+
+/** How to reach an examiner: an outside one by the nomination's email, an
+ *  internal one by their profile (phone from the private contact store). */
+export async function examinerContact(e: ThesisExamDoc['examiners'][number]): Promise<{ email: string | null; phone: string | null; institution: string | null; external: boolean }> {
+  if (e.type === 'external' || !e.uid) return { email: e.email ?? null, phone: null, institution: e.institution ?? null, external: true };
+  const profile = (await db.collection('users').doc(e.uid).get()).data() ?? {};
+  const phone = (await getPrivateContact(e.uid, profile)).phoneNumber ?? null;
+  return { email: (profile.email as string | undefined) ?? e.email ?? null, phone, institution: e.institution ?? null, external: false };
+}
+
+/** Emails one examiner the "please sign" link (and, for an app user, adds
+ *  an in-app task). */
+async function sendSignRequest(exam: ThesisExamDoc, milestone: FirebaseFirestore.DocumentData, examiner: ThesisExamDoc['examiners'][number], token: string, opts: { reminder?: boolean } = {}): Promise<void> {
+  const students = await studentNamesOf(milestone);
+  const date = exam.schedule ? formatDay(exam.schedule.date) : '';
+  const copy: Copy = {
+    titleHe: `${opts.reminder ? 'תזכורת: ' : ''}נא לחתום על טופס הבחינה`,
+    titleEn: `${opts.reminder ? 'Reminder: ' : ''}Please sign the exam form`,
+    bodyHe: `נא לחתום על טופס הבחינה שזה עתה ביצעת על ${students} בתאריך ${date}.`,
+    bodyEn: `Please sign the exam form of the exam you just held for ${students} on ${date}.`,
+  };
+  const contact = await examinerContact(examiner);
+  if (contact.email) {
+    await sendNotificationEmail({
+      toEmail: contact.email,
+      type: 'thesis_exam_update',
+      lang: 'he',
+      data: { name: examiner.name, subject: copy.titleHe, message: copy.bodyHe, link: signLink(token), linkLabel: 'לחתימה על הטופס' },
+    }).catch((err) => console.error(`thesisExam: sign email to ${examiner.name} failed on ${exam.milestoneId}:`, err));
+  }
+  if (examiner.uid) {
+    await notifyUser({
+      recipientId: examiner.uid,
+      type: 'thesis_exam_update',
+      inAppType: 'thesis_exam_action_needed',
+      ...copy,
+      relatedProjectId: exam.projectId,
+      relatedMilestoneId: exam.milestoneId,
+      targetScreen: 'thesis_exam',
+      // The email above already carries the sign link.
+      channels: { email: false, sms: false, whatsapp: false },
+    }).catch((err) => console.error(`thesisExam: notify examiner failed on ${exam.milestoneId}:`, err));
+  }
+}
+
+const newSignToken = () => crypto.randomBytes(24).toString('base64url');
+
+/** The supervisor — the exam's chairman — fills and sends the exam form
+ *  (research 40 / writing 40 / defense 20). Sending is the chairman's
+ *  signature; every examiner then gets an email asking them to sign. */
+export async function submitChairExamForm(milestoneId: string, supervisor: { uid: string; name: string }, raw: unknown): Promise<void> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
-  const { exam } = loaded;
-  if (!exam.examiners.some((e) => e.key === examiner.key)) {
-    throw new ThesisExamError('רק בוחן/ת של בחינה זו רשאי/ת למלא את הטופס.', 'Only an examiner of this exam may fill in the form.', 403);
+  const { exam, milestone } = loaded;
+  if (![milestone.supervisorId, milestone.secondarySupervisorId].includes(supervisor.uid)) {
+    throw new ThesisExamError('רק מנחה הפרויקט (יו"ר הבחינה) רשאי/ת למלא את טופס הבחינה.', "Only the project's supervisor (the exam's chairman) may fill in the exam form.", 403);
   }
   const gate = examFormGate(exam);
   if (!gate.open) throw new ThesisExamError(gate.he, gate.en, 409);
-
-  const body = (raw ?? {}) as { ratings?: Record<string, unknown>; comments?: unknown; components?: Record<string, unknown> };
-  const ratings: Record<string, number> = {};
-  for (const q of CS_THESIS_EXAM_FORM.questions) {
-    const v = Number(body.ratings?.[q.key]);
-    if (!Number.isInteger(v) || v < 1 || v > 10) throw new ThesisExamError('יש לדרג כל שאלה בין 1 ל-10.', 'Rate every question from 1 to 10.');
-    ratings[q.key] = v;
-  }
-  // The examiner fills only the components they own; anything else in the
-  // body (research = the supervisor's, defense = computed) is ignored.
-  const components: Record<string, number> = {};
-  for (const c of CS_THESIS_EXAM_FORM.gradeComponents.filter((g) => g.source === 'examiner')) {
+  const body = (raw ?? {}) as { components?: Record<string, unknown>; comments?: unknown };
+  const values: Record<'research' | 'writing' | 'defense', number> = { research: 0, writing: 0, defense: 0 };
+  for (const c of CS_THESIS_EXAM_FORM.gradeComponents) {
     const v = Number(body.components?.[c.key]);
     if (!Number.isFinite(v) || v < 1 || v > 100) throw new ThesisExamError(`יש לתת ציון בין 1 ל-100 ל"${c.labelHe}".`, `Give "${c.labelEn}" a score from 1 to 100.`);
-    components[c.key] = Math.round(v * 10) / 10;
+    values[c.key] = round1(v);
   }
   const comments = typeof body.comments === 'string' ? body.comments.trim().slice(0, 20000) : '';
-  const defenseContribution = defenseContributionOf(ratings);
   const signature = await signEvaluation({
     milestoneId,
-    signerUid: examiner.key,
+    signerUid: supervisor.uid,
+    signerName: supervisor.name,
+    role: 'supervisor',
+    positionHe: 'מנחה — יו"ר הבחינה',
+    positionEn: 'Supervisor — exam chairman',
+    facultyId: exam.facultyId,
+    scores: { thesisExamChairForm: { ...values, comments } },
+  });
+  const now = new Date().toISOString();
+  const stored: StoredSupervisorExamGrade = { milestoneId, supervisorUid: supervisor.uid, supervisorName: supervisor.name, ...values, comments, chairForm: true, submittedAt: now, signature };
+  const tokens = Object.fromEntries(exam.examiners.map((e) => [e.key, newSignToken()]));
+  const next = exam.examiners.length === 0 ? EXAM_GRADES_PENDING : EXAM_SIGNATURES;
+  const ref = db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, SUPERVISOR_GRADE_KEY));
+  await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_SCHEDULED) throw new ThesisExamError('הטופס כבר נשלח.', 'The form was already sent.', 409);
+    const previous = await tx.get(ref);
+    if (previous.exists && (previous.data() as StoredSupervisorExamGrade).chairForm) throw new ThesisExamError('הטופס כבר נשלח.', 'The form was already sent.', 409);
+    // A research-only grade given under the previous system is kept aside.
+    if (previous.exists) tx.set(db.collection(THESIS_EXAM_FORM_HISTORY).doc(`${formDocId(milestoneId, SUPERVISOR_GRADE_KEY)}__pre_chair`), { ...previous.data(), replacedAt: now });
+    tx.set(ref, stored);
+    Object.entries(tokens).forEach(([key, token]) => tx.set(db.collection(THESIS_EXAM_SIGN_TOKENS).doc(token), { milestoneId, key, createdAt: now }));
+    tx.update(examRef(milestoneId), { status: next, chairFormSubmittedAt: now, examinerSignatures: {}, unsignedAlertSentAt: {}, signTokens: tokens, updatedAt: now });
+    tx.update(db.collection('milestones').doc(milestoneId), { status: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+  if (next === EXAM_GRADES_PENDING) { await advanceExamGrading(milestoneId); return; }
+  await Promise.all(exam.examiners.map((e) => sendSignRequest({ ...exam, status: next }, milestone, e, tokens[e.key]!)));
+}
+
+/** One examiner signs the chairman's form — from the email link, the app or
+ *  the outside examiner's access page. The last signature sends the grade on
+ *  to the grad school head (advanceExamGrading). */
+export async function signChairExamForm(milestoneId: string, key: string, via: ExaminerFormSignature['via']): Promise<{ allIn: boolean }> {
+  const loaded = await loadExam(milestoneId);
+  if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
+  const { exam, milestone } = loaded;
+  const examiner = exam.examiners.find((e) => e.key === key);
+  if (!examiner) throw new ThesisExamError('רק בוחן/ת של בחינה זו רשאי/ת לחתום על הטופס.', 'Only an examiner of this exam may sign the form.', 403);
+  if (exam.examinerSignatures?.[key]) throw new ThesisExamError('כבר חתמת על הטופס.', 'You already signed the form.', 409);
+  if (exam.status !== EXAM_SIGNATURES) throw new ThesisExamError('הטופס אינו ממתין לחתימתך.', "The form isn't awaiting your signature.", 409);
+  const chair = await loadSupervisorExamGrade(milestoneId);
+  if (!chair?.chairForm) throw new ThesisExamError('יו"ר הבחינה טרם שלח את הטופס.', "The exam's chairman hasn't sent the form yet.", 409);
+  const signature = await signEvaluation({
+    milestoneId,
+    signerUid: key,
     signerName: examiner.name,
     role: 'examiner',
-    positionHe: 'שופט/ת',
-    positionEn: 'Judge',
+    positionHe: 'בוחן/ת — חתימה על טופס הבחינה',
+    positionEn: 'Examiner — signature on the exam form',
     facultyId: exam.facultyId,
-    scores: { thesisExamForm: { ratings, comments, components, defenseContribution } },
+    scores: { thesisExamChairFormSigned: { research: chair.research, writing: chair.writing ?? null, defense: chair.defense ?? null } },
   });
-  const stored: StoredExamForm = { milestoneId, key: examiner.key, examinerName: examiner.name, external: examiner.external, ratings, comments, components, defenseContribution, submittedAt: new Date().toISOString(), signature };
-
-  // One submission per examiner, and "was that the last one?" decided once.
+  const now = new Date().toISOString();
   const allIn = await db.runTransaction(async (tx) => {
-    const ref = db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, examiner.key));
     const fresh = (await tx.get(examRef(milestoneId))).data() as ThesisExamDoc | undefined;
-    if (!fresh || fresh.status !== EXAM_SCHEDULED) throw new ThesisExamError('הטופס נעול.', 'The form is locked.', 409);
-    const otherRefs = fresh.examiners.filter((e) => e.key !== examiner.key).map((e) => db.collection(THESIS_EXAM_FORMS).doc(formDocId(milestoneId, e.key)));
-    const [mine, ...others] = await tx.getAll(ref, ...otherRefs);
-    if (mine!.exists) throw new ThesisExamError('כבר הגשת את הטופס.', 'You already submitted the form.', 409);
-    tx.set(ref, stored);
-    const done = others.every((o) => o.exists);
-    if (done) {
-      tx.update(examRef(milestoneId), { status: EXAM_GRADES_PENDING, updatedAt: new Date().toISOString() });
-      tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_GRADES_PENDING, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-    }
+    if (!fresh || fresh.status !== EXAM_SIGNATURES) throw new ThesisExamError('הטופס אינו ממתין לחתימתך.', "The form isn't awaiting your signature.", 409);
+    if (fresh.examinerSignatures?.[key]) throw new ThesisExamError('כבר חתמת על הטופס.', 'You already signed the form.', 409);
+    const examinerSignatures: Record<string, ExaminerFormSignature> = { ...(fresh.examinerSignatures ?? {}), [key]: { name: examiner.name, signedAt: now, via, signature } };
+    const done = fresh.examiners.every((e) => !!examinerSignatures[e.key]);
+    tx.update(examRef(milestoneId), { examinerSignatures, ...(done ? { status: EXAM_GRADES_PENDING } : {}), updatedAt: now });
+    if (done) tx.update(db.collection('milestones').doc(milestoneId), { status: EXAM_GRADES_PENDING, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return done;
   });
-  if (allIn) await advanceExamGrading(milestoneId);
+  if (allIn) {
+    const title = projectTitle(await projectOf(milestone.projectId));
+    await notifyUsers([milestone.supervisorId, milestone.secondarySupervisorId].filter(Boolean) as string[], exam, {
+      titleHe: 'כל הבוחנים חתמו על טופס הבחינה',
+      titleEn: 'Every examiner signed the exam form',
+      bodyHe: `טופס הבחינה של התזה "${title.he}" נחתם על ידך ועל ידי כל הבוחנים, ועובר לאישור ראש בית הספר ללימודים מתקדמים.`,
+      bodyEn: `The exam form of the thesis "${title.en}" was signed by you and every examiner, and goes to the grad school head for approval.`,
+    });
+    await advanceExamGrading(milestoneId);
+  }
   return { allIn };
 }
 
-/** The supervisor's research grade (40%). Only the project's supervisor (or
- *  additional supervisor); once, signed — like the examiners' forms. */
+/** The email link: which exam + examiner a sign token stands for. */
+export async function resolveSignToken(token: string): Promise<{ milestoneId: string; key: string } | null> {
+  if (!token || token.length > 100 || token.includes('/')) return null;
+  const snap = await db.collection(THESIS_EXAM_SIGN_TOKENS).doc(token).get();
+  if (!snap.exists) return null;
+  const d = snap.data()!;
+  return typeof d.milestoneId === 'string' && typeof d.key === 'string' ? { milestoneId: d.milestoneId, key: d.key } : null;
+}
+
+/** Examiners who still haven't signed (names + contact) — for the
+ *  administrative coordinator's card. */
+export async function unsignedExaminers(exam: ThesisExamDoc) {
+  if (exam.status !== EXAM_SIGNATURES) return [];
+  return Promise.all(exam.examiners.filter((e) => !exam.examinerSignatures?.[e.key]).map(async (e) => ({
+    name: e.name,
+    ...(await examinerContact(e)),
+    alertedAt: exam.unsignedAlertSentAt?.[e.key] ?? null,
+  })));
+}
+
+/** Sweep: an examiner still hasn't signed SIGN_ALERT_HOURS after the form
+ *  was sent → urgent alert to the administrative coordinator with what the
+ *  system knows about them, plus a reminder email to the examiner. Repeats
+ *  every SIGN_ALERT_HOURS while unsigned. */
+export async function alertUnsignedExaminers(exam: ThesisExamDoc): Promise<void> {
+  if (exam.status !== EXAM_SIGNATURES || !exam.chairFormSubmittedAt) return;
+  if (dayjs().diff(dayjs(exam.chairFormSubmittedAt), 'hour', true) < SIGN_ALERT_HOURS) return;
+  const due = exam.examiners.filter((e) => {
+    if (exam.examinerSignatures?.[e.key]) return false;
+    const last = exam.unsignedAlertSentAt?.[e.key];
+    return !last || dayjs().diff(dayjs(last), 'hour', true) >= SIGN_ALERT_HOURS;
+  });
+  if (due.length === 0) return;
+  const now = new Date().toISOString();
+  const claimed = await db.runTransaction(async (tx) => {
+    const fresh = (await tx.get(examRef(exam.milestoneId))).data() as ThesisExamDoc | undefined;
+    if (!fresh || fresh.status !== EXAM_SIGNATURES) return false;
+    if (JSON.stringify(fresh.unsignedAlertSentAt ?? {}) !== JSON.stringify(exam.unsignedAlertSentAt ?? {})) return false;
+    tx.update(examRef(exam.milestoneId), { unsignedAlertSentAt: { ...(fresh.unsignedAlertSentAt ?? {}), ...Object.fromEntries(due.map((e) => [e.key, now])) } });
+    return true;
+  });
+  if (!claimed) return;
+  const milestone = (await db.collection('milestones').doc(exam.milestoneId).get()).data() ?? {};
+  const title = projectTitle(await projectOf(exam.projectId));
+  const students = await studentNamesOf(milestone);
+  const date = exam.schedule ? formatDay(exam.schedule.date) : '';
+  const coordinators = await adminCoordinatorIds(exam.scope);
+  for (const e of due) {
+    const c = await examinerContact(e);
+    const detailsHe = [
+      `שם: ${e.name}`,
+      `סוג: ${c.external ? 'בוחן/ת חיצוני/ת' : 'בוחן/ת פנימי/ת'}`,
+      c.institution ? `מוסד: ${c.institution}` : null,
+      `דוא"ל: ${c.email ?? 'לא ידוע'}`,
+      `טלפון: ${c.phone ?? 'לא ידוע'}`,
+    ].filter(Boolean).join(' · ');
+    const detailsEn = [
+      `Name: ${e.name}`,
+      `Type: ${c.external ? 'outside examiner' : 'internal examiner'}`,
+      c.institution ? `Institution: ${c.institution}` : null,
+      `Email: ${c.email ?? 'unknown'}`,
+      `Phone: ${c.phone ?? 'unknown'}`,
+    ].filter(Boolean).join(' · ');
+    await notifyUsers(coordinators, exam, {
+      titleHe: `דחוף: בוחן/ת לא חתם/ה על טופס הבחינה — ${e.name}`,
+      titleEn: `Urgent: an examiner hasn't signed the exam form — ${e.name}`,
+      bodyHe: `${e.name} לא חתם/ה על טופס בחינת התזה "${title.he}" (${students}, ${date}). הציון לא יעבור לאישור עד שכל הבוחנים יחתמו. פרטי הבוחן/ת: ${detailsHe}.`,
+      bodyEn: `${e.name} hasn't signed the exam form of the thesis "${title.en}" (${students}, ${date}). The grade can't go on for approval until every examiner signs. Examiner details: ${detailsEn}.`,
+    }, { pending: true });
+    const token = exam.signTokens?.[e.key];
+    if (token) await sendSignRequest(exam, milestone, e, token, { reminder: true });
+  }
+}
+
+/** OLDER EXAMS ONLY (examiners filled forms before 2026-11-23): the
+ *  supervisor's separate research grade (40%). */
 export async function submitSupervisorExamGrade(milestoneId: string, supervisor: { uid: string; name: string }, raw: unknown): Promise<void> {
   const loaded = await loadExam(milestoneId);
   if (!loaded) throw new ThesisExamError('בחינת התזה לא נמצאה.', 'Thesis exam not found.', 404);
@@ -1810,8 +2066,15 @@ export async function buildExamGradeBreakdown(exam: ThesisExamDoc, milestone: Fi
   const students = await Promise.all(studentIds.map(async (id) => ({ id, name: await userName(id) })));
   const siblings = siblingsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as FirebaseFirestore.DocumentData & { id: string });
   const missing: Array<{ he: string; en: string }> = [];
-  if (summary.research == null) missing.push({ he: 'ציון המחקר של המנחה (40%)', en: "The supervisor's research grade (40%)" });
-  if (!exam.examiners.every((e) => !!forms[e.key])) missing.push({ he: 'טופס של כל הבוחנים', en: "Every examiner's form" });
+  if (supervisorGrade?.chairForm) {
+    if (exam.examiners.some((e) => !exam.examinerSignatures?.[e.key])) missing.push({ he: 'חתימת כל הבוחנים על טופס הבחינה', en: "Every examiner's signature on the exam form" });
+  } else if (exam.chairFormSubmittedAt || Object.keys(forms).length === 0) {
+    missing.push({ he: 'טופס הבחינה של יו"ר הבחינה (המנחה)', en: "The exam chairman's (supervisor's) exam form" });
+  } else {
+    // Older exams: the examiners' forms + the supervisor's research grade.
+    if (summary.research == null) missing.push({ he: 'ציון המחקר של המנחה (40%)', en: "The supervisor's research grade (40%)" });
+    if (!exam.examiners.every((e) => !!forms[e.key])) missing.push({ he: 'טופס של כל הבוחנים', en: "Every examiner's form" });
+  }
 
   const rows: ExamGradeBreakdownRow[] = [...template]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -1880,15 +2143,15 @@ export async function advanceExamGrading(milestoneId: string): Promise<void> {
       await notifyUsers(supervisors, exam, {
         titleHe: 'יש לתת את ציון המחקר',
         titleEn: 'Give the research grade',
-        bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הציון הסופי יחושב ויעבור לאישור ראש בית הספר ללימודים מתקדמים לאחר שתיתן/י את ציון המחקר (40%).`,
+        bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הציון הסופי יחושב ויעבור לאישור ראש בית הספר ללימודים מתקדמים לאחר שתיתן/י את ציון המחקר (40%).`, // older exams only
         bodyEn: `The examiners submitted their forms on "${title.en}". The final grade is computed and sent to the grad school head once you give the research grade (40%).`,
       }, { pending: true });
     }
     await notifyUsers([...supervisors, ...(milestone.studentIds ?? [])], exam, {
       titleHe: 'הבחינה הסתיימה — הציון הסופי בחישוב',
       titleEn: 'Exam finished — the final grade is being completed',
-      bodyHe: `הבוחנים הגישו את הטפסים על התזה "${title.he}". הציון הסופי יחושב ויעבור לאישור.`,
-      bodyEn: `The examiners submitted their forms on "${title.en}". The final grade will be computed and sent for approval.`,
+      bodyHe: `טופס הבחינה של התזה "${title.he}" הושלם. הציון הסופי יחושב ויעבור לאישור כשכל ציוני אבני הדרך יתקבלו.`,
+      bodyEn: `The exam form of "${title.en}" is complete. The final grade will be computed and sent for approval once every milestone grade is in.`,
     });
     return;
   }
@@ -2163,7 +2426,8 @@ export async function submitSupervisorGradeFix(milestoneId: string, supervisor: 
     if (!fresh || fresh.status !== EXAM_SUPERVISOR_FIX) throw new ThesisExamError('התיקון כבר נשלח.', 'The fix was already sent.', 409);
     const previous = await tx.get(ref);
     if (previous.exists) tx.set(db.collection(THESIS_EXAM_FORM_HISTORY).doc(`${formDocId(milestoneId, SUPERVISOR_GRADE_KEY)}__fix${round}`), { ...previous.data(), replacedAt: now, fixRound: round });
-    const stored: StoredSupervisorExamGrade = { milestoneId, supervisorUid: supervisor.uid, supervisorName: supervisor.name, research, submittedAt: now, signature };
+    // The chairman's form keeps its writing/defense — only research is fixed.
+    const stored: StoredSupervisorExamGrade = { ...(previous.exists ? previous.data() as StoredSupervisorExamGrade : {}), milestoneId, supervisorUid: supervisor.uid, supervisorName: supervisor.name, research, submittedAt: now, signature };
     tx.set(ref, stored);
     tx.update(examRef(milestoneId), {
       status: EXAM_FIX_COMMITTEE_REVIEW,
@@ -2307,13 +2571,15 @@ export async function sweepThesisExams(): Promise<void> {
   const projectIds = new Set(pending.docs.map((d) => d.data().projectId as string));
   for (const pid of projectIds) await maybeOpenThesisExamForProject(pid).catch((err) => console.error('sweepThesisExams open:', err));
 
-  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_COORDINATOR_APPROVAL]).get();
+  const active = await db.collection(THESIS_EXAMS).where('status', 'in', [EXAM_AVAILABILITY, EXAM_DATE_COORDINATOR, EXAM_DATE_REVIEW, EXAM_DATE_FINAL_REVIEW, EXAM_SCHEDULED, EXAM_SIGNATURES, EXAM_COMMITTEE_REVIEW, EXAM_GRADES_PENDING, EXAM_COORDINATOR_APPROVAL]).get();
   const today = todayInIsrael();
   for (const doc of active.docs) {
     const exam = doc.data() as ThesisExamDoc;
     try {
       if (exam.status === EXAM_COORDINATOR_APPROVAL) {
         await remindCoordinatorFinalApproval(exam);
+      } else if (exam.status === EXAM_SIGNATURES) {
+        await alertUnsignedExaminers(exam);
       } else if (exam.status === EXAM_COMMITTEE_REVIEW || exam.status === EXAM_GRADES_PENDING) {
         // Backstop for a missed hook, a grade given elsewhere, and exams
         // left at the retired committee step.
@@ -2342,15 +2608,17 @@ export async function sweepThesisExams(): Promise<void> {
           await handToCoordinator(exam.milestoneId, 'slots_passed');
         }
       } else if (exam.status === EXAM_SCHEDULED && exam.schedule && slotHasStarted(exam.schedule) && exam.opinionReminderSentFor !== exam.schedule.date) {
+        // The supervisor chairs the exam and fills the form; the examiners
+        // only sign it afterwards.
         await doc.ref.update({ opinionReminderSentFor: exam.schedule.date });
-        const examinerKeys = exam.participants.filter((p) => p.roles.includes('examiner')).map((p) => p.key);
+        const ms = (await db.collection('milestones').doc(exam.milestoneId).get()).data() ?? {};
         const title = projectTitle(await projectOf(exam.projectId));
-        await notifyParticipants(exam, {
-          titleHe: 'יש למלא את טופס הבוחן',
-          titleEn: "Fill in the examiner's form",
-          bodyHe: `בחינת התזה "${title.he}" התחילה — טופס הבוחן פתוח למילוי.`,
-          bodyEn: `The thesis exam "${title.en}" has started — the examiner's form is open.`,
-        }, { pending: true, onlyKeys: examinerKeys });
+        await notifyUsers([ms.supervisorId, ms.secondarySupervisorId].filter(Boolean) as string[], exam, {
+          titleHe: 'יש למלא את טופס הבחינה (יו"ר הבחינה)',
+          titleEn: 'Fill in the exam form (exam chairman)',
+          bodyHe: `בחינת התזה "${title.he}" התחילה. כיו"ר הבחינה, יש למלא את טופס הבחינה בתום הבחינה: חוות דעת המנחה (40%), ציון כתיבת התזה שסוכם עם הבוחנים (40%) ומבחן ההגנה (20%). לאחר השליחה הבוחנים יתבקשו לחתום.`,
+          bodyEn: `The thesis exam "${title.en}" has started. As the exam's chairman, fill in the exam form when it ends: the supervisor's opinion (40%), the thesis writing grade agreed with the examiners (40%) and the defense exam (20%). The examiners are then asked to sign.`,
+        }, { pending: true });
       }
     } catch (err) {
       console.error(`sweepThesisExams: ${exam.milestoneId} failed:`, err);
