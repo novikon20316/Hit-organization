@@ -978,6 +978,11 @@ export interface StudentVisibleStaffRecord {
 export interface Milestone {
   id:          string;
   type:        MilestoneType;
+  /** Sequential due date not set yet — it starts counting when the previous
+   *  milestone finishes (server services/relativeDueDates.ts; students
+   *  imported part-way through their project). `dueDate` meanwhile holds
+   *  only a provisional value and shouldn't be shown as a deadline. */
+  dueDateWaitsForPrevious?: boolean;
   /** Snapshotted from the workflow template at enrollment — the only real
    *  name a custom (`custom_xxxxx`-typed) milestone has; MILESTONE_LABEL
    *  maps only cover the 5 legacy built-in types. See

@@ -15,6 +15,7 @@
 import crypto from 'crypto';
 import { db } from '../config/firebase.js';
 import { FieldValue, type DocumentData } from 'firebase-admin/firestore';
+import { noteMilestoneForRelativeDueDates } from './relativeDueDates.js';
 
 const BUMP_DEBOUNCE_MS = 1500;
 const RESTART_DELAY_MS = 30_000;
@@ -71,6 +72,9 @@ export function startMilestoneChangeWatcher(): void {
     (snap) => {
       for (const change of snap.docChanges()) {
         const prev = known.get(change.doc.id);
+        // Sequential due dates (relativeDueDates.ts) ride on this same
+        // listener, so a milestone finishing through any path is seen.
+        noteMilestoneForRelativeDueDates(change.doc.id, change.type === 'removed' ? null : change.doc.data());
         if (change.type === 'removed') {
           known.delete(change.doc.id);
           if (initialized && prev) bump(prev.uids);

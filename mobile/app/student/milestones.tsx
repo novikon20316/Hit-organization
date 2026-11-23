@@ -210,10 +210,16 @@ export default function StudentMilestones() {
                       : isCurrent ? studentPalette.statusInProgressBg
                       : studentPalette.statusUpcomingBg;
 
-                    const dueLabel = isDefense
+                    // A sequential due date that hasn't started yet: it's set
+                    // when the previous milestone finishes — the stored date is
+                    // only provisional, so don't present it as a deadline.
+                    const waitsForPrevious = !!m.dueDateWaitsForPrevious;
+                    const dueLabel = waitsForPrevious
+                      ? (lang === 'he' ? 'בסיום הקודמת' : 'After previous')
+                      : isDefense
                       ? (toDate(m.defenseDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short' }) ?? (lang === 'he' ? 'טרם נקבע' : 'Not set'))
                       : (toDate(m.dueDate)?.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', { day: 'numeric', month: 'short' }) ?? '—');
-                    const days = daysUntil(m.dueDate);
+                    const days = waitsForPrevious ? null : daysUntil(m.dueDate);
 
                     return (
                       <View

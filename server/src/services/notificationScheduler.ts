@@ -108,6 +108,9 @@ export async function sendMilestoneDeadlineReminders(): Promise<void> {
     const data = doc.data();
     const dueDate: Date | null = data.dueDate?.toDate?.() ?? null;
     if (!dueDate) continue;
+    // Sequential due date not started yet (relativeDueDates.ts): the stored
+    // date is provisional — no deadline reminders until it's really set.
+    if (data.dueDateWaitsForPrevious) continue;
 
     const studentIds: string[] = data.studentIds ?? [];
     if (studentIds.length === 0) continue;

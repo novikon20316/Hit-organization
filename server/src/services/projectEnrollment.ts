@@ -15,6 +15,7 @@ import {
 } from './workflowTemplates.js';
 import { notifyUser } from './notify.js';
 import { logProjectRecordEntry } from './projectRecords.js';
+import { relativeDurationDays, addDaysAtDueTime } from './relativeDueDates.js';
 
 // Students may now have several open applications at once — this closes out
 // every OTHER one the instant any of the three enrollment surfaces below
@@ -274,13 +275,32 @@ export async function enrollStudentInProject(
     const baseDate = imported?.startDate ?? new Date();
     // Template order decides which milestones an imported student already
     // finished (the first `completedMilestones` of them).
+    const orderedSpecs = [...milestoneTemplates].sort((a, b) => a.order - b.order);
     const doneTypes = new Set(
       imported && imported.completedMilestones > 0
-        ? [...milestoneTemplates].sort((a, b) => a.order - b.order).slice(0, imported.completedMilestones).map((t) => t.type)
+        ? orderedSpecs.slice(0, imported.completedMilestones).map((t) => t.type)
         : []
     );
+    // Imported students get sequential due dates (see relativeDueDates.ts):
+    // the milestone they're on is due now + its own duration; each later one
+    // waits for the previous to finish (provisional date chained meanwhile).
+    // Finished milestones keep their historical start-based dates. A
+    // fixed-date milestone keeps its fixed date either way.
+    const importedDates = new Map<string, { due: Date; relativeDueDays: number; waits: boolean }>();
+    if (imported) {
+      let prev: Date | null = null;
+      orderedSpecs.forEach((t, i) => {
+        if (i < imported.completedMilestones || (t.dateMode === 'fixed' && t.fixedDate)) return;
+        const days = relativeDurationDays(orderedSpecs, i);
+        const isCurrent = i === imported.completedMilestones;
+        const due = addDaysAtDueTime(isCurrent || !prev ? new Date() : prev, days);
+        importedDates.set(t.type, { due, relativeDueDays: days, waits: !isCurrent });
+        prev = due;
+      });
+    }
     for (const t of milestoneTemplates) {
-      const dueDate = resolveMilestoneDueDate(t, baseDate, milestoneTemplates);
+      const importedDate = importedDates.get(t.type);
+      const dueDate = importedDate?.due ?? resolveMilestoneDueDate(t, baseDate, milestoneTemplates);
       const milestoneRef = db.collection('milestones').doc();
       const routing = resolveMilestoneRouting(t, templateDefaultRouting);
       const importedDone = doneTypes.has(t.type);
@@ -382,6 +402,10 @@ export async function enrollStudentInProject(
         // Finished before the student was brought into the system: closed
         // as approved, past every chain stage, grade still missing — staff
         // enter it via POST /api/milestones/:id/imported-grade.
+        ...(importedDate ? {
+          relativeDueDays: importedDate.relativeDueDays,
+          dueDateWaitsForPrevious: importedDate.waits,
+        } : {}),
         ...(importedDone ? {
           status: 'coordinator_approved',
           currentStageIndex: routing.length,

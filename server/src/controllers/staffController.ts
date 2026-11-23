@@ -62,7 +62,9 @@ export const getDeadLines = async (req: AuthenticatedRequest, res: Response) => 
         const deadlines = deadlinesSnapshot.docs.map(doc => {
             const data = doc.data();
             const dueDate = data.dueDate?.toDate?.() ?? null;
-            const daysLeft = dueDate ? Math.ceil((dueDate.getTime() - now) / DAY_MS) : null;
+            // A sequential due date still waiting for the previous milestone
+            // (services/relativeDueDates.ts) is provisional — never "late".
+            const daysLeft = dueDate && !data.dueDateWaitsForPrevious ? Math.ceil((dueDate.getTime() - now) / DAY_MS) : null;
             return {
                 id: doc.id,
                 ...data,

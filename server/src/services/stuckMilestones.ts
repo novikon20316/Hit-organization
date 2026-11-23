@@ -338,7 +338,9 @@ export async function sweepStuckMilestones(): Promise<void> {
       // "entered this stage" timestamp the doc has).
       let since: FirebaseFirestore.Timestamp | null;
       if (m.status === 'pending') {
-        since = m.dueDate ?? null;
+        // A sequential due date still waiting for the previous milestone
+        // (relativeDueDates.ts) is only provisional — nothing is late yet.
+        since = m.dueDateWaitsForPrevious ? null : (m.dueDate ?? null);
       } else if (watch && watch.linkKey === linkKey) {
         since = watch.since;
       } else if (!watch) {
@@ -470,7 +472,7 @@ export async function listDueSoonMilestones(uid: string, isAdmin: boolean, now =
     .get();
   const candidates = snap.docs.filter((d) => {
     const m = d.data();
-    return (m.status === 'pending' || m.status === 'rejected') && !!m.projectId;
+    return (m.status === 'pending' || m.status === 'rejected') && !!m.projectId && !m.dueDateWaitsForPrevious;
   });
   if (candidates.length === 0) return [];
 
