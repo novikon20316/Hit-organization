@@ -103,6 +103,8 @@ interface StudentMilestoneRow {
   /** Finished before the student was imported into the system — closed as
    *  done; only its grade is left (see ImportedGradeEntry). */
   importedAsDone?: boolean;
+  /** …and approve/reject only: no grade to enter. */
+  importedApprovalOnly?: boolean;
   opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
@@ -543,7 +545,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                     {/* Finished before the student joined the system: only
                         the grade is left — none of the actions below apply. */}
                     {m.importedAsDone && m.id && (
-                      <ImportedGradeEntry milestoneId={m.id} finalGrade={m.finalGrade} lang={lang} onSaved={refreshDetailSilently} />
+                      <ImportedGradeEntry milestoneId={m.id} finalGrade={m.finalGrade} approvalOnly={!!m.importedApprovalOnly} lang={lang} onSaved={refreshDetailSilently} />
                     )}
 
                     {!m.importedAsDone && m.type === 'research_proposal' && m.id && m.finalGrade == null && (() => {

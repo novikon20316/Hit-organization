@@ -99,7 +99,13 @@ export async function placeImportedStudent(uid: string, entry: RosterEntry): Pro
     await maybeOpenThesisExamForProject(projectRef.id).catch((err) =>
       console.error(`placeImportedStudent: thesis exam open check failed for ${projectRef.id}:`, err));
 
-    if (ip.completedMilestones > 0) {
+    // Only finished milestones that take a grade need anything from staff —
+    // approve-only ones (importedApprovalOnly) are simply done.
+    const gradesToEnter = ip.completedMilestones > 0
+      ? (await db.collection('milestones').where('projectId', '==', projectRef.id).where('importedAsDone', '==', true).get())
+          .docs.filter((d) => !d.data().importedApprovalOnly).length
+      : 0;
+    if (gradesToEnter > 0) {
       const studentName = entry.fullName;
       for (const recipientId of [ip.supervisorId, ip.secondarySupervisorId].filter((x): x is string => !!x)) {
         await notifyUser({
@@ -107,8 +113,8 @@ export async function placeImportedStudent(uid: string, entry: RosterEntry): Pro
           type: 'general',
           titleHe: 'סטודנט/ית הצטרף/ה באמצע הפרויקט — יש להזין ציונים',
           titleEn: 'Student joined mid-project — grades to enter',
-          bodyHe: `${studentName} נרשם/ה למערכת והוצב/ה בפרויקט "${ip.titleHe}" בנקודה שבה הוא/היא נמצא/ת. ${ip.completedMilestones} אבני דרך שכבר הושלמו סומנו כהושלמו — יש להזין להן ציון בכרטיס הפרויקט.`,
-          bodyEn: `${studentName} signed up and was placed in "${ip.titleEn}" where they actually are. ${ip.completedMilestones} milestone(s) already finished were closed as done — please enter their grades on the project card.`,
+          bodyHe: `${studentName} נרשם/ה למערכת והוצב/ה בפרויקט "${ip.titleHe}" בנקודה שבה הוא/היא נמצא/ת. ${gradesToEnter} אבני דרך שכבר הושלמו ממתינות לציון — יש להזין אותו בכרטיס הפרויקט.`,
+          bodyEn: `${studentName} signed up and was placed in "${ip.titleEn}" where they actually are. ${gradesToEnter} milestone(s) already finished still need a grade — please enter it on the project card.`,
           relatedProjectId: projectRef.id,
           targetScreen: 'supervisor_projects',
         }).catch((err) => console.error(`placeImportedStudent: notify ${recipientId} failed:`, err));

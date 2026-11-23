@@ -109,6 +109,19 @@ export interface ImportedProgress {
   completedMilestones: number;
 }
 
+/** Whether a milestone ends in a number at all, or is approve/reject only —
+ *  the same signals the grading flows themselves key on: a 'grade' step in
+ *  its approval chain, a final-grade evaluation form, an examiner opinion
+ *  form (the coordinator enters the grade), a thesis exam (the exam form
+ *  produces it), or a share of the final grade. */
+export function milestoneTakesGrade(spec: WorkflowMilestoneSpec, routing: Array<{ action?: string }>): boolean {
+  return routing.some((stage) => stage.action === 'grade')
+    || !!spec.finalGradeComponents
+    || !!spec.examinerOpinionForm
+    || !!spec.thesisExamFlow
+    || (spec.percentOfFinalGrade ?? 0) > 0;
+}
+
 export async function enrollStudentInProject(
   projectId: string,
   studentId: string,
@@ -399,18 +412,22 @@ export async function enrollStudentInProject(
         ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
         // See thesisExam.ts — opened when the previous milestone is approved.
         ...(t.thesisExamFlow ? { thesisExamFlow: true } : {}),
-        // Finished before the student was brought into the system: closed
-        // as approved, past every chain stage, grade still missing — staff
-        // enter it via POST /api/milestones/:id/imported-grade.
+        // Sequential due date for an imported student (relativeDueDates.ts).
         ...(importedDate ? {
           relativeDueDays: importedDate.relativeDueDays,
           dueDateWaitsForPrevious: importedDate.waits,
         } : {}),
+        // Finished before the student was brought into the system: closed
+        // as approved, past every chain stage. A milestone that takes a grade
+        // still needs one — staff enter it via POST
+        // /api/milestones/:id/imported-grade; an approve-only one (no grade
+        // step anywhere, see milestoneTakesGrade) is simply done.
         ...(importedDone ? {
           status: 'coordinator_approved',
           currentStageIndex: routing.length,
           coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
           importedAsDone: true,
+          ...(milestoneTakesGrade(t, routing) ? {} : { importedApprovalOnly: true }),
         } : {}),
       });
     }

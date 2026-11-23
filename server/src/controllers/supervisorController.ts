@@ -436,6 +436,8 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // closed as done; the grade is entered via POST
             // /api/milestones/:id/imported-grade (importedGradeController.ts).
             importedAsDone: !!m?.importedAsDone,
+            // …and approve/reject only — nothing left to enter.
+            importedApprovalOnly: !!m?.importedApprovalOnly,
             // Sequential due date not set yet — starts counting when the
             // previous milestone finishes (services/relativeDueDates.ts).
             dueDateWaitsForPrevious: !!m?.dueDateWaitsForPrevious,

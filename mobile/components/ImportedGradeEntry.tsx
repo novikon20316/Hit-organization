@@ -13,11 +13,13 @@ import type { Lang } from './i18n';
 interface Props {
   milestoneId: string;
   finalGrade: number | null;
+  /** Approve/reject only (importedApprovalOnly) — no grade; shown as approved. */
+  approvalOnly?: boolean;
   lang: Lang;
   onSaved: () => void;
 }
 
-export default function ImportedGradeEntry({ milestoneId, finalGrade, lang, onSaved }: Props) {
+export default function ImportedGradeEntry({ milestoneId, finalGrade, approvalOnly = false, lang, onSaved }: Props) {
   const he = lang === 'he';
   const [editing, setEditing] = useState(finalGrade == null);
   const [value, setValue] = useState(finalGrade != null ? String(finalGrade) : '');
@@ -44,6 +46,13 @@ export default function ImportedGradeEntry({ milestoneId, finalGrade, lang, onSa
   };
 
   const align = he ? 'right' : 'left';
+  if (approvalOnly) {
+    return (
+      <Text style={{ marginTop: 4, fontSize: 12, fontWeight: '600', color: '#10B981', textAlign: align }}>
+        ✓ {he ? 'אושר לפני המעבר למערכת' : 'Approved before joining the system'}
+      </Text>
+    );
+  }
   return (
     <View style={{ marginTop: 4 }}>
       <Text style={{ fontSize: 12, color: '#64748B', textAlign: align }}>

@@ -43,6 +43,9 @@ export const setImportedMilestoneGrade = async (req: AuthenticatedRequest, res: 
     if (!m.importedAsDone) {
       return res.status(400).json({ message: L(req, 'This milestone is graded through its normal workflow.', 'אבן דרך זו מקבלת ציון בתהליך הרגיל שלה.') });
     }
+    if (m.importedApprovalOnly) {
+      return res.status(400).json({ message: L(req, 'This milestone is approve/reject only — it has no grade.', 'אבן דרך זו היא אישור/דחייה בלבד — אין לה ציון.') });
+    }
 
     // Supervisor of the project, or a coordinator-level role in scope —
     // checked against roles[] too, not only the primary role.

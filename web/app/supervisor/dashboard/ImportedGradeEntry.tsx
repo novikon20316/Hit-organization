@@ -14,11 +14,14 @@ import { apiClient } from '@/lib/apiClient';
 interface ImportedGradeEntryProps {
   milestoneId: string;
   finalGrade: number | null;
+  /** Approve/reject only (importedApprovalOnly) — it has no grade, so it's
+   *  just shown as approved, with nothing to fill in. */
+  approvalOnly?: boolean;
   lang: 'he' | 'en';
   onSaved: () => void;
 }
 
-export function ImportedGradeEntry({ milestoneId, finalGrade, lang, onSaved }: ImportedGradeEntryProps) {
+export function ImportedGradeEntry({ milestoneId, finalGrade, approvalOnly = false, lang, onSaved }: ImportedGradeEntryProps) {
   const he = lang === 'he';
   const [editing, setEditing] = useState(finalGrade == null);
   const [value, setValue] = useState(finalGrade != null ? String(finalGrade) : '');
@@ -43,6 +46,14 @@ export function ImportedGradeEntry({ milestoneId, finalGrade, lang, onSaved }: I
       setSaving(false);
     }
   };
+
+  if (approvalOnly) {
+    return (
+      <p className="mt-1 text-xs font-medium text-success">
+        ✓ {he ? 'אושר לפני המעבר למערכת' : 'Approved before joining the system'}
+      </p>
+    );
+  }
 
   return (
     <div className="mt-1 text-xs">
