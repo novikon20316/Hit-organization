@@ -9,6 +9,8 @@ import { useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiClient, downloadAuthenticatedFile } from '@/lib/apiClient';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useAuth } from '@/contexts/AuthContext';
+import { HIT_FACULTIES } from '@/lib/faculties';
 
 type Scope = 'admin' | 'coordinator';
 
@@ -32,6 +34,33 @@ export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalP
   const [exporting, setExporting] = useState(false);
   const [importingStaff, setImportingStaff] = useState(false);
   const [importingRoster, setImportingRoster] = useState(false);
+  const { userData } = useAuth();
+  // The roster template is built live on the server from the current
+  // workflow templates, scoped to the downloader: a coordinator always gets
+  // their own faculty/programs (a CS coordinator the CS file, a design
+  // coordinator the design one); a system_admin picks the faculty here.
+  const [templateFacultyId, setTemplateFacultyId] = useState('');
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const handleDownloadTemplate = async () => {
+    if (scope === 'admin' && !templateFacultyId) {
+      setError(lang === 'he' ? 'יש לבחור פקולטה עבור התבנית' : 'Choose a faculty for the template');
+      return;
+    }
+    setDownloadingTemplate(true);
+    setError('');
+    try {
+      const facultyId = scope === 'admin' ? templateFacultyId : userData?.facultyId ?? 'faculty';
+      if (scope === 'admin') {
+        await downloadAuthenticatedFile('/api/admin/student-roster/template', `student-roster-${facultyId}.xlsx`, { facultyId });
+      } else {
+        await downloadAuthenticatedFile('/api/coordinator/student-roster/template', `student-roster-${facultyId}.xlsx`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : lang === 'he' ? 'הורדת התבנית נכשלה' : 'Failed to download the template');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
   const [error, setError] = useState('');
   const [summary, setSummary] = useState<{ title: string; counts: Record<string, number>; failedRows: ImportResultRow[] } | null>(null);
 
@@ -154,6 +183,37 @@ export function BulkImportModal({ scope, onClose, onImported }: BulkImportModalP
           >
             {importingStaff ? (lang === 'he' ? 'מעלה ומעבד...' : 'Uploading & processing…') : `📤 ${lang === 'he' ? 'ייבוא רשימת סגל (Excel)' : 'Import Staff List (Excel)'}`}
           </button>
+
+          <div className="mt-1 rounded-lg border border-dashed border-line p-2.5">
+            {scope === 'admin' && (
+              <label className="mb-2 block text-xs text-muted">
+                {lang === 'he' ? 'פקולטה לתבנית' : 'Faculty for the template'}
+                <select
+                  value={templateFacultyId}
+                  onChange={(e) => setTemplateFacultyId(e.target.value)}
+                  className="mt-1 block w-full rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+                >
+                  <option value="">{lang === 'he' ? '— בחירת פקולטה —' : '— Choose a faculty —'}</option>
+                  {HIT_FACULTIES.map((f) => (
+                    <option key={f.key} value={f.key}>{f.label[lang]}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              disabled={downloadingTemplate}
+              className="w-full rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-ink hover:border-primary hover:text-primary disabled:opacity-60"
+            >
+              {downloadingTemplate ? '…' : `⬇️ ${lang === 'he' ? 'הורדת תבנית לרשימת סטודנטים (Excel)' : 'Download Student Roster Template (Excel)'}`}
+            </button>
+            <p className="mt-1.5 text-[11px] text-muted">
+              {scope === 'coordinator'
+                ? (lang === 'he' ? 'התבנית מותאמת לתוכניות שבאחריותך ולתבניות תהליך העבודה העדכניות שלהן.' : "Tailored to your programs and their current workflow templates.")
+                : (lang === 'he' ? 'התבנית מותאמת לפקולטה שנבחרה ולתבניות תהליך העבודה העדכניות שלה.' : "Tailored to the chosen faculty and its current workflow templates.")}
+            </p>
+          </div>
 
           <button
             type="button"

@@ -47,6 +47,7 @@ import {
 } from '../controllers/userImportExportController.js';
 import {
   importStudentRosterAdmin,
+  downloadRosterTemplateAdmin,
   listStudentRosterAdmin,
   createStudentRosterAdmin,
   updateStudentRosterAdmin,
@@ -123,6 +124,7 @@ router.post('/info-files', verifyToken, uploadInfoFileMiddleware, uploadInfoFile
 router.post('/faculty-content', verifyToken, createFacultyContent);
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffAdmin);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterAdmin);
+router.get('/student-roster/template', verifyToken, downloadRosterTemplateAdmin);
 router.post('/student-roster', verifyToken, createStudentRosterAdmin);
 router.post('/users/:id/erase', verifyToken, eraseUserBySystemAdmin);
 router.post('/users/merge', verifyToken, mergeUsersAdmin);

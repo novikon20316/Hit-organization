@@ -16,6 +16,49 @@ import {
 } from '../services/studentRoster.js';
 import { L } from '../utils/localize.js';
 import { clientMessage } from '../utils/clientError.js';
+import { resolveRosterTemplateScope, buildRosterTemplate } from '../services/rosterTemplate.js';
+
+// ─── GET /api/admin/student-roster/template?facultyId=… ───────────────────────
+// ─── GET /api/coordinator/student-roster/template ─────────────────────────────
+// The roster import template, built live from the current workflow
+// templates and scoped to the downloader (services/rosterTemplate.ts): a
+// system_admin picks the faculty; a coordinator always gets their own
+// faculty, narrowed to the programs their coordinatorScopes cover — so a CS
+// coordinator downloads the CS file and a design coordinator the design one.
+async function sendRosterTemplate(req: AuthenticatedRequest, res: Response, asAdmin: boolean) {
+  try {
+    const scope = resolveRosterTemplateScope(req.user!, typeof req.query.facultyId === 'string' ? req.query.facultyId : undefined, asAdmin);
+    const { buffer, filename } = await buildRosterTemplate(scope);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(buffer);
+  } catch (error: any) {
+    if (error?.message === 'Choose a faculty.') {
+      return res.status(400).json({ message: L(req, 'Choose a faculty for the template.', 'יש לבחור פקולטה עבור התבנית.') });
+    }
+    if (error?.message === 'Your account has no faculty assigned.') {
+      return res.status(400).json({ message: L(req, 'Your account has no faculty assigned.', 'לחשבון שלך לא הוקצתה פקולטה.') });
+    }
+    console.error('sendRosterTemplate error:', error);
+    return res.status(500).json({ message: L(req, 'Failed to build the template.', 'יצירת התבנית נכשלה.') });
+  }
+}
+
+export const downloadRosterTemplateAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user || !hasAnyRole(req.user, ['system_admin'])) {
+    return res.status(403).json({ message: L(req, 'Access denied: system_admin only.', 'הגישה נדחתה: מנהל מערכת בלבד.') });
+  }
+  return sendRosterTemplate(req, res, true);
+};
+
+export const downloadRosterTemplateCoordinator = async (req: AuthenticatedRequest, res: Response) => {
+  // Same gate as importStudentRosterCoordinator below (roles[] included).
+  const isCoordinator = req.user?.role === 'coordinator' || req.user?.roles?.includes('coordinator');
+  if (!isCoordinator) {
+    return res.status(403).json({ message: L(req, 'Access denied: coordinator only.', 'הגישה נדחתה: רכז פקולטה בלבד.') });
+  }
+  return sendRosterTemplate(req, res, false);
+};
 
 // ─── POST /api/admin/student-roster/import ────────────────────────────────────
 export const importStudentRosterAdmin = async (req: AuthenticatedRequest, res: Response) => {

@@ -20,7 +20,7 @@ import { coordinatorHomeStyles, AdministrativeCoordinatorDashboardStyles } from 
 import {tx} from '../../components/i18n';
 import { apiClient } from '@/src/api/apiClient';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
-import { pickAndImportStudentRoster } from '@/src/api/studentRoster';
+import { pickAndImportStudentRoster, downloadStudentRosterTemplate } from '@/src/api/studentRoster';
 import {PendingMilestone, Project, InProgressProject, ExaminerUser, AssignedMilestone, DefensePanelMember, isDefenseDateConfirmed} from '@/types'
 import FloatingActionMenu from '@/components/FloatingActionMenu';
 import ChatbotFab from '@/components/ChatbotFab';
@@ -787,6 +787,20 @@ export default function CoordinatorHome() {
   // Uploads the pre-registration student roster for this coordinator's own
   // faculty (see server/src/services/studentRoster.ts) — signup checks
   // entered ID+degree against this before a student account can be created.
+  // Roster import template, built live for this coordinator's own programs
+  // (a CS coordinator gets the CS file) — server/src/services/rosterTemplate.ts.
+  const [downloadingRosterTemplate, setDownloadingRosterTemplate] = useState(false);
+  const handleDownloadRosterTemplate = async () => {
+    setDownloadingRosterTemplate(true);
+    try {
+      await downloadStudentRosterTemplate('coordinator');
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e?.message || (lang === 'he' ? 'הורדת התבנית נכשלה' : 'Failed to download the template'));
+    } finally {
+      setDownloadingRosterTemplate(false);
+    }
+  };
+
   const handleImportStudentRoster = async () => {
     setImportingRoster(true);
     try {
@@ -2536,6 +2550,7 @@ export default function CoordinatorHome() {
           { key: 'templates', icon: '🧬', label: lang === 'he' ? 'ניהול תבניות אבני דרך' : 'Manage Milestone Templates', onPress: () => router.push('/WorkflowTemplateManager' as any) },
           { key: 'reports', icon: '📊', label: lang === 'he' ? 'דוחות' : 'Reports', onPress: () => router.push('/Reports' as any) },
           { key: 'import', icon: '📥', label: lang === 'he' ? 'ייבוא סגל' : 'Import Staff', onPress: handleImportStaff, loading: importingStaff },
+          { key: 'rosterTemplate', icon: '⬇️', label: lang === 'he' ? 'תבנית לרשימת סטודנטים' : 'Student Roster Template', onPress: handleDownloadRosterTemplate, loading: downloadingRosterTemplate },
           { key: 'importRoster', icon: '🎓', label: lang === 'he' ? 'ייבוא רשימת סטודנטים' : 'Import Student Roster', onPress: handleImportStudentRoster, loading: importingRoster },
           { key: 'export', icon: '📤', label: lang === 'he' ? 'ייצוא לאקסל' : 'Export Roster', onPress: handleExportUsers, loading: exportingUsers },
           { key: 'projectRecords', icon: '📜', label: lang === 'he' ? 'רישומי פרויקטים' : 'Project Records', onPress: () => router.push({ pathname: '/coordinator/records', params: { lang } } as any) },

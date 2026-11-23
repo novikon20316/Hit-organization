@@ -7,7 +7,10 @@
 // created — see verifyStudentEligibility below.
 
 import * as DocumentPicker from 'expo-document-picker';
-import { apiClient } from './apiClient';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { apiClient, getApiBaseUrl } from './apiClient';
+import { auth } from '../firebase/firebase';
 import type { ImportExportScope } from './userImportExport';
 
 export interface RosterImportRowResult {
@@ -29,6 +32,30 @@ const ROSTER_IMPORT_PATH: Record<ImportExportScope, string> = {
   admin:       '/api/admin/student-roster/import',
   coordinator: '/api/coordinator/student-roster/import',
 };
+
+const ROSTER_TEMPLATE_PATH: Record<ImportExportScope, string> = {
+  admin:       '/api/admin/student-roster/template',
+  coordinator: '/api/coordinator/student-roster/template',
+};
+
+/**
+ * Downloads the roster import template — built live on the server from the
+ * current workflow templates and scoped to the downloader (a coordinator gets
+ * their own faculty/programs; a system_admin passes the faculty) — and opens
+ * the native share/save sheet. Same flow as userImportExport.ts's exportUsers.
+ */
+export async function downloadStudentRosterTemplate(scope: ImportExportScope, facultyId?: string): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Not signed in.');
+  const token = await currentUser.getIdToken();
+  const query = scope === 'admin' && facultyId ? `?facultyId=${encodeURIComponent(facultyId)}` : '';
+  const destUri = `${FileSystem.cacheDirectory}student-roster-${facultyId ?? 'template'}.xlsx`;
+  const result = await FileSystem.downloadAsync(`${getApiBaseUrl()}${ROSTER_TEMPLATE_PATH[scope]}${query}`, destUri, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (result.status !== 200) throw new Error(`Template download failed — HTTP ${result.status}`);
+  await Sharing.shareAsync(result.uri, { mimeType: EXCEL_MIME_TYPES[0], dialogTitle: 'Student Roster Template' });
+}
 
 const EXCEL_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

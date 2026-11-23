@@ -19,7 +19,7 @@ import { apiClient } from '@/src/api/apiClient';
 import { useUsersLiveRefresh } from '@/hooks/useUsersLiveRefresh';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import { pickAndImportStaff, exportUsers, ImportSummary } from '@/src/api/userImportExport';
-import { pickAndImportStudentRoster, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
+import { pickAndImportStudentRoster, downloadStudentRosterTemplate, listStudentRoster, updateStudentRosterEntry, deleteStudentRosterEntry, type RosterEntry } from '@/src/api/studentRoster';
 import { auth } from '../../src/firebase/firebase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { facultyLabel, type Lang, type AppRole, type FacultyId } from '../../components/i18n';
@@ -860,6 +860,28 @@ export default function PanelScreen() {
   // Uploads the pre-registration student roster (see server/src/services/
   // studentRoster.ts) — signup checks entered ID+degree against this before
   // a student account can be created.
+  // Roster import template for one faculty, built live on the server from
+  // its current workflow templates — the faculty comes from this tab's
+  // faculty filter (server/src/services/rosterTemplate.ts).
+  const [downloadingRosterTemplate, setDownloadingRosterTemplate] = useState(false);
+  const handleDownloadRosterTemplate = async () => {
+    if (rosterFacultyFilter === 'all') {
+      Alert.alert(
+        lang === 'he' ? 'בחירת פקולטה' : 'Choose a faculty',
+        lang === 'he' ? 'בחרו פקולטה בסינון למטה, ואז הורידו את התבנית שלה.' : 'Pick a faculty in the filter below, then download its template.',
+      );
+      return;
+    }
+    setDownloadingRosterTemplate(true);
+    try {
+      await downloadStudentRosterTemplate('admin', rosterFacultyFilter);
+    } catch (e: any) {
+      Alert.alert(lang === 'he' ? 'שגיאה' : 'Error', e?.message || (lang === 'he' ? 'הורדת התבנית נכשלה' : 'Failed to download the template'));
+    } finally {
+      setDownloadingRosterTemplate(false);
+    }
+  };
+
   const handleImportStudentRoster = async () => {
     setImportingRoster(true);
     try {
@@ -2115,6 +2137,22 @@ export default function PanelScreen() {
                 <Text style={[styles.submitBtnText, { color: ap.primary }]}>➕ {lang === 'he' ? 'הוסף סטודנט' : 'Add Student'}</Text>
               </Pressable>
             </View>
+
+            <Pressable
+              style={[styles.submitBtn, { marginBottom: 14, backgroundColor: ap.surfaceContainerLowest, borderWidth: 1.5, borderColor: ap.outlineVariant }]}
+              onPress={handleDownloadRosterTemplate}
+              disabled={downloadingRosterTemplate}
+              accessibilityRole="button"
+            >
+              {downloadingRosterTemplate
+                ? <ActivityIndicator color={ap.onSurface} size="small" />
+                : <Text style={[styles.submitBtnText, { color: ap.onSurface }]}>
+                    ⬇️ {lang === 'he'
+                      ? (rosterFacultyFilter === 'all' ? 'תבנית ייבוא — בחרו פקולטה בסינון' : 'הורדת תבנית ייבוא לפקולטה שנבחרה')
+                      : (rosterFacultyFilter === 'all' ? 'Import template — pick a faculty in the filter' : 'Download import template for this faculty')}
+                  </Text>
+              }
+            </Pressable>
 
             <View style={styles.searchBox}>
               <TextInput accessibilityLabel={lang === 'he' ? 'חפש לפי ת.ז. או שם...' : 'Search by ID or name...'}

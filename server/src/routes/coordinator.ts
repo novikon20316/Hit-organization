@@ -22,7 +22,7 @@ import {
   importStaffCoordinator,
   uploadExcelFileMiddleware,
 } from '../controllers/userImportExportController.js';
-import { importStudentRosterCoordinator } from '../controllers/studentRosterController.js';
+import { importStudentRosterCoordinator, downloadRosterTemplateCoordinator } from '../controllers/studentRosterController.js';
 
 const router = Router();
 
@@ -48,5 +48,6 @@ router.post('/seminars/:milestoneId/schedule', verifyToken, scheduleSeminar)
 router.post('/seminars/:milestoneId/outcome', verifyToken, recordSeminarOutcome)
 router.post('/staff/import', verifyToken, uploadExcelFileMiddleware, importStaffCoordinator);
 router.post('/student-roster/import', verifyToken, uploadExcelFileMiddleware, importStudentRosterCoordinator);
+router.get('/student-roster/template', verifyToken, downloadRosterTemplateCoordinator);
 
 export default router;
