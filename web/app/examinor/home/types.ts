@@ -41,6 +41,12 @@ export interface MilestoneHistoryEntry {
    *  milestoneDisplayName. */
   nameHe?: string | null;
   nameEn?: string | null;
+  /** The milestone's own grade (finalGrade, per-student average, or the
+   *  supervisor's score) — null when it has none. */
+  grade?: number | null;
+  /** Approved (coordinator_approved / completed), graded or not. */
+  approved?: boolean;
+  /** Legacy — the server now sends the same value as `grade`. */
   supervisorScore: number | null;
   supervisorComment: string;
   fileUrls: string[];

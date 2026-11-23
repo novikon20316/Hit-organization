@@ -342,8 +342,10 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
         <div className="mt-3 grid gap-2 border-t border-examinor-outline-variant pt-3">
           <p className="text-xs font-semibold text-examinor-on-surface">📊 {lang === 'he' ? 'ציונים ומסמכים לפי אבן דרך' : 'Grades & Files by Milestone'}</p>
           {m.milestoneHistory.map((mg) => {
-            const isGraded = mg.supervisorScore !== null;
-            const railColor = isGraded ? 'var(--success)' : facultyColor;
+            const grade = mg.grade ?? mg.supervisorScore;
+            const isGraded = grade != null;
+            const done = isGraded || !!mg.approved;
+            const railColor = done ? 'var(--success)' : facultyColor;
             return (
               <div
                 key={mg.type}
@@ -354,16 +356,16 @@ export function AssignmentCard({ milestone: m, uid, onChanged, onGrade, onGradeK
                   <p className="text-sm font-semibold text-examinor-on-surface">{milestoneDisplayName(mg, lang, MILESTONE_LABEL)}</p>
                   <span
                     className="shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    style={{ backgroundColor: isGraded ? 'var(--success-bg)' : '#FBF3E3', color: isGraded ? 'var(--success)' : '#B8862E' }}
+                    style={{ backgroundColor: done ? 'var(--success-bg)' : '#FBF3E3', color: done ? 'var(--success)' : '#B8862E' }}
                   >
-                    {isGraded ? `✅ ${lang === 'he' ? 'נוקד' : 'Graded'}` : `⏳ ${lang === 'he' ? 'טרם ניתן' : 'Not yet'}`}
+                    {isGraded ? `✅ ${lang === 'he' ? 'נוקד' : 'Graded'}` : done ? `✅ ${lang === 'he' ? 'אושר' : 'Approved'}` : `⏳ ${lang === 'he' ? 'טרם ניתן' : 'Not yet'}`}
                   </span>
                 </div>
 
                 <div className="mt-2 flex items-center justify-between border-t border-examinor-outline-variant/60 pt-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-examinor-on-surface-variant">{lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-examinor-on-surface-variant">{lang === 'he' ? 'ציון' : 'Grade'}</span>
                   <span className="text-xs font-bold" style={{ color: isGraded ? 'var(--success)' : 'var(--muted)' }}>
-                    🏆 {isGraded ? `${mg.supervisorScore}` : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
+                    🏆 {isGraded ? `${grade}` : done ? (lang === 'he' ? 'ללא ציון' : 'No grade') : lang === 'he' ? 'טרם ניתן' : 'Not yet'}
                   </span>
                 </div>
 

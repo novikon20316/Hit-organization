@@ -853,27 +853,29 @@ export default function ExaminerHome() {
                         </Text>
  
                         {m.milestoneHistory.map((mg) => {
-                          const isGraded = mg.supervisorScore !== null;
-                          const railColor = isGraded ? '#3F6B4C' : fc.primary;
+                          const grade = mg.grade ?? mg.supervisorScore;
+                          const isGraded = grade != null;
+                          const done = isGraded || !!mg.approved;
+                          const railColor = done ? '#3F6B4C' : fc.primary;
                           return (
                             <View key={mg.type} style={[styles.milestoneBlock, { borderLeftColor: railColor }]}>
                               <View style={styles.milestoneHeaderRow}>
                                 <Text style={styles.milestoneName}>
                                   {milestoneDisplayName(mg, lang, MILESTONE_LABEL)}
                                 </Text>
-                                <View style={[styles.milestoneBadge, { backgroundColor: isGraded ? '#EAF1EC' : '#FBF3E3' }]}>
-                                  <Text style={[styles.milestoneBadgeText, { color: isGraded ? '#3F6B4C' : '#B8862E' }]}>
-                                    {isGraded ? (lang === 'he' ? '✅ נוקד' : '✅ Graded') : (lang === 'he' ? '⏳ טרם ניתן' : '⏳ Not yet')}
+                                <View style={[styles.milestoneBadge, { backgroundColor: done ? '#EAF1EC' : '#FBF3E3' }]}>
+                                  <Text style={[styles.milestoneBadgeText, { color: done ? '#3F6B4C' : '#B8862E' }]}>
+                                    {isGraded ? (lang === 'he' ? '✅ נוקד' : '✅ Graded') : done ? (lang === 'he' ? '✅ אושר' : '✅ Approved') : (lang === 'he' ? '⏳ טרם ניתן' : '⏳ Not yet')}
                                   </Text>
                                 </View>
                               </View>
 
                               <View style={styles.scoreRow}>
                                 <Text style={styles.scoreLabel}>
-                                  {lang === 'he' ? 'ציון מנחה' : 'Supervisor score'}
+                                  {lang === 'he' ? 'ציון' : 'Grade'}
                                 </Text>
                                 <Text style={[styles.scoreValue, { color: isGraded ? '#3F6B4C' : '#9CA3AF' }]}>
-                                  🏆 {isGraded ? `${mg.supervisorScore}` : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
+                                  🏆 {isGraded ? `${grade}` : done ? (lang === 'he' ? 'ללא ציון' : 'No grade') : (lang === 'he' ? 'טרם ניתן' : 'Not yet')}
                                 </Text>
                               </View>
 

@@ -82,7 +82,7 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
         // was always empty. Computed here from the sibling milestones of the
         // same project rather than stored, since it's just a projection of
         // data that already lives on those other milestone docs.
-        let milestoneHistory: Array<{ type: string; nameHe: string | null; nameEn: string | null; supervisorScore: number | null; supervisorComment: string; fileUrls: string[]; status: string }> = [];
+        let milestoneHistory: Array<{ type: string; nameHe: string | null; nameEn: string | null; grade: number | null; approved: boolean; supervisorScore: number | null; supervisorComment: string; fileUrls: string[]; status: string }> = [];
         if (milestoneData.projectId) {
           const siblingsSnap = await db.collection('milestones')
             .where('projectId', '==', milestoneData.projectId)
@@ -96,6 +96,15 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
             .sort((a, b) => (a.data().order ?? 0) - (b.data().order ?? 0))
             .map((d) => {
               const sib = d.data();
+              // The milestone's own grade. Chain-driven milestones (every
+              // current template) never fill supervisorScore — their grade
+              // is finalGrade (or per student) — so reading supervisorScore
+              // alone showed "not graded yet" on fully graded milestones.
+              const byStudent = Object.values((sib.finalGradeByStudent ?? {}) as Record<string, unknown>).filter((g): g is number => typeof g === 'number');
+              const grade: number | null = typeof sib.finalGrade === 'number' ? sib.finalGrade
+                : byStudent.length ? Math.round((byStudent.reduce((a, b) => a + b, 0) / byStudent.length) * 100) / 100
+                : typeof sib.supervisorScore === 'number' ? sib.supervisorScore
+                : null;
               return {
                 type: sib.type,
                 // Snapshotted from the workflow template at enrollment —
@@ -103,7 +112,11 @@ export const getExaminerDashboard = async (req: AuthenticatedRequest, res: Respo
                 // lib/milestoneLabel.ts's milestoneDisplayName).
                 nameHe: sib.nameHe ?? null,
                 nameEn: sib.nameEn ?? null,
-                supervisorScore: sib.supervisorScore ?? null,
+                grade,
+                approved: sib.status === 'coordinator_approved' || sib.status === 'completed',
+                // Kept for app builds that read only this field — now the
+                // same effective grade.
+                supervisorScore: grade,
                 supervisorComment: sib.supervisorComment ?? '',
                 fileUrls: sib.fileUrls ?? [],
                 status: sib.status,
