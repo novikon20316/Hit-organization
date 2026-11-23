@@ -25,7 +25,7 @@ import type { AppRole } from '@/lib/roles';
 import { PendingMilestoneCard } from './PendingMilestoneCard';
 import { RecommendationCard } from './RecommendationCard';
 import { AssignExaminersModal } from './AssignExaminersModal';
-import { DefenseTab, buildDefenseCards, type DefenseCard } from './DefenseTab';
+import { DefenseTab, buildDefenseCards, isScheduledDefenseCard, type DefenseCard } from './DefenseTab';
 import { InProgressTab } from './InProgressTab';
 import { FieldGuideOverlay } from '@/components/guidance/FieldGuideOverlay';
 import {
@@ -312,6 +312,9 @@ function CoordinatorHomeContent() {
   }, [isAllowed, userData]);
 
   const defenseCards = useMemo(() => buildDefenseCards(allMilestones, projects), [allMilestones, projects]);
+  // What the Defenses tab's card list actually shows — defenses still being
+  // coordinated (already-scheduled ones are only on its calendar).
+  const unscheduledDefenseCount = useMemo(() => defenseCards.filter((c) => !isScheduledDefenseCard(c)).length, [defenseCards]);
 
   // Same split mobile applies: a final_report already fully graded moves to
   // the Defense tab instead of staying in Pending. Two more exclusions catch
@@ -471,7 +474,7 @@ function CoordinatorHomeContent() {
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-coordinator-secondary">
                 {lang === 'he' ? 'הגנות' : 'Defenses'}
               </h4>
-              <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{defenseCards.length}</span>
+              <span className="text-4xl font-bold leading-none text-coordinator-on-surface">{unscheduledDefenseCount}</span>
             </Link>
             <Link href="/coordinator/home?tab=defense" className="rounded-coordinator-lg border border-coordinator-error-container bg-coordinator-error-container/10 p-4 transition-colors hover:border-coordinator-error">
               <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-coordinator-error">
@@ -510,7 +513,10 @@ function CoordinatorHomeContent() {
                 {defenseActionCards.slice(0, 3).map((c) => (
                   <UrgentActionRow
                     key={c.key}
-                    href={focusHref('defense', `defense-${c.key}`)}
+                    // A defense whose date passed without grades isn't on
+                    // the Defenses list (it's already scheduled) — chasing
+                    // the grades happens on the grade/examiner approvals tab.
+                    href={c.kind === 'expiredUngraded' ? '/coordinator/home?tab=signoffs' : focusHref('defense', `defense-${c.key}`)}
                     clickable={canQuickNavigate}
                     accent="error"
                     badgeClassName="bg-coordinator-error-container text-coordinator-error"

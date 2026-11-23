@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ScheduleDefenseModal from '@/components/modals/ScheduleDefenseModal';
 import ReserveDefenseDateModal from '@/components/modals/ReserveDefenseDateModal';
-import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/utils/defenseDisplay';
 import {
   View, Text, ScrollView, Pressable,
   ActivityIndicator, Modal, TextInput, Alert,
@@ -1347,6 +1346,12 @@ export default function CoordinatorHome() {
     return a.daysLeft - b.daysLeft;
   });
 
+  // The Defenses tab lists only defenses still being coordinated. A fully
+  // scheduled one (status 'scheduled' — upcoming, or past and waiting on
+  // examiner grades) is off the list; overdue grading still surfaces in
+  // Urgent Actions. Mirrors web's isScheduledDefenseCard (DefenseTab.tsx).
+  const listedDefenseCards = sortedDefenseCards.filter((c) => c.kind !== 'scheduledUpcoming' && c.kind !== 'expiredUngraded');
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -1380,7 +1385,7 @@ export default function CoordinatorHome() {
           { key: 'overview', heLabel: 'סקירה', enLabel: 'Overview', badge: 0 },
           { key: 'inProgress', heLabel: 'פרויקטים פעילים', enLabel: 'In Progress',       badge: inProgressProjects.length },
           { key: 'pending', heLabel: 'ממתין לאישור', enLabel: 'Pending Approval', badge: pendingMilestones.length },
-          { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: sortedDefenseCards.length },
+          { key: 'defense', heLabel: 'הגנות',         enLabel: 'Defenses',         badge: listedDefenseCards.length },
           { key: 'milestones', heLabel: 'אבני דרך', enLabel: 'Milestones', badge: 0 },
           { key: 'recommendations', heLabel: 'המלצות בוחנים', enLabel: 'Examiner Recs', badge: examinerRecs.length },
           { key: 'signoffs', heLabel: 'ממתין לאישור ציונים ובוחנים', enLabel: 'Awaiting Grade/Examiner Approval', badge: newItemBadgeFor('signoffs') },
@@ -1489,7 +1494,7 @@ export default function CoordinatorHome() {
                 </Pressable>
                 <Pressable style={apStyles.metricCard} onPress={() => setActiveTab('defense')} accessibilityRole="button">
                   <Text style={apStyles.metricLabel}>{lang === 'he' ? 'הגנות' : 'Defenses'}</Text>
-                  <Text style={apStyles.metricValue}>{sortedDefenseCards.length}</Text>
+                  <Text style={apStyles.metricValue}>{listedDefenseCards.length}</Text>
                 </Pressable>
                 <Pressable style={[apStyles.metricCard, apStyles.metricCardAlert]} onPress={() => setActiveTab('defense')} accessibilityRole="button">
                   <Text style={[apStyles.metricLabel, apStyles.metricLabelAlert]}>{lang === 'he' ? 'התראות מערכת' : 'System Alerts'}</Text>
@@ -1526,7 +1531,7 @@ export default function CoordinatorHome() {
                         </>
                       );
                       return canQuickNavigate ? (
-                        <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => focusItem('defense', `defense-${c.key}`)} accessibilityRole="button">
+                        <Pressable key={c.key} style={[apStyles.feedItem, apStyles.feedItemAlert]} onPress={() => (c.kind === 'expiredUngraded' ? setActiveTab('signoffs') : focusItem('defense', `defense-${c.key}`))} accessibilityRole="button">
                           {row}
                         </Pressable>
                       ) : (
@@ -1825,7 +1830,7 @@ export default function CoordinatorHome() {
       ))}
     </View>
 
-    {sortedDefenseCards.length === 0 ? (
+    {listedDefenseCards.length === 0 ? (
       <View style={styles.empty}>
         <Text style={styles.emptyEmoji}>🎓</Text>
         <Text style={styles.emptyText}>
@@ -1835,7 +1840,7 @@ export default function CoordinatorHome() {
     ) : (
       // Each card sits in a wrapper that reports its offset and carries the
       // focus ring, so an Urgent Actions row can land on it.
-      sortedDefenseCards.map((card) => <View key={card.key} onLayout={onItemLayout(`defense-${card.key}`)} style={focusRing(`defense-${card.key}`)}>{(() => {
+      listedDefenseCards.map((card) => <View key={card.key} onLayout={onItemLayout(`defense-${card.key}`)} style={focusRing(`defense-${card.key}`)}>{(() => {
         const accentStyle = { borderLeftWidth: 4, borderLeftColor: getDefenseAccent(card) };
 
         // ── Bucket 1: final report graded — needs approval + examiner assignment ──
@@ -2035,72 +2040,9 @@ export default function CoordinatorHome() {
           );
         }
 
-        // ── Bucket 5: fully confirmed, upcoming — no coordinator action needed ──
-        if (card.kind === 'scheduledUpcoming') {
-          const { milestone, project } = card;
-          const defenseDateObj = parseServerDate(milestone.dueDate);
-          return (
-            <View key={card.key} style={[styles.card, accentStyle]}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>
-                  {lang === 'he' ? project.titleHe : project.titleEn}
-                </Text>
-                <FacultyBadge facultyId={project.facultyId} lang={lang} />
-              </View>
-              <Text style={styles.cardMeta}>👤 {milestone.studentNames.join(', ')}</Text>
-              <Text style={styles.cardMeta}>
-                🔬 {lang === 'he' ? 'בוחנים:' : 'Examiners:'} {(milestone.defensePanel ?? []).map((e) => e.displayName).join(', ') || '—'}
-              </Text>
-              {defenseDateObj && (
-                <View style={styles.defenseDateBadge}>
-                  <Text style={styles.defenseDateText}>
-                    📅 {defenseDateObj.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
-                    {milestone.defenseTime ? ` ${milestone.defenseTime}` : ''}
-                    {showsDefensePlace(milestone) && milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.cardMeta}>
-                {defenseModeIcon(resolveDefenseMode(milestone))} {defenseModeLabel(resolveDefenseMode(milestone), lang)}
-              </Text>
-              <Text style={[styles.cardMeta, { color: getDefenseAccent(card), fontWeight: '700' }]}>
-                ⏳ {card.daysLeft} {lang === 'he' ? 'ימים להגנה' : card.daysLeft === 1 ? 'day left' : 'days left'}
-              </Text>
-              <Pressable style={styles.cancelBtn} onPress={() => openDefenseLogisticsModal(project, milestone)} accessibilityRole="button">
-                <Text style={styles.cancelBtnText}>✏️ {lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit defense details'}</Text>
-              </Pressable>
-            </View>
-          );
-        }
-
-        // ── Bucket 6: defense date has passed, still awaiting a grade ──
-        const { milestone, project } = card;
-        const panel = milestone.defensePanel ?? [];
-        const grading = milestone.examinerGrading ?? {};
-        const pendingExaminers = panel.filter((e) => !grading[e.ref]?.gradedAt);
-        const defenseDateObj = parseServerDate(milestone.dueDate);
-
-        return (
-          <View key={card.key} style={[styles.card, accentStyle]}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>
-                {lang === 'he' ? project.titleHe : project.titleEn}
-              </Text>
-              <FacultyBadge facultyId={project.facultyId} lang={lang} />
-            </View>
-            <Text style={styles.cardMeta}>👤 {milestone.studentNames.join(', ')}</Text>
-            {defenseDateObj && (
-              <Text style={[styles.cardMeta, { color: '#EF4444', fontWeight: '700' }]}>
-                📅 {lang === 'he' ? 'תאריך הגנה שחלף:' : 'Defense date passed:'}{' '}
-                {defenseDateObj.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
-              </Text>
-            )}
-            <Text style={[styles.cardMeta, { color: '#EF4444', fontWeight: '700' }]}>
-              ⚠️ {lang === 'he' ? 'ממתין לציון מ:' : 'Awaiting grade from:'}{' '}
-              {pendingExaminers.map((e) => e.displayName).join(', ') || (lang === 'he' ? 'בוחן/ים' : 'examiner(s)')}
-            </Text>
-          </View>
-        );
+        // Buckets 5–6 (scheduled: upcoming, or past and awaiting grades)
+        // are filtered out of listedDefenseCards above.
+        return null;
       })()}</View>)
     )}
   </>

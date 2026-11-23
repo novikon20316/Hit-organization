@@ -16,7 +16,6 @@ import { DefenseLogisticsModal } from './DefenseLogisticsModal';
 import { DateConflictModal } from './DateConflictModal';
 import { ReserveDateModal } from './ReserveDateModal';
 import type { AssignedMilestone, CoordinatorPendingMilestone, ExaminerUser, Project } from './types';
-import { defenseModeIcon, defenseModeLabel, resolveDefenseMode, showsDefensePlace } from '@/lib/defenseDisplay';
 import { SEMINAR_COLOR, isSeminarInProgress, seminarDayToDate } from '@/lib/seminar';
 
 // The matched defense date lives on the milestone's `dueDate` field (set by
@@ -54,6 +53,17 @@ export interface DefenseCard {
   setup?: CoordinatorPendingMilestone;
   project?: Project;
   milestone?: AssignedMilestone;
+}
+
+/** Card kinds whose defense is already fully scheduled (date, time and
+ *  place set — milestone status 'scheduled'), whether still upcoming or
+ *  already past and waiting on examiner grades. The Defenses list is only
+ *  for defenses still being coordinated, so these show on its calendar but
+ *  not in the card list (or the tab's count). 'dateSet' stays in the list:
+ *  its date is confirmed but the coordinator still has to set the format,
+ *  time and place. */
+export function isScheduledDefenseCard(card: Pick<DefenseCard, 'kind'>): boolean {
+  return card.kind === 'scheduledUpcoming' || card.kind === 'expiredUngraded';
 }
 
 const daysUntil = (date: Date | null): number | null =>
@@ -294,7 +304,9 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
   );
 
   const sortedCards = useMemo(() => {
-    const copy = [...cards];
+    // Only defenses still being coordinated — scheduled ones are on the
+    // calendar above (see isScheduledDefenseCard).
+    const copy = cards.filter((c) => !isScheduledDefenseCard(c));
     copy.sort((a, b) => {
       if (sort === 'name') {
         const an = (lang === 'he' ? a.titleHe : a.titleEn) || '';
@@ -604,58 +616,7 @@ export function DefenseTab({ cards, projects, examiners, onChanged, onApproveFin
               );
             }
 
-            if (card.kind === 'scheduledUpcoming') {
-              const d = parseServerDate(milestone.dueDate);
-              return (
-                <div key={card.key} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: accent }}>
-                  {Header}
-                  <p className="mt-1 text-xs text-muted">👤 {milestone.studentNames.join(', ')}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    🔬 {lang === 'he' ? 'בוחנים:' : 'Examiners:'} {(milestone.defensePanel ?? []).map((e) => e.displayName).join(', ') || '—'}
-                  </p>
-                  {d && (
-                    <p className="mt-1.5 rounded-full bg-paper px-2.5 py-1 text-xs text-ink">
-                      📅 {d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
-                      {milestone.defenseTime ? ` ${milestone.defenseTime}` : ''}
-                      {showsDefensePlace(milestone) && milestone.defenseRoom ? ` | ${milestone.defenseRoom}` : ''}
-                    </p>
-                  )}
-                  <p className="mt-1.5 text-xs text-muted">
-                    {defenseModeIcon(resolveDefenseMode(milestone))} {defenseModeLabel(resolveDefenseMode(milestone), lang)}
-                  </p>
-                  <p className="mt-1.5 text-xs font-semibold" style={{ color: accent }}>
-                    ⏳ {card.daysLeft} {lang === 'he' ? 'ימים להגנה' : card.daysLeft === 1 ? 'day left' : 'days left'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setLogisticsTarget({ project, milestone })}
-                    className="mt-3 w-full rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-primary hover:text-primary"
-                  >
-                    ✏️ {lang === 'he' ? 'עריכת פרטי ההגנה' : 'Edit defense details'}
-                  </button>
-                </div>
-              );
-            }
-
-            // expiredUngraded
-            const d = parseServerDate(milestone.dueDate);
-            const grading = milestone.examinerGrading ?? {};
-            const pendingExaminers = (milestone.defensePanel ?? []).filter((e) => !grading[e.ref]?.gradedAt);
-            return (
-              <div key={card.key} className="rounded-[var(--radius)] border-s-4 border border-line bg-surface p-4" style={{ borderInlineStartColor: accent }}>
-                {Header}
-                <p className="mt-1 text-xs text-muted">👤 {milestone.studentNames.join(', ')}</p>
-                {d && (
-                  <p className="mt-1 text-xs font-semibold text-danger">
-                    📅 {lang === 'he' ? 'תאריך הגנה שחלף:' : 'Defense date passed:'} {d.toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-GB')}
-                  </p>
-                )}
-                <p className="mt-1 text-xs font-semibold text-danger">
-                  ⚠️ {lang === 'he' ? 'ממתין לציון מ:' : 'Awaiting grade from:'}{' '}
-                  {pendingExaminers.map((e) => e.displayName).join(', ') || (lang === 'he' ? 'בוחן/ים' : 'examiner(s)')}
-                </p>
-              </div>
-            );
+            return null;
           })()}</div>)}
         </div>
       )}
