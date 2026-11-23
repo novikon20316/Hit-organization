@@ -23,6 +23,7 @@ import EvaluationFormModal from './modals/EvaluationFormModal';
 import ExaminerOpinionFormModal from './modals/ExaminerOpinionFormModal';
 import FinalGradeCertificateModal from './modals/FinalGradeCertificateModal';
 import UpdateGradeModal from './modals/UpdateGradeModal';
+import ImportedGradeEntry from './ImportedGradeEntry';
 import { ProjectRemindersPanel, type ReminderMilestoneOption } from './ProjectRemindersPanel';
 import { useDefenseScheduleLiveRefresh } from '@/hooks/useDefenseScheduleLiveRefresh';
 import type { OpenMilestoneRequest } from '@/types';
@@ -99,6 +100,9 @@ interface StudentMilestoneRow {
   perStudentEvaluation?: boolean;
   /** Thesis examiner opinion form — see components/modals/ExaminerOpinionFormModal.tsx. */
   hasExaminerOpinionForm?: boolean;
+  /** Finished before the student was imported into the system — closed as
+   *  done; only its grade is left (see ImportedGradeEntry). */
+  importedAsDone?: boolean;
   opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
@@ -536,7 +540,13 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                         sign-off (action: 'approve'), not a grade, so it's
                         rendered here rather than in the generic Grade
                         branch. Mirrors web's ProjectWorkflowSection.tsx. */}
-                    {m.type === 'research_proposal' && m.id && m.finalGrade == null && (() => {
+                    {/* Finished before the student joined the system: only
+                        the grade is left — none of the actions below apply. */}
+                    {m.importedAsDone && m.id && (
+                      <ImportedGradeEntry milestoneId={m.id} finalGrade={m.finalGrade} lang={lang} onSaved={refreshDetailSilently} />
+                    )}
+
+                    {!m.importedAsDone && m.type === 'research_proposal' && m.id && m.finalGrade == null && (() => {
                       const currentStage = m.routing?.[m.currentStageIndex ?? 0];
                       const dualSignRequired = !!(
                         currentStage?.role === 'supervisor' && currentStage.requireAllAssignedSupervisors && secondarySupervisorId
@@ -686,7 +696,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                         reason-required "Update grade" action — mirrors web's
                         ProjectWorkflowSection.tsx (same visibility rule; the
                         server re-checks gradeApproved and the reason). */}
-                    {!m.hasFinalGradeComponents && !m.hasExaminerOpinionForm && m.type !== 'research_proposal' && m.id && m.finalGrade != null && (
+                    {!m.importedAsDone && !m.hasFinalGradeComponents && !m.hasExaminerOpinionForm && m.type !== 'research_proposal' && m.id && m.finalGrade != null && (
                       <View style={{ marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#10B981' }}>
                           🎓 {lang === 'he' ? `ציון: ${m.finalGrade}` : `Grade: ${m.finalGrade}`}
@@ -710,7 +720,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                     )}
 
                     {/* Staff record action (research_proposal/progress_report only). */}
-                    {m.staffRecordMode === 'upload_or_form' && m.id && (
+                    {!m.importedAsDone && m.staffRecordMode === 'upload_or_form' && m.id && (
                       <Pressable onPress={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })} style={{ marginTop: 4 }} accessibilityRole="button">
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#7C3AED' }}>
                           {m.staffRecordSubmitted
@@ -721,7 +731,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                     )}
 
                     {/* Three-rubric final-grade workflow (defense only). */}
-                    {m.hasExaminerOpinionForm && m.id && (
+                    {!m.importedAsDone && m.hasExaminerOpinionForm && m.id && (
                       <Pressable onPress={() => setOpinionFormFor(m.id!)} accessibilityRole="button" style={{ marginTop: 4 }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: m.gradeApproved ? '#10B981' : '#7C3AED' }}>
                           {m.gradeApproved
@@ -734,7 +744,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                         </Text>
                       </Pressable>
                     )}
-                    {m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
+                    {!m.importedAsDone && m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
                       <Pressable onPress={() => setEvaluationFormFor(m.id!)} accessibilityRole="button" style={{ marginTop: 4 }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: m.gradeApproved ? '#10B981' : '#7C3AED' }}>
                           {m.gradeApproved
@@ -749,7 +759,7 @@ export default function ProjectWorkflowSection({ lang, projectId, project, openR
                         </Text>
                       </Pressable>
                     )}
-                    {m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
+                    {!m.importedAsDone && m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
                       <View style={{ marginTop: 4 }}>
                         {m.gradeApproved ? (
                           <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>

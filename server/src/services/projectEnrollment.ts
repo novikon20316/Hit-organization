@@ -97,12 +97,24 @@ export interface EnrollmentTrack {
   projectType: 'project' | 'thesis';
 }
 
+/** Only for a student imported part-way through their project (see
+ *  services/importedStudentPlacement.ts): the real start date drives
+ *  projectStartDate and every milestone's due date, and the first
+ *  `completedMilestones` milestones (template order) are created already
+ *  done — closed with no grade yet (`importedAsDone`), for staff to enter
+ *  the grade afterwards. Every other caller omits this. */
+export interface ImportedProgress {
+  startDate: Date;
+  completedMilestones: number;
+}
+
 export async function enrollStudentInProject(
   projectId: string,
   studentId: string,
   supervisorId: string,
   facultyId: string,
   track?: EnrollmentTrack,
+  imported?: ImportedProgress,
 ): Promise<void> {
   const studentRef = db.collection('users').doc(studentId);
   const projectRef = db.collection('projects').doc(projectId);
@@ -210,7 +222,11 @@ export async function enrollStudentInProject(
       // "תאריך תחילת פרויקט" (Project_examiner.docx) — the approval moment
       // that actually seats a student, i.e. right here, not project creation.
       // Set once, by whichever student is first to enroll; never touched again.
-      ...(hasProjectStartDate ? {} : { projectStartDate: admin.firestore.FieldValue.serverTimestamp() }),
+      ...(hasProjectStartDate ? {} : {
+        projectStartDate: imported
+          ? admin.firestore.Timestamp.fromDate(imported.startDate)
+          : admin.firestore.FieldValue.serverTimestamp(),
+      }),
     });
 
     transaction.update(studentRef, {
@@ -255,10 +271,19 @@ export async function enrollStudentInProject(
       return;
     }
 
-    const baseDate = new Date();
+    const baseDate = imported?.startDate ?? new Date();
+    // Template order decides which milestones an imported student already
+    // finished (the first `completedMilestones` of them).
+    const doneTypes = new Set(
+      imported && imported.completedMilestones > 0
+        ? [...milestoneTemplates].sort((a, b) => a.order - b.order).slice(0, imported.completedMilestones).map((t) => t.type)
+        : []
+    );
     for (const t of milestoneTemplates) {
       const dueDate = resolveMilestoneDueDate(t, baseDate, milestoneTemplates);
       const milestoneRef = db.collection('milestones').doc();
+      const routing = resolveMilestoneRouting(t, templateDefaultRouting);
+      const importedDone = doneTypes.has(t.type);
       transaction.set(milestoneRef, {
         projectId, studentIds: [studentId], supervisorId, facultyId,
         ...(secondarySupervisorId ? { secondarySupervisorId } : {}),
@@ -347,13 +372,22 @@ export async function enrollStudentInProject(
         // chain-driven once chainPrecheckComplete is set, handing off to
         // the untouched examiner scheduling/grading engine — see
         // milestoneRouting.ts's isChainDriven.
-        routing: resolveMilestoneRouting(t, templateDefaultRouting),
+        routing,
         currentStageIndex: 0,
         stageScores: {},
         stageEnteredAt: admin.firestore.FieldValue.serverTimestamp(),
         ...(t.seminarScheduling ? { seminarScheduling: true } : {}),
         // See thesisExam.ts — opened when the previous milestone is approved.
         ...(t.thesisExamFlow ? { thesisExamFlow: true } : {}),
+        // Finished before the student was brought into the system: closed
+        // as approved, past every chain stage, grade still missing — staff
+        // enter it via POST /api/milestones/:id/imported-grade.
+        ...(importedDone ? {
+          status: 'coordinator_approved',
+          currentStageIndex: routing.length,
+          coordinatorApprovedAt: admin.firestore.FieldValue.serverTimestamp(),
+          importedAsDone: true,
+        } : {}),
       });
     }
   });

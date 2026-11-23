@@ -7,7 +7,8 @@ import { AuthenticatedRequest, verifyToken, forgetTokensValidAfter } from '../mi
 import { DEGREE_LENGTHS } from '../config/degreeLengths.js';
 import { VALID_MAJORS, MAJORS_BY_FACULTY } from '../config/majors.js';
 import { checkDeletionEligibility, requestDeletion, cancelDeletion } from '../services/accountDeletion.js';
-import { checkStudentEligibility, markRosterEntryUsed } from '../services/studentRoster.js';
+import { checkStudentEligibility, markRosterEntryUsed, getRosterEntry } from '../services/studentRoster.js';
+import { placeImportedStudent } from '../services/importedStudentPlacement.js';
 import { isAllowedStudentEmailDomain, STUDENT_ALLOWED_EMAIL_DOMAINS } from '../services/emailValidation.js';
 import { hashPassword, getTempPasswordHash, clearTempPasswordHash } from '../services/userImportExport.js';
 import { logAuditEvent } from '../services/auditLog.js';
@@ -378,7 +379,12 @@ export const syncData = async (req: AuthenticatedRequest, res: Response) => {
     if (outcome.kind === 'exists') {
       return res.status(200).json({ success: true, alreadyExists: true });
     }
-    return res.status(200).json({ success: true, user: firestoreUserDoc });
+    // Uploaded on the roster as already part-way through a project/thesis →
+    // create that project and continue them from where they are, before the
+    // client loads their dashboard. Never fails the signup (see the service).
+    const rosterEntry = await getRosterEntry(studentId, resolvedFacultyId, degreeType).catch(() => null);
+    const placedProjectId = rosterEntry?.inProgress ? await placeImportedStudent(newUid, rosterEntry) : null;
+    return res.status(200).json({ success: true, user: firestoreUserDoc, ...(placedProjectId ? { placedProjectId } : {}) });
   } catch (error: any) {
     console.error('POST /sync error:', error);
     return res.status(500).json({ error: L(req, 'Failed to create account profile.', 'יצירת פרופיל החשבון נכשלה.') });

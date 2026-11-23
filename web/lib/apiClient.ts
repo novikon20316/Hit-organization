@@ -3409,6 +3409,12 @@ export const apiClient = {
     return request<CommitteeReviewDetail>(`/api/milestones/${milestoneId}/committee-review`, { method: 'GET' });
   },
 
+  /** POST /api/milestones/:id/imported-grade — grade for a milestone the
+   *  student finished before being imported into the system (importedAsDone). */
+  async setImportedMilestoneGrade(milestoneId: string, grade: number, comment?: string) {
+    return request<{ success: boolean }>(`/api/milestones/${milestoneId}/imported-grade`, { method: 'POST', body: { grade, comment } });
+  },
+
   async submitCommitteeVote(milestoneId: string, vote: 'approve' | 'reject', comment: string) {
     return request<{ success: boolean }>(`/api/milestones/${milestoneId}/committee-vote`, { method: 'POST', body: { vote, comment } });
   },

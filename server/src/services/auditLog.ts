@@ -91,6 +91,13 @@ export type AuditAction =
   // (services/studentNameMatch.ts) — a possible attempt to register as
   // someone else.
   | 'signup_name_mismatch'
+  // A student imported part-way through their project was placed into it at
+  // first signup (services/importedStudentPlacement.ts), or placement failed.
+  | 'imported_student_placed'
+  | 'imported_student_placement_failed'
+  // Staff entered/changed the grade of a milestone the student had finished
+  // before being brought into the system (importedAsDone).
+  | 'imported_milestone_grade_set'
   // Staff revoked a student's final report link(s) and sent a fresh one
   // (services/finalReport.ts's revokeAndReissueFinalReportLinks).
   | 'final_report_link_revoked'

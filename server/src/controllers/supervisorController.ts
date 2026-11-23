@@ -432,6 +432,10 @@ export const getSupervisorProjectDetail = async (req: AuthenticatedRequest, res:
             // CS thesis exam (services/thesisExam.ts) — once in its exam_*
             // steps the work happens on /thesis-exam, not in this card.
             thesisExamFlow: !!m?.thesisExamFlow,
+            // Finished before the student was imported into the system —
+            // closed as done; the grade is entered via POST
+            // /api/milestones/:id/imported-grade (importedGradeController.ts).
+            importedAsDone: !!m?.importedAsDone,
             seminarSchedule: m?.seminarSchedule ?? null,
             // The student's submitted files/note for this milestone — lets
             // the supervisor preview/download them straight from the

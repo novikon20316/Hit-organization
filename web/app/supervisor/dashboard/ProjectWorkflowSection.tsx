@@ -14,6 +14,7 @@
 import { Select } from '@/components/ui/Select';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ImportedGradeEntry } from './ImportedGradeEntry';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/apiClient';
@@ -98,6 +99,9 @@ export interface StudentMilestoneRow {
   /** CS thesis exam milestone — in its exam_* steps the work happens on
    *  /thesis-exam, not in this card. */
   thesisExamFlow?: boolean;
+  /** Finished before the student was imported into the system — closed as
+   *  done; only its grade is left (see ImportedGradeEntry). */
+  importedAsDone?: boolean;
   opinionOutcome?: 'continue' | 'revise' | 'reject' | null;
   supervisorEvaluationSubmitted: boolean;
   autoCalculatedFinalGrade: number | null;
@@ -709,7 +713,14 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                               'grade' (see addResearchProposalStudentForm.ts), so it's kept
                               out of the generic Grade branch below entirely: submitting a
                               score against an 'approve' stage would 400. */}
-                          {m.type === 'research_proposal' && m.id && (() => {
+                          {/* Finished before the student joined the system:
+                              only the grade is left — none of the normal
+                              sign/grade/evaluate actions below apply. */}
+                          {m.importedAsDone && m.id && (
+                            <ImportedGradeEntry milestoneId={m.id} finalGrade={m.finalGrade} lang={lang} onSaved={refreshDetailSilently} />
+                          )}
+
+                          {!m.importedAsDone && m.type === 'research_proposal' && m.id && (() => {
                             const currentStage = m.routing?.[m.currentStageIndex ?? 0];
                             const dualSignRequired = !!(
                               currentStage?.role === 'supervisor' && currentStage.requireAllAssignedSupervisors && secondarySupervisorId
@@ -919,7 +930,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                               three-rubric defense workflow below handles its own,
                               and research_proposal is handled by the sign-off
                               block above. */}
-                          {!m.hasFinalGradeComponents && m.type !== 'research_proposal' && m.id && (() => {
+                          {!m.importedAsDone && !m.hasFinalGradeComponents && m.type !== 'research_proposal' && m.id && (() => {
                             const pending = pendingGrades.find((pg) => pg.id === m.id);
                             if (m.finalGrade != null) {
                               return (
@@ -1020,7 +1031,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                           )}
 
                           {/* Staff record action (research_proposal/progress_report only). */}
-                          {m.staffRecordMode === 'upload_or_form' && m.id && (
+                          {!m.importedAsDone && m.staffRecordMode === 'upload_or_form' && m.id && (
                             <button
                               type="button"
                               onClick={() => setStaffRecordFor({ milestoneId: m.id!, fields: spec?.staffFormFields ?? [] })}
@@ -1034,7 +1045,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
 
                           {/* Thesis examiner opinions — the supervisor sees each one as
                               its examiner's confidentiality request allows. */}
-                          {m.hasExaminerOpinionForm && m.id && (
+                          {!m.importedAsDone && m.hasExaminerOpinionForm && m.id && (
                             <div className="mt-1 text-xs">
                               <button type="button" onClick={() => setOpinionFormFor(m.id!)} className="font-medium text-[#00236f] hover:underline">
                                 {m.gradeApproved
@@ -1050,7 +1061,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
 
                           {/* Per-student evaluation form (e.g. Electrical B.Sc.) —
                               one entry point for filling, signing and deciding. */}
-                          {m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
+                          {!m.importedAsDone && m.hasFinalGradeComponents && m.perStudentEvaluation && m.id && (
                             <div className="mt-1 text-xs">
                               <button
                                 type="button"
@@ -1071,7 +1082,7 @@ export function ProjectWorkflowSection({ project, pendingGrades, onGrade, openRe
                           )}
 
                           {/* Three-rubric final-grade workflow (defense only). */}
-                          {m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
+                          {!m.importedAsDone && m.hasFinalGradeComponents && !m.perStudentEvaluation && m.id && (
                             <div className="mt-1 text-xs">
                               {m.gradeApproved ? (
                                 <span className="font-semibold text-success">
